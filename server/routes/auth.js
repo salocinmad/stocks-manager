@@ -1,0 +1,153 @@
+import express from 'express';
+import User from '../models/User.js';
+import { generateToken, authenticate } from '../middleware/auth.js';
+
+const router = express.Router();
+
+// Función para obtener la contraseña maestra (se carga dinámicamente)
+function getMasterPassword() {
+  return process.env.MASTER_PASSWORD || 'Freedom2-Mud9-Garnish7-Tattle4-Vivacious4-Germinate3-Removal9-Harmonics5-Heave6';
+}
+
+// Login
+router.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Usuario y contraseña son requeridos' });
+    }
+
+    // Buscar usuario
+    const user = await User.findOne({ username: username.toLowerCase() });
+    if (!user) {
+      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    }
+
+    // Verificar contraseña
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    }
+
+    // Generar token
+    const token = generateToken(user);
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        isAdmin: user.isAdmin
+      }
+    });
+  } catch (error) {
+    console.error('Error en login:', error);
+    res.status(500).json({ error: 'Error al iniciar sesión' });
+  }
+});
+
+// Verificar sesión actual
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    res.json({
+      user: {
+        id: user._id,
+        username: user.username,
+        isAdmin: user.isAdmin
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al verificar sesión' });
+  }
+});
+
+// Cambiar contraseña del usuario actual
+router.post('/change-password', authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Contraseña actual y nueva contraseña son requeridas' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    }
+
+    // Buscar usuario
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Verificar contraseña actual
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Contraseña actual incorrecta' });
+    }
+
+    // Actualizar contraseña
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ message: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    console.error('Error cambiando contraseña:', error);
+      res.status(500).json({ error: 'Error al cambiar contraseña' });
+    }
+  });
+
+// Recuperar contraseña de administrador (ruta pública, solo requiere contraseña maestra)
+router.post('/recover-admin-password', async (req, res) => {
+  console.log('🎯 RUTA /recover-admin-password LLAMADA');
+  console.log('   Body recibido:', JSON.stringify({ ...req.body, masterPassword: req.body.masterPassword ? '[OCULTO]' : 'null', newPassword: req.body.newPassword ? '[OCULTO]' : 'null' }));
+  
+  try {
+    const { masterPassword, newPassword } = req.body;
+    const expectedMasterPassword = getMasterPassword();
+    
+    console.log('   ✅ Variables extraídas correctamente');
+
+    // Debug: log para verificar (sin mostrar la contraseña completa)
+    console.log('🔍 Verificando contraseña maestra...');
+    console.log('   Longitud recibida:', masterPassword ? masterPassword.length : 0);
+    console.log('   Longitud esperada:', expectedMasterPassword ? expectedMasterPassword.length : 0);
+    console.log('   Primeros 10 caracteres recibidos:', masterPassword ? masterPassword.substring(0, 10) : 'null');
+    console.log('   Primeros 10 caracteres esperados:', expectedMasterPassword ? expectedMasterPassword.substring(0, 10) : 'null');
+    console.log('   Últimos 10 caracteres recibidos:', masterPassword ? masterPassword.substring(masterPassword.length - 10) : 'null');
+    console.log('   Últimos 10 caracteres esperados:', expectedMasterPassword ? expectedMasterPassword.substring(expectedMasterPassword.length - 10) : 'null');
+    console.log('   Coinciden exactamente:', masterPassword === expectedMasterPassword);
+    console.log('   Coinciden (trim):', masterPassword && expectedMasterPassword ? masterPassword.trim() === expectedMasterPassword.trim() : false);
+
+    if (!masterPassword || masterPassword !== expectedMasterPassword) {
+      return res.status(401).json({ error: 'Contraseña maestra incorrecta' });
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    }
+
+    // Buscar usuario administrador (el primero que encuentre)
+    const adminUser = await User.findOne({ isAdmin: true });
+    if (!adminUser) {
+      return res.status(404).json({ error: 'No se encontró ningún usuario administrador' });
+    }
+
+    // Actualizar contraseña
+    adminUser.password = newPassword;
+    await adminUser.save();
+
+    res.json({ message: 'Contraseña de administrador recuperada correctamente' });
+  } catch (error) {
+    console.error('Error recuperando contraseña de administrador:', error);
+    res.status(500).json({ error: 'Error al recuperar contraseña de administrador' });
+  }
+});
+
+export default router;
+

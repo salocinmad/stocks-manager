@@ -1,0 +1,25 @@
+{
+  "name": "portfolio-manager-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "init-admin": "node scripts/initAdmin.js",
+    "migrate-operations": "node scripts/migrateOperationsToUsers.js",
+    "reset-admin-password": "node scripts/resetAdminPassword.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.3",
+    "react-router-dom": "^6.30.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

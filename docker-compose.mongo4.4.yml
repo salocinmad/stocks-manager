@@ -1,0 +1,59 @@
+services:
+  # MongoDB 4.4 (compatible con CPUs sin soporte AVX)
+  # Usa este archivo si tu CPU no soporta AVX y recibes el error:
+  # "MongoDB 5.0+ requires a CPU with AVX support"
+  mongo:
+    image: mongo:4.4
+    container_name: stocks-manager-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: portfolio-manager
+    networks:
+      - stocks-manager-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: stocks-manager-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      # Usar volumen nombrado para .env (compatible con Portainer)
+      # Montamos el volumen en un directorio para evitar que Docker cree un directorio en lugar de archivo
+      - backend_env:/app/env
+    depends_on:
+      - mongo
+    networks:
+      - stocks-manager-network
+
+  # Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stocks-manager-frontend
+    restart: unless-stopped
+    ports:
+      # Cambiar a puerto 8080 para evitar conflictos con servicios en puerto 80
+      # Puedes cambiarlo a "80:80" si el puerto 80 está libre
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - stocks-manager-network
+
+volumes:
+  mongo_data:
+  backend_env:
+
+networks:
+  stocks-manager-network:
+    driver: bridge
+

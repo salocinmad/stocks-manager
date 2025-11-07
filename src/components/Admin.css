@@ -1,0 +1,132 @@
+.admin-container {
+  min-height: 100vh;
+  padding: 20px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.admin-header h1 {
+  margin: 0;
+}
+
+.back-button {
+  padding: 10px 20px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.back-button:hover {
+  background: var(--bg-secondary);
+}
+
+.admin-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.alert {
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.alert.error {
+  background: #fee;
+  color: #c33;
+}
+
+.alert.success {
+  background: #efe;
+  color: #3c3;
+}
+
+.users-list {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.users-list h2 {
+  margin-top: 0;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.users-table th,
+.users-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.users-table th {
+  background: var(--bg-secondary);
+  font-weight: 600;
+}
+
+.users-table tr:hover {
+  background: var(--bg-secondary);
+}
+
+.button.small {
+  padding: 6px 12px;
+  font-size: 12px;
+  margin-right: 5px;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 500px;
+  width: 90%;
+}
+
+.modal-content h2 {
+  margin-top: 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.button.warning {
+  background: #f90;
+  color: white;
+}
+
+.button.warning:hover {
+  background: #fa0;
+}
+
