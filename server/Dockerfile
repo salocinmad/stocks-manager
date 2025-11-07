@@ -21,5 +21,5 @@ RUN chmod +x entrypoint.sh
 EXPOSE 3001
 
 # Usar el script de entrada que inicializa .env y luego inicia el servidor
-ENTRYPOINT ["./entrypoint.sh"]
-
+# Ejecutar explícitamente con sh para evitar problemas con shebang
+ENTRYPOINT ["sh", "./entrypoint.sh"]
