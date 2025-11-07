@@ -50,8 +50,8 @@ Aplicación web completa para gestionar tu cartera de acciones con seguimiento d
 
 #### 1. Clonar el repositorio
 ```bash
-git clone <tu-repositorio>
-cd Bolsa
+git clone https://github.com/salocinmad/stocks-manager.git
+cd stocks-manager
 ```
 
 #### 2. Instalar dependencias
@@ -131,55 +131,96 @@ npm run dev
 
 ### Opción 2: Docker Compose (Recomendado para Producción)
 
-#### 1. Configurar variables de entorno
+#### 1. Elegir versión de MongoDB
 
-Crear `server/.env`:
-```env
-PORT=3001
-MONGODB_URI=mongodb://mongo:27017/portfolio-manager
-CORS_ORIGIN=http://localhost:80
-JWT_SECRET=tu-secret-key-super-segura-cambiar-en-produccion
-```
+El proyecto incluye dos archivos Docker Compose:
+- **`docker-compose.yml`** (por defecto): MongoDB 7.0 - Requiere CPU con soporte AVX
+- **`docker-compose.mongo4.4.yml`**: MongoDB 4.4 - Compatible con CPUs sin soporte AVX
+
+**¿Cuál usar?**
+- Por defecto, usa `docker-compose.yml` (MongoDB 7.0)
+- Si tu CPU NO soporta AVX o recibes el error `MongoDB 5.0+ requires a CPU with AVX support`, usa `docker-compose.mongo4.4.yml`
 
 #### 2. Construir y levantar contenedores
 
+**Con MongoDB 7.0 (por defecto):**
 ```bash
 docker-compose up -d --build
 ```
 
-#### 3. Inicializar usuario administrador
+**Con MongoDB 4.4 (si tu CPU no soporta AVX):**
+```bash
+docker-compose -f docker-compose.mongo4.4.yml up -d --build
+```
+
+**Nota**: El archivo `.env` se genera automáticamente la primera vez que se inicia el contenedor backend, incluyendo una contraseña maestra única.
+
+#### 3. Ver la contraseña maestra
+
+```bash
+docker-compose logs backend | grep "CONTRASEÑA MAESTRA"
+```
+
+**⚠️ IMPORTANTE**: Guarda esta contraseña en un lugar seguro. La necesitarás para recuperar la contraseña de administrador en `/resetadmin`.
+
+#### 4. Inicializar usuario administrador
 
 ```bash
 docker-compose exec backend npm run init-admin
 ```
 
-#### 4. Acceder a la aplicación
+Esto creará el usuario administrador por defecto:
+- **Usuario**: `admin`
+- **Contraseña**: `admin123`
+- ⚠️ **IMPORTANTE**: Cambia la contraseña después del primer login
 
-- **Frontend**: http://localhost:80
+#### 5. Acceder a la aplicación
+
+- **Frontend**: http://localhost:8080
 - **Backend API**: http://localhost:3001
 - **MongoDB**: localhost:27017
 
-#### 5. Gestión de contenedores
+**Nota**: El frontend usa el puerto 8080 por defecto para evitar conflictos con otros servicios.
+
+#### 6. Gestión de contenedores
 
 **Ver logs:**
 ```bash
+# MongoDB 7.0
 docker-compose logs -f
+
+# MongoDB 4.4
+docker-compose -f docker-compose.mongo4.4.yml logs -f
 ```
 
 **Detener contenedores:**
 ```bash
+# MongoDB 7.0
 docker-compose down
+
+# MongoDB 4.4
+docker-compose -f docker-compose.mongo4.4.yml down
 ```
 
 **Detener y eliminar volúmenes (⚠️ borra datos):**
 ```bash
+# MongoDB 7.0
 docker-compose down -v
+
+# MongoDB 4.4
+docker-compose -f docker-compose.mongo4.4.yml down -v
 ```
 
 **Reiniciar servicios:**
 ```bash
+# MongoDB 7.0
 docker-compose restart
+
+# MongoDB 4.4
+docker-compose -f docker-compose.mongo4.4.yml restart
 ```
+
+Para más información sobre Docker, consulta [DOCKER.md](DOCKER.md).
 
 ### Opción 3: MongoDB Atlas (Base de Datos en la Nube)
 
@@ -272,7 +313,7 @@ Solo los administradores pueden crear usuarios:
 ### Acceso al Panel de Administración
 
 1. Inicia sesión como administrador
-2. Accede directamente a: `http://localhost:5173/admin`
+2. Accede directamente a: `http://localhost:5173/admin` (desarrollo local) o `http://localhost:8080/admin` (Docker)
 
 ### Funcionalidades del Panel de Administración
 
@@ -298,7 +339,7 @@ Solo los administradores pueden crear usuarios:
 
 Si pierdes la contraseña del administrador, puedes recuperarla usando la ruta secreta:
 
-**URL**: `http://localhost:5173/resetadmin`
+**URL**: `http://localhost:5173/resetadmin` (desarrollo local) o `http://localhost:8080/resetadmin` (Docker)
 
 ### Proceso de Recuperación
 
@@ -454,7 +495,7 @@ Las posiciones activas se muestran en la tabla principal con:
 ## 🗂️ Estructura del Proyecto
 
 ```
-Bolsa/
+stocks-manager/
 ├── src/                          # Código fuente del frontend
 │   ├── components/               # Componentes React
 │   │   ├── Admin.jsx            # Panel de administración
@@ -489,69 +530,45 @@ Bolsa/
 │   ├── package.json              # Dependencias del backend
 │   └── .env                      # Variables de entorno (crear)
 ├── public/                       # Archivos estáticos
-├── docker-compose.yml            # Configuración Docker Compose
+├── docker-compose.yml            # Docker Compose con MongoDB 7.0 (por defecto)
+├── docker-compose.mongo4.4.yml  # Docker Compose con MongoDB 4.4 (alternativa)
 ├── Dockerfile                    # Dockerfile del frontend
 ├── nginx.conf                    # Configuración Nginx
 ├── package.json                  # Dependencias del frontend
 ├── vite.config.js                # Configuración Vite
+├── DOCKER.md                     # Documentación detallada de Docker
+├── RESET_ADMIN_PASSWORD.md       # Guía de recuperación de contraseña
 └── README.md                     # Esta documentación
 ```
 
 ## 🐳 Despliegue con Docker
 
-### Preparación
+Para información detallada sobre Docker, consulta [DOCKER.md](DOCKER.md).
 
-1. Asegúrate de tener Docker y Docker Compose instalados
-2. Configura `server/.env` con las variables correctas
-3. Para producción, actualiza `JWT_SECRET` y `MASTER_PASSWORD`
+### Características Automáticas
 
-### Construcción y Despliegue
+- ✅ **Generación automática de `.env`**: Se crea automáticamente con contraseña maestra única
+- ✅ **Inicialización automática**: MongoDB, backend y frontend se inician automáticamente
+- ✅ **Persistencia de datos**: Los datos se almacenan en volúmenes Docker
+- ✅ **Soporte para Portainer**: Compatible con despliegue en Portainer
 
-```bash
-# Construir imágenes
-docker-compose build
+### Versiones de MongoDB
 
-# Levantar servicios
-docker-compose up -d
+- **MongoDB 7.0** (por defecto): Requiere CPU con soporte AVX
+- **MongoDB 4.4** (alternativa): Compatible con CPUs sin soporte AVX
 
-# Ver logs
-docker-compose logs -f
+Usa `docker-compose.mongo4.4.yml` si tu CPU no soporta AVX.
 
-# Inicializar administrador
-docker-compose exec backend npm run init-admin
-```
+### Variables de Entorno Automáticas
 
-### Variables de Entorno para Docker
+El archivo `.env` se genera automáticamente con:
+- `PORT=3001` - Puerto del backend
+- `MONGODB_URI=mongodb://mongo:27017/portfolio-manager` - Conexión a MongoDB
+- `CORS_ORIGIN=http://localhost:8080` - Origen permitido para CORS
+- `JWT_SECRET` - Generado automáticamente
+- `MASTER_PASSWORD` - Generado automáticamente (único por instalación)
 
-Editar `docker-compose.yml` o usar archivo `.env`:
-
-```yaml
-backend:
-  environment:
-    - PORT=3001
-    - MONGODB_URI=mongodb://mongo:27017/portfolio-manager
-    - CORS_ORIGIN=http://localhost:80
-    - JWT_SECRET=tu-secret-key-super-segura
-    - MASTER_PASSWORD=tu-contraseña-maestra
-```
-
-### Usar MongoDB Atlas con Docker
-
-Modificar `docker-compose.yml`:
-
-```yaml
-backend:
-  environment:
-    - MONGODB_URI=mongodb+srv://usuario:password@cluster.mongodb.net/portfolio-manager?retryWrites=true&w=majority
-```
-
-Y eliminar o comentar el servicio `mongo`:
-
-```yaml
-# mongo:
-#   image: mongo:7
-#   ...
-```
+**Nota**: Para usar MongoDB Atlas, edita el `.env` dentro del contenedor o modifica `docker-compose.yml`.
 
 ## 🔍 Troubleshooting
 
@@ -590,9 +607,19 @@ Y eliminar o comentar el servicio `mongo`:
 
 **Solución:**
 1. Verifica que Docker Desktop está corriendo
-2. Verifica que los puertos 80, 3001, 27017 no están en uso
+2. Verifica que los puertos 8080, 3001, 27017 no están en uso
 3. Revisa los logs: `docker-compose logs`
 4. Reconstruye las imágenes: `docker-compose build --no-cache`
+
+### Problema: MongoDB requiere AVX
+
+**Error**: `MongoDB 5.0+ requires a CPU with AVX support`
+
+**Solución:**
+Usa el archivo alternativo para MongoDB 4.4:
+```bash
+docker-compose -f docker-compose.mongo4.4.yml up -d
+```
 
 ## 📝 Scripts Disponibles
 
@@ -620,6 +647,11 @@ Y eliminar o comentar el servicio `mongo`:
 6. **Contraseñas**: Cambia las contraseñas por defecto
 7. **CORS**: Configura `CORS_ORIGIN` solo con tu dominio de producción
 
+## 📚 Documentación Adicional
+
+- **[DOCKER.md](DOCKER.md)**: Guía completa de Docker, incluyendo despliegue en Portainer
+- **[RESET_ADMIN_PASSWORD.md](RESET_ADMIN_PASSWORD.md)**: Guía para recuperar la contraseña de administrador
+
 ## 📄 Licencia
 
 MIT
@@ -628,18 +660,34 @@ MIT
 
 Las contribuciones son bienvenidas. Por favor:
 1. Fork el proyecto
-2. Crea una rama para tu feature
-3. Commit tus cambios
-4. Push a la rama
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
 
 ## 📞 Soporte
 
 Para problemas o preguntas:
 - Revisa la sección de Troubleshooting
-- Abre un issue en el repositorio
-- Consulta la documentación de las APIs utilizadas
+- Consulta [DOCKER.md](DOCKER.md) para problemas relacionados con Docker
+- Abre un issue en el [repositorio de GitHub](https://github.com/salocinmad/stocks-manager/issues)
+- Consulta la documentación de las APIs utilizadas:
+  - [Finnhub API](https://finnhub.io/docs/api)
+  - [Yahoo Finance](https://finance.yahoo.com/)
+
+## 🌟 Características Destacadas
+
+- 🔐 **Autenticación segura** con JWT y bcrypt
+- 📊 **Gráficos interactivos** de ganancias/pérdidas
+- 🌍 **Soporte multi-mercado** (NASDAQ, NYSE, BME, Frankfurt, etc.)
+- 💱 **Conversión automática de monedas** con tipos de cambio en tiempo real
+- 📤 **Exportación a CSV** con cálculo de retenciones
+- 🐳 **Dockerizado** y listo para producción
+- 👥 **Multi-usuario** con portfolios independientes
+- 🌓 **Modo claro/oscuro** personalizable
 
 ---
 
 **Desarrollado con ❤️ para la gestión de portfolios de acciones**
+
+**Repositorio**: [https://github.com/salocinmad/stocks-manager](https://github.com/salocinmad/stocks-manager)
