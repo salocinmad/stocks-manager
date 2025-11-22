@@ -1,62 +1,69 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
+import User from './User.js';
 
-const operationSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true // Índice para búsquedas rápidas por usuario
+const Operation = sequelize.define('Operation', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
   },
   type: {
-    type: String,
-    required: true,
-    enum: ['purchase', 'sale']
+    type: DataTypes.ENUM('purchase', 'sale'),
+    allowNull: false
   },
   company: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   symbol: {
-    type: String,
-    default: ''
+    type: DataTypes.STRING,
+    defaultValue: ''
   },
   shares: {
-    type: Number,
-    required: true,
-    min: 1
+    type: DataTypes.FLOAT, // Usamos FLOAT para permitir decimales si fuera necesario, aunque el original era Number
+    allowNull: false,
+    validate: {
+      min: 0.0001 // Evitar 0 o negativos, ajustado para permitir fraccionarias si se requiere
+    }
   },
   price: {
-    type: Number,
-    required: true,
-    min: 0
+    type: DataTypes.FLOAT,
+    allowNull: false,
+    validate: {
+      min: 0
+    }
   },
   currency: {
-    type: String,
-    required: true,
-    default: 'EUR'
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'EUR'
   },
   exchangeRate: {
-    type: Number,
-    required: true,
-    default: 1
+    type: DataTypes.FLOAT,
+    allowNull: false,
+    defaultValue: 1
   },
   commission: {
-    type: Number,
-    default: 0,
-    min: 0
+    type: DataTypes.FLOAT,
+    defaultValue: 0,
+    validate: {
+      min: 0
+    }
   },
   totalCost: {
-    type: Number,
-    required: true
+    type: DataTypes.FLOAT,
+    allowNull: false
   },
   date: {
-    type: Date,
-    required: true,
-    default: Date.now
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
   }
-}, {
-  timestamps: true // Añade createdAt y updatedAt automáticamente
 });
 
-export default mongoose.model('Operation', operationSchema);
+// Definir relación
+Operation.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE' });
+User.hasMany(Operation, { foreignKey: 'userId' });
 
+export default Operation;

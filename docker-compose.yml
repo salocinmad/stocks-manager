@@ -1,65 +1,41 @@
 services:
-  # MongoDB 7.0 (requiere CPU con soporte AVX)
-  # Si tu CPU NO soporta AVX, usa docker-compose.mongo4.4.yml con MongoDB 4.4
-  mongo:
-    image: mongo:7
-    container_name: stocks-manager-mongo
-    restart: unless-stopped
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
+  mariadb:
+    image: mariadb:latest
+    restart: always
     environment:
-      MONGO_INITDB_DATABASE: portfolio-manager
-    networks:
-      - stocks-manager-network
-
-  # Backend API
-  backend:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    container_name: stocks-manager-backend
-    restart: unless-stopped
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: portfolio_manager
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
     ports:
-      - "3001:3001"
+      - "3306:3306"
     volumes:
-      # Usar volumen nombrado para .env (compatible con Portainer)
-      # Montamos el volumen en un directorio para evitar que Docker cree un directorio en lugar de archivo
-      - backend_env:/app/env
-    depends_on:
-      - mongo
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - stocks-manager-network
+      - mariadb_data:/var/lib/mysql
 
-  # Frontend
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: stocks-manager-frontend
-    restart: unless-stopped
+  server:
+    build: ./server
     ports:
-      # Cambiar a puerto 8080 para evitar conflictos con servicios en puerto 80
-      # Puedes cambiarlo a "80:80" si el puerto 80 está libre
-      - "8080:80"
+      - "5000:5000"
+    environment:
+      - DB_HOST=mariadb
+      - DB_USER=user
+      - DB_PASS=password
+      - DB_NAME=portfolio_manager
+      - JWT_SECRET=your_jwt_secret_key
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY}
     depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - stocks-manager-network
+      - mariadb
+
+  frontend:
+    build: .
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    tty: true
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    depends_on:
+      - server
 
 volumes:
-  mongo_data:
-  backend_env:
-
-networks:
-  stocks-manager-network:
-    driver: bridge
-
+  mariadb_data:

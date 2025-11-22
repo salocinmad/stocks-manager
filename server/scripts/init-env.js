@@ -16,21 +16,20 @@ if (!existsSync(envPath)) {
 // Función para generar una contraseña maestra segura
 function generateMasterPassword() {
   // Genera una contraseña aleatoria de 32 caracteres
-  // Formato: palabra1-palabra2-palabra3-palabra4-palabra5-palabra6-palabra7-palabra8-palabra9
   const words = [
     'Freedom', 'Mud', 'Garnish', 'Tattle', 'Vivacious', 'Germinate', 'Removal', 'Harmonics', 'Heave',
     'Liberty', 'Stone', 'Season', 'Whisper', 'Energetic', 'Sprout', 'Elimination', 'Melody', 'Lift',
     'Independence', 'Clay', 'Flavor', 'Chatter', 'Dynamic', 'Grow', 'Deletion', 'Rhythm', 'Raise',
     'Autonomy', 'Dirt', 'Spice', 'Talk', 'Active', 'Develop', 'Removal', 'Tune', 'Boost'
   ];
-  
+
   const selectedWords = [];
   for (let i = 0; i < 9; i++) {
     const randomWord = words[Math.floor(Math.random() * words.length)];
     const randomNumber = Math.floor(Math.random() * 10);
     selectedWords.push(`${randomWord}${randomNumber}`);
   }
-  
+
   return selectedWords.join('-');
 }
 
@@ -95,8 +94,11 @@ const envContent = `# Archivo de configuración generado automáticamente
 # Puerto del servidor
 PORT=3001
 
-# MongoDB Connection String (Docker - MongoDB local)
-MONGODB_URI=mongodb://mongo:27017/portfolio-manager
+# Database Configuration
+DB_HOST=mariadb
+DB_USER=user
+DB_PASS=password
+DB_NAME=portfolio_manager
 
 # CORS - Origen permitido (frontend en Docker)
 CORS_ORIGIN=http://localhost:8080
@@ -108,6 +110,9 @@ JWT_SECRET=${jwtSecret}
 # ⚠️  IMPORTANTE: Guarda esta contraseña en un lugar seguro
 # Si pierdes esta contraseña, no podrás recuperar la cuenta de administrador
 MASTER_PASSWORD=${masterPassword}
+
+# Finnhub API Key (Get one at https://finnhub.io/)
+FINNHUB_API_KEY=
 `;
 
 // Verificación final antes de escribir: asegurarse de que no es un directorio
@@ -157,4 +162,3 @@ try {
   console.error('❌ Error al generar el archivo .env:', error.message);
   process.exit(1);
 }
-

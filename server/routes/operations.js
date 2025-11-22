@@ -10,7 +10,10 @@ router.use(authenticate);
 // Obtener todas las operaciones del usuario actual
 router.get('/', async (req, res) => {
   try {
-    const operations = await Operation.find({ userId: req.user.id }).sort({ date: -1 });
+    const operations = await Operation.findAll({
+      where: { userId: req.user.id },
+      order: [['date', 'DESC']]
+    });
     res.json(operations);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -20,7 +23,9 @@ router.get('/', async (req, res) => {
 // Obtener una operación por ID (solo si pertenece al usuario)
 router.get('/:id', async (req, res) => {
   try {
-    const operation = await Operation.findOne({ _id: req.params.id, userId: req.user.id });
+    const operation = await Operation.findOne({
+      where: { id: req.params.id, userId: req.user.id }
+    });
     if (!operation) {
       return res.status(404).json({ error: 'Operación no encontrada' });
     }
@@ -40,8 +45,8 @@ router.post('/', async (req, res) => {
     }
     // Asociar la operación al usuario actual
     operationData.userId = req.user.id;
-    const operation = new Operation(operationData);
-    await operation.save();
+
+    const operation = await Operation.create(operationData);
     res.status(201).json(operation);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -52,8 +57,11 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     // Verificar que la operación pertenece al usuario
-    const existingOperation = await Operation.findOne({ _id: req.params.id, userId: req.user.id });
-    if (!existingOperation) {
+    const operation = await Operation.findOne({
+      where: { id: req.params.id, userId: req.user.id }
+    });
+
+    if (!operation) {
       return res.status(404).json({ error: 'Operación no encontrada' });
     }
 
@@ -64,11 +72,8 @@ router.put('/:id', async (req, res) => {
     if (updateData.date) {
       updateData.date = new Date(updateData.date);
     }
-    const operation = await Operation.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true }
-    );
+
+    await operation.update(updateData);
     res.json(operation);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -78,10 +83,15 @@ router.put('/:id', async (req, res) => {
 // Eliminar una operación (solo si pertenece al usuario)
 router.delete('/:id', async (req, res) => {
   try {
-    const operation = await Operation.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+    const operation = await Operation.findOne({
+      where: { id: req.params.id, userId: req.user.id }
+    });
+
     if (!operation) {
       return res.status(404).json({ error: 'Operación no encontrada' });
     }
+
+    await operation.destroy();
     res.json({ message: 'Operación eliminada correctamente' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -91,7 +101,9 @@ router.delete('/:id', async (req, res) => {
 // Eliminar todas las operaciones del usuario actual
 router.delete('/', async (req, res) => {
   try {
-    await Operation.deleteMany({ userId: req.user.id });
+    await Operation.destroy({
+      where: { userId: req.user.id }
+    });
     res.json({ message: 'Todas las operaciones han sido eliminadas' });
   } catch (error) {
     res.status(500).json({ error: error.message });

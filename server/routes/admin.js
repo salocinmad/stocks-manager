@@ -2,7 +2,6 @@ import express from 'express';
 import User from '../models/User.js';
 import Config from '../models/Config.js';
 import { authenticate, isAdmin } from '../middleware/auth.js';
-import bcrypt from 'bcrypt';
 
 const router = express.Router();
 
@@ -12,7 +11,7 @@ router.use(authenticate);
 // Obtener API key global de Finnhub (público para todos los usuarios autenticados)
 router.get('/finnhub-api-key', async (req, res) => {
   try {
-    const config = await Config.findOne({ key: 'finnhub-api-key' });
+    const config = await Config.findOne({ where: { key: 'finnhub-api-key' } });
     if (!config) {
       return res.json({ value: null });
     }
@@ -28,7 +27,10 @@ router.use(isAdmin);
 // Obtener todos los usuarios
 router.get('/users', async (req, res) => {
   try {
-    const users = await User.find().select('-password').sort({ createdAt: -1 });
+    const users = await User.findAll({
+      attributes: { exclude: ['password'] },
+      order: [['createdAt', 'DESC']]
+    });
     res.json(users);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -45,22 +47,20 @@ router.post('/users', async (req, res) => {
     }
 
     // Verificar si el usuario ya existe
-    const existingUser = await User.findOne({ username: username.toLowerCase() });
+    const existingUser = await User.findOne({ where: { username: username.toLowerCase() } });
     if (existingUser) {
       return res.status(400).json({ error: 'El usuario ya existe' });
     }
 
     // Crear nuevo usuario
-    const newUser = new User({
+    const newUser = await User.create({
       username: username.toLowerCase(),
-      password, // Se cifrará automáticamente en el pre-save hook
+      password, // Se cifrará automáticamente en el hook beforeCreate
       isAdmin: adminFlag || false
     });
 
-    await newUser.save();
-
     // Devolver usuario sin contraseña
-    const userResponse = newUser.toObject();
+    const userResponse = newUser.toJSON();
     delete userResponse.password;
 
     res.status(201).json(userResponse);
@@ -75,14 +75,16 @@ router.delete('/users/:id', async (req, res) => {
     const userId = req.params.id;
 
     // No permitir eliminar al propio usuario administrador
-    if (userId === req.user.id) {
+    if (parseInt(userId) === req.user.id) {
       return res.status(400).json({ error: 'No puedes eliminar tu propio usuario' });
     }
 
-    const user = await User.findByIdAndDelete(userId);
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
+
+    await user.destroy();
 
     res.json({ message: 'Usuario eliminado correctamente' });
   } catch (error) {
@@ -96,7 +98,7 @@ router.post('/reset-admin-password', async (req, res) => {
     const { masterPassword, newPassword } = req.body;
 
     // Contraseña maestra
-    const MASTER_PASSWORD = 'Freedom2-Mud9-Garnish7-Tattle4-Vivacious4-Germinate3-Removal9-Harmonics5-Heave6';
+    const MASTER_PASSWORD = process.env.MASTER_PASSWORD || 'Freedom2-Mud9-Garnish7-Tattle4-Vivacious4-Germinate3-Removal9-Harmonics5-Heave6';
 
     if (!masterPassword || masterPassword !== MASTER_PASSWORD) {
       return res.status(401).json({ error: 'Contraseña maestra incorrecta' });
@@ -107,7 +109,7 @@ router.post('/reset-admin-password', async (req, res) => {
     }
 
     // Buscar usuario administrador (el primero que encuentre)
-    const adminUser = await User.findOne({ isAdmin: true });
+    const adminUser = await User.findOne({ where: { isAdmin: true } });
     if (!adminUser) {
       return res.status(404).json({ error: 'No se encontró ningún usuario administrador' });
     }
@@ -132,7 +134,7 @@ router.put('/users/:id/password', async (req, res) => {
       return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
@@ -150,11 +152,17 @@ router.put('/users/:id/password', async (req, res) => {
 router.post('/finnhub-api-key', async (req, res) => {
   try {
     const { value } = req.body;
-    const config = await Config.findOneAndUpdate(
-      { key: 'finnhub-api-key' },
-      { value },
-      { upsert: true, new: true }
-    );
+
+    const [config, created] = await Config.findOrCreate({
+      where: { key: 'finnhub-api-key' },
+      defaults: { value }
+    });
+
+    if (!created) {
+      config.value = value;
+      await config.save();
+    }
+
     res.json({ message: 'API Key configurada correctamente', value: config.value });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -19,7 +19,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Buscar usuario
-    const user = await User.findOne({ username: username.toLowerCase() });
+    const user = await User.findOne({ where: { username: username.toLowerCase() } });
     if (!user) {
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
     }
@@ -36,7 +36,7 @@ router.post('/login', async (req, res) => {
     res.json({
       token,
       user: {
-        id: user._id,
+        id: user.id,
         username: user.username,
         isAdmin: user.isAdmin
       }
@@ -50,13 +50,15 @@ router.post('/login', async (req, res) => {
 // Verificar sesión actual
 router.get('/me', authenticate, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] }
+    });
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
     res.json({
       user: {
-        id: user._id,
+        id: user.id,
         username: user.username,
         isAdmin: user.isAdmin
       }
@@ -80,7 +82,7 @@ router.post('/change-password', authenticate, async (req, res) => {
     }
 
     // Buscar usuario
-    const user = await User.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
@@ -91,38 +93,24 @@ router.post('/change-password', authenticate, async (req, res) => {
       return res.status(401).json({ error: 'Contraseña actual incorrecta' });
     }
 
-    // Actualizar contraseña
+    // Actualizar contraseña (el hook beforeUpdate se encargará del hash)
     user.password = newPassword;
     await user.save();
 
     res.json({ message: 'Contraseña actualizada correctamente' });
   } catch (error) {
     console.error('Error cambiando contraseña:', error);
-      res.status(500).json({ error: 'Error al cambiar contraseña' });
-    }
-  });
+    res.status(500).json({ error: 'Error al cambiar contraseña' });
+  }
+});
 
 // Recuperar contraseña de administrador (ruta pública, solo requiere contraseña maestra)
 router.post('/recover-admin-password', async (req, res) => {
   console.log('🎯 RUTA /recover-admin-password LLAMADA');
-  console.log('   Body recibido:', JSON.stringify({ ...req.body, masterPassword: req.body.masterPassword ? '[OCULTO]' : 'null', newPassword: req.body.newPassword ? '[OCULTO]' : 'null' }));
-  
+
   try {
     const { masterPassword, newPassword } = req.body;
     const expectedMasterPassword = getMasterPassword();
-    
-    console.log('   ✅ Variables extraídas correctamente');
-
-    // Debug: log para verificar (sin mostrar la contraseña completa)
-    console.log('🔍 Verificando contraseña maestra...');
-    console.log('   Longitud recibida:', masterPassword ? masterPassword.length : 0);
-    console.log('   Longitud esperada:', expectedMasterPassword ? expectedMasterPassword.length : 0);
-    console.log('   Primeros 10 caracteres recibidos:', masterPassword ? masterPassword.substring(0, 10) : 'null');
-    console.log('   Primeros 10 caracteres esperados:', expectedMasterPassword ? expectedMasterPassword.substring(0, 10) : 'null');
-    console.log('   Últimos 10 caracteres recibidos:', masterPassword ? masterPassword.substring(masterPassword.length - 10) : 'null');
-    console.log('   Últimos 10 caracteres esperados:', expectedMasterPassword ? expectedMasterPassword.substring(expectedMasterPassword.length - 10) : 'null');
-    console.log('   Coinciden exactamente:', masterPassword === expectedMasterPassword);
-    console.log('   Coinciden (trim):', masterPassword && expectedMasterPassword ? masterPassword.trim() === expectedMasterPassword.trim() : false);
 
     if (!masterPassword || masterPassword !== expectedMasterPassword) {
       return res.status(401).json({ error: 'Contraseña maestra incorrecta' });
@@ -133,7 +121,7 @@ router.post('/recover-admin-password', async (req, res) => {
     }
 
     // Buscar usuario administrador (el primero que encuentre)
-    const adminUser = await User.findOne({ isAdmin: true });
+    const adminUser = await User.findOne({ where: { isAdmin: true } });
     if (!adminUser) {
       return res.status(404).json({ error: 'No se encontró ningún usuario administrador' });
     }

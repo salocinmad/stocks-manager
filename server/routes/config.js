@@ -6,7 +6,7 @@ const router = express.Router();
 // Obtener todas las configuraciones
 router.get('/', async (req, res) => {
   try {
-    const configs = await Config.find();
+    const configs = await Config.findAll();
     const configObject = {};
     configs.forEach(config => {
       configObject[config.key] = config.value;
@@ -20,7 +20,7 @@ router.get('/', async (req, res) => {
 // Obtener una configuración por clave
 router.get('/:key', async (req, res) => {
   try {
-    const config = await Config.findOne({ key: req.params.key });
+    const config = await Config.findOne({ where: { key: req.params.key } });
     if (!config) {
       return res.json({ value: null });
     }
@@ -34,11 +34,17 @@ router.get('/:key', async (req, res) => {
 router.post('/:key', async (req, res) => {
   try {
     const { value } = req.body;
-    const config = await Config.findOneAndUpdate(
-      { key: req.params.key },
-      { value },
-      { upsert: true, new: true }
-    );
+
+    const [config, created] = await Config.findOrCreate({
+      where: { key: req.params.key },
+      defaults: { value }
+    });
+
+    if (!created) {
+      config.value = value;
+      await config.save();
+    }
+
     res.json(config);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -48,10 +54,13 @@ router.post('/:key', async (req, res) => {
 // Eliminar una configuración
 router.delete('/:key', async (req, res) => {
   try {
-    const config = await Config.findOneAndDelete({ key: req.params.key });
+    const config = await Config.findOne({ where: { key: req.params.key } });
+
     if (!config) {
       return res.status(404).json({ error: 'Configuración no encontrada' });
     }
+
+    await config.destroy();
     res.json({ message: 'Configuración eliminada correctamente' });
   } catch (error) {
     res.status(500).json({ error: error.message });

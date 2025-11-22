@@ -1,25 +1,38 @@
-import mongoose from 'mongoose';
+import { Sequelize } from 'sequelize';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'portfolio_manager',
+  process.env.DB_USER || 'user',
+  process.env.DB_PASS || 'password',
+  {
+    host: process.env.DB_HOST || 'mariadb',
+    dialect: 'mysql',
+    logging: false,
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000
+    }
+  }
+);
 
 export const connectDB = async () => {
   try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/portfolio-manager';
-    console.log('🔗 Intentando conectar a MongoDB...');
-    console.log('   URI configurada:', mongoUri.includes('mongodb+srv') ? 'MongoDB Atlas ✅' : 'MongoDB Local ❌');
-    const conn = await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 10000, // Timeout de 10 segundos para Atlas
-      socketTimeoutMS: 45000,
-    });
-    console.log(`✅ MongoDB conectado: ${conn.connection.host}`);
-    return true;
+    await sequelize.authenticate();
+    console.log('✅ Conectado a MariaDB correctamente');
+
+    // Sincronizar modelos con la base de datos
+    // alter: true actualiza las tablas si hay cambios en los modelos
+    await sequelize.sync({ alter: true });
+    console.log('✅ Modelos sincronizados');
   } catch (error) {
-    console.error('❌ Error conectando a MongoDB:', error.message);
-    console.error('💡 Soluciones:');
-    console.error('   1. Instala MongoDB local: https://www.mongodb.com/try/download/community');
-    console.error('   2. O usa MongoDB Atlas (gratis): https://www.mongodb.com/cloud/atlas');
-    console.error('   3. Actualiza MONGODB_URI en server/.env');
-    console.error('');
-    console.error('⚠️  El servidor continuará pero no podrá guardar datos hasta que MongoDB esté disponible.');
-    return false;
+    console.error('❌ Error conectando a MariaDB:', error);
+    process.exit(1);
   }
 };
 
+export default sequelize;

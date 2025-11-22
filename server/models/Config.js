@@ -1,18 +1,21 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const configSchema = new mongoose.Schema({
+const Config = sequelize.define('Config', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   key: {
-    type: String,
-    required: true,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true
   },
   value: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   }
-}, {
-  timestamps: true
 });
 
-export default mongoose.model('Config', configSchema);
-
+export default Config;

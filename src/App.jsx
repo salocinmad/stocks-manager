@@ -49,28 +49,28 @@ function App() {
     const loadData = async () => {
       try {
         setLoadingData(true);
-        
+
         // Cargar tema desde localStorage (preferencia del navegador)
-    const savedTheme = localStorage.getItem('portfolio-theme') || 'dark';
-    setTheme(savedTheme);
-    document.body.className = savedTheme;
-        
+        const savedTheme = localStorage.getItem('portfolio-theme') || 'dark';
+        setTheme(savedTheme);
+        document.body.className = savedTheme;
+
         // Cargar usuario actual
         const user = await verifySession();
         if (user) {
           setCurrentUser(user);
         }
-        
+
         // Cargar operaciones desde API
         const operations = await operationsAPI.getAll();
-        // Convertir _id a id para compatibilidad
+        // Convertir id a id para compatibilidad
         const operationsWithId = operations.map(op => ({
           ...op,
-          id: op._id || op.id,
+          id: op.id || op.id,
           date: op.date ? (typeof op.date === 'string' ? op.date : new Date(op.date).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]
         }));
         setOperations(operationsWithId);
-        
+
         // Cargar API key global (configurada por admin)
         try {
           const apiKeyResponse = await authenticatedFetch('/api/admin/finnhub-api-key');
@@ -82,7 +82,7 @@ function App() {
         } catch (error) {
           console.log('No se pudo cargar la API key global (solo admin puede configurarla)');
         }
-        
+
         // Cargar tipo de cambio EUR/USD al iniciar
         fetchCurrentEURUSD();
       } catch (error) {
@@ -92,7 +92,7 @@ function App() {
         setLoadingData(false);
       }
     };
-    
+
     loadData();
   }, []);
 
@@ -130,7 +130,7 @@ function App() {
   // Determinar número de decimales apropiado para un precio
   const getPriceDecimals = (price) => {
     if (!price || price === 0) return 2;
-    
+
     // Si el precio es menor a 1, usar 4 decimales
     if (price < 1) {
       return 4;
@@ -181,9 +181,9 @@ function App() {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: user.username, 
-          password: tempDeletePassword 
+        body: JSON.stringify({
+          username: user.username,
+          password: tempDeletePassword
         }),
       });
 
@@ -304,23 +304,23 @@ function App() {
       // Si no hay exchange, asumir USD por defecto (NASDAQ/NYSE)
       return 'USD';
     }
-    
+
     const parts = symbol.split(':');
     const exchange = parts[1].toUpperCase();
-    
+
     // Exchanges europeos que usan EUR
     const eurExchanges = ['MC', 'BME', 'FRA', 'XETR', 'DE', 'LON', 'L', 'AMS', 'PAR', 'BRU', 'MIL', 'LIS'];
-    
+
     if (eurExchanges.includes(exchange)) {
       return 'EUR';
     }
-    
+
     // Exchanges que usan USD
     const usdExchanges = ['NASDAQ', 'NYSE', 'AMEX'];
     if (usdExchanges.includes(exchange)) {
       return 'USD';
     }
-    
+
     // Por defecto, asumir USD si no se reconoce
     return 'USD';
   };
@@ -330,17 +330,17 @@ function App() {
     try {
       // Usar exchangerate-api.com (gratis, sin API key)
       const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
-      
+
       if (!response.ok) {
         throw new Error('Error al obtener tipo de cambio');
       }
-      
+
       const data = await response.json();
       // data.rates.EUR nos da cuántos EUR por 1 USD
       // Por ejemplo, si rates.EUR = 0.92, entonces 1 USD = 0.92 EUR
       // Para convertir USD a EUR, multiplicamos por este valor
       const eurPerUsd = data.rates.EUR;
-      
+
       setCurrentEURUSD(eurPerUsd);
       console.log(`💱 Tipo de cambio EUR/USD actual: ${eurPerUsd.toFixed(4)} (1 USD = ${eurPerUsd.toFixed(4)} EUR)`);
       return eurPerUsd;
@@ -358,7 +358,7 @@ function App() {
     try {
       // Construir símbolo para Yahoo Finance
       let yahooSymbol = symbol.toUpperCase();
-      
+
       // Preparar exchange para Yahoo (MC o BME ambos se convierten a MC para Yahoo)
       let yahooExchange = '';
       if (exchange) {
@@ -369,7 +369,7 @@ function App() {
         } else {
           yahooExchange = mapExchangeToYahoo(exchange);
         }
-        
+
         // Si el exchange mapea a cadena vacía (NASDAQ, NYSE), usar solo el símbolo
         if (yahooExchange === '') {
           yahooSymbol = symbol.toUpperCase();
@@ -418,7 +418,7 @@ function App() {
       // Formato: SYMBOL:EXCHANGE o solo SYMBOL
       let symbol = symbolInput.toUpperCase().trim();
       let exchange = '';
-      
+
       if (symbol.includes(':')) {
         const parts = symbol.split(':');
         symbol = parts[0];
@@ -526,7 +526,7 @@ function App() {
   const selectCompany = (company) => {
     // Finnhub devuelve el símbolo en formato SYMBOL.EXCHANGE o solo SYMBOL
     let symbolWithExchange = '';
-    
+
     if (company.symbol.includes('.')) {
       // Formato SYMBOL.EXCHANGE -> convertir a SYMBOL:EXCHANGE
       const parts = company.symbol.split('.');
@@ -541,25 +541,25 @@ function App() {
       // Solo símbolo, intentar sin exchange primero
       symbolWithExchange = company.symbol;
     }
-    
+
     // Obtener nombre de la empresa (sin el exchange si está en el símbolo)
     const companyName = company.description || company.symbol.split('.')[0] || company.symbol;
-    
+
     setFormData(prev => ({
       ...prev,
       company: companyName
     }));
-    
+
     // Llenar el campo de símbolo
     const tickerInput = document.getElementById('ticker-symbol');
     if (tickerInput) {
       tickerInput.value = symbolWithExchange;
     }
-    
+
     setShowSuggestions(false);
     setSearchResults([]);
     setSearchQuery('');
-    
+
     // NO consultar precio automáticamente - el usuario lo hará manualmente si quiere
   };
 
@@ -570,10 +570,10 @@ function App() {
       // Crear clave única: empresa + símbolo (para diferenciar diferentes exchanges)
       // Si no hay símbolo, usar solo la empresa
       const positionKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
-      
+
       if (!positions[positionKey]) {
-        positions[positionKey] = { 
-          shares: 0, 
+        positions[positionKey] = {
+          shares: 0,
           totalCost: 0,
           company: op.company,
           symbol: op.symbol || ''
@@ -604,7 +604,7 @@ function App() {
 
     const activePositions = getActivePositions();
     const companies = Object.keys(activePositions);
-    
+
     if (companies.length === 0) {
       setCurrentPrices({});
       return;
@@ -621,7 +621,7 @@ function App() {
         positionSymbols[positionKey] = position.symbol;
       }
     });
-    
+
     console.log('📊 Símbolos a consultar:', Object.entries(positionSymbols).map(([k, s]) => `${k}: ${s}`).join(', '));
 
     // Consultar precios para cada posición con símbolo
@@ -630,17 +630,17 @@ function App() {
       if (!symbol) {
         return { positionKey, priceData: null };
       }
-      
+
       const position = activePositions[positionKey];
       const companyName = position?.company || positionKey.split('|||')[0];
-      
+
       console.log(`[${companyName}] Consultando precio con símbolo: ${symbol}`);
 
       try {
         let symbolInput = symbol.toUpperCase().trim();
         let symbolPart = symbolInput;
         let exchangePart = '';
-        
+
         if (symbolInput.includes(':')) {
           const parts = symbolInput.split(':');
           symbolPart = parts[0];
@@ -661,7 +661,7 @@ function App() {
             finnhubExchange = 'FRA';
           }
         }
-        
+
         // Para Yahoo Finance, usar el exchange original (F para Frankfurt)
         let yahooExchange = exchangePart;
         if (yahooExchange) {
@@ -679,7 +679,7 @@ function App() {
             const finnhubSymbol = finnhubExchange ? `${symbolPart}.${finnhubExchange}` : symbolPart;
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000); // Timeout de 10 segundos
-            
+
             const response = await fetch(
               `https://finnhub.io/api/v1/quote?symbol=${finnhubSymbol}&token=${finnhubApiKey}`,
               { signal: controller.signal }
@@ -712,17 +712,17 @@ function App() {
           try {
             // Crear una promesa con timeout para Yahoo Finance
             const yahooPromise = fetchPriceFromYahoo(symbolPart, yahooExchange);
-            const timeoutPromise = new Promise((_, reject) => 
+            const timeoutPromise = new Promise((_, reject) =>
               setTimeout(() => reject(new Error('Timeout después de 15 segundos')), 15000)
             );
-            
+
             priceData = await Promise.race([yahooPromise, timeoutPromise]);
-            
+
             // Remover la propiedad 'source' para mantener consistencia
             if (priceData && priceData.source) {
               delete priceData.source;
             }
-            
+
             if (priceData) {
               console.log(`[${companyName}] Precio obtenido de Yahoo: $${priceData.price}`);
             }
@@ -746,7 +746,7 @@ function App() {
     const results = await Promise.allSettled(pricePromises);
     const updated = [];
     const failed = [];
-    
+
     results.forEach((result) => {
       if (result.status === 'fulfilled' && result.value) {
         const { positionKey, priceData } = result.value;
@@ -764,7 +764,7 @@ function App() {
         console.error('Error en promesa:', result.reason);
       }
     });
-    
+
     console.log(`✅ Precios actualizados: ${updated.length} empresas`);
     if (updated.length > 0) {
       console.log(`   Empresas con precio: ${updated.join(', ')}`);
@@ -772,7 +772,7 @@ function App() {
     if (failed.length > 0) {
       console.log(`⚠️  Empresas sin precio: ${failed.join(', ')}`);
     }
-    
+
     setCurrentPrices(prices);
     setLoadingPrices(false);
   };
@@ -794,7 +794,7 @@ function App() {
   const getClosedOperations = () => {
     const positions = getPositions();
     const closedPositionKeys = Object.keys(positions).filter(positionKey => positions[positionKey].shares === 0);
-    
+
     return operations.filter(op => {
       const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
       return closedPositionKeys.includes(opKey);
@@ -805,9 +805,9 @@ function App() {
   const getHistoricalProfitLoss = () => {
     const closedOperations = getClosedOperations();
     const sales = closedOperations.filter(op => op.type === 'sale');
-    
+
     let totalProfit = 0;
-    
+
     sales.forEach(sale => {
       const company = sale.company;
       const companyPurchases = operations
@@ -830,7 +830,7 @@ function App() {
       const saleRevenue = sale.shares * sale.price * sale.exchangeRate;
       const saleCommission = sale.commission * sale.exchangeRate;
       const netSaleRevenue = saleRevenue - saleCommission;
-      
+
       const profit = netSaleRevenue - totalPurchaseCost;
       totalProfit += profit;
     });
@@ -843,7 +843,7 @@ function App() {
     const activePositions = getActivePositions();
     const totalValue = Object.values(activePositions).reduce((sum, pos) => sum + pos.totalCost, 0);
     const companiesCount = Object.keys(activePositions).length;
-    
+
     // Contar solo operaciones de empresas con posiciones activas
     // Crear un conjunto de claves de posición activas para comparar
     const activePositionKeys = new Set(Object.keys(activePositions));
@@ -852,7 +852,7 @@ function App() {
       return activePositionKeys.has(opKey);
     });
     const totalOperations = activeOperations.length;
-    
+
     const totalShares = Object.values(activePositions).reduce((sum, pos) => sum + pos.shares, 0);
 
     return { totalValue, companiesCount, totalOperations, totalShares };
@@ -864,15 +864,15 @@ function App() {
     const parts = positionKey.split('|||');
     const company = parts[0];
     const symbol = parts.length > 1 ? parts[1] : '';
-    
+
     // Filtrar operaciones que coincidan con esta posición
     const companyOperations = operations.filter(op => {
       const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
       return opKey === positionKey;
     });
-    
+
     const latestOperation = companyOperations.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-    
+
     // Obtener precio actual de la posición
     const currentPriceData = currentPrices[positionKey];
     let currentPrice = '';
@@ -880,15 +880,15 @@ function App() {
       // Usar el precio actual, formateado según el número de decimales
       currentPrice = currentPriceData.price.toString();
     }
-    
+
     // Cerrar modal de selección primero
     setShowSelectPositionModal(false);
-    
+
     // Pre-llenar el formulario con los datos de la posición
     const preFilledCurrency = latestOperation?.currency || 'EUR';
     // Si la moneda es EUR, el exchangeRate debe ser 1
     const preFilledExchangeRate = preFilledCurrency === 'EUR' ? '1' : (latestOperation?.exchangeRate?.toString() || '1');
-    
+
     const preFilledData = {
       company: company,
       shares: availableShares.toString(), // Pre-llenar con todas las acciones disponibles
@@ -898,7 +898,7 @@ function App() {
       commission: '0',
       date: new Date().toISOString().split('T')[0]
     };
-    
+
     // Abrir modal de venta con los datos pre-llenados
     setModalType('sale');
     setEditingOperation(null);
@@ -909,7 +909,7 @@ function App() {
     setSearchResults([]);
     setShowSuggestions(false);
     setFormData(preFilledData);
-    
+
     // Llenar el campo de símbolo después de que el modal se renderice
     // Usar un delay más largo para asegurar que el DOM esté completamente renderizado
     setTimeout(() => {
@@ -932,7 +932,7 @@ function App() {
     setSearchQuery('');
     setSearchResults([]);
     setShowSuggestions(false);
-    
+
     if (operation) {
       // Modo edición
       // Formatear la fecha correctamente para el input date (YYYY-MM-DD)
@@ -943,10 +943,10 @@ function App() {
       } else {
         formattedDate = new Date().toISOString().split('T')[0];
       }
-      
+
       // Si la moneda es EUR, el exchangeRate debe ser 1
       const editExchangeRate = operation.currency === 'EUR' ? '1' : operation.exchangeRate.toString();
-      
+
       setFormData({
         company: operation.company,
         shares: operation.shares.toString(),
@@ -956,7 +956,7 @@ function App() {
         commission: operation.commission.toString(),
         date: formattedDate
       });
-      
+
       // Llenar el campo de símbolo si existe
       setTimeout(() => {
         const tickerInput = document.getElementById('ticker-symbol');
@@ -970,7 +970,7 @@ function App() {
         const tickerInput = document.getElementById('ticker-symbol');
         if (tickerInput) tickerInput.value = '';
       }, 100);
-      
+
       // Modo creación
       setFormData({
         company: '',
@@ -1008,7 +1008,7 @@ function App() {
   // Enviar formulario
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Calcular coste total
     // Si la moneda es EUR, no hay conversión
     // Si es otra moneda (ej: USD), convertir el precio a EUR
@@ -1016,46 +1016,46 @@ function App() {
     const price = parseFloat(formData.price);
     const exchangeRate = parseFloat(formData.exchangeRate);
     const currency = formData.currency;
-    
+
     let totalCost;
     if (currency === 'EUR') {
       totalCost = shares * price;
     } else {
       totalCost = shares * price * exchangeRate;
     }
-    
+
     const tickerSymbol = document.getElementById('ticker-symbol')?.value || '';
-    
+
     // Validar venta
     if (modalType === 'sale') {
       const positions = getPositions();
       const positionKey = tickerSymbol ? `${formData.company}|||${tickerSymbol}` : formData.company;
       const availableShares = positions[positionKey]?.shares || 0;
       const sharesToSell = parseInt(formData.shares);
-      
+
       if (!positions[positionKey] || availableShares === 0) {
         alert(`No tienes acciones de ${formData.company}${tickerSymbol ? ` (${tickerSymbol})` : ''} para vender`);
         return;
       }
-      
+
       if (sharesToSell > availableShares) {
         alert(`No puedes vender más acciones de las que tienes.\nAcciones disponibles: ${availableShares}\nAcciones a vender: ${sharesToSell}`);
         return;
       }
-      
+
       if (sharesToSell <= 0) {
         alert('Debes vender al menos 1 acción');
         return;
       }
     }
-    
+
     try {
       // Convertir la fecha a formato Date para MongoDB
       const operationDate = formData.date ? new Date(formData.date) : new Date();
-      
+
       // Si la moneda es EUR, el exchangeRate debe ser 1
       const finalExchangeRate = currency === 'EUR' ? 1 : parseFloat(formData.exchangeRate);
-      
+
       const operationData = {
         type: modalType,
         company: formData.company,
@@ -1073,19 +1073,19 @@ function App() {
         // Modo edición - actualizar operación existente
         const updatedOperation = await operationsAPI.update(editingOperation.id, operationData);
         // Actualizar estado local
-        const updatedOperations = operations.map(op => 
-          op.id === editingOperation.id ? { ...updatedOperation, id: updatedOperation._id || updatedOperation.id } : op
+        const updatedOperations = operations.map(op =>
+          op.id === editingOperation.id ? { ...updatedOperation, id: updatedOperation.id || updatedOperation.id } : op
         );
         setOperations(updatedOperations);
       } else {
         // Modo creación - nueva operación
         const newOperation = await operationsAPI.create(operationData);
-        // Convertir _id a id para compatibilidad
-        const operationWithId = { ...newOperation, id: newOperation._id || newOperation.id };
+        // Convertir id a id para compatibilidad
+        const operationWithId = { ...newOperation, id: newOperation.id || newOperation.id };
         setOperations([...operations, operationWithId]);
-    }
-    
-    closeModal();
+      }
+
+      closeModal();
     } catch (error) {
       console.error('Error guardando operación:', error);
       alert('❌ Error al guardar la operación. Intenta de nuevo.');
@@ -1095,14 +1095,14 @@ function App() {
   // Generar CSV completo con todas las operaciones
   const generateFullCSV = () => {
     const sales = operations.filter(op => op.type === 'sale');
-    
+
     if (sales.length === 0) {
       alert('No hay operaciones de venta para generar el CSV');
       return;
     }
 
     const csvRows = [];
-    
+
     // Encabezados
     csvRows.push([
       'Empresa',
@@ -1158,21 +1158,21 @@ function App() {
         totalPurchaseCost += sharesToUse * costPerShare;
         totalPurchaseShares += sharesToUse;
         totalPurchaseCommission += (purchase.commission / purchase.shares) * sharesToUse;
-        
+
         // Guardar la moneda de esta compra (tantas veces como acciones se usen)
         for (let i = 0; i < sharesToUse; i++) {
           purchaseCurrencies.push(purchase.currency || 'EUR');
         }
-        
+
         // Usar 1 si la compra es en EUR, independientemente del valor guardado
         const purchaseExRate = purchase.currency === 'EUR' ? 1 : purchase.exchangeRate;
         avgPurchaseExchangeRate += purchaseExRate * sharesToUse;
-        
+
         // Guardar fecha de compra para cada acción
         for (let i = 0; i < sharesToUse; i++) {
           purchaseDates.push(purchase.date);
         }
-        
+
         remainingShares -= sharesToUse;
       }
 
@@ -1189,7 +1189,7 @@ function App() {
           purchaseCurrencies.forEach(c => {
             currencyCounts[c] = (currencyCounts[c] || 0) + 1;
           });
-          purchaseCurrency = Object.keys(currencyCounts).reduce((a, b) => 
+          purchaseCurrency = Object.keys(currencyCounts).reduce((a, b) =>
             currencyCounts[a] > currencyCounts[b] ? a : b
           );
         }
@@ -1213,15 +1213,15 @@ function App() {
 
       // Si la venta es en EUR, el exchangeRate debe ser 1 (forzar siempre, incluso si está guardado incorrectamente)
       const saleExchangeRate = sale.currency === 'EUR' ? 1 : (sale.exchangeRate || 1);
-      
+
       // Calcular ganancias usando el exchangeRate correcto
       const saleRevenue = sale.shares * sale.price * saleExchangeRate;
       const saleCommission = sale.commission * saleExchangeRate;
       const netSaleRevenue = saleRevenue - saleCommission;
-      
+
       const grossProfit = netSaleRevenue - totalPurchaseCost;
       const profitPercentage = totalPurchaseCost > 0 ? (grossProfit / totalPurchaseCost) * 100 : 0;
-      
+
       // Retenciones (19% por defecto)
       const retentionRate = 0.19;
       const retention = grossProfit > 0 ? grossProfit * retentionRate : 0;
@@ -1262,7 +1262,7 @@ function App() {
     });
 
     // Convertir a CSV con formato compatible con Excel
-    const csvContent = '\uFEFF' + csvRows.map(row => 
+    const csvContent = '\uFEFF' + csvRows.map(row =>
       row.map(cell => {
         // Escapar comillas dobles y envolver en comillas si contiene comas, comillas o saltos de línea
         const escapedCell = cell.toString().replace(/"/g, '""');
@@ -1316,9 +1316,9 @@ function App() {
           const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
           currency = latestPurchase?.currency || currency;
         }
-        
+
         const currentValueInBaseCurrency = position.shares * currentPriceData.price;
-        
+
         // Convertir a EUR usando el tipo de cambio ACTUAL
         let currentValueInEUR;
         if (currency === 'EUR') {
@@ -1344,7 +1344,7 @@ function App() {
           }
           currentValueInEUR = currentValueInBaseCurrency * weightedExchangeRate;
         }
-        
+
         const profitLossInEUR = currentValueInEUR - position.totalCost;
 
         // Sumar ganancias y pérdidas por separado
@@ -1360,7 +1360,7 @@ function App() {
     const netResult = totalGained - totalLost;
 
     const data = [];
-    
+
     // Añadir sección de invertido
     if (totalInvested > 0) {
       data.push({
@@ -1425,15 +1425,15 @@ function App() {
           <button className="theme-toggle" onClick={toggleTheme}>
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          <button 
-            className="button" 
+          <button
+            className="button"
             onClick={() => setShowConfigModal(true)}
             title="Configuración"
           >
             ⚙️ Config
           </button>
-          <button 
-            className="button" 
+          <button
+            className="button"
             onClick={() => {
               logout();
               navigate('/login');
@@ -1497,9 +1497,9 @@ function App() {
                   </div>
                 )}
               </div>
-                  {finnhubApiKey && (
-                <button 
-                  className="button primary" 
+              {finnhubApiKey && (
+                <button
+                  className="button primary"
                   onClick={async () => {
                     await fetchCurrentEURUSD();
                     fetchAllCurrentPrices();
@@ -1532,21 +1532,21 @@ function App() {
                     // Extraer nombre de empresa y símbolo de la clave
                     const company = position.company || positionKey.split('|||')[0];
                     const symbol = position.symbol || '';
-                    
+
                     // Filtrar operaciones que coincidan con empresa Y símbolo
                     const companyOperations = operations.filter(op => {
                       const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
                       return opKey === positionKey;
                     });
-                    
+
                     const currentPriceData = currentPrices[positionKey];
                     const avgCostPerShare = position.shares > 0 ? position.totalCost / position.shares : 0;
-                    
+
                     // Obtener la moneda de las operaciones de compra (más confiable que inferir del exchange)
                     // Usar la moneda de la última operación, o calcular promedio ponderado si hay múltiples compras
                     const latestOperation = companyOperations.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
                     let currency = latestOperation?.currency || 'EUR';
-                    
+
                     // Si hay múltiples compras, usar la moneda más común (o la de la última si todas son iguales)
                     const purchases = companyOperations.filter(op => op.type === 'purchase');
                     if (purchases.length > 0) {
@@ -1554,7 +1554,7 @@ function App() {
                       const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
                       currency = latestPurchase?.currency || currency;
                     }
-                    
+
                     // Calcular tipo de cambio promedio ponderado para operaciones de compra (usado para el coste histórico)
                     let weightedExchangeRatePurchase = 1;
                     if (currency !== 'EUR') {
@@ -1571,18 +1571,18 @@ function App() {
                         weightedExchangeRatePurchase = latestOperation?.exchangeRate || 1;
                       }
                     }
-                    
+
                     // Calcular valores
                     let currentValueInBaseCurrency = null;
                     let currentValueInEUR = null;
                     let profitLossInEUR = null;
                     let profitLossPercent = null;
-                    
+
                     if (currentPriceData) {
                       // Precio actual está en la moneda de la acción (ej: USD para acciones de NASDAQ)
                       // Calcular valor actual en la moneda base
                       currentValueInBaseCurrency = position.shares * currentPriceData.price;
-                      
+
                       // Convertir a EUR usando el tipo de cambio ACTUAL (no el histórico)
                       // Si la moneda es EUR, no hay conversión
                       // Si es USD u otra moneda, usar el tipo de cambio EUR/USD actual
@@ -1598,14 +1598,14 @@ function App() {
                         // Para otras monedas, usar el tipo de cambio promedio ponderado como fallback
                         currentValueInEUR = currentValueInBaseCurrency * weightedExchangeRatePurchase;
                       }
-                      
+
                       // Ganancia/pérdida = Valor actual en EUR (con tipo de cambio actual) - Coste total en EUR (con tipo de cambio de compra + comisiones)
                       // position.totalCost ya incluye todas las comisiones de las compras
                       profitLossInEUR = currentValueInEUR - position.totalCost;
-                      
+
                       // Porcentaje de ganancia/pérdida
-                      profitLossPercent = position.totalCost > 0 
-                        ? (profitLossInEUR / position.totalCost) * 100 
+                      profitLossPercent = position.totalCost > 0
+                        ? (profitLossInEUR / position.totalCost) * 100
                         : 0;
                     }
 
@@ -1627,11 +1627,11 @@ function App() {
                                 {currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}
                               </div>
                               {currentPriceData.change !== null && (
-                                <div style={{ 
-                                  fontSize: '11px', 
-                                  color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444' 
+                                <div style={{
+                                  fontSize: '11px',
+                                  color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444'
                                 }}>
-                                  {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)} 
+                                  {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)}
                                   {' '}({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
                                 </div>
                               )}
@@ -1651,7 +1651,7 @@ function App() {
                         </td>
                         <td>
                           {profitLossInEUR !== null ? (
-                            <div style={{ 
+                            <div style={{
                               color: profitLossInEUR >= 0 ? '#10b981' : '#ef4444',
                               fontWeight: 'bold'
                             }}>
@@ -1716,7 +1716,7 @@ function App() {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip 
+                    <Tooltip
                       formatter={(value, name) => {
                         const total = chartData.reduce((sum, d) => sum + d.value, 0);
                         const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
@@ -1730,7 +1730,7 @@ function App() {
                         fontSize: '12px'
                       }}
                     />
-                    <Legend 
+                    <Legend
                       formatter={(value) => {
                         // Extraer solo la parte del nombre antes de los dos puntos
                         return value.split(':')[0];
@@ -1759,10 +1759,10 @@ function App() {
             ) : (
               <div>
                 {operations.slice(-5).reverse().map((operation) => (
-                  <div key={operation.id} style={{ 
-                    padding: '10px', 
-                    margin: '5px 0', 
-                    border: '1px solid #404040', 
+                  <div key={operation.id} style={{
+                    padding: '10px',
+                    margin: '5px 0',
+                    border: '1px solid #404040',
                     borderRadius: '4px',
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -1789,7 +1789,7 @@ function App() {
         /* Histórico de Operaciones Cerradas */
         <div className="card">
           <h2>📜 Histórico de Operaciones Cerradas</h2>
-          
+
           {/* Resumen de Ganancias/Pérdidas */}
           {closedOperations.length > 0 && (
             <div className="stats" style={{ marginBottom: '20px' }}>
@@ -1823,10 +1823,10 @@ function App() {
               {closedOperations
                 .sort((a, b) => new Date(b.date) - new Date(a.date))
                 .map((operation) => (
-                  <div key={operation.id} style={{ 
-                    padding: '10px', 
-                    margin: '5px 0', 
-                    border: '1px solid #404040', 
+                  <div key={operation.id} style={{
+                    padding: '10px',
+                    margin: '5px 0',
+                    border: '1px solid #404040',
                     borderRadius: '4px',
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -1891,7 +1891,7 @@ function App() {
                   {loadingSearch && (
                     <span style={{ position: 'absolute', right: '10px', top: '10px' }}>⏳</span>
                   )}
-                  
+
                   {/* Dropdown de sugerencias */}
                   {showSuggestions && searchResults.length > 0 && (
                     <div style={{
@@ -1945,12 +1945,12 @@ function App() {
 
               <div className="form-row">
                 <div className="form-group" style={{ flex: 2 }}>
-                <label>Empresa:</label>
+                  <label>Empresa:</label>
                   <input
                     type="text"
-                  name="company"
-                  value={formData.company}
-                  onChange={handleInputChange}
+                    name="company"
+                    value={formData.company}
+                    onChange={handleInputChange}
                     className="input"
                     placeholder="Nombre de la empresa"
                     required
@@ -1988,21 +1988,21 @@ function App() {
                     </button>
                   </div>
                 </div>
-                </div>
+              </div>
 
               {/* Mostrar información del precio consultado solo si se consulta manualmente */}
               {currentPrice && !editingOperation && (
-                <div style={{ 
-                  padding: '10px', 
-                  marginBottom: '10px', 
-                  backgroundColor: '#28a745', 
+                <div style={{
+                  padding: '10px',
+                  marginBottom: '10px',
+                  backgroundColor: '#28a745',
                   borderRadius: '4px',
                   color: 'white'
                 }}>
-                  <strong>Precio actual consultado:</strong> ${formatPrice(currentPrice.price)} 
+                  <strong>Precio actual consultado:</strong> ${formatPrice(currentPrice.price)}
                   {currentPrice.change !== null && (
                     <span style={{ marginLeft: '10px' }}>
-                      ({currentPrice.change >= 0 ? '+' : ''}{formatPrice(currentPrice.change)} 
+                      ({currentPrice.change >= 0 ? '+' : ''}{formatPrice(currentPrice.change)}
                       {' '}({currentPrice.changePercent >= 0 ? '+' : ''}{currentPrice.changePercent.toFixed(2)}%))
                     </span>
                   )}
@@ -2011,10 +2011,10 @@ function App() {
 
               {/* Mostrar error si hay */}
               {priceError && (
-                <div style={{ 
-                  padding: '10px', 
-                  marginBottom: '10px', 
-                  backgroundColor: '#dc3545', 
+                <div style={{
+                  padding: '10px',
+                  marginBottom: '10px',
+                  backgroundColor: '#dc3545',
                   borderRadius: '4px',
                   color: 'white'
                 }}>
@@ -2069,7 +2069,7 @@ function App() {
                     placeholder={currentPrice ? `Precio consultado: ${formatPrice(currentPrice.price)}` : ''}
                   />
                 </div>
-                </div>
+              </div>
 
               <div className="form-row">
                 <div className="form-group">
@@ -2100,8 +2100,8 @@ function App() {
                       min="0"
                       required
                     />
-          </div>
-        )}
+                  </div>
+                )}
               </div>
 
               <div className="form-row">
@@ -2128,7 +2128,7 @@ function App() {
                     required
                   />
                 </div>
-                </div>
+              </div>
 
               <div style={{ marginTop: '20px' }}>
                 <button type="submit" className={`button ${modalType === 'purchase' ? 'success' : 'danger'}`}>
@@ -2138,10 +2138,10 @@ function App() {
                   Cancelar
                 </button>
               </div>
-              </form>
-            </div>
+            </form>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Modal de Confirmación de Borrado con Contraseña */}
       {showDeleteConfirm && (
@@ -2168,9 +2168,9 @@ function App() {
               />
             </div>
             <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
-              <button 
-                type="button" 
-                className="button danger" 
+              <button
+                type="button"
+                className="button danger"
                 onClick={confirmDeleteWithPassword}
                 disabled={!tempDeletePassword}
               >
@@ -2180,9 +2180,9 @@ function App() {
                 Cancelar
               </button>
             </div>
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Modal de Selección de Posición para Vender */}
       {showSelectPositionModal && (
@@ -2200,16 +2200,16 @@ function App() {
                   {Object.entries(getActivePositions()).map(([positionKey, position]) => {
                     const company = position.company || positionKey.split('|||')[0];
                     const symbol = position.symbol || '';
-                    
+
                     // Filtrar operaciones que coincidan con esta posición
                     const companyOperations = operations.filter(op => {
                       const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
                       return opKey === positionKey;
                     });
-                    
+
                     const avgCostPerShare = position.shares > 0 ? position.totalCost / position.shares : 0;
                     const currentPriceData = currentPrices[positionKey];
-                    
+
                     return (
                       <div
                         key={positionKey}
@@ -2282,9 +2282,9 @@ function App() {
               )}
             </div>
             <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
-                type="button" 
-                className="button" 
+              <button
+                type="button"
+                className="button"
                 onClick={() => setShowSelectPositionModal(false)}
               >
                 Cancelar
@@ -2299,7 +2299,7 @@ function App() {
         <div className="modal">
           <div className="modal-content" style={{ maxWidth: '550px' }}>
             <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>⚙️ Configuración</h2>
-            
+
             {/* Sección Cambiar Contraseña */}
             <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}` }}>
               <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🔒 Cambiar Contraseña</h3>
@@ -2340,9 +2340,9 @@ function App() {
                     autoComplete="new-password"
                   />
                 </div>
-                <button 
-                  type="button" 
-                  className="button primary" 
+                <button
+                  type="button"
+                  className="button primary"
                   onClick={handleChangePassword}
                   style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
                 >
@@ -2357,9 +2357,9 @@ function App() {
               <p style={{ marginBottom: '10px', fontSize: '12px', color: '#dc3545', fontWeight: 'bold' }}>
                 ⚠️ Esta acción borrará TODAS las operaciones. NO se puede deshacer.
               </p>
-              <button 
-                type="button" 
-                className="button danger" 
+              <button
+                type="button"
+                className="button danger"
                 onClick={clearAllOperations}
                 style={{ fontSize: '14px', padding: '8px 16px' }}
               >
@@ -2368,9 +2368,9 @@ function App() {
             </div>
 
             <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
-                type="button" 
-                className="button" 
+              <button
+                type="button"
+                className="button"
                 onClick={() => {
                   setShowConfigModal(false);
                   setCurrentPassword('');
