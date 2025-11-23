@@ -92,7 +92,7 @@ const envContent = `# Archivo de configuración generado automáticamente
 # Este archivo fue creado el ${new Date().toISOString()}
 
 # Puerto del servidor
-PORT=3001
+PORT=5000
 
 # Database Configuration
 DB_HOST=mariadb
