@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'tu-secret-key-cambiar-en-produccio
 export const authenticate = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1]; // Bearer TOKEN
-    
+
     if (!token) {
       return res.status(401).json({ error: 'No se proporcionó token de autenticación' });
     }
@@ -30,10 +30,10 @@ export const isAdmin = (req, res, next) => {
 // Generar token JWT
 export const generateToken = (user) => {
   return jwt.sign(
-    { 
-      id: user._id, 
-      username: user.username, 
-      isAdmin: user.isAdmin 
+    {
+      id: user.id,
+      username: user.username,
+      isAdmin: user.isAdmin
     },
     JWT_SECRET,
     { expiresIn: '7d' } // Token válido por 7 días
