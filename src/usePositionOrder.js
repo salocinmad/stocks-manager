@@ -91,21 +91,22 @@ export const usePositionOrder = (operations) => {
         }
 
         // Crear nuevo orden
-        const currentOrder = positionOrder.length > 0
-            ? [...positionOrder]
-            : allPositionKeys;
+        // Empezamos con el orden guardado (si existe) y nos aseguramos de que incluya todas las claves
+        const baseOrder = positionOrder.length > 0 ? [...positionOrder] : [];
+        // Añadir cualquier clave que falte (nuevas posiciones) al final del array
+        const completeOrder = Array.from(new Set([...baseOrder, ...allPositionKeys]));
 
-        const draggedIndex = currentOrder.indexOf(draggedPosition);
-        const targetIndex = currentOrder.indexOf(targetPositionKey);
+        const draggedIndex = completeOrder.indexOf(draggedPosition);
+        const targetIndex = completeOrder.indexOf(targetPositionKey);
 
-        // Si alguna posición no está en el orden, agregarla
+        // Si alguna posición no está en el orden (debería estar ahora), abortamos
         if (draggedIndex === -1 || targetIndex === -1) {
             console.error('Position not found in order');
             return;
         }
 
         // Reordenar
-        const newOrder = [...currentOrder];
+        const newOrder = [...completeOrder];
         newOrder.splice(draggedIndex, 1);
         newOrder.splice(targetIndex, 0, draggedPosition);
 
