@@ -55,9 +55,22 @@ if (existsSync(envPath)) {
       }
     } else {
       // Si es un archivo, leer su contenido
-      const content = readFileSync(envPath, 'utf8').trim();
-      // Si el archivo existe y tiene contenido (más de 10 caracteres), no regenerar
+      let content = readFileSync(envPath, 'utf8').trim();
+      // Si el archivo existe y tiene contenido (más de 10 caracteres)
       if (content.length > 10) {
+        // Verificar si el puerto es correcto (migración a 5000)
+        if (content.includes('PORT=3001')) {
+          console.log('⚠️  Detectado puerto antiguo (3001), actualizando a 5000...');
+          content = content.replace('PORT=3001', 'PORT=5000');
+          writeFileSync(envPath, content, 'utf8');
+          console.log('✅ Puerto actualizado a 5000 en .env existente');
+        } else if (!content.includes('PORT=')) {
+          // Si no tiene puerto, añadirlo
+          content += '\nPORT=5000\n';
+          writeFileSync(envPath, content, 'utf8');
+          console.log('✅ Puerto 5000 añadido a .env existente');
+        }
+
         console.log('✅ Archivo .env ya existe con contenido, no se generará uno nuevo');
         process.exit(0);
       } else {
