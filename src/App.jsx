@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { operationsAPI, configAPI } from './services/api.js';
+import { operationsAPI, configAPI, positionsAPI } from './services/api.js';
 import { logout, verifySession, changePassword, authenticatedFetch } from './services/auth.js';
+import { usePositionOrder } from './usePositionOrder.js';
 
 function App() {
   const navigate = useNavigate();
@@ -42,6 +43,16 @@ function App() {
     commission: '0',
     date: new Date().toISOString().split('T')[0]
   });
+
+  // Hook para reordenamiento de posiciones
+  const {
+    sortPositions,
+    handleDragStart,
+    handleDragEnd,
+    handleDragOver,
+    handleDrop,
+    draggedPosition
+  } = usePositionOrder(operations);
 
 
   // Cargar datos al iniciar
@@ -590,12 +601,13 @@ function App() {
     return positions;
   };
 
-  // Obtener posiciones activas (solo las que tienen acciones > 0)
+  // Obtener posiciones activas (con acciones > 0)
   const getActivePositions = () => {
     const positions = getPositions();
-    return Object.fromEntries(
+    const activePositions = Object.fromEntries(
       Object.entries(positions).filter(([company, position]) => position.shares > 0)
     );
+    return sortPositions(activePositions);
   };
 
   // Consultar precios actuales de todas las posiciones activas
@@ -1653,7 +1665,15 @@ function App() {
                     }
 
                     return (
-                      <tr key={positionKey}>
+                    <tr 
+                      key={positionKey}
+                      draggable="true"
+                      onDragStart={(e) => handleDragStart(e, positionKey)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, positionKey, Object.keys(activePositions))}
+                      className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
+                    >
                         <td>
                           <div>{company}</div>
                           {symbol && (

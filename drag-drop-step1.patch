@@ -1,0 +1,27 @@
+diff --git a/src/App.jsx b/src/App.jsx
+index original..modified 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'rech
+ import { operationsAPI, configAPI } from './services/api.js';
+ import { logout, verifySession, changePassword, authenticatedFetch } from './services/auth.js';
++import { usePositionOrder } from './usePositionOrder.js';
+ 
+ function App() {
+   const navigate = useNavigate();
+@@ -43,6 +44,15 @@ function App() {
+     date: new Date().toISOString().split('T')[0]
+   });
+ 
++  // Hook para reordenamiento de posiciones
++  const {
++    sortPositions,
++    handleDragStart,
++    handleDragEnd,
++    handleDragOver,
++    handleDrop,
++    draggedPosition
++  } = usePositionOrder(operations);
+ 
+   // Cargar datos al iniciar
+   useEffect(() => {
