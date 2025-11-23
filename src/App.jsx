@@ -841,7 +841,18 @@ function App() {
   // Calcular estadísticas
   const getStats = () => {
     const activePositions = getActivePositions();
-    const totalValue = Object.values(activePositions).reduce((sum, pos) => sum + pos.totalCost, 0);
+    // Calcular valor total basado en precios actuales cuando estén disponibles
+    let totalValue = 0;
+    Object.entries(activePositions).forEach(([positionKey, position]) => {
+      const priceData = currentPrices[positionKey];
+      if (priceData && priceData.price) {
+        // Usar precio actual * número de acciones
+        totalValue += position.shares * priceData.price;
+      } else {
+        // Si no hay precio actual, usar el costo de compra como fallback
+        totalValue += position.totalCost;
+      }
+    });
     const companiesCount = Object.keys(activePositions).length;
 
     // Contar solo operaciones de empresas con posiciones activas
