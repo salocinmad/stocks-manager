@@ -32,30 +32,26 @@ fi
 echo "📝 Verificando archivo .env..."
 node scripts/init-env.js
 
-# Esperar a que MongoDB esté listo
-echo "⏳ Esperando a que MongoDB esté disponible..."
-# Intentar con el nombre del servicio primero, luego con el nombre del contenedor
-MONGO_HOST="mongo"
+# Esperar a que MariaDB esté listo
+echo "⏳ Esperando a que MariaDB esté disponible..."
+# Intentar con el nombre del servicio primero
+DB_HOST="mariadb"
 MAX_ATTEMPTS=30
 ATTEMPT=0
 
 while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-  if nc -z mongo 27017 2>/dev/null; then
-    echo "✅ MongoDB está disponible (conectado a 'mongo')"
-    break
-  elif nc -z stocks-manager-mongo 27017 2>/dev/null; then
-    echo "✅ MongoDB está disponible (conectado a 'stocks-manager-mongo')"
-    MONGO_HOST="stocks-manager-mongo"
+  if nc -z mariadb 3306 2>/dev/null; then
+    echo "✅ MariaDB está disponible (conectado a 'mariadb')"
     break
   else
     ATTEMPT=$((ATTEMPT + 1))
-    echo "   Intento $ATTEMPT/$MAX_ATTEMPTS: MongoDB no está listo aún, esperando..."
+    echo "   Intento $ATTEMPT/$MAX_ATTEMPTS: MariaDB no está listo aún, esperando..."
     sleep 2
   fi
 done
 
 if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-  echo "⚠️  No se pudo conectar a MongoDB después de $MAX_ATTEMPTS intentos"
+  echo "⚠️  No se pudo conectar a MariaDB después de $MAX_ATTEMPTS intentos"
   echo "   Continuando de todas formas..."
 fi
 
