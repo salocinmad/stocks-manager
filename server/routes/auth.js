@@ -50,9 +50,20 @@ router.post('/login', async (req, res) => {
 // Verificar sesión actual
 router.get('/me', authenticate, async (req, res) => {
   try {
+    console.log('🔍 /me endpoint called');
+    console.log('   req.user:', req.user);
+
+    if (!req.user || !req.user.id) {
+      console.log('❌ No user ID in token');
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+
     const user = await User.findByPk(req.user.id, {
       attributes: { exclude: ['password'] }
     });
+
+    console.log('   User found:', user ? 'Yes' : 'No');
+
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
