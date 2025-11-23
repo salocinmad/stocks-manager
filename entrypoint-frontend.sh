@@ -8,11 +8,8 @@ MAX_ATTEMPTS=30
 ATTEMPT=0
 
 while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-  if nc -z backend 3001 2>/dev/null; then
-    echo "✅ Backend está disponible"
-    break
-  elif nc -z stocks-manager-backend 3001 2>/dev/null; then
-    echo "✅ Backend está disponible (conectado a 'stocks-manager-backend')"
+  if nc -z server 5000 2>/dev/null; then
+    echo "✅ Backend está disponible (conectado a 'server')"
     break
   else
     ATTEMPT=$((ATTEMPT + 1))
