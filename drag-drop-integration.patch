@@ -1,0 +1,85 @@
+diff --git a/src/App.jsx b/src/App.jsx
+index 1234567..abcdefg 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -1,7 +1,8 @@
+ import { useState, useEffect } from 'react';
+ import { useNavigate } from 'react-router-dom';
+ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+-import { operationsAPI, configAPI } from './services/api.js';
++import { operationsAPI, configAPI, positionsAPI } from './services/api.js';
+ import { logout, verifySession, changePassword, authenticatedFetch } from './services/auth.js';
++import { usePositionOrder } from './usePositionOrder.js';
+ 
+ function App() {
+   const navigate = useNavigate();
+@@ -44,6 +45,15 @@ function App() {
+     date: new Date().toISOString().split('T')[0]
+   });
+ 
++  // Hook para reordenamiento de posiciones
++  const {
++    sortPositions,
++    handleDragStart,
++    handleDragEnd,
++    handleDragOver,
++    handleDrop,
++    draggedPosition
++  } = usePositionOrder(operations);
+ 
+   // Cargar datos al iniciar
+   useEffect(() => {
+@@ -817,10 +827,12 @@ function App() {
+   // Obtener posiciones activas (con acciones > 0)
+   const getActivePositions = () => {
+     const positions = getPositions();
+-    return Object.fromEntries(
++    const activePositions = Object.fromEntries(
+       Object.entries(positions).filter(([company, position]) => position.shares > 0)
+     );
++    return sortPositions(activePositions);
+   };
++
+   // Obtener posiciones cerradas (con acciones = 0)
+   const getClosedPositions = () => {
+     const positions = getPositions();
+@@ -1568,7 +1580,15 @@ function App() {
+               </thead>
+               <tbody>
+                 {Object.entries(activePositions).map(([positionKey, position]) => {
+-                  <tr key={positionKey}>
++                  <tr 
++                    key={positionKey}
++                    draggable="true"
++                    onDragStart={(e) => handleDragStart(e, positionKey)}
++                    onDragEnd={handleDragEnd}
++                    onDragOver={handleDragOver}
++                    onDrop={(e) => handleDrop(e, positionKey, Object.keys(activePositions))}
++                    className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
++                  >
+                     <td>
+                       {company}
+                       {symbol && <span style={{ color: '#888', fontSize: '0.9em', marginLeft: '5px' }}>({symbol})</span>}
+@@ -2295,6 +2315,22 @@ function App() {
+           box-shadow: 0 0 0 2px var(--primary-color);
+         }
+ 
++        /* Drag & Drop para reordenar posiciones */
++        .position-row {
++          transition: background-color 0.2s, opacity 0.2s;
++        }
++
++        .position-row:hover {
++          background-color: rgba(99, 102, 241, 0.1);
++        }
++
++        .position-row.dragging {
++          opacity: 0.5;
++        }
++
++        .position-row[draggable="true"] {
++          cursor: move !important;
++        }
+       `}</style>
+     </div>
+   );

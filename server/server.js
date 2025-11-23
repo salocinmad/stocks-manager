@@ -7,6 +7,7 @@ import operationRoutes from './routes/operations.js';
 import adminRoutes from './routes/admin.js';
 import yahooRoutes from './routes/yahoo.js';
 import configRoutes from './routes/config.js';
+import positionRoutes from './routes/positions.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -43,6 +44,7 @@ app.use('/api/operations', operationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/yahoo', yahooRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/positions', positionRoutes);
 
 // Ruta de estado (Health Check)
 app.get('/api/health', (req, res) => {

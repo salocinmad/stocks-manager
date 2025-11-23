@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 // Helper para hacer requests autenticados
 const fetchAPI = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
-  
+
   try {
     const response = await authenticatedFetch(url, options);
     if (!response.ok) {
@@ -36,6 +36,15 @@ export const operationsAPI = {
   }),
   deleteAll: () => fetchAPI('/operations', {
     method: 'DELETE'
+  })
+};
+
+// Posiciones
+export const positionsAPI = {
+  getOrder: () => fetchAPI('/positions/order'),
+  updateOrder: (order) => fetchAPI('/positions/order', {
+    method: 'PUT',
+    body: JSON.stringify({ order })
   })
 };
 
