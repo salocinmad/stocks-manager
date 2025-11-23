@@ -846,8 +846,40 @@ function App() {
     Object.entries(activePositions).forEach(([positionKey, position]) => {
       const priceData = currentPrices[positionKey];
       if (priceData && priceData.price) {
-        // Usar precio actual * número de acciones
-        totalValue += position.shares * priceData.price;
+        // Obtener moneda de las operaciones de compra
+        const companyOperations = operations.filter(op => {
+          const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
+          return opKey === positionKey;
+        });
+        const purchases = companyOperations.filter(op => op.type === 'purchase');
+        let currency = 'EUR';
+        if (purchases.length > 0) {
+          const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+          currency = latestPurchase?.currency || 'EUR';
+        }
+
+        // Calcular valor en moneda base y convertir a EUR
+        const valueInBaseCurrency = position.shares * priceData.price;
+        let valueInEUR;
+        if (currency === 'EUR') {
+          valueInEUR = valueInBaseCurrency;
+        } else if (currency === 'USD') {
+          const eurPerUsd = currentEURUSD || 0.92;
+          valueInEUR = valueInBaseCurrency * eurPerUsd;
+        } else {
+          let weightedExchangeRate = 1;
+          if (purchases.length > 0) {
+            let totalShares = 0;
+            let totalExchangeRateWeighted = 0;
+            purchases.forEach(purchase => {
+              totalShares += purchase.shares;
+              totalExchangeRateWeighted += purchase.shares * purchase.exchangeRate;
+            });
+            weightedExchangeRate = totalShares > 0 ? totalExchangeRateWeighted / totalShares : 1;
+          }
+          valueInEUR = valueInBaseCurrency * weightedExchangeRate;
+        }
+        totalValue += valueInEUR;
       } else {
         // Si no hay precio actual, usar el costo de compra como fallback
         totalValue += position.totalCost;
