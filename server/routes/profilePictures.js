@@ -16,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Directorio donde se guardarán las imágenes de perfil
-const PROFILE_PICTURES_DIR = path.join(__dirname, '..', '..', 'images', 'profile-pictures');
+const PROFILE_PICTURES_DIR = path.join(__dirname, '..', 'images', 'profile-pictures');
 
 // Configuración de Multer para almacenar la imagen en disco
 const storage = multer.diskStorage({
