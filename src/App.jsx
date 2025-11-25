@@ -253,12 +253,22 @@ function App() {
       if (!pnlSeries || pnlSeries.length === 0) return;
       const { net, count } = computeCurrentNetPnL();
       if (count === 0) return;
-      const adjusted = [...pnlSeries];
-      adjusted[adjusted.length - 1] = {
-        ...adjusted[adjusted.length - 1],
-        pnlEUR: net
-      };
-      setPnlSeries(adjusted);
+
+      const today = new Date().toISOString().slice(0, 10);
+      const lastPoint = pnlSeries[pnlSeries.length - 1];
+
+      if (lastPoint.date === today) {
+        // Update today's point with current real-time PnL
+        const adjusted = [...pnlSeries];
+        adjusted[adjusted.length - 1] = {
+          ...adjusted[adjusted.length - 1],
+          pnlEUR: net
+        };
+        setPnlSeries(adjusted);
+      } else {
+        // Add today's point if it doesn't exist yet (real-time until 01:00 AM saves it)
+        setPnlSeries([...pnlSeries, { date: today, pnlEUR: net }]);
+      }
     } catch { }
   }, [currentPrices, operations, currentEURUSD, dailyCloseLastRun]);
 
