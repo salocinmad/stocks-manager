@@ -2950,10 +2950,9 @@ function App() {
         <div className="modal" style={{ zIndex: 10001 }}>
           <div className="modal-content" style={{ maxWidth: '700px', width: '100%' }}>
             <h2>📖 Guía Rápida de Markdown</h2>
-            <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-              <div className="card" style={{ marginBottom: '12px' }}>
+            <div className="card" style={{ marginBottom: '12px' }}>
                 <h3 style={{ fontSize: '18px', marginTop: 0 }}>Encabezados</h3>
-                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>
                   # Título Principal (H1)
                   ## Título Secundario (H2)
                   ### Título Terciario (H3)
@@ -2962,7 +2961,7 @@ function App() {
 
               <div className="card" style={{ marginBottom: '12px' }}>
                 <h3 style={{ fontSize: '18px', marginTop: 0 }}>Énfasis</h3>
-                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>
                   **Texto en negrita**
                   *Texto en cursiva*</pre>
                 <div style={{ marginTop: '8px', fontSize: '14px' }}>
@@ -2973,7 +2972,7 @@ function App() {
 
               <div className="card" style={{ marginBottom: '12px' }}>
                 <h3 style={{ fontSize: '18px', marginTop: 0 }}>Listas</h3>
-                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>
                   - Elemento 1
                   - Elemento 2
                   - Elemento 3</pre>
@@ -2988,7 +2987,7 @@ function App() {
 
               <div className="card" style={{ marginBottom: '12px' }}>
                 <h3 style={{ fontSize: '18px', marginTop: 0 }}>Enlaces</h3>
-                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>
                   [Texto del enlace](https://ejemplo.com)</pre>
                 <div style={{ marginTop: '8px', fontSize: '14px' }}>
                   <a href="https://ejemplo.com" target="_blank" rel="noopener noreferrer">Texto del enlace</a>
@@ -2997,7 +2996,7 @@ function App() {
 
               <div className="card" style={{ marginBottom: '12px' }}>
                 <h3 style={{ fontSize: '18px', marginTop: 0 }}>Código</h3>
-                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>
                   Código inline: `código aquí`
 
                   Bloque de código:
@@ -3010,13 +3009,10 @@ function App() {
 
               <div className="card" style={{ marginBottom: '12px' }}>
                 <h3 style={{ fontSize: '18px', marginTop: 0 }}>Línea Horizontal</h3>
-                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>
                   ---</pre>
                 <hr style={{ margin: '8px 0' }} />
-              </div>
-            </div>
-
-            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
               <button className="button primary" onClick={() => setShowMarkdownHelp(false)}>
                 Cerrar
               </button>
@@ -3123,3 +3119,6 @@ function App() {
 }
 
 export default App;
+
+
+
