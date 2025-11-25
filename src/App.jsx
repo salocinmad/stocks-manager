@@ -48,6 +48,8 @@ function App() {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [notePositionKey, setNotePositionKey] = useState('');
   const [noteContent, setNoteContent] = useState('');
+  const [noteOriginalContent, setNoteOriginalContent] = useState(''); // For cancel functionality
+  const [noteEditMode, setNoteEditMode] = useState(false); // false = read mode, true = edit mode
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteSaving, setNoteSaving] = useState(false);
   const [notesCache, setNotesCache] = useState({});
@@ -2188,10 +2190,16 @@ function App() {
                                 setNoteLoading(true);
                                 try {
                                   const r = await notesAPI.get(pk);
-                                  setNoteContent(r?.content || '');
-                                  setNotesCache(prev => ({ ...prev, [pk]: !!(r?.content) }));
+                                  const content = r?.content || '';
+                                  setNoteContent(content);
+                                  setNoteOriginalContent(content);
+                                  // If note is empty, start in edit mode; otherwise start in read mode
+                                  setNoteEditMode(!content || content.trim() === '');
+                                  setNotesCache(prev => ({ ...prev, [pk]: !!content }));
                                 } catch (e) {
                                   setNoteContent('');
+                                  setNoteOriginalContent('');
+                                  setNoteEditMode(true); // Empty note, start in edit mode
                                 } finally {
                                   setNoteLoading(false);
                                 }
@@ -2853,43 +2861,82 @@ function App() {
         <div className="modal">
           <div className="modal-content" style={{ maxWidth: '900px', width: '100%' }}>
             <h2>📝 Nota</h2>
-            <div style={{ display: 'block' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label>Markdown</label>
-                <textarea
-                  className="input"
-                  style={{ minHeight: '200px', width: '100%', resize: 'vertical' }}
-                  value={noteContent}
-                  onChange={(e) => setNoteContent(e.target.value)}
-                  disabled={noteLoading || noteSaving}
-                  placeholder="# Título\n\nEscribe tu nota en Markdown..."
-                />
+
+            {noteEditMode ? (
+              // Edit Mode: Show textarea + preview
+              <div style={{ display: 'block' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Markdown</label>
+                  <textarea
+                    className="input"
+                    style={{ minHeight: '200px', width: '100%', resize: 'vertical' }}
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    disabled={noteLoading || noteSaving}
+                    placeholder="# Título\n\nEscribe tu nota en Markdown..."
+                  />
+                </div>
+                <div className="card" style={{ marginTop: '12px', width: '100%', maxHeight: '60vh', overflowY: 'auto' }}>
+                  <div style={{ fontSize: '12px', color: '#888' }}>Vista previa</div>
+                  <div dangerouslySetInnerHTML={{ __html: markdownToHtml(noteContent || '') }} />
+                </div>
               </div>
-              <div className="card" style={{ marginTop: '12px', width: '100%', maxHeight: '60vh', overflowY: 'auto' }}>
-                <div style={{ fontSize: '12px', color: '#888' }}>Vista previa</div>
+            ) : (
+              // Read Mode: Show only preview
+              <div className="card" style={{ width: '100%', maxHeight: '70vh', overflowY: 'auto' }}>
                 <div dangerouslySetInnerHTML={{ __html: markdownToHtml(noteContent || '') }} />
               </div>
-            </div>
+            )}
+
             <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
-              <button
-                className="button primary"
-                disabled={noteLoading || noteSaving}
-                onClick={async () => {
-                  try {
-                    setNoteSaving(true);
-                    await notesAPI.upsert(notePositionKey, noteContent || '');
-                    setNotesCache(prev => ({ ...prev, [notePositionKey]: !!(noteContent) }));
-                    setShowNoteModal(false);
-                  } catch (e) {
-                    alert('Error guardando nota');
-                  } finally {
-                    setNoteSaving(false);
-                  }
-                }}
-              >
-                Guardar
-              </button>
-              <button className="button" onClick={() => setShowNoteModal(false)}>Cerrar</button>
+              {noteEditMode ? (
+                // Edit mode buttons: Save and Cancel
+                <>
+                  <button
+                    className="button primary"
+                    disabled={noteLoading || noteSaving}
+                    onClick={async () => {
+                      try {
+                        setNoteSaving(true);
+                        await notesAPI.upsert(notePositionKey, noteContent || '');
+                        setNotesCache(prev => ({ ...prev, [notePositionKey]: !!(noteContent) }));
+                        setNoteOriginalContent(noteContent);
+                        setShowNoteModal(false);
+                      } catch (e) {
+                        alert('Error guardando nota');
+                      } finally {
+                        setNoteSaving(false);
+                      }
+                    }}
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    className="button"
+                    onClick={() => {
+                      setNoteContent(noteOriginalContent);
+                      if (noteOriginalContent && noteOriginalContent.trim()) {
+                        setNoteEditMode(false); // Return to read mode if there was content
+                      } else {
+                        setShowNoteModal(false); // Close if it was empty
+                      }
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                </>
+              ) : (
+                // Read mode buttons: Edit and Close
+                <>
+                  <button
+                    className="button primary"
+                    onClick={() => setNoteEditMode(true)}
+                  >
+                    Editar
+                  </button>
+                  <button className="button" onClick={() => setShowNoteModal(false)}>Cerrar</button>
+                </>
+              )}
             </div>
           </div>
         </div>
