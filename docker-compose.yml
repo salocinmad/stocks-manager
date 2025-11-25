@@ -35,7 +35,7 @@ services:
     stdin_open: true
     tty: true
     environment:
-      - VITE_API_URL=http://localhost:5000
+      - VITE_API_URL=http://server:5000
     depends_on:
       - server
 
