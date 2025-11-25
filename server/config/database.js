@@ -25,8 +25,8 @@ export const connectDB = async () => {
     await sequelize.authenticate();
     console.log('✅ Conectado a MariaDB correctamente');
 
-    // Sincronizar solo creando tablas que no existan; evitar alter para no exceder límites de índices
-    await sequelize.sync();
+    // Sincronizar modelos, alterando tablas existentes para que coincidan con los modelos
+    await sequelize.sync({ alter: true });
     console.log('✅ Modelos sincronizados');
   } catch (error) {
     console.error('❌ Error conectando a MariaDB:', error);
