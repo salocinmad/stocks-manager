@@ -131,16 +131,25 @@ export const runDailyOnce = async () => {
         }
       }
 
-      // 3. Calculate PnL and Save Snapshot
+      // 3. Calculate PnL and Save Snapshot (only if not exists - immutable historical data)
       const pnlEUR = totalValueEUR - totalInvestedEUR
 
-      await DailyPortfolioStats.upsert({
-        userId,
-        date,
-        totalInvestedEUR,
-        totalValueEUR,
-        pnlEUR
-      })
+      // Check if snapshot already exists for this user and date
+      const existing = await DailyPortfolioStats.findOne({ where: { userId, date } })
+
+      if (!existing) {
+        // Only create if it doesn't exist - historical data should not be overwritten
+        await DailyPortfolioStats.create({
+          userId,
+          date,
+          totalInvestedEUR,
+          totalValueEUR,
+          pnlEUR
+        })
+        console.log(`📊 Snapshot PnL guardado para usuario ${userId}, fecha ${date}: €${pnlEUR.toFixed(2)}`)
+      } else {
+        console.log(`ℹ️ Snapshot ya existe para usuario ${userId}, fecha ${date} - no se sobrescribe`)
+      }
     }
 
     await setLastRun(date)
