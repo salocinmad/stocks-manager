@@ -2882,8 +2882,8 @@ function App() {
                 </div>
               </div>
             ) : (
-              // Read Mode: Show only preview
-              <div className="card" style={{ width: '100%', maxHeight: '70vh', overflowY: 'auto' }}>
+              // Read Mode: Show only preview (use modal's scrollbar, not card's)
+              <div className="card" style={{ width: '100%' }}>
                 <div dangerouslySetInnerHTML={{ __html: markdownToHtml(noteContent || '') }} />
               </div>
             )}
