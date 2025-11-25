@@ -201,14 +201,32 @@ export default { startDaily, stopDaily, reloadDaily, runDailyOnce }
 const getFxMapToEUR = async () => {
   const map = { USD: 1, EUR: 1, GBP: 1 }
   try {
+    let key = process.env.FINNHUB_API_KEY || ''
+    if (!key) {
+      const row = await Config.findOne({ where: { key: 'finnhub_api_key' } })
+      key = row?.value || ''
+    }
+    if (key) {
+      const r1 = await fetch(`https://finnhub.io/api/v1/forex/rates?base=EUR&token=${encodeURIComponent(key)}`)
+      if (r1.ok) {
+        const data = await r1.json()
+        const usdPerEur = Number(data?.rates?.USD)
+        const gbpPerEur = Number(data?.rates?.GBP)
+        if (usdPerEur && usdPerEur > 0) map.USD = 1 / usdPerEur
+        if (gbpPerEur && gbpPerEur > 0) map.GBP = 1 / gbpPerEur
+        return map
+      }
+    }
+  } catch {}
+  try {
     const eurusd = await yahooFinance.quote('EURUSD=X')
     const r = eurusd?.regularMarketPreviousClose || eurusd?.regularMarketPrice
     if (r && r > 0) map.USD = 1 / r
-  } catch { }
+  } catch {}
   try {
     const eurgbp = await yahooFinance.quote('EURGBP=X')
     const r = eurgbp?.regularMarketPreviousClose || eurgbp?.regularMarketPrice
     if (r && r > 0) map.GBP = 1 / r
-  } catch { }
+  } catch {}
   return map
 }

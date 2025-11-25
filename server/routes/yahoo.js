@@ -1,5 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
+import yahooFinance from 'yahoo-finance2';
+import Config from '../models/Config.js';
 
 const router = express.Router();
 
@@ -73,4 +75,32 @@ router.get('/quote/:symbol', async (req, res) => {
 });
 
 export default router;
+router.get('/fx/eurusd', async (req, res) => {
+  try {
+    let key = process.env.FINNHUB_API_KEY || '';
+    if (!key) {
+      const row = await Config.findOne({ where: { key: 'finnhub_api_key' } });
+      key = row?.value || '';
+    }
+    if (key) {
+      const r1 = await fetch(`https://finnhub.io/api/v1/forex/rates?base=USD&token=${encodeURIComponent(key)}`);
+      if (r1.ok) {
+        const data = await r1.json();
+        const eur = Number(data?.rates?.EUR);
+        if (eur && eur > 0) {
+          return res.json({ eurPerUsd: eur, source: 'finnhub' });
+        }
+      }
+    }
+    const q = await yahooFinance.quote('EURUSD=X');
+    const r = q?.regularMarketPreviousClose || q?.regularMarketPrice || null;
+    if (!r || r <= 0) {
+      return res.status(502).json({ error: 'Tipo de cambio no disponible' });
+    }
+    const eurPerUsd = 1 / r;
+    res.json({ eurPerUsd, source: 'yahoo' });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Error al obtener tipo de cambio' });
+  }
+});
 

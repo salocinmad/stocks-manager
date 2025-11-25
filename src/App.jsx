@@ -32,7 +32,8 @@ function App() {
   const [currentPrices, setCurrentPrices] = useState({}); // {symbol: priceData}
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [showSelectPositionModal, setShowSelectPositionModal] = useState(false);
-  const [currentEURUSD, setCurrentEURUSD] = useState(null); // Tipo de cambio EUR/USD actual
+  const [currentEURUSD, setCurrentEURUSD] = useState(null);
+  const [currentEURUSDSource, setCurrentEURUSDSource] = useState('');
   const [loadingData, setLoadingData] = useState(true); // Estado de carga de datos
   const [currentUser, setCurrentUser] = useState(null); // Usuario actual logueado
   const [profilePictureUrl, setProfilePictureUrl] = useState(null); // URL de la imagen de perfil del usuario
@@ -338,6 +339,7 @@ function App() {
         // El backend ahora retorna pnlEUR directamente como totalValueEUR
         const series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }));
         setPnlSeries(series);
+si tambien quiero finnhub         await fetchCurrentEURUSD();
       } catch { }
     };
 
@@ -353,6 +355,7 @@ function App() {
         if (dclr && dclr.value && dclr.value !== dailyCloseLastRun) {
           setDailyCloseLastRun(dclr.value);
           await refreshTimeseries();
+          await fetchCurrentEURUSD();
         }
       } catch { }
     }, 60000);
@@ -678,27 +681,23 @@ function App() {
   // Obtener tipo de cambio EUR/USD actual
   const fetchCurrentEURUSD = async () => {
     try {
-      // Usar exchangerate-api.com (gratis, sin API key)
-      const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
-
+      const response = await authenticatedFetch('/api/yahoo/fx/eurusd');
       if (!response.ok) {
-        throw new Error('Error al obtener tipo de cambio');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error al obtener tipo de cambio');
       }
-
       const data = await response.json();
-      // data.rates.EUR nos da cuántos EUR por 1 USD
-      // Por ejemplo, si rates.EUR = 0.92, entonces 1 USD = 0.92 EUR
-      // Para convertir USD a EUR, multiplicamos por este valor
-      const eurPerUsd = data.rates.EUR;
-
+      const eurPerUsd = Number(data.eurPerUsd);
+      if (!eurPerUsd || eurPerUsd <= 0) throw new Error('Tipo de cambio inválido');
       setCurrentEURUSD(eurPerUsd);
+      setCurrentEURUSDSource(String(data.source || ''));
       console.log(`💱 Tipo de cambio EUR/USD actual: ${eurPerUsd.toFixed(4)} (1 USD = ${eurPerUsd.toFixed(4)} EUR)`);
       return eurPerUsd;
     } catch (error) {
       console.error('Error al obtener tipo de cambio EUR/USD:', error);
-      // Si falla, usar un valor por defecto (aprox 0.92 EUR por 1 USD)
-      const defaultRate = 0.92;
+      const defaultRate = currentEURUSD || 0.92;
       setCurrentEURUSD(defaultRate);
+      setCurrentEURUSDSource('cache');
       return defaultRate;
     }
   };
@@ -2013,8 +2012,18 @@ function App() {
               <div>
                 <h2 style={{ margin: 0 }}>Posiciones Activas</h2>
                 {currentEURUSD && (
-                  <div style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-                    💱 1 USD = {currentEURUSD.toFixed(4)} EUR
+                  <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>💱 1 USD = {currentEURUSD.toFixed(4)} EUR</span>
+                    {(() => {
+                      const src = currentEURUSDSource;
+                      if (src === 'finnhub') {
+                        return <img src="https://finnhub.io/static/img/webp/finnhub-logo.webp" alt="Finnhub" title="Finnhub" style={{ width: '14px', height: '14px' }} />
+                      } else if (src === 'yahoo') {
+                        return <img src="https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg" alt="Yahoo" title="Yahoo" style={{ width: '14px', height: '14px' }} />
+                      } else {
+                        return <span title="CACHE" style={{ fontSize: '12px', color: '#64748b' }}>🗂️</span>
+                      }
+                    })()}
                   </div>
                 )}
               </div>
