@@ -1857,7 +1857,7 @@ function App() {
               verticalAlign: 'middle'
             }}
           />
-          Portfolio {currentUser?.username || 'Usuario'}
+          Stocks Manager
         </h1>
         <div>
           <button className="theme-toggle" onClick={toggleTheme}>
