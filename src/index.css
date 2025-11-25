@@ -398,6 +398,29 @@ body.light {
   opacity: 1;
 }
 
+/* Zona de arrastrar y soltar para imagen de perfil */
+.dropzone {
+  border: 2px dashed #555555;
+  border-radius: 8px;
+  padding: 16px;
+  background-color: #2b2b2b;
+}
+
+.dropzone.drag-active {
+  border-color: #93c5fd;
+  background-color: #262b35;
+}
+
+.light .dropzone {
+  border-color: #cbd5e1;
+  background-color: #ffffff;
+}
+
+.light .dropzone.drag-active {
+  border-color: #60a5fa;
+  background-color: #f0f7ff;
+}
+
 .form-group {
   margin: 15px 0;
 }
