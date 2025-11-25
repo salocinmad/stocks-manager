@@ -1,3 +1,5 @@
+ARG VITE_API_URL
+
 # Build stage
 FROM node:18-alpine AS build
 
@@ -10,10 +12,13 @@ COPY package*.json ./
 RUN npm install
 
 # Copiar código fuente
-COPY . .
+ COPY . .
 
-# Build de la aplicación
-RUN npm run build
+ # Pasar VITE_API_URL a la fase de construcción de Vite
+ ENV VITE_API_URL=$VITE_API_URL
+
+ # Build de la aplicación
+ RUN npm run build
 
 # Production stage
 FROM nginx:alpine

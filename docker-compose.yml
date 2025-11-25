@@ -29,15 +29,16 @@ services:
       - backend_env:/app/env
 
   frontend:
-    build: .
-    ports:
-      - "3000:80"
-    stdin_open: true
-    tty: true
-    environment:
-      - VITE_API_URL=http://server:5000
-    depends_on:
-      - server
+     build:
+       context: .
+       args:
+         VITE_API_URL: http://server:5000
+     ports:
+       - "3000:80"
+     stdin_open: true
+     tty: true
+     depends_on:
+       - server
 
 volumes:
   mariadb_data:
