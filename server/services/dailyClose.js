@@ -6,11 +6,20 @@ import yahooFinance from 'yahoo-finance2'
 let dailyTimer = null
 let dailyRunning = false
 
+import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
+
 const getConfig = async () => {
   const enabledRow = await Config.findOne({ where: { key: 'daily_close_enabled' } })
   const timeRow = await Config.findOne({ where: { key: 'daily_close_time' } })
   const enabled = enabledRow ? enabledRow.value === 'true' : true
-  const timeStr = timeRow?.value || '06:00'
+  // Default to 01:00 if not set
+  const timeStr = timeRow?.value || '01:00'
+
+  // If time config doesn't exist, create it with default 01:00
+  if (!timeRow) {
+    await Config.create({ key: 'daily_close_time', value: '01:00' })
+  }
+
   return { enabled, timeStr }
 }
 
@@ -64,20 +73,76 @@ export const runDailyOnce = async () => {
     const date = await getPreviousBusinessDate()
     const fxMap = await getFxMapToEUR()
     const users = await Operation.findAll({ attributes: ['userId'], group: ['userId'] })
+
     for (const u of users) {
       const userId = u.userId
-      const positions = await Operation.findAll({ where: { userId }, attributes: ['company', 'symbol'], group: ['company', 'symbol'] })
-      for (const p of positions) {
-        const company = p.company
-        const symbol = p.symbol || ''
-        const pk = `${company}|||${symbol}`
-        const prev = await fetchPreviousClose(symbol)
-        if (!prev) continue
-        const { close, currency = 'EUR', source = 'yahoo' } = prev
-        const exchangeRate = fxMap[currency] ?? 1
-        await DailyPrice.upsert({ userId, positionKey: pk, company, symbol, date, close, currency, exchangeRate, source })
+
+      // 1. Calculate Active Positions and Total Cost (Invested Capital)
+      const ops = await Operation.findAll({ where: { userId } })
+      const positionsMap = new Map()
+
+      for (const o of ops) {
+        const key = `${o.company}|||${o.symbol || ''}`
+        const prev = positionsMap.get(key) || {
+          company: o.company,
+          symbol: o.symbol || '',
+          shares: 0,
+          totalCost: 0
+        }
+
+        if (o.type === 'purchase') {
+          prev.shares += o.shares
+          prev.totalCost += parseFloat(o.totalCost)
+        } else if (o.type === 'sale') {
+          prev.shares -= o.shares
+          prev.totalCost -= parseFloat(o.totalCost)
+        }
+
+        positionsMap.set(key, prev)
       }
+
+      const activePositions = Array.from(positionsMap.values()).filter(p => p.shares > 0)
+      const totalInvestedEUR = activePositions.reduce((sum, p) => sum + p.totalCost, 0)
+
+      // 2. Fetch/Update Daily Prices and Calculate Total Market Value
+      let totalValueEUR = 0
+
+      for (const p of activePositions) {
+        const pk = `${p.company}|||${p.symbol}`
+
+        // Try to find existing daily price first to avoid re-fetching if already run today
+        let dailyPrice = await DailyPrice.findOne({ where: { userId, positionKey: pk, date } })
+
+        if (!dailyPrice) {
+          const prev = await fetchPreviousClose(p.symbol)
+          if (prev) {
+            const { close, currency = 'EUR', source = 'yahoo' } = prev
+            const exchangeRate = fxMap[currency] ?? 1
+            dailyPrice = await DailyPrice.create({
+              userId, positionKey: pk, company: p.company, symbol: p.symbol,
+              date, close, currency, exchangeRate, source
+            })
+          }
+        }
+
+        if (dailyPrice) {
+          const val = (dailyPrice.close || 0) * (dailyPrice.exchangeRate || 1) * p.shares
+          totalValueEUR += val
+        }
+      }
+
+      // 3. Calculate PnL and Save Snapshot
+      const pnlEUR = totalValueEUR - totalInvestedEUR
+
+      await DailyPortfolioStats.upsert({
+        userId,
+        date,
+        totalInvestedEUR,
+        totalValueEUR,
+        pnlEUR
+      })
     }
+
     await setLastRun(date)
     return { ok: true, date }
   } catch (e) {
@@ -130,11 +195,11 @@ const getFxMapToEUR = async () => {
     const eurusd = await yahooFinance.quote('EURUSD=X')
     const r = eurusd?.regularMarketPreviousClose || eurusd?.regularMarketPrice
     if (r && r > 0) map.USD = 1 / r
-  } catch {}
+  } catch { }
   try {
     const eurgbp = await yahooFinance.quote('EURGBP=X')
     const r = eurgbp?.regularMarketPreviousClose || eurgbp?.regularMarketPrice
     if (r && r > 0) map.GBP = 1 / r
-  } catch {}
+  } catch { }
   return map
 }
