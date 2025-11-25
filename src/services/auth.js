@@ -92,10 +92,13 @@ export const changePassword = async (currentPassword, newPassword) => {
 // Hacer peticiones autenticadas
 export const authenticatedFetch = async (url, options = {}) => {
   const token = getToken();
-  const headers = {
-    ...options.headers,
-    'Content-Type': 'application/json',
-  };
+  const headers = { ...options.headers };
+
+  // Solo establecer Content-Type para cuerpos que no sean FormData
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (!isFormData) {
+    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+  }
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;

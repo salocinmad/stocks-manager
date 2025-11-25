@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth.js';
 import ProfilePicture from '../models/ProfilePicture.js';
 import User from '../models/User.js'; // Necesario para la asociación
 import fs from 'fs'; // Importar fs para manejar operaciones de archivos
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Directorio donde se guardarán las imágenes de perfil
-const PROFILE_PICTURES_DIR = path.join(__dirname, '..\\', '..\\', 'images', 'profile-pictures');
+const PROFILE_PICTURES_DIR = path.join(__dirname, '..', '..', 'images', 'profile-pictures');
 
 // Configuración de Multer para almacenar la imagen en disco
 const storage = multer.diskStorage({
@@ -25,10 +26,10 @@ const storage = multer.diskStorage({
     cb(null, PROFILE_PICTURES_DIR);
   },
   filename: (req, file, cb) => {
-    // Generar un nombre de archivo único usando el ID de usuario y un timestamp
     const userId = req.user.id;
     const extension = path.extname(file.originalname);
-    cb(null, `${userId}-${Date.now()}${extension}`);
+    const unique = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    cb(null, `${userId}-${unique}${extension}`);
   }
 });
 
@@ -102,9 +103,12 @@ router.get('/', async (req, res) => {
       return res.status(404).json({ error: 'Imagen de perfil no encontrada.' });
     }
 
-    // Devolver la URL de la imagen
-    const imageUrl = `/images/profile-pictures/${profilePicture.filename}`;
-    res.status(200).json({ imageUrl });
+    const filePath = path.join(PROFILE_PICTURES_DIR, profilePicture.filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Archivo de imagen no encontrado.' });
+    }
+
+    res.sendFile(filePath);
   } catch (error) {
     console.error('Error al obtener imagen de perfil:', error);
     res.status(500).json({ error: error.message || 'Error interno del servidor al obtener la imagen.' });
