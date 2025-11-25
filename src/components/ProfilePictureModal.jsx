@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { profilePicturesAPI } from '../services/api.js';
 
 function ProfilePictureModal({ show, onClose, onUploadSuccess, onDeleteSuccess, currentProfilePictureUrl, fetchProfilePicture }) {
@@ -24,7 +24,7 @@ function ProfilePictureModal({ show, onClose, onUploadSuccess, onDeleteSuccess, 
     setMessage('');
   };
 
-  const onDrop = useCallback((e) => {
+  const onDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
@@ -36,7 +36,7 @@ function ProfilePictureModal({ show, onClose, onUploadSuccess, onDeleteSuccess, 
     } else {
       setError('Arrastra una imagen válida.');
     }
-  }, []);
+  };
 
   const onDragOver = (e) => {
     e.preventDefault();

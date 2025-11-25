@@ -3096,20 +3096,20 @@ function App() {
 
 
       {/* Modal de Imagen de Perfil */}
-      <ProfilePictureModal
-        show={showProfilePictureModal}
-        onClose={() => setShowProfilePictureModal(false)}
-        onUploadSuccess={() => {
-          setShowProfilePictureModal(false);
-          // Opcional: mostrar un mensaje de éxito global si es necesario
-        }}
-        onDeleteSuccess={() => {
-          setShowProfilePictureModal(false);
-          // Opcional: mostrar un mensaje de éxito global si es necesario
-        }}
-        currentProfilePictureUrl={profilePictureUrl}
-        fetchProfilePicture={fetchProfilePicture}
-      />
+      {showProfilePictureModal && (
+        <ProfilePictureModal
+          show={true}
+          onClose={() => setShowProfilePictureModal(false)}
+          onUploadSuccess={() => {
+            setShowProfilePictureModal(false);
+          }}
+          onDeleteSuccess={() => {
+            setShowProfilePictureModal(false);
+          }}
+          currentProfilePictureUrl={profilePictureUrl}
+          fetchProfilePicture={fetchProfilePicture}
+        />
+      )}
 
       {/* Modal de Configuración */}
       {showConfigModal && (
