@@ -11,6 +11,7 @@ import DailyPrice from './models/DailyPrice.js';
 import DailyPortfolioStats from './models/DailyPortfolioStats.js';
 import Config from './models/Config.js';
 import ProfilePicture from './models/ProfilePicture.js';
+import profilePicturesRoutes from './routes/profilePictures.js';
 import positionRoutes from './routes/positions.js';
 import pricesRoutes from './routes/prices.js';
 import notesRoutes from './routes/notes.js';
@@ -56,6 +57,7 @@ app.use('/api/positions', positionRoutes);
 app.use('/api/prices', pricesRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/profile-pictures', profilePicturesRoutes);
 
 // Ruta de estado (Health Check)
 app.get('/api/health', (req, res) => {
