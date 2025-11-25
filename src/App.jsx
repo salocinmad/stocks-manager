@@ -2952,16 +2952,12 @@ function App() {
             <h2>📖 Guía Rápida de Markdown</h2>
             <div className="card" style={{ marginBottom: '12px' }}>
               <h3 style={{ fontSize: '18px', marginTop: 0 }}>Encabezados</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`# Título Principal (H1)
-## Título Secundario (H2)
-### Título Terciario (H3)
-#### Subtítulo (H4)`}</pre>
+              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`# Título Principal (H1)\n## Título Secundario (H2)\n### Título Terciario (H3)\n#### Subtítulo (H4)`}</pre>
             </div>
 
             <div className="card" style={{ marginBottom: '12px' }}>
               <h3 style={{ fontSize: '18px', marginTop: 0 }}>Énfasis</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`**Texto en negrita**
-*Texto en cursiva*`}</pre>
+              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`**Texto en negrita**\n*Texto en cursiva*`}</pre>
               <div style={{ marginTop: '8px', fontSize: '14px' }}>
                 <strong>Texto en negrita</strong><br />
                 <em>Texto en cursiva</em>
@@ -2970,9 +2966,7 @@ function App() {
 
             <div className="card" style={{ marginBottom: '12px' }}>
               <h3 style={{ fontSize: '18px', marginTop: 0 }}>Listas</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`- Elemento 1
-- Elemento 2
-- Elemento 3`}</pre>
+              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`- Elemento 1\n- Elemento 2\n- Elemento 3`}</pre>
               <div style={{ marginTop: '8px', fontSize: '14px' }}>
                 <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
                   <li>Elemento 1</li>
