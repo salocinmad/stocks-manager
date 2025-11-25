@@ -4,12 +4,34 @@ import multer from 'multer'; // Importar multer para manejar la subida de archiv
 import { authenticate } from '../middleware/auth.js';
 import ProfilePicture from '../models/ProfilePicture.js';
 import User from '../models/User.js'; // Necesario para la asociación
+import fs from 'fs'; // Importar fs para manejar operaciones de archivos
 
 const router = express.Router();
 
-// Configuración de Multer para almacenar la imagen en memoria
-// Esto es importante porque la vamos a guardar como BLOB en la DB
-const storage = multer.memoryStorage();
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Directorio donde se guardarán las imágenes de perfil
+const PROFILE_PICTURES_DIR = path.join(__dirname, '..\', '..\', 'images', 'profile-pictures');
+
+// Configuración de Multer para almacenar la imagen en disco
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    // Asegurarse de que el directorio exista
+    // fs.mkdirSync(PROFILE_PICTURES_DIR, { recursive: true }); // Esto se puede hacer al iniciar la app o manualmente
+    cb(null, PROFILE_PICTURES_DIR);
+  },
+  filename: (req, file, cb) => {
+    // Generar un nombre de archivo único usando el ID de usuario y un timestamp
+    const userId = req.user.id;
+    const extension = path.extname(file.originalname);
+    cb(null, `${userId}-${Date.now()}${extension}`);
+  }
+});
+
 const upload = multer({
   storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // Límite de 5MB
@@ -33,26 +55,24 @@ router.post('/', upload.single('profilePicture'), async (req, res) => {
     }
 
     const userId = req.user.id;
-    const imageData = req.file.buffer; // Datos binarios de la imagen
-    const mimeType = req.file.mimetype; // Tipo MIME de la imagen
+    const filename = req.file.filename; // Nombre del archivo guardado por Multer
 
     // Buscar si ya existe una imagen de perfil para este usuario
     let profilePicture = await ProfilePicture.findOne({ where: { userId } });
 
     if (profilePicture) {
-      // Si existe, actualizarla
-      profilePicture.imageData = imageData;
-      profilePicture.mimeType = mimeType;
+      // Si existe, actualizarla (borrar la antigua y guardar la nueva referencia)
+      // TODO: Considerar borrar el archivo antiguo del disco si existe
+      profilePicture.filename = filename;
       await profilePicture.save();
-      res.status(200).json({ message: 'Imagen de perfil actualizada correctamente.' });
+      res.status(200).json({ message: 'Imagen de perfil actualizada correctamente.', filename });
     } else {
       // Si no existe, crear una nueva
       profilePicture = await ProfilePicture.create({
         userId,
-        imageData,
-        mimeType
+        filename
       });
-      res.status(201).json({ message: 'Imagen de perfil creada correctamente.' });
+      res.status(201).json({ message: 'Imagen de perfil creada correctamente.', filename });
     }
   } catch (error) {
     console.error('Error al subir/actualizar imagen de perfil:', error);
@@ -70,9 +90,9 @@ router.get('/', async (req, res) => {
       return res.status(404).json({ error: 'Imagen de perfil no encontrada.' });
     }
 
-    // Establecer el tipo de contenido y enviar los datos binarios
-    res.set('Content-Type', profilePicture.mimeType);
-    res.send(profilePicture.imageData);
+    // Devolver la URL de la imagen
+    const imageUrl = `/images/profile-pictures/${profilePicture.filename}`;
+    res.status(200).json({ imageUrl });
   } catch (error) {
     console.error('Error al obtener imagen de perfil:', error);
     res.status(500).json({ error: error.message || 'Error interno del servidor al obtener la imagen.' });
@@ -83,11 +103,21 @@ router.get('/', async (req, res) => {
 router.delete('/', async (req, res) => {
   try {
     const userId = req.user.id;
-    const result = await ProfilePicture.destroy({ where: { userId } });
+    const profilePicture = await ProfilePicture.findOne({ where: { userId } });
 
-    if (result === 0) {
+    if (!profilePicture) {
       return res.status(404).json({ error: 'No se encontró imagen de perfil para eliminar.' });
     }
+
+    // Eliminar el archivo físico del disco
+    const filePath = path.join(PROFILE_PICTURES_DIR, profilePicture.filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log(`🗑️ Archivo de imagen de perfil eliminado: ${filePath}`);
+    }
+
+    // Eliminar la entrada de la base de datos
+    await profilePicture.destroy();
 
     res.status(200).json({ message: 'Imagen de perfil eliminada correctamente.' });
   } catch (error) {

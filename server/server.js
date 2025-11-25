@@ -28,6 +28,16 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Directorio donde se guardarán las imágenes de perfil
+const PROFILE_PICTURES_DIR = path.join(__dirname, '..\', 'images', 'profile-pictures');
+
+// Asegurarse de que el directorio de imágenes de perfil exista
+import fs from 'fs';
+if (!fs.existsSync(PROFILE_PICTURES_DIR)) {
+  fs.mkdirSync(PROFILE_PICTURES_DIR, { recursive: true });
+  console.log(`📂 Directorio de imágenes de perfil creado: ${PROFILE_PICTURES_DIR}`);
+}
+
 // Inicializar la aplicación Express
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -38,6 +48,9 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Servir imágenes de perfil estáticas
+app.use('/images/profile-pictures', express.static(PROFILE_PICTURES_DIR));
 
 // Global Request Logger
 app.use((req, res, next) => {

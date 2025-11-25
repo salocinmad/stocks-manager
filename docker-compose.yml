@@ -27,6 +27,7 @@ services:
       - mariadb
     volumes:
       - backend_env:/app/env
+      - profile_pictures_data:/app/images/profile-pictures
 
   frontend:
      build:
@@ -43,3 +44,4 @@ services:
 volumes:
   mariadb_data:
   backend_env:
+  profile_pictures_data:

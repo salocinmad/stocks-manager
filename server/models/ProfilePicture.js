@@ -18,12 +18,8 @@ const ProfilePicture = sequelize.define('ProfilePicture', {
       key: 'id'
     }
   },
-  imageData: {
-    type: DataTypes.BLOB('long'), // Para almacenar datos binarios de la imagen
-    allowNull: false
-  },
-  mimeType: {
-    type: DataTypes.STRING, // Por ejemplo, 'image/jpeg', 'image/png'
+  filename: {
+    type: DataTypes.STRING, // Para almacenar el nombre del archivo de la imagen
     allowNull: false
   }
 });
