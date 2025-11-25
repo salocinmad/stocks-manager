@@ -9,6 +9,11 @@ const fetchAPI = async (endpoint, options = {}) => {
   try {
     const response = await authenticatedFetch(url, options);
     if (!response.ok) {
+      // Si es un error 403 en una ruta de configuración, lo ignoramos
+      if (response.status === 403 && endpoint.startsWith('/config')) {
+        console.warn(`Acceso denegado (403) a ${endpoint}. Ignorando para usuarios no administradores.`);
+        return null; // O un valor predeterminado, dependiendo de cómo quieras manejarlo
+      }
       const error = await response.json().catch(() => ({ error: 'Error desconocido' }));
       throw new Error(error.error || `Error ${response.status}`);
     }

@@ -93,7 +93,7 @@ function App() {
     try {
       const response = await profilePicturesAPI.get();
       if (response.status === 404) { // No profile picture found
-        setProfilePictureUrl(null);
+        setProfilePictureUrl(DEFAULT_PROFILE_PICTURE_URL); // Set default Gravatar for 404
         return;
       }
       const blob = await response.blob();
