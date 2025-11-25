@@ -2986,15 +2986,7 @@ function App() {
 
             <div className="card" style={{ marginBottom: '12px' }}>
               <h3 style={{ fontSize: '18px', marginTop: 0 }}>Código</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>
-                Código inline: `código aquí`
-
-                Bloque de código:
-                ```
-                función ejemplo() {'{'}
-                return "Hola";
-                {'}'}
-                ```</pre>
+              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`Código inline: \`código aquí\`\n\nBloque de código:\n\`\`\`\nfunción ejemplo() {\n  return "Hola";\n}\n\`\`\``}</pre>
             </div>
 
             <div className="card" style={{ marginBottom: '12px' }}>
