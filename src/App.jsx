@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI } from './services/api.js';
+import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI, profilePicturesAPI } from './services/api.js';
 import { logout, verifySession, changePassword, authenticatedFetch } from './services/auth.js';
 import { usePositionOrder } from './usePositionOrder.jsx';
 
@@ -34,6 +34,7 @@ function App() {
   const [currentEURUSD, setCurrentEURUSD] = useState(null); // Tipo de cambio EUR/USD actual
   const [loadingData, setLoadingData] = useState(true); // Estado de carga de datos
   const [currentUser, setCurrentUser] = useState(null); // Usuario actual logueado
+  const [profilePictureUrl, setProfilePictureUrl] = useState(null); // URL de la imagen de perfil del usuario
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null); // Última sincronización global
   const [formData, setFormData] = useState({
     company: '',
@@ -59,6 +60,9 @@ function App() {
   const [pnlSeries, setPnlSeries] = useState([]);
   const [dailyCloseLastRun, setDailyCloseLastRun] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false); // Nuevo estado para el menú de usuario
+  const [showProfilePictureModal, setShowProfilePictureModal] = useState(false); // Nuevo estado para el modal de imagen de perfil
+
+  const DEFAULT_PROFILE_PICTURE_URL = 'https://www.gravatar.com/avatar/?d=mp'; // Imagen de perfil por defecto
 
   // Hook para reordenamiento de posiciones
   const {
@@ -79,6 +83,27 @@ function App() {
     return '';
   };
 
+  // Función para cargar la imagen de perfil
+  const fetchProfilePicture = async () => {
+    if (!currentUser) {
+      setProfilePictureUrl(null);
+      return;
+    }
+    try {
+      const response = await profilePicturesAPI.get();
+      if (response.status === 404) { // No profile picture found
+        setProfilePictureUrl(null);
+        return;
+      }
+      const blob = await response.blob();
+      const imageUrl = URL.createObjectURL(blob);
+      setProfilePictureUrl(imageUrl);
+    } catch (error) {
+      console.error('Error al cargar la imagen de perfil:', error);
+      setProfilePictureUrl(DEFAULT_PROFILE_PICTURE_URL); // Usar imagen por defecto en caso de error o no encontrada
+    }
+  };
+
   // Cerrar menú de usuario al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -91,6 +116,11 @@ function App() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showUserMenu]);
+
+  // Cargar imagen de perfil cuando el usuario cambia
+  useEffect(() => {
+    fetchProfilePicture();
+  }, [currentUser]); // Depende de currentUser
 
 
   // Cargar datos al iniciar
@@ -1887,8 +1917,27 @@ function App() {
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
           <div className="user-menu-container">
-            <button className="usera_initial-button" onClick={() => setShowUserMenu(!showUserMenu)}>
-              {getUserInitial()}
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="usera_initial-button"
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              {profilePictureUrl ? (
+                <img
+                  src={profilePictureUrl}
+                  alt="Profile"
+                  style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border-color)' }}
+                />
+              ) : (
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--button-bg-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--button-text-color)', fontWeight: 'bold', fontSize: '14px' }}>
+                  {getUserInitial()}
+                </div>
+              )}
+              {currentUser && (
+                <span style={{ color: 'var(--text-color)', fontSize: '14px', fontWeight: 'medium' }}>
+                  {currentUser.username}
+                </span>
+              )}
             </button>
             {showUserMenu && (
               <div className="user-dropdown-menu">
@@ -1897,6 +1946,10 @@ function App() {
                   setShowConfigModal(true);
                   setShowUserMenu(false);
                 }} className="dropdowna_item">⚙️ Config</button>
+                <button onClick={() => {
+                      setShowProfilePictureModal(true); // Abrir el modal de imagen de perfil
+                      setShowUserMenu(false);
+                    }} className="dropdowna_item">👤 Perfil</button>
                 <button onClick={() => {
                   logout();
                   navigate('/login');
@@ -3040,6 +3093,22 @@ function App() {
       )}
 
 
+
+      {/* Modal de Imagen de Perfil */}
+      <ProfilePictureModal
+        show={showProfilePictureModal}
+        onClose={() => setShowProfilePictureModal(false)}
+        onUploadSuccess={() => {
+          setShowProfilePictureModal(false);
+          // Opcional: mostrar un mensaje de éxito global si es necesario
+        }}
+        onDeleteSuccess={() => {
+          setShowProfilePictureModal(false);
+          // Opcional: mostrar un mensaje de éxito global si es necesario
+        }}
+        currentProfilePictureUrl={profilePictureUrl}
+        fetchProfilePicture={fetchProfilePicture}
+      />
 
       {/* Modal de Configuración */}
       {showConfigModal && (

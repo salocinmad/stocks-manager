@@ -92,3 +92,48 @@ export const configAPI = {
 // Health check
 export const healthCheck = () => fetchAPI('/health');
 
+// Helper para hacer requests autenticados que devuelven una imagen (Blob)
+const fetchImageAPI = async (endpoint, options = {}) => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  try {
+    const response = await authenticatedFetch(url, options);
+    if (!response.ok) {
+      // Si no es OK, intentar leer como JSON para errores, si no, lanzar error genérico
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText || `Error ${response.status}` };
+      }
+      throw new Error(errorData.message || `Error ${response.status}`);
+    }
+    return response; // Devolver la respuesta completa para que el consumidor pueda obtener el blob o el tipo de contenido
+  } catch (error) {
+    console.error('Error en API de imagen:', error);
+    throw error;
+  }
+};
+
+// Imágenes de perfil
+export const profilePicturesAPI = {
+  get: () => fetchImageAPI('/profile-pictures'),
+  upload: (file) => {
+    const formData = new FormData();
+    formData.append('profilePicture', file);
+    return authenticatedFetch(`${API_BASE_URL}/profile-pictures`, {
+      method: 'POST',
+      body: formData,
+      // No Content-Type header needed for FormData, browser sets it
+    }).then(response => {
+      if (!response.ok) {
+        return response.json().then(error => { throw new Error(error.message || `Error ${response.status}`); });
+      }
+      return response.json();
+    });
+  },
+  delete: () => fetchAPI('/profile-pictures', {
+    method: 'DELETE'
+  })
+};
+
