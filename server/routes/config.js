@@ -1,10 +1,11 @@
 import express from 'express';
 import Config from '../models/Config.js';
+import { authenticate, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Obtener todas las configuraciones
-router.get('/', async (req, res) => {
+router.get('/', authenticate, isAdmin, async (req, res) => {
   try {
     const configs = await Config.findAll();
     const configObject = {};
@@ -18,7 +19,7 @@ router.get('/', async (req, res) => {
 });
 
 // Obtener una configuración por clave
-router.get('/:key', async (req, res) => {
+router.get('/:key', authenticate, isAdmin, async (req, res) => {
   try {
     const config = await Config.findOne({ where: { key: req.params.key } });
     if (!config) {
@@ -31,7 +32,7 @@ router.get('/:key', async (req, res) => {
 });
 
 // Crear o actualizar una configuración
-router.post('/:key', async (req, res) => {
+router.post('/:key', authenticate, isAdmin, async (req, res) => {
   try {
     const { value } = req.body;
 
@@ -52,7 +53,7 @@ router.post('/:key', async (req, res) => {
 });
 
 // Eliminar una configuración
-router.delete('/:key', async (req, res) => {
+router.delete('/:key', authenticate, isAdmin, async (req, res) => {
   try {
     const config = await Config.findOne({ where: { key: req.params.key } });
 

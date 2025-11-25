@@ -10,6 +10,7 @@ import configRoutes from './routes/config.js';
 import DailyPrice from './models/DailyPrice.js';
 import DailyPortfolioStats from './models/DailyPortfolioStats.js';
 import Config from './models/Config.js';
+import ProfilePicture from './models/ProfilePicture.js';
 import positionRoutes from './routes/positions.js';
 import pricesRoutes from './routes/prices.js';
 import notesRoutes from './routes/notes.js';
