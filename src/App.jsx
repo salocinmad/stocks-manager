@@ -201,10 +201,10 @@ function App() {
           const totalInvestedEUR = operationsWithId.reduce((sum, op) => {
             const key = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
             if (!activeKeys.has(key)) return sum;
-            const rate = op.exchangeRate ? parseFloat(op.exchangeRate) : 1;
-            const gross = (parseFloat(op.price) * parseInt(op.shares)) + (parseFloat(op.commission) || 0);
-            const eur = gross * (op.currency === 'EUR' ? 1 : rate);
-            return sum + (op.type === 'purchase' ? eur : -eur);
+            // Usar totalCost directamente para coincidir con la lógica de getPositions/computeCurrentNetPnL
+            // Esto asume que totalCost es consistente con lo que espera el usuario (sea EUR o USD tratado como tal)
+            const cost = parseFloat(op.totalCost) || 0;
+            return sum + (op.type === 'purchase' ? cost : -cost);
           }, 0);
           let series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) - totalInvestedEUR }));
           if (series.length > 0) {
@@ -253,7 +253,7 @@ function App() {
         })
         .filter(d => d.value > 0);
       if (items.length > 0) setContributionChartData(items);
-    } catch {}
+    } catch { }
   }, [operations, currentPrices, currentEURUSD]);
 
   // Sincronizar el último punto del PnL con la suma de Ganancia/Pérdida por posición (en EUR)
@@ -268,7 +268,7 @@ function App() {
         pnlEUR: net
       };
       setPnlSeries(adjusted);
-    } catch {}
+    } catch { }
   }, [currentPrices, operations, currentEURUSD, dailyCloseLastRun]);
 
   // Re-fetch de la serie cuando cambia daily_close_last_run
@@ -289,14 +289,13 @@ function App() {
         const totalInvestedEUR = operations.reduce((sum, op) => {
           const key = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
           if (!activeKeys.has(key)) return sum;
-          const rate = op.exchangeRate ? parseFloat(op.exchangeRate) : 1;
-          const gross = (parseFloat(op.price) * parseInt(op.shares)) + (parseFloat(op.commission) || 0);
-          const eur = gross * (op.currency === 'EUR' ? 1 : rate);
-          return sum + (op.type === 'purchase' ? eur : -eur);
+          // Usar totalCost directamente para coincidir con la lógica de getPositions/computeCurrentNetPnL
+          const cost = parseFloat(op.totalCost) || 0;
+          return sum + (op.type === 'purchase' ? cost : -cost);
         }, 0);
         const series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) - totalInvestedEUR }));
         setPnlSeries(series);
-      } catch {}
+      } catch { }
     };
 
     // Refrescar inmediatamente cuando cambie la última ejecución
@@ -312,7 +311,7 @@ function App() {
           setDailyCloseLastRun(dclr.value);
           await refreshTimeseries();
         }
-      } catch {}
+      } catch { }
     }, 60000);
 
     return () => { if (timer) clearInterval(timer); };
@@ -733,8 +732,8 @@ function App() {
         exchange = parts[1]; // Guardar el exchange original
       }
 
-        let priceData = null;
-        let usedYahoo = false;
+      let priceData = null;
+      let usedYahoo = false;
 
       // Preparar exchange para Finnhub (convertir MC a BME, F a FRA)
       let finnhubExchange = exchange;
@@ -768,23 +767,23 @@ function App() {
             `https://finnhub.io/api/v1/quote?symbol=${finnhubSymbol}&token=${finnhubApiKey}`
           );
 
-            if (response.ok) {
-              const data = await response.json();
-              if (!data.error && data.c && data.c > 0) {
-                priceData = {
-                  price: data.c,
-                  change: data.d,
-                  changePercent: data.dp,
-                  high: data.h,
-                  low: data.l,
-                  open: data.o,
-                  previousClose: data.pc,
-                  symbol: finnhubSymbol,
-                  source: 'finnhub',
-                  updatedAt: new Date().toISOString()
-                };
-              }
+          if (response.ok) {
+            const data = await response.json();
+            if (!data.error && data.c && data.c > 0) {
+              priceData = {
+                price: data.c,
+                change: data.d,
+                changePercent: data.dp,
+                high: data.h,
+                low: data.l,
+                open: data.o,
+                previousClose: data.pc,
+                symbol: finnhubSymbol,
+                source: 'finnhub',
+                updatedAt: new Date().toISOString()
+              };
             }
+          }
         } catch (error) {
           console.log('Finnhub falló, intentando Yahoo Finance...');
         }
@@ -1902,7 +1901,7 @@ function App() {
             </button>
           )}
 
-          
+
           <button className="button success" onClick={() => openModal('purchase')}>
             ➕ Comprar
           </button>
@@ -2242,8 +2241,8 @@ function App() {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip 
-                        formatter={(value, name) => { const total = chartData.reduce((sum, d) => sum + d.value, 0); const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'; return [`€${Number(value).toFixed(2)} (${percentage}%)`, name.split(':')[0]]; }} 
+                      <Tooltip
+                        formatter={(value, name) => { const total = chartData.reduce((sum, d) => sum + d.value, 0); const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'; return [`€${Number(value).toFixed(2)} (${percentage}%)`, name.split(':')[0]]; }}
                         contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }}
                         itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
                         labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
@@ -2270,8 +2269,8 @@ function App() {
                           <Cell key={`c-cell-${index}`} fill={contributionColorsMap[entry.name] || entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip 
-                        formatter={(value, name) => { const total = contributionChartData.reduce((sum, d) => sum + d.value, 0); const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'; return [`€${Number(value).toFixed(2)} (${percentage}%)`, name]; }} 
+                      <Tooltip
+                        formatter={(value, name) => { const total = contributionChartData.reduce((sum, d) => sum + d.value, 0); const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'; return [`€${Number(value).toFixed(2)} (${percentage}%)`, name]; }}
                         contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }}
                         itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
                         labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
@@ -2910,7 +2909,7 @@ function App() {
         </div>
       )}
 
-      
+
 
       {/* Modal de Configuración */}
       {showConfigModal && (

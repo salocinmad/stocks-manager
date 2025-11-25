@@ -34,7 +34,7 @@ router.get('/contribution', async (req, res) => {
     const items = []
     for (const p of positions) {
       const pk = `${p.company}|||${p.symbol}`
-      const row = await DailyPrice.findOne({ where: { userId, positionKey: pk, date: { [Op.lte]: date } }, order: [['date','DESC']] })
+      const row = await DailyPrice.findOne({ where: { userId, positionKey: pk, date: { [Op.lte]: date } }, order: [['date', 'DESC']] })
       if (!row) continue
       const valueEUR = (row.close || 0) * p.shares * (row.exchangeRate || 1)
       items.push({ name: p.company, valueEUR })
