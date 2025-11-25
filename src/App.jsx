@@ -2895,7 +2895,7 @@ function App() {
                         await notesAPI.upsert(notePositionKey, noteContent || '');
                         setNotesCache(prev => ({ ...prev, [notePositionKey]: !!(noteContent) }));
                         setNoteOriginalContent(noteContent);
-                        setShowNoteModal(false);
+                        setNoteEditMode(false); // Switch to read mode to see the result
                       } catch (e) {
                         alert('Error guardando nota');
                       } finally {
