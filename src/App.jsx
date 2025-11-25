@@ -192,13 +192,18 @@ function App() {
           // El backend ahora retorna pnlEUR directamente como totalValueEUR
           let series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }));
 
-          // Actualizar el último punto con el PnL actual en tiempo real
+          const { net, count } = computeCurrentNetPnL();
           if (series.length > 0) {
-            const { net, count } = computeCurrentNetPnL();
+            // Actualizar el último punto con el PnL actual en tiempo real
             if (count > 0) {
               series[series.length - 1].pnlEUR = net;
             }
+          } else if (count > 0) {
+            // Si no hay datos históricos, crear al menos el punto de hoy
+            const today = new Date().toISOString().slice(0, 10);
+            series = [{ date: today, pnlEUR: net }];
           }
+
           setPnlSeries(series);
         } catch (e) {
           console.log('No se pudo cargar la serie de PnL');
