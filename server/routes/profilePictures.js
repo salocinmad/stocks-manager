@@ -44,6 +44,7 @@ router.post('/', upload.single('profilePicture'), async (req, res) => {
       profilePicture.imageData = imageData;
       profilePicture.mimeType = mimeType;
       await profilePicture.save();
+      res.status(200).json({ message: 'Imagen de perfil actualizada correctamente.' });
     } else {
       // Si no existe, crear una nueva
       profilePicture = await ProfilePicture.create({
@@ -51,9 +52,8 @@ router.post('/', upload.single('profilePicture'), async (req, res) => {
         imageData,
         mimeType
       });
+      res.status(201).json({ message: 'Imagen de perfil creada correctamente.' });
     }
-
-    res.status(200).json({ message: 'Imagen de perfil subida/actualizada correctamente.' });
   } catch (error) {
     console.error('Error al subir/actualizar imagen de perfil:', error);
     res.status(500).json({ error: error.message || 'Error interno del servidor al subir la imagen.' });
