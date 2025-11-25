@@ -63,7 +63,7 @@ function App() {
   const [showUserMenu, setShowUserMenu] = useState(false); // Nuevo estado para el menú de usuario
   const [showProfilePictureModal, setShowProfilePictureModal] = useState(false); // Nuevo estado para el modal de imagen de perfil
 
-  const DEFAULT_PROFILE_PICTURE_URL = 'https://www.gravatar.com/avatar/?d=mp'; // Imagen de perfil por defecto
+  const DEFAULT_PROFILE_PICTURE_URL = '/defaultpic.jpg'; // Imagen de perfil por defecto servida desde el frontend
 
   // Hook para reordenamiento de posiciones
   const {
