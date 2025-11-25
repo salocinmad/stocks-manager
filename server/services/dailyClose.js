@@ -1,7 +1,8 @@
 import Config from '../models/Config.js'
 import Operation from '../models/Operation.js'
 import DailyPrice from '../models/DailyPrice.js'
-import yahooFinance from 'yahoo-finance2'
+import YahooFinance from 'yahoo-finance2';
+const yahooFinance = new YahooFinance();
 
 let dailyTimer = null
 let dailyRunning = false
@@ -217,16 +218,16 @@ const getFxMapToEUR = async () => {
         return map
       }
     }
-  } catch {}
+  } catch { }
   try {
     const eurusd = await yahooFinance.quote('EURUSD=X')
     const r = eurusd?.regularMarketPreviousClose || eurusd?.regularMarketPrice
     if (r && r > 0) map.USD = 1 / r
-  } catch {}
+  } catch { }
   try {
     const eurgbp = await yahooFinance.quote('EURGBP=X')
     const r = eurgbp?.regularMarketPreviousClose || eurgbp?.regularMarketPrice
     if (r && r > 0) map.GBP = 1 / r
-  } catch {}
+  } catch { }
   return map
 }

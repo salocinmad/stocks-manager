@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
+const yahooFinance = new YahooFinance();
 import Config from '../models/Config.js';
 
 const router = express.Router();
@@ -12,7 +13,7 @@ router.use(authenticate);
 router.get('/quote/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    
+
     if (!symbol) {
       return res.status(400).json({ error: 'Símbolo requerido' });
     }
@@ -28,16 +29,16 @@ router.get('/quote/:symbol', async (req, res) => {
     });
 
     if (!response.ok) {
-      return res.status(response.status).json({ 
-        error: `Error al consultar Yahoo Finance: ${response.status}` 
+      return res.status(response.status).json({
+        error: `Error al consultar Yahoo Finance: ${response.status}`
       });
     }
 
     const data = await response.json();
 
     if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
-      return res.status(404).json({ 
-        error: `Símbolo ${symbol} no encontrado en Yahoo Finance` 
+      return res.status(404).json({
+        error: `Símbolo ${symbol} no encontrado en Yahoo Finance`
       });
     }
 

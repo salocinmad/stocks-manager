@@ -2,7 +2,8 @@ import Config from '../models/Config.js'
 import Operation from '../models/Operation.js'
 import PriceCache from '../models/PriceCache.js'
 import { sendNotification } from './notify.js'
-import yahooFinance from 'yahoo-finance2'
+import YahooFinance from 'yahoo-finance2';
+const yahooFinance = new YahooFinance();
 
 let timer = null
 let running = false
