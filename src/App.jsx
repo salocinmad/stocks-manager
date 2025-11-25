@@ -1917,48 +1917,6 @@ function App() {
           <button className="theme-toggle" onClick={toggleTheme}>
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          <div className="user-menu-container">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="usera_initial-button"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-            >
-              {profilePictureUrl ? (
-                <img
-                  src={profilePictureUrl}
-                  alt="Profile"
-                  style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border-color)' }}
-                />
-              ) : (
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--button-bg-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--button-text-color)', fontWeight: 'bold', fontSize: '14px' }}>
-                  {getUserInitial()}
-                </div>
-              )}
-              {currentUser && (
-                <span style={{ color: 'var(--text-color)', fontSize: '14px', fontWeight: 'medium' }}>
-                  {currentUser.username}
-                </span>
-              )}
-            </button>
-            {showUserMenu && (
-              <div className="user-dropdown-menu">
-                <button onClick={generateFullCSV} className="dropdowna_item">📊 Exportar CSV</button>
-                <button onClick={() => {
-                  setShowConfigModal(true);
-                  setShowUserMenu(false);
-                }} className="dropdowna_item">⚙️ Config</button>
-                <button onClick={() => {
-                      setShowProfilePictureModal(true); // Abrir el modal de imagen de perfil
-                      setShowUserMenu(false);
-                    }} className="dropdowna_item">👤 Perfil</button>
-                <button onClick={() => {
-                  logout();
-                  navigate('/login');
-                  setShowUserMenu(false);
-                }} className="dropdowna_item">🚪 Salir</button>
-              </div>
-            )}
-          </div>
           <button className="button" onClick={() => setShowHistory(!showHistory)}>
             {showHistory ? '🏠 Portada' : '📜 Histórico'}
           </button>
@@ -1982,6 +1940,48 @@ function App() {
           }}>
             ➖ Vender
           </button>
+          <div className="user-menu-container">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="user-initial-button"
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '20px' }}
+            >
+              {profilePictureUrl ? (
+                <img
+                  src={profilePictureUrl}
+                  alt="Profile"
+                  style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#404040', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>
+                  {getUserInitial()}
+                </div>
+              )}
+              {currentUser && (
+                <span style={{ fontSize: '14px' }}>
+                  {currentUser.username}
+                </span>
+              )}
+            </button>
+            {showUserMenu && (
+              <div className="user-dropdown-menu">
+                <button onClick={generateFullCSV} className="dropdown-item">📊 Exportar CSV</button>
+                <button onClick={() => {
+                  setShowConfigModal(true);
+                  setShowUserMenu(false);
+                }} className="dropdown-item">⚙️ Config</button>
+                <button onClick={() => {
+                      setShowProfilePictureModal(true);
+                      setShowUserMenu(false);
+                    }} className="dropdown-item">👤 Perfil</button>
+                <button onClick={() => {
+                  logout();
+                  navigate('/login');
+                  setShowUserMenu(false);
+                }} className="dropdown-item">🚪 Salir</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
