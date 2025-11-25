@@ -431,12 +431,12 @@ function App() {
     let html = text;
     html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code}</code></pre>`);
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-    html = html.replace(/^######\s*(.*)$/gm, '<h6>$1</h6>');
-    html = html.replace(/^#####\s*(.*)$/gm, '<h5>$1</h5>');
-    html = html.replace(/^####\s*(.*)$/gm, '<h4>$1</h4>');
-    html = html.replace(/^###\s*(.*)$/gm, '<h3>$1</h3>');
-    html = html.replace(/^##\s*(.*)$/gm, '<h2>$1</h2>');
-    html = html.replace(/^#\s*(.*)$/gm, '<h1>$1</h1>');
+    html = html.replace(/^######\s*(.*)$/gm, '<h6 style="font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;">$1</h6>');
+    html = html.replace(/^#####\s*(.*)$/gm, '<h5 style="font-size: 16px; font-weight: 600; margin: 14px 0 8px 0;">$1</h5>');
+    html = html.replace(/^####\s*(.*)$/gm, '<h4 style="font-size: 18px; font-weight: 600; margin: 16px 0 10px 0;">$1</h4>');
+    html = html.replace(/^###\s*(.*)$/gm, '<h3 style="font-size: 20px; font-weight: 700; margin: 18px 0 10px 0;">$1</h3>');
+    html = html.replace(/^##\s*(.*)$/gm, '<h2 style="font-size: 24px; font-weight: 700; margin: 20px 0 12px 0;">$1</h2>');
+    html = html.replace(/^#\s*(.*)$/gm, '<h1 style="font-size: 28px; font-weight: 700; margin: 22px 0 14px 0;">$1</h1>');
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
     html = html.replace(/\n-{3,}\n/g, '<hr/>');
