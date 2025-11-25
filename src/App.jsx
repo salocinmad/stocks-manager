@@ -1008,7 +1008,9 @@ function App() {
                   price: data.c,
                   change: data.d,
                   changePercent: data.dp,
-                  symbol: finnhubSymbol
+                  symbol: finnhubSymbol,
+                  source: 'finnhub',
+                  updatedAt: new Date().toISOString()
                 };
                 console.log(`[${companyName}] Precio obtenido de Finnhub: $${priceData.price}`);
               }
