@@ -2863,23 +2863,17 @@ function App() {
             <h2>📝 Nota</h2>
 
             {noteEditMode ? (
-              // Edit Mode: Show textarea + preview
-              <div style={{ display: 'block' }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label>Markdown</label>
-                  <textarea
-                    className="input"
-                    style={{ minHeight: '200px', width: '100%', resize: 'vertical' }}
-                    value={noteContent}
-                    onChange={(e) => setNoteContent(e.target.value)}
-                    disabled={noteLoading || noteSaving}
-                    placeholder="# Título\n\nEscribe tu nota en Markdown..."
-                  />
-                </div>
-                <div className="card" style={{ marginTop: '12px', width: '100%', maxHeight: '60vh', overflowY: 'auto' }}>
-                  <div style={{ fontSize: '12px', color: '#888' }}>Vista previa</div>
-                  <div dangerouslySetInnerHTML={{ __html: markdownToHtml(noteContent || '') }} />
-                </div>
+              // Edit Mode: Show only textarea (no preview to avoid multiple scrollbars)
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Markdown</label>
+                <textarea
+                  className="input"
+                  style={{ minHeight: '300px', width: '100%', resize: 'vertical' }}
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  disabled={noteLoading || noteSaving}
+                  placeholder="# Título\n\nEscribe tu nota en Markdown..."
+                />
               </div>
             ) : (
               // Read Mode: Show only preview (use modal's scrollbar, not card's)
