@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI, profilePicturesAPI } from './services/api.js';
 import { logout, verifySession, changePassword, authenticatedFetch } from './services/auth.js';
+import ProfilePictureModal from './components/ProfilePictureModal.jsx';
 import { usePositionOrder } from './usePositionOrder.jsx';
 
 function App() {
