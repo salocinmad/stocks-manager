@@ -47,6 +47,11 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || '*', // Permitir solicitudes desde cualquier origen en desarrollo
   credentials: true
 }));
+
+// Montar las rutas de imágenes de perfil antes del middleware de JSON
+// para que multer pueda procesar las solicitudes multipart/form-data
+app.use('/api/profile-pictures', profilePicturesRoutes);
+
 app.use(express.json());
 
 // Servir imágenes de perfil estáticas
