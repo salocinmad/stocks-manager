@@ -48,7 +48,19 @@ const upload = multer({
 router.use(authenticate);
 
 // Ruta para subir o actualizar la imagen de perfil
-router.post('/', upload.single('profilePicture'), async (req, res) => {
+router.post('/', (req, res, next) => {
+  upload.single('profilePicture')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      // Un error de Multer ocurrió durante la subida.
+      return res.status(400).json({ error: err.message });
+    } else if (err) {
+      // Un error desconocido ocurrió durante la subida.
+      return res.status(500).json({ error: err.message });
+    }
+    // Todo bien, pasar al siguiente middleware (nuestro manejador async)
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No se ha subido ninguna imagen.' });
