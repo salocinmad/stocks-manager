@@ -3,6 +3,7 @@ import { Op } from 'sequelize'
 import { authenticate } from '../middleware/auth.js'
 import Operation from '../models/Operation.js'
 import DailyPrice from '../models/DailyPrice.js'
+import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
 import Config from '../models/Config.js'
 
 const router = express.Router()
@@ -47,7 +48,6 @@ router.get('/contribution', async (req, res) => {
   }
 })
 
-export default router
 router.get('/timeseries', async (req, res) => {
   try {
     const userId = req.user.id
@@ -55,29 +55,21 @@ router.get('/timeseries', async (req, res) => {
     const since = new Date()
     since.setDate(since.getDate() - days)
     const sinceDate = since.toISOString().slice(0, 10)
-    const rows = await DailyPrice.findAll({
+
+    // Read from DailyPortfolioStats (persisted snapshots)
+    const rows = await DailyPortfolioStats.findAll({
       where: { userId, date: { [Op.gte]: sinceDate } },
       order: [['date', 'ASC']]
     })
-    const map = new Map()
-    for (const r of rows) {
-      const v = (r.close || 0) * (r.exchangeRate || 1)
-      const prev = map.get(r.date) || 0
-      // shares por posición
-      // obtener shares actuales por positionKey
-      // optimización: precargar sharesByPosition
-    }
-    const pos = await sharesByPosition(userId)
-    const sharesMap = new Map(pos.map(p => [`${p.company}|||${p.symbol}`, p.shares]))
-    for (const r of rows) {
-      const key = `${r.company}|||${r.symbol || ''}`
-      const sh = sharesMap.get(key) || 0
-      const add = ((r.close || 0) * (r.exchangeRate || 1)) * sh
-      map.set(r.date, (map.get(r.date) || 0) + add)
-    }
-    const result = Array.from(map.entries()).map(([date, totalValueEUR]) => ({ date, totalValueEUR }))
+
+    // Return pnlEUR as totalValueEUR to maintain frontend contract
+    const result = rows.map(r => ({ date: r.date, totalValueEUR: r.pnlEUR }))
+
     res.json({ days, items: result })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
 })
+
+export default router
+

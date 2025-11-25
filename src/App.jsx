@@ -186,27 +186,13 @@ function App() {
           console.log('No se pudo cargar contribución');
         }
 
-        // Cargar serie de valor diario y calcular PnL
+        // Cargar serie de PnL histórico (viene de DailyPortfolioStats)
         try {
           const ts = await portfolioAPI.timeseries({ days: 30 });
-          const activeKeys = (() => {
-            const positions = {};
-            operationsWithId.forEach(op => {
-              const key = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
-              if (!positions[key]) positions[key] = { shares: 0 };
-              positions[key].shares += op.type === 'purchase' ? parseInt(op.shares) : -parseInt(op.shares);
-            });
-            return new Set(Object.entries(positions).filter(([_, pos]) => pos.shares > 0).map(([key]) => key));
-          })();
-          const totalInvestedEUR = operationsWithId.reduce((sum, op) => {
-            const key = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
-            if (!activeKeys.has(key)) return sum;
-            // Usar totalCost directamente para coincidir con la lógica de getPositions/computeCurrentNetPnL
-            // Esto asume que totalCost es consistente con lo que espera el usuario (sea EUR o USD tratado como tal)
-            const cost = parseFloat(op.totalCost) || 0;
-            return sum + (op.type === 'purchase' ? cost : -cost);
-          }, 0);
-          let series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) - totalInvestedEUR }));
+          // El backend ahora retorna pnlEUR directamente como totalValueEUR
+          let series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }));
+
+          // Actualizar el último punto con el PnL actual en tiempo real
           if (series.length > 0) {
             const { net, count } = computeCurrentNetPnL();
             if (count > 0) {
@@ -277,23 +263,8 @@ function App() {
     const refreshTimeseries = async () => {
       try {
         const ts = await portfolioAPI.timeseries({ days: 30 });
-        const activeKeys = (() => {
-          const positions = {};
-          operations.forEach(op => {
-            const key = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
-            if (!positions[key]) positions[key] = { shares: 0 };
-            positions[key].shares += op.type === 'purchase' ? parseInt(op.shares) : -parseInt(op.shares);
-          });
-          return new Set(Object.entries(positions).filter(([_, pos]) => pos.shares > 0).map(([key]) => key));
-        })();
-        const totalInvestedEUR = operations.reduce((sum, op) => {
-          const key = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
-          if (!activeKeys.has(key)) return sum;
-          // Usar totalCost directamente para coincidir con la lógica de getPositions/computeCurrentNetPnL
-          const cost = parseFloat(op.totalCost) || 0;
-          return sum + (op.type === 'purchase' ? cost : -cost);
-        }, 0);
-        const series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) - totalInvestedEUR }));
+        // El backend ahora retorna pnlEUR directamente como totalValueEUR
+        const series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }));
         setPnlSeries(series);
       } catch { }
     };
