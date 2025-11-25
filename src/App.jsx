@@ -58,6 +58,7 @@ function App() {
   const [contributionDate, setContributionDate] = useState(null);
   const [pnlSeries, setPnlSeries] = useState([]);
   const [dailyCloseLastRun, setDailyCloseLastRun] = useState(null);
+  const [showUserMenu, setShowUserMenu] = useState(false); // Nuevo estado para el menú de usuario
 
   // Hook para reordenamiento de posiciones
   const {
@@ -68,6 +69,28 @@ function App() {
     handleDrop,
     draggedPosition
   } = usePositionOrder(operations);
+
+  // Función para obtener la inicial del usuario
+  const getUserInitial = () => {
+    if (currentUser) {
+      if (currentUser.isAdmin) return 'A';
+      return currentUser.username ? currentUser.username.charAt(0).toUpperCase() : '';
+    }
+    return '';
+  };
+
+  // Cerrar menú de usuario al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showUserMenu && !event.target.closest('.user-menu-container')) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserMenu]);
 
 
   // Cargar datos al iniciar
@@ -1863,26 +1886,25 @@ function App() {
           <button className="theme-toggle" onClick={toggleTheme}>
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          <button
-            className="button"
-            onClick={() => setShowConfigModal(true)}
-            title="Configuración"
-          >
-            ⚙️ Config
-          </button>
-          <button
-            className="button"
-            onClick={() => {
-              logout();
-              navigate('/login');
-            }}
-            title="Cerrar Sesión"
-          >
-            🚪 Salir
-          </button>
-          <button className="button primary" onClick={generateFullCSV}>
-            📊 Exportar CSV
-          </button>
+          <div className="user-menu-container">
+            <button className="usera_initial-button" onClick={() => setShowUserMenu(!showUserMenu)}>
+              {getUserInitial()}
+            </button>
+            {showUserMenu && (
+              <div className="user-dropdown-menu">
+                <button onClick={generateFullCSV} className="dropdowna_item">📊 Exportar CSV</button>
+                <button onClick={() => {
+                  setShowConfigModal(true);
+                  setShowUserMenu(false);
+                }} className="dropdowna_item">⚙️ Config</button>
+                <button onClick={() => {
+                  logout();
+                  navigate('/login');
+                  setShowUserMenu(false);
+                }} className="dropdowna_item">🚪 Salir</button>
+              </div>
+            )}
+          </div>
           <button className="button" onClick={() => setShowHistory(!showHistory)}>
             {showHistory ? '🏠 Portada' : '📜 Histórico'}
           </button>
