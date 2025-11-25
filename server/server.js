@@ -1,4 +1,21 @@
 import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { connectDB } from './config/database.js';
+import authRoutes from './routes/auth.js';
+import operationRoutes from './routes/operations.js';
+import adminRoutes from './routes/admin.js';
+import yahooRoutes from './routes/yahoo.js';
+import configRoutes from './routes/config.js';
+import DailyPrice from './models/DailyPrice.js';
+import DailyPortfolioStats from './models/DailyPortfolioStats.js';
+import Config from './models/Config.js';
+import positionRoutes from './routes/positions.js';
+import pricesRoutes from './routes/prices.js';
+import notesRoutes from './routes/notes.js';
+import portfolioRoutes from './routes/portfolio.js';
+import scheduler from './services/scheduler.js';
+import dailyClose from './services/dailyClose.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
