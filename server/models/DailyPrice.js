@@ -1,0 +1,30 @@
+import { DataTypes } from 'sequelize'
+import sequelize from '../config/database.js'
+import User from './User.js'
+
+const DailyPrice = sequelize.define('DailyPrice', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  userId: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'Users', key: 'id' }, onDelete: 'CASCADE' },
+  positionKey: { type: DataTypes.STRING, allowNull: false },
+  company: { type: DataTypes.STRING, allowNull: false },
+  symbol: { type: DataTypes.STRING, allowNull: true, defaultValue: '' },
+  date: { type: DataTypes.DATEONLY, allowNull: false },
+  close: { type: DataTypes.FLOAT, allowNull: false },
+  currency: { type: DataTypes.STRING, allowNull: false, defaultValue: 'EUR' },
+  exchangeRate: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 1 },
+  source: { type: DataTypes.STRING, allowNull: true, defaultValue: 'yahoo' }
+}, {
+  tableName: 'DailyPrices',
+  timestamps: true,
+  indexes: [
+    { unique: true, fields: ['userId', 'positionKey', 'date'] },
+    { fields: ['userId'] },
+    { fields: ['date'] }
+  ]
+})
+
+DailyPrice.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE' })
+User.hasMany(DailyPrice, { foreignKey: 'userId' })
+
+export default DailyPrice
+

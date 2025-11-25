@@ -1,0 +1,44 @@
+services:
+  mariadb:
+    image: mariadb:latest
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: portfolio_manager
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+  server:
+    build: ./server
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST=mariadb
+      - DB_USER=user
+      - DB_PASS=password
+      - DB_NAME=portfolio_manager
+      - JWT_SECRET=your_jwt_secret_key
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
+    depends_on:
+      - mariadb
+    volumes:
+      - backend_env:/app/env
+
+  frontend:
+    build: .
+    ports:
+      - "3000:80"
+    stdin_open: true
+    tty: true
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    depends_on:
+      - server
+
+volumes:
+  mariadb_data:
+  backend_env:
