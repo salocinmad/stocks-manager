@@ -339,7 +339,7 @@ function App() {
         // El backend ahora retorna pnlEUR directamente como totalValueEUR
         const series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }));
         setPnlSeries(series);
-si tambien quiero finnhub         await fetchCurrentEURUSD();
+        await fetchCurrentEURUSD();
       } catch { }
     };
 
