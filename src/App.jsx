@@ -50,6 +50,7 @@ function App() {
   const [noteContent, setNoteContent] = useState('');
   const [noteOriginalContent, setNoteOriginalContent] = useState(''); // For cancel functionality
   const [noteEditMode, setNoteEditMode] = useState(false); // false = read mode, true = edit mode
+  const [showMarkdownHelp, setShowMarkdownHelp] = useState(false); // Markdown help guide
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteSaving, setNoteSaving] = useState(false);
   const [notesCache, setNotesCache] = useState({});
@@ -2884,7 +2885,7 @@ function App() {
 
             <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
               {noteEditMode ? (
-                // Edit mode buttons: Save and Cancel
+                // Edit mode buttons: Save, Cancel, and Help
                 <>
                   <button
                     className="button primary"
@@ -2918,6 +2919,14 @@ function App() {
                   >
                     Cancelar
                   </button>
+                  <button
+                    className="button"
+                    onClick={() => setShowMarkdownHelp(true)}
+                    style={{ marginLeft: 'auto' }}
+                    title="Guía de Markdown"
+                  >
+                    ❓ Ayuda
+                  </button>
                 </>
               ) : (
                 // Read mode buttons: Edit and Close
@@ -2931,6 +2940,86 @@ function App() {
                   <button className="button" onClick={() => setShowNoteModal(false)}>Cerrar</button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Markdown Help Modal */}
+      {showMarkdownHelp && (
+        <div className="modal" style={{ zIndex: 10001 }}>
+          <div className="modal-content" style={{ maxWidth: '700px', width: '100%' }}>
+            <h2>📖 Guía Rápida de Markdown</h2>
+            <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Encabezados</h3>
+                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                  # Título Principal (H1)
+                  ## Título Secundario (H2)
+                  ### Título Terciario (H3)
+                  #### Subtítulo (H4)</pre>
+              </div>
+
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Énfasis</h3>
+                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                  **Texto en negrita**
+                  *Texto en cursiva*</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <strong>Texto en negrita</strong><br />
+                  <em>Texto en cursiva</em>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Listas</h3>
+                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                  - Elemento 1
+                  - Elemento 2
+                  - Elemento 3</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                    <li>Elemento 1</li>
+                    <li>Elemento 2</li>
+                    <li>Elemento 3</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Enlaces</h3>
+                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                  [Texto del enlace](https://ejemplo.com)</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <a href="https://ejemplo.com" target="_blank" rel="noopener noreferrer">Texto del enlace</a>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Código</h3>
+                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                  Código inline: `código aquí`
+
+                  Bloque de código:
+                  ```
+                  función ejemplo() {'{'}
+                  return "Hola";
+                  {'}'}
+                  ```</pre>
+              </div>
+
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Línea Horizontal</h3>
+                <pre style={{ background: '#f5f5f5', padding: '8px', borderRadius: '4px', fontSize: '13px' }}>
+                  ---</pre>
+                <hr style={{ margin: '8px 0' }} />
+              </div>
+            </div>
+
+            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="button primary" onClick={() => setShowMarkdownHelp(false)}>
+                Cerrar
+              </button>
             </div>
           </div>
         </div>
