@@ -102,7 +102,7 @@ export const runOnce = async () => {
         const { price, change = null, changePercent = null } = priceData
         const existing = await PriceCache.findOne({ where: { userId, positionKey } })
         if (existing) {
-          await existing.update({ lastPrice: price, change, changePercent })
+          await existing.update({ lastPrice: price, change, changePercent, updatedAt: new Date() })
           await existing.reload() // Recargar para obtener updatedAt actualizado
           console.log(`✅ Actualizado ${symbol}: €${price} (updatedAt: ${existing.updatedAt})`)
           updateCount++
