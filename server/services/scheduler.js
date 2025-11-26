@@ -92,15 +92,19 @@ export const runOnce = async () => {
         const symbol = p.symbol || ''
         const positionKey = `${company}|||${symbol}`
         let priceData = await fetchPriceFinnhub(symbol)
-        if (!priceData) priceData = await fetchPriceYahoo(symbol)
+        let source = 'finnhub'
+        if (!priceData) {
+          priceData = await fetchPriceYahoo(symbol)
+          source = 'yahoo'
+        }
         if (!priceData) continue
         const { price, change = null, changePercent = null } = priceData
         const existing = await PriceCache.findOne({ where: { userId, positionKey } })
         if (existing) {
-          await existing.update({ lastPrice: price, change, changePercent })
+          await existing.update({ lastPrice: price, change, changePercent, source, updatedAt: new Date() })
           updateCount++
         } else {
-          await PriceCache.create({ userId, positionKey, lastPrice: price, change, changePercent })
+          await PriceCache.create({ userId, positionKey, lastPrice: price, change, changePercent, source })
           updateCount++
         }
         await checkAndNotify(userId, company, symbol, positionKey, price)

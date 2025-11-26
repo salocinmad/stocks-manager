@@ -29,6 +29,7 @@ router.post('/bulk', async (req, res) => {
         price: r.lastPrice,
         change: r.change ?? null,
         changePercent: r.changePercent ?? null,
+        source: r.source,
         updatedAt: r.updatedAt
       }
     })

@@ -35,8 +35,12 @@ const PriceCache = sequelize.define('PriceCache', {
     type: DataTypes.FLOAT,
     allowNull: true,
     defaultValue: null
-  }
-  ,
+  },
+  source: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Fuente del precio: yahoo o finnhub'
+  },
   targetHitNotifiedAt: {
     type: DataTypes.DATE,
     allowNull: true,
