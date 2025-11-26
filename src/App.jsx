@@ -40,6 +40,7 @@ function App() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null); // Última sincronización global
   const [portfolios, setPortfolios] = useState([]);
   const [currentPortfolioId, setCurrentPortfolioId] = useState(null);
+  const [showPortfolioMenu, setShowPortfolioMenu] = useState(false);
   const [formData, setFormData] = useState({
     company: '',
     shares: '',
@@ -361,6 +362,7 @@ function App() {
     try {
       await portfolioAPI.setFavorite(id);
       setCurrentUser(prev => prev ? { ...prev, favoritePortfolioId: id } : prev);
+      localStorage.setItem('currentUserFavorite', String(id));
     } catch {}
   };
 
@@ -2068,7 +2070,7 @@ function App() {
         </h1>
         <div>
           {/* Selector de Portafolio */}
-          <span style={{ marginRight: '8px' }}>
+          <span style={{ marginRight: '8px', position: 'relative' }}>
             <select
               value={currentPortfolioId || ''}
               onChange={(e) => switchPortfolio(e.target.value)}
@@ -2083,27 +2085,64 @@ function App() {
             </select>
             <button
               className="button"
-              onClick={async () => {
-                const action = window.prompt('Acción (crear, renombrar, eliminar, favorito):');
-                if (!action) return;
-                if (action.toLowerCase() === 'crear') {
-                  const name = window.prompt('Nombre del nuevo portafolio:');
-                  if (name) { const r = await portfolioAPI.create(name); setPortfolios(prev => [...prev, r.item]); }
-                } else if (action.toLowerCase() === 'renombrar') {
-                  if (!currentPortfolioId) return;
-                  const name = window.prompt('Nuevo nombre del portafolio:', portfolios.find(p => p.id === currentPortfolioId)?.name || '');
-                  if (name) { await portfolioAPI.rename(currentPortfolioId, name); setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, name } : p)); }
-                } else if (action.toLowerCase() === 'eliminar') {
-                  if (!currentPortfolioId) return;
-                  if (window.confirm('¿Eliminar portafolio actual?')) { await portfolioAPI.remove(currentPortfolioId); const rem = portfolios.filter(p => p.id !== currentPortfolioId); setPortfolios(rem); const next = rem[0]?.id || null; switchPortfolio(next); }
-                } else if (action.toLowerCase() === 'favorito') {
-                  if (!currentPortfolioId) return;
-                  await markFavorite(currentPortfolioId);
-                }
-              }}
+              onClick={() => setShowPortfolioMenu(v => !v)}
             >
               ⚙️ Portafolios
             </button>
+            {showPortfolioMenu && (
+              <div className="user-dropdown-menu" style={{ position: 'absolute', top: '36px', left: '0' }}>
+                <button
+                  className="dropdown-item"
+                  onClick={async () => {
+                    const name = window.prompt('Nombre del nuevo portafolio:');
+                    if (name && name.trim()) {
+                      const r = await portfolioAPI.create(name.trim());
+                      if (r?.item) {
+                        setPortfolios(prev => [...prev, r.item]);
+                        await markFavorite(r.item.id);
+                        switchPortfolio(r.item.id);
+                      }
+                    }
+                    setShowPortfolioMenu(false);
+                  }}
+                >➕ Crear</button>
+                <button
+                  className="dropdown-item"
+                  onClick={async () => {
+                    if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                    const cur = portfolios.find(p => p.id === currentPortfolioId);
+                    const name = window.prompt('Nuevo nombre del portafolio:', cur?.name || '');
+                    if (name && name.trim()) {
+                      await portfolioAPI.rename(currentPortfolioId, name.trim());
+                      setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, name: name.trim() } : p));
+                    }
+                    setShowPortfolioMenu(false);
+                  }}
+                >✏️ Renombrar</button>
+                <button
+                  className="dropdown-item"
+                  onClick={async () => {
+                    if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                    if (window.confirm('¿Eliminar portafolio actual? (debe estar vacío de operaciones)')) {
+                      await portfolioAPI.remove(currentPortfolioId);
+                      const rem = portfolios.filter(p => p.id !== currentPortfolioId);
+                      setPortfolios(rem);
+                      const next = rem[0]?.id || null;
+                      switchPortfolio(next);
+                    }
+                    setShowPortfolioMenu(false);
+                  }}
+                >🗑️ Eliminar</button>
+                <button
+                  className="dropdown-item"
+                  onClick={async () => {
+                    if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                    await markFavorite(currentPortfolioId);
+                    setShowPortfolioMenu(false);
+                  }}
+                >⭐ Marcar favorito</button>
+              </div>
+            )}
           </span>
           <button className="theme-toggle" onClick={toggleTheme}>
             {theme === 'dark' ? '☀️' : '🌙'}
