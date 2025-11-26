@@ -1,8 +1,7 @@
 import Config from '../models/Config.js'
 import Operation from '../models/Operation.js'
 import DailyPrice from '../models/DailyPrice.js'
-import YahooFinance from 'yahoo-finance2';
-const yahooFinance = new YahooFinance();
+import yahooFinance from 'yahoo-finance2';
 
 let dailyTimer = null
 let dailyRunning = false
