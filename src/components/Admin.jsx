@@ -367,7 +367,11 @@ function Admin() {
                   const r = await authenticatedFetch('/api/admin/daily-close/run', { method: 'POST' })
                   if (r.ok) {
                     const d = await r.json()
-                    setSuccess(`Cierre diario ejecutado (${d.date})`)
+                    if (d.status === 'already_running') {
+                      setSuccess('Cierre diario ya en ejecución')
+                    } else {
+                      setSuccess(`Cierre diario ejecutado (${d.date})`)
+                    }
                   } else {
                     setError('Error ejecutando cierre diario')
                   }

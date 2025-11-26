@@ -336,7 +336,12 @@ router.post('/scheduler/run', async (req, res) => {
 router.post('/daily-close/run', async (req, res) => {
   try {
     const r = await dailyClose.runDailyOnce()
-    if (!r.ok) return res.status(400).json({ error: r.reason || 'run failed' })
+    if (!r.ok) {
+      if (r.reason === 'already_running') {
+        return res.json({ success: true, status: 'already_running' })
+      }
+      return res.status(400).json({ error: r.reason || 'run failed' })
+    }
     res.json({ success: true, date: r.date })
   } catch (error) {
     res.status(500).json({ error: error.message })
