@@ -391,7 +391,7 @@ function App() {
               price: p.price,
               change: p.change ?? null,
               changePercent: p.changePercent ?? null,
-              source: 'cache',
+              source: p.source || 'cache',
               updatedAt: p.updatedAt
             };
 
@@ -1177,7 +1177,8 @@ function App() {
             await pricesAPI.upsert(positionKey, {
               price: priceData.price,
               change: priceData.change ?? null,
-              changePercent: priceData.changePercent ?? null
+              changePercent: priceData.changePercent ?? null,
+              source: priceData.source
             });
           } catch (e) {
             console.log(`[${companyName}] Error guardando precio en caché`);

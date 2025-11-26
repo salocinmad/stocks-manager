@@ -44,7 +44,7 @@ router.post('/bulk', async (req, res) => {
 router.put('/:positionKey', async (req, res) => {
   try {
     const { positionKey } = req.params
-    const { price, change = null, changePercent = null } = req.body || {}
+    const { price, change = null, changePercent = null, source = null } = req.body || {}
     if (typeof price !== 'number' || isNaN(price)) {
       return res.status(400).json({ error: 'price numérico requerido' })
     }
@@ -54,14 +54,15 @@ router.put('/:positionKey', async (req, res) => {
     })
 
     if (existing) {
-      await existing.update({ lastPrice: price, change, changePercent })
+      await existing.update({ lastPrice: price, change, changePercent, source, updatedAt: new Date() })
     } else {
       await PriceCache.create({
         userId: req.user.id,
         positionKey,
         lastPrice: price,
         change,
-        changePercent
+        changePercent,
+        source
       })
     }
 
