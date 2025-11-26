@@ -7,6 +7,16 @@ import { encrypt, decrypt } from '../utils/crypto.js'
 import { sendNotification } from '../services/notify.js'
 import scheduler from '../services/scheduler.js'
 import dailyClose from '../services/dailyClose.js'
+import multer from 'multer'
+import sequelize from '../config/database.js'
+import Operation from '../models/Operation.js'
+import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
+import DailyPrice from '../models/DailyPrice.js'
+import Note from '../models/Note.js'
+import PositionOrder from '../models/PositionOrder.js'
+import ProfilePicture from '../models/ProfilePicture.js'
+
+const upload = multer({ storage: multer.memoryStorage() })
 
 const router = express.Router()
 
@@ -170,6 +180,105 @@ router.post('/reset-alerts', async (req, res) => {
     res.json({ success: true, affected })
   } catch (error) {
     res.status(500).json({ error: error.message })
+  }
+})
+
+router.get('/backup/export', async (req, res) => {
+  try {
+    const format = req.query.format === 'sql' ? 'sql' : 'json'
+    const models = [User, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
+    const data = {}
+
+    // Fetch all data
+    for (const model of models) {
+      data[model.name] = await model.findAll()
+    }
+
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json')
+      res.setHeader('Content-Disposition', `attachment; filename=backup_${new Date().toISOString().split('T')[0]}.json`)
+      return res.send(JSON.stringify(data, null, 2))
+    }
+
+    // SQL Format
+    let sql = 'SET FOREIGN_KEY_CHECKS = 0;\n\n'
+    for (const model of models) {
+      const rows = data[model.name]
+      if (rows.length > 0) {
+        sql += `TRUNCATE TABLE \`${model.tableName}\`;\n`
+        rows.forEach(row => {
+          const values = Object.values(row.dataValues).map(v => {
+            if (v === null) return 'NULL'
+            if (typeof v === 'boolean') return v ? 1 : 0
+            if (typeof v === 'number') return v
+            if (v instanceof Date) return `'${v.toISOString().slice(0, 19).replace('T', ' ')}'`
+            // Escape single quotes for SQL
+            return `'${String(v).replace(/'/g, "''").replace(/\\/g, '\\\\')}'`
+          })
+          sql += `INSERT INTO \`${model.tableName}\` VALUES (${values.join(', ')});\n`
+        })
+        sql += '\n'
+      }
+    }
+    sql += 'SET FOREIGN_KEY_CHECKS = 1;\n'
+
+    res.setHeader('Content-Type', 'application/sql')
+    res.setHeader('Content-Disposition', `attachment; filename=backup_${new Date().toISOString().split('T')[0]}.sql`)
+    res.send(sql)
+
+  } catch (error) {
+    console.error('Backup export error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+router.post('/backup/import', upload.single('file'), async (req, res) => {
+  const t = await sequelize.transaction()
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Archivo requerido' })
+
+    const content = req.file.buffer.toString('utf8')
+    const isJson = req.file.originalname.endsWith('.json') || content.trim().startsWith('{')
+
+    await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t })
+
+    const models = [User, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
+
+    // Truncate all tables first
+    for (const model of models) {
+      await model.destroy({ where: {}, truncate: true, transaction: t })
+    }
+
+    if (isJson) {
+      const data = JSON.parse(content)
+      for (const model of models) {
+        if (data[model.name] && Array.isArray(data[model.name])) {
+          if (data[model.name].length > 0) {
+            await model.bulkCreate(data[model.name], { transaction: t })
+          }
+        }
+      }
+    } else {
+      // SQL Import
+      const statements = content.split(';').map(s => s.trim()).filter(s => s.length > 0)
+      for (const stmt of statements) {
+        // Skip SET FOREIGN_KEY_CHECKS as we handle it manually
+        if (stmt.toUpperCase().includes('FOREIGN_KEY_CHECKS')) continue
+        await sequelize.query(stmt, { transaction: t })
+      }
+    }
+
+    await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { transaction: t })
+    await t.commit()
+
+    // Reload scheduler config just in case
+    await scheduler.reload()
+
+    res.json({ success: true, message: 'Restauración completada' })
+  } catch (error) {
+    await t.rollback()
+    console.error('Backup import error:', error)
+    res.status(500).json({ error: 'Error en restauración: ' + error.message })
   }
 })
 

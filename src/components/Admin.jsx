@@ -27,7 +27,10 @@ function Admin() {
   const [smtpPass, setSmtpPass] = useState('');
   const [smtpSubject, setSmtpSubject] = useState('Alerta de precios');
   const [smtpTo, setSmtpTo] = useState('');
+
   const [showPass, setShowPass] = useState(false);
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [backupFormat, setBackupFormat] = useState('json');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -50,15 +53,15 @@ function Admin() {
 
   const loadSmtp = async () => {
     try {
-      const keys = ['smtp_host','smtp_port','smtp_user','smtp_subject','smtp_to'];
+      const keys = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_subject', 'smtp_to'];
       for (const k of keys) {
         const r = await configAPI.get(k);
         const v = r?.value || '';
-        if (k==='smtp_host') setSmtpHost(v);
-        if (k==='smtp_port') setSmtpPort(v||'587');
-        if (k==='smtp_user') setSmtpUser(v);
-        if (k==='smtp_subject') setSmtpSubject(v||'Alerta de precios');
-        if (k==='smtp_to') setSmtpTo(v);
+        if (k === 'smtp_host') setSmtpHost(v);
+        if (k === 'smtp_port') setSmtpPort(v || '587');
+        if (k === 'smtp_user') setSmtpUser(v);
+        if (k === 'smtp_subject') setSmtpSubject(v || 'Alerta de precios');
+        if (k === 'smtp_to') setSmtpTo(v);
       }
     } catch (err) {
       console.error('Error cargando SMTP:', err);
@@ -192,6 +195,65 @@ function Admin() {
     }
   };
 
+  const handleExportBackup = async () => {
+    try {
+      const response = await authenticatedFetch(`/api/admin/backup/export?format=${backupFormat}`);
+      if (!response.ok) throw new Error('Error al exportar backup');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_${new Date().toISOString().split('T')[0]}.${backupFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setSuccess('Backup exportado correctamente');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleImportBackup = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!window.confirm('⚠️ ADVERTENCIA CRÍTICA ⚠️\n\nEsta acción BORRARÁ TODOS LOS DATOS ACTUALES de la base de datos y los reemplazará con el contenido del backup.\n\n¿Estás absolutamente seguro de que quieres continuar?')) {
+      e.target.value = '';
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setLoading(true);
+      const response = await authenticatedFetch('/api/admin/backup/import', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al importar backup');
+      }
+
+      const data = await response.json();
+      setSuccess(data.message || 'Restauración completada correctamente');
+      setShowBackupModal(false);
+      // Recargar datos para reflejar cambios
+      loadUsers();
+      loadApiKey();
+      loadSmtp();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+      e.target.value = '';
+    }
+  };
+
   if (loading) {
     return <div className="admin-container">Cargando...</div>;
   }
@@ -209,20 +271,20 @@ function Admin() {
       {success && <div className="alert success">{success}</div>}
 
       <div className="admin-actions">
-        <button 
-          className="button primary" 
+        <button
+          className="button primary"
           onClick={() => setShowCreateUser(true)}
         >
           ➕ Crear Usuario
         </button>
-        <button 
-          className="button warning" 
+        <button
+          className="button warning"
           onClick={() => setShowResetAdmin(true)}
         >
           🔑 Resetear Contraseña Admin
         </button>
-        <button 
-          className="button" 
+        <button
+          className="button"
           onClick={() => {
             setShowApiKeyConfig(true);
             loadApiKey();
@@ -230,8 +292,8 @@ function Admin() {
         >
           🔑 Configurar API Key Finnhub
         </button>
-        <button 
-          className="button" 
+        <button
+          className="button"
           onClick={() => {
             setShowSmtpConfig(true);
             loadSmtp();
@@ -239,8 +301,8 @@ function Admin() {
         >
           ✉️ Configurar SMTP
         </button>
-        <button 
-          className="button" 
+        <button
+          className="button"
           onClick={async () => {
             try {
               const r = await authenticatedFetch('/api/admin/scheduler')
@@ -250,14 +312,14 @@ function Admin() {
                 setSchedulerInterval(parseInt(d.intervalMinutes || 15))
                 setSchedulerLastRun(d.lastRun || null)
               }
-            } catch {}
+            } catch { }
             setShowSchedulerConfig(true)
           }}
         >
           ⚙️ Configurar Scheduler
         </button>
-        <button 
-          className="button warning" 
+        <button
+          className="button warning"
           disabled={resettingAlerts}
           onClick={async () => {
             if (!window.confirm('¿Rearmar todas las alertas de precio objetivo?')) return;
@@ -279,9 +341,9 @@ function Admin() {
         >
           🔁 Rearmar Alertas
         </button>
-        <button 
-          className="button" 
-          onClick={async ()=>{
+        <button
+          className="button"
+          onClick={async () => {
             try {
               const r = await authenticatedFetch('/api/admin/daily-close/run', { method: 'POST' })
               if (r.ok) {
@@ -297,6 +359,12 @@ function Admin() {
         >
           📅 Ejecutar Cierre Diario
         </button>
+        <button
+          className="button"
+          onClick={() => setShowBackupModal(true)}
+        >
+          💾 Backup y Restauración
+        </button>
       </div>
 
       {showSmtpConfig && (
@@ -306,29 +374,29 @@ function Admin() {
             <div className="form-row">
               <div className="form-group">
                 <label>Host</label>
-                <input className="input" type="text" placeholder="smtp.ejemplo.com" value={smtpHost} onChange={(e)=> setSmtpHost(e.target.value)} />
+                <input className="input" type="text" placeholder="smtp.ejemplo.com" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Puerto</label>
-                <input className="input" type="number" placeholder="587" value={smtpPort} onChange={(e)=> setSmtpPort(e.target.value)} />
+                <input className="input" type="number" placeholder="587" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Usuario</label>
-                <input className="input" type="text" placeholder="usuario@dominio" value={smtpUser} onChange={(e)=> setSmtpUser(e.target.value)} />
+                <input className="input" type="text" placeholder="usuario@dominio" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
               </div>
             </div>
             <div className="form-group">
               <label>Password</label>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <input className="input" style={{ flex: 1 }} type={showPass ? 'text' : 'password'} value={smtpPass} onChange={(e)=> setSmtpPass(e.target.value)} placeholder={showPass ? '' : 'No se muestra la guardada'} />
-                <button className="button" style={{ fontSize: '12px' }} onClick={async ()=>{
+                <input className="input" style={{ flex: 1 }} type={showPass ? 'text' : 'password'} value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} placeholder={showPass ? '' : 'No se muestra la guardada'} />
+                <button className="button" style={{ fontSize: '12px' }} onClick={async () => {
                   if (!showPass) {
                     const r = await authenticatedFetch('/api/admin/smtp-pass')
                     if (r.ok) {
                       const data = await r.json()
                       setSmtpPass(data.pass || '')
                       setShowPass(true)
-                      setTimeout(()=> { setShowPass(false); setSmtpPass('') }, 1000 * 15)
+                      setTimeout(() => { setShowPass(false); setSmtpPass('') }, 1000 * 15)
                     }
                   } else {
                     setShowPass(false); setSmtpPass('')
@@ -339,24 +407,24 @@ function Admin() {
             <div className="form-row">
               <div className="form-group" style={{ flex: 2 }}>
                 <label>Asunto</label>
-                <input className="input" type="text" placeholder="Asunto por defecto" value={smtpSubject} onChange={(e)=> setSmtpSubject(e.target.value)} />
+                <input className="input" type="text" placeholder="Asunto por defecto" value={smtpSubject} onChange={(e) => setSmtpSubject(e.target.value)} />
               </div>
               <div className="form-group" style={{ flex: 2 }}>
                 <label>Destinatarios (coma)</label>
-                <input className="input" type="text" placeholder="correo1@dominio, correo2@dominio" value={smtpTo} onChange={(e)=> setSmtpTo(e.target.value)} />
+                <input className="input" type="text" placeholder="correo1@dominio, correo2@dominio" value={smtpTo} onChange={(e) => setSmtpTo(e.target.value)} />
               </div>
             </div>
             <div className="admin-actions">
-              <button className="button primary" onClick={async ()=>{
-                const r = await authenticatedFetch('/api/admin/smtp', { method: 'POST', body: JSON.stringify({ host: smtpHost, port: parseInt(smtpPort||'587'), user: smtpUser, pass: smtpPass, subject: smtpSubject, to: smtpTo }) })
+              <button className="button primary" onClick={async () => {
+                const r = await authenticatedFetch('/api/admin/smtp', { method: 'POST', body: JSON.stringify({ host: smtpHost, port: parseInt(smtpPort || '587'), user: smtpUser, pass: smtpPass, subject: smtpSubject, to: smtpTo }) })
                 if (r.ok) setSuccess('SMTP guardado'); else setError('Error guardando SMTP')
                 setSmtpPass('')
               }}>💾 Guardar SMTP</button>
-              <button className="button" onClick={async ()=>{
+              <button className="button" onClick={async () => {
                 const r = await authenticatedFetch('/api/admin/notify-test', { method: 'POST' })
                 if (r.ok) setSuccess('Prueba enviada'); else setError('Error al enviar prueba')
               }}>✉️ Enviar prueba</button>
-              <button className="button" onClick={()=>{ setShowSmtpConfig(false); setShowPass(false); setSmtpPass('') }}>Cerrar</button>
+              <button className="button" onClick={() => { setShowSmtpConfig(false); setShowPass(false); setSmtpPass('') }}>Cerrar</button>
             </div>
           </div>
         </div>
@@ -364,32 +432,32 @@ function Admin() {
 
       {showSchedulerConfig && (
         <div className="modal-overlay" onClick={() => setShowSchedulerConfig(false)}>
-          <div className="modal-content" onClick={(e)=>e.stopPropagation()} style={{ maxWidth: '600px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <h2>⚙️ Scheduler</h2>
             <div className="form-row">
               <div className="form-group">
                 <label>Activado</label>
-                <input type="checkbox" checked={schedulerEnabled} onChange={(e)=> setSchedulerEnabled(e.target.checked)} />
+                <input type="checkbox" checked={schedulerEnabled} onChange={(e) => setSchedulerEnabled(e.target.checked)} />
               </div>
               <div className="form-group">
                 <label>Intervalo (minutos)</label>
-                <input type="number" className="input" min={1} value={schedulerInterval} onChange={(e)=> setSchedulerInterval(e.target.value)} />
+                <input type="number" className="input" min={1} value={schedulerInterval} onChange={(e) => setSchedulerInterval(e.target.value)} />
               </div>
             </div>
             <div style={{ fontSize: '12px', color: '#888' }}>
               Última ejecución: {schedulerLastRun ? new Date(schedulerLastRun).toLocaleString('es-ES', { hour12: false }) : '—'}
             </div>
             <div className="admin-actions">
-              <button className="button primary" onClick={async ()=>{
+              <button className="button primary" onClick={async () => {
                 const r = await authenticatedFetch('/api/admin/scheduler', { method: 'POST', body: JSON.stringify({ enabled: schedulerEnabled, intervalMinutes: parseInt(schedulerInterval || 15) }) })
                 if (r.ok) setSuccess('Scheduler actualizado'); else setError('Error actualizando scheduler')
                 setShowSchedulerConfig(false)
               }}>💾 Guardar</button>
-              <button className="button" onClick={async ()=>{
+              <button className="button" onClick={async () => {
                 const r = await authenticatedFetch('/api/admin/scheduler/run', { method: 'POST' })
                 if (r.ok) setSuccess('Ejecución manual realizada'); else setError('Error al ejecutar ahora')
               }}>▶ Ejecutar ahora</button>
-              <button className="button" onClick={()=> setShowSchedulerConfig(false)}>Cerrar</button>
+              <button className="button" onClick={() => setShowSchedulerConfig(false)}>Cerrar</button>
             </div>
           </div>
         </div>
@@ -432,9 +500,9 @@ function Admin() {
               </div>
               <div className="modal-actions">
                 <button type="submit" className="button primary">Crear</button>
-                <button 
-                  type="button" 
-                  className="button" 
+                <button
+                  type="button"
+                  className="button"
                   onClick={() => setShowCreateUser(false)}
                 >
                   Cancelar
@@ -473,9 +541,9 @@ function Admin() {
               </div>
               <div className="modal-actions">
                 <button type="submit" className="button warning">Resetear</button>
-                <button 
-                  type="button" 
-                  className="button" 
+                <button
+                  type="button"
+                  className="button"
                   onClick={() => setShowResetAdmin(false)}
                 >
                   Cancelar
@@ -508,15 +576,84 @@ function Admin() {
               </div>
               <div className="modal-actions">
                 <button type="submit" className="button primary">💾 Guardar</button>
-                <button 
-                  type="button" 
-                  className="button" 
+                <button
+                  type="button"
+                  className="button"
                   onClick={() => setShowApiKeyConfig(false)}
                 >
                   Cancelar
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Backup */}
+      {showBackupModal && (
+        <div className="modal-overlay" onClick={() => setShowBackupModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>💾 Backup y Restauración</h2>
+
+            <div className="backup-section" style={{ marginBottom: '20px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
+              <h3>⬇️ Exportar Backup</h3>
+              <p style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
+                Descarga una copia completa de la base de datos (usuarios, precios, operaciones, configuración).
+              </p>
+              <div className="form-group">
+                <label>Formato:</label>
+                <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="backupFormat"
+                      value="json"
+                      checked={backupFormat === 'json'}
+                      onChange={() => setBackupFormat('json')}
+                    />
+                    JSON (Recomendado)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="backupFormat"
+                      value="sql"
+                      checked={backupFormat === 'sql'}
+                      onChange={() => setBackupFormat('sql')}
+                    />
+                    SQL
+                  </label>
+                </div>
+              </div>
+              <button className="button primary" onClick={handleExportBackup}>
+                Descargar Backup
+              </button>
+            </div>
+
+            <div className="backup-section" style={{ padding: '15px', border: '1px solid #ffcccc', borderRadius: '8px', backgroundColor: '#fff5f5' }}>
+              <h3 style={{ color: '#cc0000' }}>⬆️ Restaurar Backup</h3>
+              <p style={{ fontSize: '14px', color: '#cc0000', marginBottom: '10px', fontWeight: 'bold' }}>
+                ⚠️ ADVERTENCIA: Esta acción eliminará TODOS los datos actuales y los reemplazará con los del backup.
+              </p>
+              <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
+                Soporta archivos .json y .sql. El formato se detecta automáticamente.
+              </p>
+              <input
+                type="file"
+                accept=".json,.sql"
+                onChange={handleImportBackup}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div className="modal-actions" style={{ marginTop: '20px' }}>
+              <button
+                className="button"
+                onClick={() => setShowBackupModal(false)}
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
