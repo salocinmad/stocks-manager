@@ -1968,7 +1968,7 @@ function App() {
       <div className="header">
         <h1>
           <img
-            src="/vite.svg"
+            src="/logo115.png"
             alt="Logo"
             style={{
               width: '32px',
