@@ -25,6 +25,19 @@ export const connectDB = async () => {
     await sequelize.authenticate();
     console.log('✅ Conectado a MariaDB correctamente');
 
+    // Registrar todos los modelos ANTES de sincronizar (evitar FKs mal formadas)
+    await Promise.all([
+      import('../models/User.js'),
+      import('../models/Portfolio.js'),
+      import('../models/Operation.js'),
+      import('../models/PriceCache.js'),
+      import('../models/DailyPrice.js'),
+      import('../models/DailyPortfolioStats.js'),
+      import('../models/Note.js'),
+      import('../models/PositionOrder.js'),
+      import('../models/ProfilePicture.js'),
+    ])
+
     // Sincronizar modelos, alterando tablas existentes para que coincidan con los modelos
     await sequelize.sync({ alter: true });
     console.log('✅ Modelos sincronizados');
