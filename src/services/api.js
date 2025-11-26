@@ -2,54 +2,98 @@ import { authenticatedFetch } from './auth.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+// Helper para obtener el portfolioId actual
+const getCurrentPortfolioId = () => {
+  const v = localStorage.getItem('currentPortfolioId');
+  return v ? parseInt(v, 10) : null;
+};
+
 // Helper para hacer requests autenticados
 const fetchAPI = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
 
-  try {
+  const doFetch = async () => {
     const response = await authenticatedFetch(url, options);
     if (!response.ok) {
-      // Si es un error 403 en una ruta de configuración, lo ignoramos
       if (response.status === 403 && endpoint.startsWith('/config')) {
         console.warn(`Acceso denegado (403) a ${endpoint}. Ignorando para usuarios no administradores.`);
-        return null; // O un valor predeterminado, dependiendo de cómo quieras manejarlo
+        return null;
       }
-      const error = await response.json().catch(() => ({ error: 'Error desconocido' }));
-      throw new Error(error.error || `Error ${response.status}`);
+      const errorObj = await response.json().catch(() => ({ error: 'Error desconocido' }));
+      throw { status: response.status, error: new Error(errorObj.error || `Error ${response.status}`) };
     }
     return await response.json();
-  } catch (error) {
-    console.error('Error en API:', error);
-    throw error;
+  };
+
+  try {
+    return await doFetch();
+  } catch (e) {
+    const status = e?.status || 0;
+    const isPortfolioEndpoint = endpoint.startsWith('/operations') || endpoint.startsWith('/prices') || endpoint.startsWith('/notes') || endpoint.startsWith('/portfolio');
+    if ((status === 404 || status === 403) && isPortfolioEndpoint) {
+      try {
+        const list = await authenticatedFetch(`${API_BASE_URL}/portfolio`).then(r => r.json());
+        const items = Array.isArray(list?.items) ? list.items : [];
+        const fav = localStorage.getItem('currentUserFavorite');
+        const favId = fav ? parseInt(fav, 10) : null;
+        const fallback = items.find(p => p.id === favId) || items[0] || null;
+        if (fallback) {
+          localStorage.setItem('currentPortfolioId', String(fallback.id));
+          // Reintentar una vez con el nuevo portfolio
+          const withPid = endpoint.includes('?') ? `${endpoint}&portfolioId=${fallback.id}` : `${endpoint}?portfolioId=${fallback.id}`;
+          return await authenticatedFetch(`${API_BASE_URL}${withPid}`, options).then(r => r.json());
+        }
+      } catch {}
+    }
+    console.error('Error en API:', e?.error || e);
+    throw (e?.error || e);
   }
 };
 
 // Operaciones
 export const operationsAPI = {
-  getAll: () => fetchAPI('/operations'),
-  getById: (id) => fetchAPI(`/operations/${id}`),
+  getAll: () => {
+    const pid = getCurrentPortfolioId();
+    const q = pid ? `?portfolioId=${pid}` : '';
+    return fetchAPI(`/operations${q}`);
+  },
+  getById: (id) => {
+    const pid = getCurrentPortfolioId();
+    const q = pid ? `?portfolioId=${pid}` : '';
+    return fetchAPI(`/operations/${id}${q}`);
+  },
   create: (operation) => fetchAPI('/operations', {
     method: 'POST',
-    body: JSON.stringify(operation)
+    body: JSON.stringify({ ...operation, portfolioId: getCurrentPortfolioId() })
   }),
   update: (id, operation) => fetchAPI(`/operations/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(operation)
+    body: JSON.stringify({ ...operation, portfolioId: getCurrentPortfolioId() })
   }),
-  delete: (id) => fetchAPI(`/operations/${id}`, {
-    method: 'DELETE'
-  }),
-  deleteAll: () => fetchAPI('/operations', {
-    method: 'DELETE'
-  })
+  delete: (id) => {
+    const pid = getCurrentPortfolioId();
+    const q = pid ? `?portfolioId=${pid}` : '';
+    return fetchAPI(`/operations/${id}${q}`, {
+      method: 'DELETE'
+    });
+  },
+  deleteAll: () => {
+    const pid = getCurrentPortfolioId();
+    const q = pid ? `?portfolioId=${pid}` : '';
+    return fetchAPI(`/operations${q}`, { method: 'DELETE' });
+  }
 };
 
 // Posiciones
 export const positionsAPI = {
-  getOrder: () => fetchAPI('/positions/order'),
+  getOrder: () => {
+    const pid = getCurrentPortfolioId();
+    const q = pid ? `?portfolioId=${pid}` : '';
+    return fetchAPI(`/positions/order${q}`);
+  },
   updateOrder: (order) => fetchAPI('/positions/order', {
     method: 'PUT',
-    body: JSON.stringify({ order })
+    body: JSON.stringify({ order, portfolioId: getCurrentPortfolioId() })
   })
 };
 
@@ -57,28 +101,53 @@ export const positionsAPI = {
 export const pricesAPI = {
   getBulk: (positionKeys) => fetchAPI('/prices/bulk', {
     method: 'POST',
-    body: JSON.stringify({ positionKeys })
+    body: JSON.stringify({ positionKeys, portfolioId: getCurrentPortfolioId() })
   }),
   upsert: (positionKey, data) => fetchAPI(`/prices/${encodeURIComponent(positionKey)}`, {
     method: 'PUT',
-    body: JSON.stringify(data)
+    body: JSON.stringify({ ...data, portfolioId: getCurrentPortfolioId() })
   })
 };
 
 export const notesAPI = {
-  get: (positionKey) => fetchAPI(`/notes/${encodeURIComponent(positionKey)}`),
+  get: (positionKey) => {
+    const pid = getCurrentPortfolioId();
+    const q = pid ? `?portfolioId=${pid}` : '';
+    return fetchAPI(`/notes/${encodeURIComponent(positionKey)}${q}`);
+  },
   upsert: (positionKey, content) => fetchAPI(`/notes/${encodeURIComponent(positionKey)}`, {
     method: 'PUT',
-    body: JSON.stringify({ content })
+    body: JSON.stringify({ content, portfolioId: getCurrentPortfolioId() })
   }),
-  delete: (positionKey) => fetchAPI(`/notes/${encodeURIComponent(positionKey)}`, {
-    method: 'DELETE'
-  })
+  delete: (positionKey) => {
+    const pid = getCurrentPortfolioId();
+    const q = pid ? `?portfolioId=${pid}` : '';
+    return fetchAPI(`/notes/${encodeURIComponent(positionKey)}${q}`, { method: 'DELETE' });
+  }
 };
 
 export const portfolioAPI = {
-  contribution: ({ date } = {}) => fetchAPI(`/portfolio/contribution${date ? `?date=${encodeURIComponent(date)}` : ''}`),
-  timeseries: ({ days } = {}) => fetchAPI(`/portfolio/timeseries${days ? `?days=${encodeURIComponent(days)}` : ''}`)
+  contribution: ({ date } = {}) => {
+    const pid = getCurrentPortfolioId();
+    const qp = [];
+    if (pid) qp.push(`portfolioId=${pid}`);
+    if (date) qp.push(`date=${encodeURIComponent(date)}`);
+    const q = qp.length ? `?${qp.join('&')}` : '';
+    return fetchAPI(`/portfolio/contribution${q}`);
+  },
+  timeseries: ({ days } = {}) => {
+    const pid = getCurrentPortfolioId();
+    const qp = [];
+    if (pid) qp.push(`portfolioId=${pid}`);
+    if (days) qp.push(`days=${encodeURIComponent(days)}`);
+    const q = qp.length ? `?${qp.join('&')}` : '';
+    return fetchAPI(`/portfolio/timeseries${q}`);
+  },
+  list: () => fetchAPI('/portfolio'),
+  create: (name) => fetchAPI('/portfolio', { method: 'POST', body: JSON.stringify({ name }) }),
+  rename: (id, name) => fetchAPI(`/portfolio/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  remove: (id) => fetchAPI(`/portfolio/${id}`, { method: 'DELETE' }),
+  setFavorite: (id) => fetchAPI(`/portfolio/${id}/favorite`, { method: 'PUT' })
 };
 
 // Configuración

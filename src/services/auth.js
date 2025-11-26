@@ -30,6 +30,12 @@ export const login = async (username, password) => {
 
   const data = await response.json();
   setToken(data.token);
+  try {
+    if (data?.user?.favoritePortfolioId) {
+      localStorage.setItem('currentPortfolioId', String(data.user.favoritePortfolioId));
+      localStorage.setItem('currentUserFavorite', String(data.user.favoritePortfolioId));
+    }
+  } catch {}
   return data.user;
 };
 

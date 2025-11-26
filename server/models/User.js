@@ -20,6 +20,10 @@ const User = sequelize.define('User', {
   isAdmin: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  favoritePortfolioId: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   hooks: {

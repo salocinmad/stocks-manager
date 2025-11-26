@@ -13,12 +13,10 @@ const initAdmin = async () => {
     if (!adminExists) {
       await User.create({
         username: 'admin',
-        password: 'admin123', // El hook beforeCreate lo hasheará
+        password: 'admin123',
         isAdmin: true
       });
       console.log('✅ Usuario admin creado correctamente');
-    } else {
-      console.log('ℹ️ El usuario admin ya existe');
     }
 
     process.exit(0);

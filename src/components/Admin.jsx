@@ -365,11 +365,19 @@ function Admin() {
               onClick={async () => {
                 try {
                   const r = await authenticatedFetch('/api/admin/daily-close/run', { method: 'POST' })
+                  const d = await r.json().catch(() => ({}))
                   if (r.ok) {
-                    const d = await r.json()
-                    setSuccess(`Cierre diario ejecutado (${d.date})`)
+                    if (d.status === 'already_running') {
+                      setSuccess('Cierre diario ya en ejecución')
+                    } else if (d.status === 'partial_failures') {
+                      setSuccess(`Cierre diario con incidencias (${(d.failures||[]).length})`)
+                    } else if (d.status === 'no_data') {
+                      setSuccess('Cierre diario sin datos que procesar')
+                    } else {
+                      setSuccess(`Cierre diario ejecutado (${d.date || '—'})`)
+                    }
                   } else {
-                    setError('Error ejecutando cierre diario')
+                    setError(d?.error || 'Error ejecutando cierre diario')
                   }
                 } catch (e) {
                   setError('Error ejecutando cierre diario')

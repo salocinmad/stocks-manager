@@ -2,6 +2,8 @@ import express from 'express'
 import { Op } from 'sequelize'
 import { authenticate } from '../middleware/auth.js'
 import Operation from '../models/Operation.js'
+import Portfolio from '../models/Portfolio.js'
+import User from '../models/User.js'
 import DailyPrice from '../models/DailyPrice.js'
 import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
 import Config from '../models/Config.js'
@@ -9,8 +11,8 @@ import Config from '../models/Config.js'
 const router = express.Router()
 router.use(authenticate)
 
-const sharesByPosition = async (userId) => {
-  const ops = await Operation.findAll({ where: { userId } })
+const sharesByPosition = async (userId, portfolioId) => {
+  const ops = await Operation.findAll({ where: { userId, portfolioId } })
   const map = new Map()
   for (const o of ops) {
     const key = `${o.company}|||${o.symbol || ''}`
@@ -24,6 +26,7 @@ const sharesByPosition = async (userId) => {
 router.get('/contribution', async (req, res) => {
   try {
     const userId = req.user.id
+    const portfolioId = req.query.portfolioId ? parseInt(req.query.portfolioId, 10) : null
     const dateParam = req.query.date
     const lastRunRow = await Config.findOne({ where: { key: 'daily_close_last_run' } })
     const last = lastRunRow?.value || null
@@ -31,11 +34,11 @@ router.get('/contribution', async (req, res) => {
     if (!date) {
       return res.json({ date: null, items: [] })
     }
-    const positions = await sharesByPosition(userId)
+    const positions = await sharesByPosition(userId, portfolioId)
     const items = []
     for (const p of positions) {
       const pk = `${p.company}|||${p.symbol}`
-      const row = await DailyPrice.findOne({ where: { userId, positionKey: pk, date: { [Op.lte]: date } }, order: [['date', 'DESC']] })
+      const row = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date: { [Op.lte]: date } }, order: [['date', 'DESC']] })
       if (!row) continue
       const valueEUR = (row.close || 0) * p.shares * (row.exchangeRate || 1)
       items.push({ name: p.company, valueEUR })
@@ -51,6 +54,7 @@ router.get('/contribution', async (req, res) => {
 router.get('/timeseries', async (req, res) => {
   try {
     const userId = req.user.id
+    const portfolioId = req.query.portfolioId ? parseInt(req.query.portfolioId, 10) : null
     const days = Math.max(1, parseInt(req.query.days || '30', 10))
     const since = new Date()
     since.setDate(since.getDate() - days)
@@ -58,7 +62,7 @@ router.get('/timeseries', async (req, res) => {
 
     // Read from DailyPortfolioStats (persisted snapshots)
     const rows = await DailyPortfolioStats.findAll({
-      where: { userId, date: { [Op.gte]: sinceDate } },
+      where: { userId, portfolioId, date: { [Op.gte]: sinceDate } },
       order: [['date', 'ASC']]
     })
 
@@ -73,3 +77,73 @@ router.get('/timeseries', async (req, res) => {
 
 export default router
 
+// Listar portafolios del usuario
+router.get('/', async (req, res) => {
+  try {
+    const userId = req.user.id
+    const items = await Portfolio.findAll({ where: { userId }, order: [['id', 'ASC']] })
+    res.json({ items })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Crear portafolio
+router.post('/', async (req, res) => {
+  try {
+    const userId = req.user.id
+    const name = (req.body?.name || '').trim()
+    if (!name) return res.status(400).json({ error: 'Nombre requerido' })
+    const p = await Portfolio.create({ userId, name })
+    res.status(201).json({ item: p })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Renombrar portafolio
+router.patch('/:id', async (req, res) => {
+  try {
+    const userId = req.user.id
+    const id = parseInt(req.params.id, 10)
+    const name = (req.body?.name || '').trim()
+    if (!name) return res.status(400).json({ error: 'Nombre requerido' })
+    const p = await Portfolio.findOne({ where: { id, userId } })
+    if (!p) return res.status(404).json({ error: 'Portafolio no encontrado' })
+    p.name = name
+    await p.save()
+    res.json({ item: p })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Eliminar portafolio (cascade por FK)
+router.delete('/:id', async (req, res) => {
+  try {
+    const userId = req.user.id
+    const id = parseInt(req.params.id, 10)
+    const p = await Portfolio.findOne({ where: { id, userId } })
+    if (!p) return res.status(404).json({ error: 'Portafolio no encontrado' })
+    await p.destroy()
+    // Si era favorito, limpiar en el usuario
+    await User.update({ favoritePortfolioId: null }, { where: { id: userId, favoritePortfolioId: id } })
+    res.json({ ok: true })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Marcar favorito
+router.put('/:id/favorite', async (req, res) => {
+  try {
+    const userId = req.user.id
+    const id = parseInt(req.params.id, 10)
+    const p = await Portfolio.findOne({ where: { id, userId } })
+    if (!p) return res.status(404).json({ error: 'Portafolio no encontrado' })
+    await User.update({ favoritePortfolioId: id }, { where: { id: userId } })
+    res.json({ ok: true, favoritePortfolioId: id })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})

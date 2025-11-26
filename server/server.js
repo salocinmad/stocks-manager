@@ -9,6 +9,7 @@ import yahooRoutes from './routes/yahoo.js';
 import configRoutes from './routes/config.js';
 import DailyPrice from './models/DailyPrice.js';
 import DailyPortfolioStats from './models/DailyPortfolioStats.js';
+import Portfolio from './models/Portfolio.js';
 import Config from './models/Config.js';
 import ProfilePicture from './models/ProfilePicture.js';
 import profilePicturesRoutes from './routes/profilePictures.js';

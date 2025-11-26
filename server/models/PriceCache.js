@@ -1,6 +1,7 @@
 import { DataTypes } from 'sequelize'
 import sequelize from '../config/database.js'
 import User from './User.js'
+import Portfolio from './Portfolio.js'
 
 const PriceCache = sequelize.define('PriceCache', {
   id: {
@@ -21,6 +22,12 @@ const PriceCache = sequelize.define('PriceCache', {
     type: DataTypes.STRING,
     allowNull: false,
     comment: 'Clave única de posición: "company|||symbol"'
+  },
+  portfolioId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'Portfolios', key: 'id' },
+    onDelete: 'CASCADE'
   },
   lastPrice: {
     type: DataTypes.FLOAT,
@@ -52,7 +59,7 @@ const PriceCache = sequelize.define('PriceCache', {
   indexes: [
     {
       unique: true,
-      fields: ['userId', 'positionKey']
+      fields: ['userId', 'portfolioId', 'positionKey']
     },
     {
       fields: ['userId']
@@ -62,6 +69,9 @@ const PriceCache = sequelize.define('PriceCache', {
 
 PriceCache.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE' })
 User.hasMany(PriceCache, { foreignKey: 'userId' })
+
+PriceCache.belongsTo(Portfolio, { foreignKey: 'portfolioId', onDelete: 'CASCADE' })
+Portfolio.hasMany(PriceCache, { foreignKey: 'portfolioId' })
 
 export default PriceCache
 

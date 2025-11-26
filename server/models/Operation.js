@@ -1,6 +1,7 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
 import User from './User.js';
+import Portfolio from './Portfolio.js';
 
 const Operation = sequelize.define('Operation', {
   id: {
@@ -67,11 +68,20 @@ const Operation = sequelize.define('Operation', {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW
+  },
+  portfolioId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'Portfolios', key: 'id' },
+    onDelete: 'CASCADE'
   }
 });
 
 // Definir relación
 Operation.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE' });
 User.hasMany(Operation, { foreignKey: 'userId' });
+
+Operation.belongsTo(Portfolio, { foreignKey: 'portfolioId', onDelete: 'CASCADE' })
+Portfolio.hasMany(Operation, { foreignKey: 'portfolioId' })
 
 export default Operation;

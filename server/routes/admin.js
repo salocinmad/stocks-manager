@@ -15,6 +15,7 @@ import DailyPrice from '../models/DailyPrice.js'
 import Note from '../models/Note.js'
 import PositionOrder from '../models/PositionOrder.js'
 import ProfilePicture from '../models/ProfilePicture.js'
+import Portfolio from '../models/Portfolio.js'
 
 const upload = multer({ storage: multer.memoryStorage() })
 
@@ -186,7 +187,7 @@ router.post('/reset-alerts', async (req, res) => {
 router.get('/backup/export', async (req, res) => {
   try {
     const format = req.query.format === 'sql' ? 'sql' : 'json'
-    const models = [User, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
+    const models = [User, Portfolio, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
     const data = {}
 
     // Fetch all data
@@ -242,7 +243,7 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
 
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t })
 
-    const models = [User, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
+    const models = [User, Portfolio, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
 
     // Truncate all tables first
     for (const model of models) {
@@ -335,8 +336,16 @@ router.post('/scheduler/run', async (req, res) => {
 router.post('/daily-close/run', async (req, res) => {
   try {
     const r = await dailyClose.runDailyOnce()
-    if (!r.ok) return res.status(400).json({ error: r.reason || 'run failed' })
-    res.json({ success: true, date: r.date })
+    if (!r.ok) {
+      if (r.reason === 'already_running') {
+        return res.json({ success: true, status: 'already_running' })
+      }
+      if (r.reason === 'partial_failures' || r.reason === 'no_data') {
+        return res.json({ success: true, status: r.reason, failures: r.failures || [] })
+      }
+      return res.status(400).json({ error: r.reason || 'run failed' })
+    }
+    res.json({ success: true, date: r.date, processed: r.processed, failures: r.failures || [] })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
