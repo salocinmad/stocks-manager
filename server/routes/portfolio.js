@@ -118,15 +118,13 @@ router.patch('/:id', async (req, res) => {
   }
 })
 
-// Eliminar portafolio (bloquear si hay operaciones)
+// Eliminar portafolio (cascade por FK)
 router.delete('/:id', async (req, res) => {
   try {
     const userId = req.user.id
     const id = parseInt(req.params.id, 10)
     const p = await Portfolio.findOne({ where: { id, userId } })
     if (!p) return res.status(404).json({ error: 'Portafolio no encontrado' })
-    const hasOps = await Operation.count({ where: { userId, portfolioId: id } })
-    if (hasOps > 0) return res.status(409).json({ error: 'No se puede eliminar: contiene operaciones' })
     await p.destroy()
     // Si era favorito, limpiar en el usuario
     await User.update({ favoritePortfolioId: null }, { where: { id: userId, favoritePortfolioId: id } })

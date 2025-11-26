@@ -2099,7 +2099,6 @@ function App() {
                       const r = await portfolioAPI.create(name.trim());
                       if (r?.item) {
                         setPortfolios(prev => [...prev, r.item]);
-                        await markFavorite(r.item.id);
                         switchPortfolio(r.item.id);
                       }
                     }
