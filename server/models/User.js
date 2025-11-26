@@ -23,9 +23,7 @@ const User = sequelize.define('User', {
   },
   favoritePortfolioId: {
     type: DataTypes.INTEGER,
-    allowNull: true,
-    references: { model: 'Portfolios', key: 'id' },
-    onDelete: 'SET NULL'
+    allowNull: true
   }
 }, {
   hooks: {
