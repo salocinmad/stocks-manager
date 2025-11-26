@@ -261,7 +261,7 @@ function Admin() {
   return (
     <div className="admin-container">
       <div className="admin-header">
-        <h1>🔐 Panel de Administración</h1>
+        <h1>🔐 Panel de Administración (UPDATED)</h1>
         <button className="back-button" onClick={() => navigate('/')}>
           ← Volver al Portfolio
         </button>
