@@ -220,12 +220,12 @@ const getFxMapToEUR = async () => {
   } catch { }
   try {
     const eurusd = await yahooFinance.quote('EURUSD=X')
-    const r = eurusd?.regularMarketPreviousClose || eurusd?.regularMarketPrice
+    const r = eurusd?.regularMarketPrice || eurusd?.regularMarketPreviousClose
     if (r && r > 0) map.USD = 1 / r
   } catch { }
   try {
     const eurgbp = await yahooFinance.quote('EURGBP=X')
-    const r = eurgbp?.regularMarketPreviousClose || eurgbp?.regularMarketPrice
+    const r = eurgbp?.regularMarketPrice || eurgbp?.regularMarketPreviousClose
     if (r && r > 0) map.GBP = 1 / r
   } catch { }
   return map

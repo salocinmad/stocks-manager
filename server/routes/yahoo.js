@@ -93,7 +93,8 @@ router.get('/fx/eurusd', async (req, res) => {
       }
     }
     const q = await yahooFinance.quote('EURUSD=X');
-    const r = q?.regularMarketPreviousClose || q?.regularMarketPrice || null;
+    const r = q?.regularMarketPrice || q?.regularMarketPreviousClose || null;
+    console.log(`💱 Yahoo EUR/USD: ${r} (Source: ${q?.regularMarketPrice ? 'price' : 'close'})`);
     if (!r || r <= 0) {
       return res.status(502).json({ error: 'Tipo de cambio no disponible' });
     }
