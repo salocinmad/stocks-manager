@@ -82,7 +82,6 @@ const checkAndNotify = async (userId, company, symbol, positionKey, price) => {
 export const runOnce = async () => {
   if (running) return { ok: false, reason: 'already_running' }
   running = true
-  console.log('🔄 Scheduler: Iniciando actualización de precios...')
   let updateCount = 0
   try {
     const users = await Operation.findAll({ attributes: ['userId'], group: ['userId'] })
@@ -95,30 +94,24 @@ export const runOnce = async () => {
         const positionKey = `${company}|||${symbol}`
         let priceData = await fetchPriceFinnhub(symbol)
         if (!priceData) priceData = await fetchPriceYahoo(symbol)
-        if (!priceData) {
-          console.log(`⚠️ No se pudo obtener precio para ${symbol}`)
-          continue
-        }
+        if (!priceData) continue
         const { price, change = null, changePercent = null } = priceData
         const existing = await PriceCache.findOne({ where: { userId, positionKey } })
         if (existing) {
-          await existing.update({ lastPrice: price, change, changePercent, updatedAt: new Date() })
-          await existing.reload() // Recargar para obtener updatedAt actualizado
-          console.log(`✅ Actualizado ${symbol}: €${price} (updatedAt: ${existing.updatedAt})`)
+          await existing.update({ lastPrice: price, change, changePercent })
           updateCount++
         } else {
-          const created = await PriceCache.create({ userId, positionKey, lastPrice: price, change, changePercent })
-          console.log(`✨ Creado ${symbol}: €${price} (updatedAt: ${created.updatedAt})`)
+          await PriceCache.create({ userId, positionKey, lastPrice: price, change, changePercent })
           updateCount++
         }
         await checkAndNotify(userId, company, symbol, positionKey, price)
       }
     }
     await setLastRun()
-    console.log(`✅ Scheduler completado: ${updateCount} precios actualizados`)
+    console.log(`✅ Scheduler: ${updateCount} precios actualizados`)
     return { ok: true }
   } catch (e) {
-    console.error('❌ Scheduler: Error al actualizar precios:', e.message)
+    console.error('❌ Scheduler error:', e.message)
     return { ok: false, reason: e.message }
   } finally {
     running = false

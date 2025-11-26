@@ -375,8 +375,6 @@ function App() {
         if (schedulerLastRun?.value && schedulerLastRun.value !== currentLastRun) {
           localStorage.setItem('scheduler_last_run', schedulerLastRun.value);
 
-          console.log('🔄 Scheduler ejecutado, actualizando precios desde caché...');
-
           // Obtener posiciones activas
           const activePositions = getActivePositions();
           const positionKeys = Object.keys(activePositions);
