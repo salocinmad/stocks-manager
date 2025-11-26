@@ -90,37 +90,49 @@ export const connectDB = async () => {
       // índice ya correcto o no aplicable
     }
 
-    // Ajuste de índice único en DailyPortfolioStats
+    // Ajuste robusto de índice único en DailyPortfolioStats
     try {
-      const [idx2] = await sequelize.query("SHOW INDEX FROM `DailyPortfolioStats` WHERE Non_unique=0")
-      const hasOld = Array.isArray(idx2) && idx2.some(r => String(r.Column_name).toLowerCase() === 'userid' && String(r.Key_name).toLowerCase().includes('user') && String(r.Column_name).toLowerCase() === 'userid')
-      // Drop cualquier índice único sencillo potencial antiguo sobre (userId,date)
-      for (const r of (idx2 || [])) {
-        if (String(r.Key_name).toLowerCase().includes('userid') && String(r.Key_name).toLowerCase().includes('date') && !String(r.Key_name).toLowerCase().includes('portfolioid')) {
-          await sequelize.query(`ALTER TABLE \`DailyPortfolioStats\` DROP INDEX \`${r.Key_name}\``)
+      const [rows] = await sequelize.query("SHOW INDEX FROM `DailyPortfolioStats`")
+      const byKey = new Map()
+      for (const r of (rows || [])) {
+        const key = String(r.Key_name)
+        const arr = byKey.get(key) || []
+        arr.push(r)
+        byKey.set(key, arr)
+      }
+      for (const [key, arr] of byKey.entries()) {
+        const unique = arr[0]?.Non_unique === 0
+        if (!unique) continue
+        const cols = new Set(arr.map(x => String(x.Column_name).toLowerCase()))
+        if (cols.has('userid') && cols.has('date') && !cols.has('portfolioid')) {
+          await sequelize.query(`ALTER TABLE \`DailyPortfolioStats\` DROP INDEX \`${key}\``)
         }
       }
-      // Crear el índice correcto (idempotente: si existe, MySQL fallará silenciosamente si nombre coincide; usamos nombre nuevo)
       await sequelize.query('ALTER TABLE `DailyPortfolioStats` ADD UNIQUE INDEX `dps_user_portfolio_date` (`userId`,`portfolioId`,`date`)')
       console.log('✅ Índice único de DailyPortfolioStats actualizado a (userId, portfolioId, date)')
-    } catch (e) {
-      // índice ya correcto o no aplicable
-    }
+    } catch (e) { }
 
-    // Ajuste de índice único en DailyPrices
+    // Ajuste robusto de índice único en DailyPrices
     try {
-      const [idx3] = await sequelize.query("SHOW INDEX FROM `DailyPrices` WHERE Non_unique=0")
-      for (const r of (idx3 || [])) {
-        const key = String(r.Key_name).toLowerCase()
-        if (key.includes('userid') && key.includes('position') && key.includes('date') && !key.includes('portfolioid')) {
-          await sequelize.query(`ALTER TABLE \`DailyPrices\` DROP INDEX \`${r.Key_name}\``)
+      const [rows2] = await sequelize.query("SHOW INDEX FROM `DailyPrices`")
+      const byKey2 = new Map()
+      for (const r of (rows2 || [])) {
+        const key = String(r.Key_name)
+        const arr = byKey2.get(key) || []
+        arr.push(r)
+        byKey2.set(key, arr)
+      }
+      for (const [key, arr] of byKey2.entries()) {
+        const unique = arr[0]?.Non_unique === 0
+        if (!unique) continue
+        const cols = new Set(arr.map(x => String(x.Column_name).toLowerCase()))
+        if (cols.has('userid') && cols.has('positionkey') && cols.has('date') && !cols.has('portfolioid')) {
+          await sequelize.query(`ALTER TABLE \`DailyPrices\` DROP INDEX \`${key}\``)
         }
       }
       await sequelize.query('ALTER TABLE `DailyPrices` ADD UNIQUE INDEX `dp_user_portfolio_pos_date` (`userId`,`portfolioId`,`positionKey`,`date`)')
       console.log('✅ Índice único de DailyPrices actualizado a (userId, portfolioId, positionKey, date)')
-    } catch (e) {
-      // índice ya correcto o no aplicable
-    }
+    } catch (e) { }
   } catch (error) {
     console.error('❌ Error conectando a MariaDB:', error);
     process.exit(1);
