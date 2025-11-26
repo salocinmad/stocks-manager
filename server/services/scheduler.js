@@ -116,7 +116,6 @@ export const runOnce = async () => {
       }
     }
     await setLastRun()
-    console.log(`✅ Scheduler: ${updateCount} precios actualizados`)
     return { ok: true }
   } catch (e) {
     console.error('❌ Scheduler error:', e.message)

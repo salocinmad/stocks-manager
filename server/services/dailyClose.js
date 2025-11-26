@@ -138,7 +138,6 @@ export const runDailyOnce = async () => {
         } catch (err) {
           const msg = String(err?.message || 'unknown')
           failures.push({ userId, portfolioId, positionKey: pk, reason: msg })
-          console.log(`⚠️ Error guardando precio diario usuario ${userId}, portafolio ${portfolioId}, ${pk}: ${msg}`)
           // continuar con siguiente posición
         }
       }
@@ -158,14 +157,11 @@ export const runDailyOnce = async () => {
               pnlEUR
             })
             processed++
-            console.log(`📊 Snapshot PnL guardado para usuario ${userId}, portafolio ${portfolioId}, fecha ${date}: €${pnlEUR.toFixed(2)}`)
           } else {
-            console.log(`ℹ️ Snapshot ya existe para usuario ${userId}, portafolio ${portfolioId}, fecha ${date} - no se sobrescribe`)
           }
         } catch (err) {
           const msg = String(err?.message || 'unknown')
           failures.push({ userId, portfolioId, reason: msg })
-          console.log(`⚠️ Error guardando snapshot usuario ${userId}, portafolio ${portfolioId}: ${msg}`)
           // continuar con siguientes portafolios
         }
       }

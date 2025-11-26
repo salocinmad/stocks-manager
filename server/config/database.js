@@ -73,18 +73,15 @@ export const connectDB = async () => {
         }
 
         await Config.create({ key: 'migration_multi_portfolios_done', value: 'true' })
-        console.log('✅ Migración de múltiples portafolios aplicada')
       }
-    } catch (mErr) {
-      console.log('⚠️ Migración de múltiples portafolios omitida:', mErr.message)
-    }
+    } catch (mErr) { }
 
     try {
       const [idx] = await sequelize.query("SHOW INDEX FROM `PriceCaches` WHERE Key_name='price_caches_user_id_position_key'")
       if (Array.isArray(idx) && idx.length > 0) {
         await sequelize.query('ALTER TABLE `PriceCaches` DROP INDEX `price_caches_user_id_position_key`')
         await sequelize.query('ALTER TABLE `PriceCaches` ADD UNIQUE INDEX `price_caches_user_portfolio_position` (`userId`,`portfolioId`,`positionKey`)')
-        console.log('✅ Índice único de PriceCaches actualizado a (userId, portfolioId, positionKey)')
+        
       }
     } catch (e) {
       // índice ya correcto o no aplicable
@@ -109,7 +106,7 @@ export const connectDB = async () => {
         }
       }
       await sequelize.query('ALTER TABLE `DailyPortfolioStats` ADD UNIQUE INDEX `dps_user_portfolio_date` (`userId`,`portfolioId`,`date`)')
-      console.log('✅ Índice único de DailyPortfolioStats actualizado a (userId, portfolioId, date)')
+      
     } catch (e) { }
 
     // Ajuste robusto de índice único en DailyPrices
@@ -131,7 +128,7 @@ export const connectDB = async () => {
         }
       }
       await sequelize.query('ALTER TABLE `DailyPrices` ADD UNIQUE INDEX `dp_user_portfolio_pos_date` (`userId`,`portfolioId`,`positionKey`,`date`)')
-      console.log('✅ Índice único de DailyPrices actualizado a (userId, portfolioId, positionKey, date)')
+      
     } catch (e) { }
   } catch (error) {
     console.error('❌ Error conectando a MariaDB:', error);
