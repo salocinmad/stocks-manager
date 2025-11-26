@@ -1968,11 +1968,11 @@ function App() {
       <div className="header">
         <h1>
           <img
-            src="/logo115.png"
+            src="/logo64.png"
             alt="Logo"
             style={{
-              width: '32px',
-              height: '32px',
+              width: '48px',
+              height: '48px',
               marginRight: '10px',
               verticalAlign: 'middle'
             }}
