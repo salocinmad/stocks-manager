@@ -259,10 +259,22 @@ function Admin() {
   }
 
   return (
-    <div className="admin-container">
-      <div className="admin-header">
-        <h1>🔐 Panel de Administración (UPDATED)</h1>
-        <button className="back-button" onClick={() => navigate('/')}>
+    <div className="container">
+      <div className="header">
+        <h1>
+          <img
+            src="/logo64.png"
+            alt="Logo"
+            style={{
+              width: '48px',
+              height: '48px',
+              marginRight: '10px',
+              verticalAlign: 'middle'
+            }}
+          />
+          Stocks Manager - Admin
+        </h1>
+        <button className="button" onClick={() => navigate('/')}>
           ← Volver al Portfolio
         </button>
       </div>
@@ -270,105 +282,133 @@ function Admin() {
       {error && <div className="alert error">{error}</div>}
       {success && <div className="alert success">{success}</div>}
 
-      <div className="admin-actions">
-        <button
-          className="button primary"
-          onClick={() => setShowCreateUser(true)}
-        >
-          ➕ Crear Usuario
-        </button>
-        <button
-          className="button warning"
-          onClick={() => setShowResetAdmin(true)}
-        >
-          🔑 Resetear Contraseña Admin
-        </button>
-        <button
-          className="button"
-          onClick={() => {
-            setShowApiKeyConfig(true);
-            loadApiKey();
-          }}
-        >
-          🔑 Configurar API Key Finnhub
-        </button>
-        <button
-          className="button"
-          onClick={() => {
-            setShowSmtpConfig(true);
-            loadSmtp();
-          }}
-        >
-          ✉️ Configurar SMTP
-        </button>
-        <button
-          className="button"
-          onClick={async () => {
-            try {
-              const r = await authenticatedFetch('/api/admin/scheduler')
-              if (r.ok) {
-                const d = await r.json()
-                setSchedulerEnabled(!!d.enabled)
-                setSchedulerInterval(parseInt(d.intervalMinutes || 15))
-                setSchedulerLastRun(d.lastRun || null)
-              }
-            } catch { }
-            setShowSchedulerConfig(true)
-          }}
-        >
-          ⚙️ Configurar Scheduler
-        </button>
-        <button
-          className="button warning"
-          disabled={resettingAlerts}
-          onClick={async () => {
-            if (!window.confirm('¿Rearmar todas las alertas de precio objetivo?')) return;
-            try {
-              setResettingAlerts(true);
-              const r = await authenticatedFetch('/api/admin/reset-alerts', { method: 'POST', body: JSON.stringify({}) })
-              if (r.ok) {
-                const data = await r.json();
-                setSuccess(`Alertas rearmadas (${data.affected ?? 0})`);
-              } else {
-                setError('Error rearmando alertas');
-              }
-            } catch (e) {
-              setError('Error rearmando alertas');
-            } finally {
-              setResettingAlerts(false);
-            }
-          }}
-        >
-          🔁 Rearmar Alertas
-        </button>
-        <button
-          className="button"
-          onClick={async () => {
-            try {
-              const r = await authenticatedFetch('/api/admin/daily-close/run', { method: 'POST' })
-              if (r.ok) {
-                const d = await r.json()
-                setSuccess(`Cierre diario ejecutado (${d.date})`)
-              } else {
-                setError('Error ejecutando cierre diario')
-              }
-            } catch (e) {
-              setError('Error ejecutando cierre diario')
-            }
-          }}
-        >
-          📅 Ejecutar Cierre Diario
-        </button>
-        <button
-          className="button"
-          onClick={() => setShowBackupModal(true)}
-        >
-          💾 Backup y Restauración
-        </button>
+      <div className="grid">
+        {/* Panel de Usuarios */}
+        <div className="card">
+          <h3 style={{ borderBottom: '1px solid #404040', paddingBottom: '10px', marginBottom: '15px' }}>👤 Gestión de Usuarios</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              className="button primary"
+              onClick={() => setShowCreateUser(true)}
+              style={{ justifyContent: 'center' }}
+            >
+              ➕ Crear Usuario
+            </button>
+            <button
+              className="button warning"
+              onClick={() => setShowResetAdmin(true)}
+              style={{ justifyContent: 'center' }}
+            >
+              🔑 Resetear Contraseña Admin
+            </button>
+          </div>
+        </div>
+
+        {/* Panel de Configuración */}
+        <div className="card">
+          <h3 style={{ borderBottom: '1px solid #404040', paddingBottom: '10px', marginBottom: '15px' }}>⚙️ Configuración</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              className="button"
+              onClick={() => {
+                setShowApiKeyConfig(true);
+                loadApiKey();
+              }}
+              style={{ justifyContent: 'center' }}
+            >
+              🔑 API Key Finnhub
+            </button>
+            <button
+              className="button"
+              onClick={() => {
+                setShowSmtpConfig(true);
+                loadSmtp();
+              }}
+              style={{ justifyContent: 'center' }}
+            >
+              ✉️ SMTP / Notificaciones
+            </button>
+            <button
+              className="button"
+              onClick={async () => {
+                try {
+                  const r = await authenticatedFetch('/api/admin/scheduler')
+                  if (r.ok) {
+                    const d = await r.json()
+                    setSchedulerEnabled(!!d.enabled)
+                    setSchedulerInterval(parseInt(d.intervalMinutes || 15))
+                    setSchedulerLastRun(d.lastRun || null)
+                  }
+                } catch { }
+                setShowSchedulerConfig(true)
+              }}
+              style={{ justifyContent: 'center' }}
+            >
+              ⚙️ Scheduler
+            </button>
+          </div>
+        </div>
+
+        {/* Panel de Mantenimiento */}
+        <div className="card">
+          <h3 style={{ borderBottom: '1px solid #404040', paddingBottom: '10px', marginBottom: '15px' }}>🛠️ Mantenimiento</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              className="button"
+              onClick={() => setShowBackupModal(true)}
+              style={{ justifyContent: 'center' }}
+            >
+              💾 Backup y Restauración
+            </button>
+            <button
+              className="button"
+              onClick={async () => {
+                try {
+                  const r = await authenticatedFetch('/api/admin/daily-close/run', { method: 'POST' })
+                  if (r.ok) {
+                    const d = await r.json()
+                    setSuccess(`Cierre diario ejecutado (${d.date})`)
+                  } else {
+                    setError('Error ejecutando cierre diario')
+                  }
+                } catch (e) {
+                  setError('Error ejecutando cierre diario')
+                }
+              }}
+              style={{ justifyContent: 'center' }}
+            >
+              📅 Ejecutar Cierre Diario
+            </button>
+            <button
+              className="button warning"
+              disabled={resettingAlerts}
+              onClick={async () => {
+                if (!window.confirm('¿Rearmar todas las alertas de precio objetivo?')) return;
+                try {
+                  setResettingAlerts(true);
+                  const r = await authenticatedFetch('/api/admin/reset-alerts', { method: 'POST', body: JSON.stringify({}) })
+                  if (r.ok) {
+                    const data = await r.json();
+                    setSuccess(`Alertas rearmadas (${data.affected ?? 0})`);
+                  } else {
+                    setError('Error rearmando alertas');
+                  }
+                } catch (e) {
+                  setError('Error rearmando alertas');
+                } finally {
+                  setResettingAlerts(false);
+                }
+              }}
+              style={{ justifyContent: 'center' }}
+            >
+              🔁 Rearmar Alertas
+            </button>
+          </div>
+        </div>
       </div>
 
       {showSmtpConfig && (
-        <div className="modal-overlay" onClick={() => { setShowSmtpConfig(false); setShowPass(false); setSmtpPass('') }}>
+        <div className="modal" onClick={() => { setShowSmtpConfig(false); setShowPass(false); setSmtpPass('') }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px' }}>
             <h2>✉️ Notificaciones SMTP</h2>
             <div className="form-row">
@@ -431,7 +471,7 @@ function Admin() {
       )}
 
       {showSchedulerConfig && (
-        <div className="modal-overlay" onClick={() => setShowSchedulerConfig(false)}>
+        <div className="modal" onClick={() => setShowSchedulerConfig(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <h2>⚙️ Scheduler</h2>
             <div className="form-row">
@@ -465,7 +505,7 @@ function Admin() {
 
       {/* Modal crear usuario */}
       {showCreateUser && (
-        <div className="modal-overlay" onClick={() => setShowCreateUser(false)}>
+        <div className="modal" onClick={() => setShowCreateUser(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Crear Nuevo Usuario</h2>
             <form onSubmit={handleCreateUser}>
@@ -473,6 +513,7 @@ function Admin() {
                 <label>Usuario</label>
                 <input
                   type="text"
+                  className="input"
                   value={newUser.username}
                   onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
                   required
@@ -482,6 +523,7 @@ function Admin() {
                 <label>Contraseña</label>
                 <input
                   type="password"
+                  className="input"
                   value={newUser.password}
                   onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                   required
@@ -515,7 +557,7 @@ function Admin() {
 
       {/* Modal resetear admin */}
       {showResetAdmin && (
-        <div className="modal-overlay" onClick={() => setShowResetAdmin(false)}>
+        <div className="modal" onClick={() => setShowResetAdmin(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Resetear Contraseña de Administrador</h2>
             <form onSubmit={handleResetAdminPassword}>
@@ -523,6 +565,7 @@ function Admin() {
                 <label>Contraseña Maestra</label>
                 <input
                   type="password"
+                  className="input"
                   value={resetAdminData.masterPassword}
                   onChange={(e) => setResetAdminData({ ...resetAdminData, masterPassword: e.target.value })}
                   required
@@ -533,6 +576,7 @@ function Admin() {
                 <label>Nueva Contraseña</label>
                 <input
                   type="password"
+                  className="input"
                   value={resetAdminData.newPassword}
                   onChange={(e) => setResetAdminData({ ...resetAdminData, newPassword: e.target.value })}
                   required
@@ -556,7 +600,7 @@ function Admin() {
 
       {/* Modal configurar API Key */}
       {showApiKeyConfig && (
-        <div className="modal-overlay" onClick={() => setShowApiKeyConfig(false)}>
+        <div className="modal" onClick={() => setShowApiKeyConfig(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>🔑 Configurar API Key de Finnhub</h2>
             <p style={{ fontSize: '14px', color: '#888', marginBottom: '15px' }}>
@@ -568,6 +612,7 @@ function Admin() {
                 <label>API Key de Finnhub</label>
                 <input
                   type="password"
+                  className="input"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="Ingresa la API Key"
@@ -591,7 +636,7 @@ function Admin() {
 
       {/* Modal Backup */}
       {showBackupModal && (
-        <div className="modal-overlay" onClick={() => setShowBackupModal(false)}>
+        <div className="modal" onClick={() => setShowBackupModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>💾 Backup y Restauración</h2>
 
@@ -659,9 +704,9 @@ function Admin() {
       )}
 
       {/* Lista de usuarios */}
-      <div className="users-list">
-        <h2>Usuarios ({users.length})</h2>
-        <table className="users-table">
+      <div className="card">
+        <h2 style={{ marginBottom: '20px' }}>Usuarios ({users.length})</h2>
+        <table className="table">
           <thead>
             <tr>
               <th>Usuario</th>
@@ -678,13 +723,15 @@ function Admin() {
                 <td>{new Date(user.createdAt).toLocaleDateString()}</td>
                 <td>
                   <button
-                    className="button small danger"
+                    className="button danger"
+                    style={{ marginRight: '8px', padding: '4px 8px', fontSize: '12px' }}
                     onClick={() => handleDeleteUser(user._id || user.id)}
                   >
                     Eliminar
                   </button>
                   <button
-                    className="button small"
+                    className="button"
+                    style={{ padding: '4px 8px', fontSize: '12px' }}
                     onClick={() => {
                       const newPassword = prompt('Nueva contraseña (mínimo 6 caracteres):');
                       if (newPassword) {
@@ -702,6 +749,7 @@ function Admin() {
       </div>
     </div>
   );
+
 }
 
 export default Admin;
