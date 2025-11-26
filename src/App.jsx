@@ -363,6 +363,74 @@ function App() {
     return () => { if (timer) clearInterval(timer); };
   }, [dailyCloseLastRun, operations]);
 
+  // Detectar actualizaciones del scheduler y refrescar precios
+  useEffect(() => {
+    let timer;
+
+    const checkSchedulerUpdates = async () => {
+      try {
+        const schedulerLastRun = await configAPI.get('scheduler_last_run');
+        const currentLastRun = localStorage.getItem('scheduler_last_run');
+
+        if (schedulerLastRun?.value && schedulerLastRun.value !== currentLastRun) {
+          localStorage.setItem('scheduler_last_run', schedulerLastRun.value);
+
+          console.log('🔄 Scheduler ejecutado, actualizando precios desde caché...');
+
+          // Obtener posiciones activas
+          const activePositions = getActivePositions();
+          const positionKeys = Object.keys(activePositions);
+
+          if (positionKeys.length === 0) return;
+
+          // Actualizar precios desde caché
+          const res = await pricesAPI.getBulk(positionKeys);
+          const updatedPrices = {};
+          let maxUpdatedAt = null;
+
+          Object.entries(res.prices || {}).forEach(([key, p]) => {
+            updatedPrices[key] = {
+              price: p.price,
+              change: p.change ?? null,
+              changePercent: p.changePercent ?? null,
+              source: 'cache',
+              updatedAt: p.updatedAt
+            };
+
+            if (p.updatedAt) {
+              const dt = new Date(p.updatedAt);
+              if (!isNaN(dt.valueOf()) && (!maxUpdatedAt || dt > maxUpdatedAt)) {
+                maxUpdatedAt = dt;
+              }
+            }
+          });
+
+          setCurrentPrices(prev => ({ ...prev, ...updatedPrices }));
+          if (maxUpdatedAt) setLastUpdatedAt(maxUpdatedAt);
+        }
+      } catch (e) {
+        console.error('Error checking scheduler updates:', e);
+      }
+    };
+
+    // Comprobar cada 30s
+    timer = setInterval(checkSchedulerUpdates, 30000);
+
+    return () => { if (timer) clearInterval(timer); };
+  }, [operations]);
+
+  // Actualizar tiempo relativo cada 30s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (lastUpdatedAt) {
+        // Forzar re-render para actualizar "hace X min"
+        setLastUpdatedAt(new Date(lastUpdatedAt));
+      }
+    }, 30000);
+
+    return () => clearInterval(timer);
+  }, [lastUpdatedAt]);
+
   // Cerrar sugerencias al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1970,9 +2038,9 @@ function App() {
                   setShowUserMenu(false);
                 }} className="dropdown-item">⚙️ Config</button>
                 <button onClick={() => {
-                      setShowProfilePictureModal(true);
-                      setShowUserMenu(false);
-                    }} className="dropdown-item">👤 Perfil</button>
+                  setShowProfilePictureModal(true);
+                  setShowUserMenu(false);
+                }} className="dropdown-item">👤 Perfil</button>
                 <button onClick={() => {
                   logout();
                   navigate('/login');
