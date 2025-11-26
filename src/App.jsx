@@ -38,6 +38,8 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null); // Usuario actual logueado
   const [profilePictureUrl, setProfilePictureUrl] = useState(null); // URL de la imagen de perfil del usuario
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null); // Última sincronización global
+  const [portfolios, setPortfolios] = useState([]);
+  const [currentPortfolioId, setCurrentPortfolioId] = useState(null);
   const [formData, setFormData] = useState({
     company: '',
     shares: '',
@@ -140,6 +142,33 @@ function App() {
         const user = await verifySession();
         if (user) {
           setCurrentUser(user);
+          if (user.favoritePortfolioId) {
+            localStorage.setItem('currentUserFavorite', String(user.favoritePortfolioId));
+          }
+        }
+
+        // Cargar portafolios y resolver el activo
+        try {
+          const list = await portfolioAPI.list();
+          const items = Array.isArray(list?.items) ? list.items : [];
+          setPortfolios(items);
+          const stored = localStorage.getItem('currentPortfolioId');
+          let pid = stored ? parseInt(stored, 10) : null;
+          const valid = items.some(p => p.id === pid);
+          if (!valid) {
+            pid = user?.favoritePortfolioId || (items[0]?.id || null);
+          }
+          if (!pid && user) {
+            const created = await portfolioAPI.create('Principal');
+            pid = created?.item?.id || null;
+            await portfolioAPI.setFavorite(pid);
+          }
+          if (pid) {
+            localStorage.setItem('currentPortfolioId', String(pid));
+            setCurrentPortfolioId(pid);
+          }
+        } catch (e) {
+          console.log('No se pudo cargar portafolios');
         }
 
         // Cargar operaciones desde API
@@ -276,6 +305,64 @@ function App() {
 
     loadData();
   }, []);
+
+  // Re-fetch al cambiar de portafolio
+  useEffect(() => {
+    const reloadForPortfolio = async () => {
+      if (!currentUser || !currentPortfolioId) return;
+      try {
+        const ops = await operationsAPI.getAll();
+        const opsWithId = ops.map(op => ({
+          ...op,
+          id: op.id || op.id,
+          date: op.date ? (typeof op.date === 'string' ? op.date : new Date(op.date).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]
+        }));
+        setOperations(opsWithId);
+        const contrib = await portfolioAPI.contribution({});
+        if (contrib && contrib.items) {
+          setContributionDate(contrib.date || null);
+          const colors = ['#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#14b8a6'];
+          const data = contrib.items.map((it, i) => ({ name: it.name, value: it.valueEUR, color: colors[i % colors.length] }));
+          setContributionChartData(data);
+        }
+        const ts = await portfolioAPI.timeseries({ days: 30 });
+        let series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }));
+        const { net, count } = computeCurrentNetPnL();
+        if (series.length > 0 && count > 0) {
+          series[series.length - 1].pnlEUR = net;
+        }
+        setPnlSeries(series);
+      } catch (e) {
+        console.log('Error recargando datos por cambio de portafolio');
+      }
+    };
+    reloadForPortfolio();
+  }, [currentPortfolioId]);
+
+  const switchPortfolio = async (id) => {
+    const pid = parseInt(id, 10);
+    const exists = portfolios.some(p => p.id === pid);
+    if (!exists) {
+      // Fallback: redirigir al favorito o primero
+      const fav = currentUser?.favoritePortfolioId;
+      const fallback = portfolios.find(p => p.id === fav) || portfolios[0] || null;
+      const newId = fallback ? fallback.id : null;
+      if (newId) {
+        localStorage.setItem('currentPortfolioId', String(newId));
+        setCurrentPortfolioId(newId);
+      }
+      return;
+    }
+    localStorage.setItem('currentPortfolioId', String(pid));
+    setCurrentPortfolioId(pid);
+  };
+
+  const markFavorite = async (id) => {
+    try {
+      await portfolioAPI.setFavorite(id);
+      setCurrentUser(prev => prev ? { ...prev, favoritePortfolioId: id } : prev);
+    } catch {}
+  };
 
   // Recalcular contribución con valor actual (EUR) para que coincida con la tabla
   useEffect(() => {
@@ -1980,6 +2067,44 @@ function App() {
           Stocks Manager
         </h1>
         <div>
+          {/* Selector de Portafolio */}
+          <span style={{ marginRight: '8px' }}>
+            <select
+              value={currentPortfolioId || ''}
+              onChange={(e) => switchPortfolio(e.target.value)}
+              style={{ padding: '6px', borderRadius: '4px', marginRight: '6px' }}
+            >
+              <option value="" disabled>Selecciona Portafolio</option>
+              {portfolios.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name}{currentUser?.favoritePortfolioId === p.id ? ' ⭐' : ''}
+                </option>
+              ))}
+            </select>
+            <button
+              className="button"
+              onClick={async () => {
+                const action = window.prompt('Acción (crear, renombrar, eliminar, favorito):');
+                if (!action) return;
+                if (action.toLowerCase() === 'crear') {
+                  const name = window.prompt('Nombre del nuevo portafolio:');
+                  if (name) { const r = await portfolioAPI.create(name); setPortfolios(prev => [...prev, r.item]); }
+                } else if (action.toLowerCase() === 'renombrar') {
+                  if (!currentPortfolioId) return;
+                  const name = window.prompt('Nuevo nombre del portafolio:', portfolios.find(p => p.id === currentPortfolioId)?.name || '');
+                  if (name) { await portfolioAPI.rename(currentPortfolioId, name); setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, name } : p)); }
+                } else if (action.toLowerCase() === 'eliminar') {
+                  if (!currentPortfolioId) return;
+                  if (window.confirm('¿Eliminar portafolio actual?')) { await portfolioAPI.remove(currentPortfolioId); const rem = portfolios.filter(p => p.id !== currentPortfolioId); setPortfolios(rem); const next = rem[0]?.id || null; switchPortfolio(next); }
+                } else if (action.toLowerCase() === 'favorito') {
+                  if (!currentPortfolioId) return;
+                  await markFavorite(currentPortfolioId);
+                }
+              }}
+            >
+              ⚙️ Portafolios
+            </button>
+          </span>
           <button className="theme-toggle" onClick={toggleTheme}>
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>

@@ -28,6 +28,38 @@ export const connectDB = async () => {
     // Sincronizar modelos, alterando tablas existentes para que coincidan con los modelos
     await sequelize.sync({ alter: true });
     console.log('✅ Modelos sincronizados');
+
+    // Migración: backfill de portfolioId y creación de portafolios por defecto
+    try {
+      const { default: User } = await import('../models/User.js')
+      const { default: Portfolio } = await import('../models/Portfolio.js')
+      const { default: Operation } = await import('../models/Operation.js')
+      const { default: PriceCache } = await import('../models/PriceCache.js')
+      const { default: DailyPrice } = await import('../models/DailyPrice.js')
+      const { default: DailyPortfolioStats } = await import('../models/DailyPortfolioStats.js')
+      const { default: Note } = await import('../models/Note.js')
+      const { default: PositionOrder } = await import('../models/PositionOrder.js')
+
+      const users = await User.findAll()
+      for (const u of users) {
+        const userId = u.id
+        let p = await Portfolio.findOne({ where: { userId }, order: [['id', 'ASC']] })
+        if (!p) {
+          p = await Portfolio.create({ userId, name: 'Principal' })
+          await User.update({ favoritePortfolioId: p.id }, { where: { id: userId } })
+        } else if (!u.favoritePortfolioId) {
+          await User.update({ favoritePortfolioId: p.id }, { where: { id: userId } })
+        }
+        const portfolioId = p.id
+        const tables = [Operation, PriceCache, DailyPrice, DailyPortfolioStats, Note, PositionOrder]
+        for (const model of tables) {
+          await model.update({ portfolioId }, { where: { userId, portfolioId: null } })
+        }
+      }
+      console.log('✅ Migración de múltiples portafolios aplicada')
+    } catch (mErr) {
+      console.log('⚠️ Migración de múltiples portafolios omitida:', mErr.message)
+    }
   } catch (error) {
     console.error('❌ Error conectando a MariaDB:', error);
     process.exit(1);

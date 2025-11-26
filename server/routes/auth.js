@@ -38,7 +38,8 @@ router.post('/login', async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        isAdmin: user.isAdmin
+        isAdmin: user.isAdmin,
+        favoritePortfolioId: user.favoritePortfolioId || null
       }
     });
   } catch (error) {
@@ -71,7 +72,8 @@ router.get('/me', authenticate, async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        isAdmin: user.isAdmin
+        isAdmin: user.isAdmin,
+        favoritePortfolioId: user.favoritePortfolioId || null
       }
     });
   } catch (error) {

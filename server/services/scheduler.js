@@ -1,6 +1,7 @@
 import Config from '../models/Config.js'
 import Operation from '../models/Operation.js'
 import PriceCache from '../models/PriceCache.js'
+import Portfolio from '../models/Portfolio.js'
 import { sendNotification } from './notify.js'
 import yahooFinance from 'yahoo-finance2';
 
@@ -53,14 +54,14 @@ const fetchPriceFinnhub = async (symbol) => {
   }
 }
 
-const checkAndNotify = async (userId, company, symbol, positionKey, price) => {
-  const ops = await Operation.findAll({ where: { userId, company, symbol: symbol || '' } })
+const checkAndNotify = async (userId, portfolioId, company, symbol, positionKey, price) => {
+  const ops = await Operation.findAll({ where: { userId, portfolioId, company, symbol: symbol || '' } })
   const purchases = ops.filter(o => o.type === 'purchase' && o.targetPrice && o.targetPrice > 0)
   if (purchases.length === 0) return
   purchases.sort((a, b) => new Date(b.date) - new Date(a.date))
   const target = purchases[0].targetPrice
   if (typeof target === 'number' && price >= target) {
-    const cacheRow = await PriceCache.findOne({ where: { userId, positionKey } })
+    const cacheRow = await PriceCache.findOne({ where: { userId, portfolioId, positionKey } })
     const already = cacheRow?.targetHitNotifiedAt
     if (!already) {
       const subjectCfg = await Config.findOne({ where: { key: 'smtp_subject' } })
@@ -86,28 +87,32 @@ export const runOnce = async () => {
     const users = await Operation.findAll({ attributes: ['userId'], group: ['userId'] })
     for (const u of users) {
       const userId = u.userId
-      const positions = await Operation.findAll({ where: { userId }, attributes: ['company', 'symbol'], group: ['company', 'symbol'] })
-      for (const p of positions) {
-        const company = p.company
-        const symbol = p.symbol || ''
-        const positionKey = `${company}|||${symbol}`
-        let priceData = await fetchPriceFinnhub(symbol)
-        let source = 'finnhub'
-        if (!priceData) {
-          priceData = await fetchPriceYahoo(symbol)
-          source = 'yahoo'
+      const portfolios = await Portfolio.findAll({ where: { userId } })
+      for (const pf of portfolios) {
+        const portfolioId = pf.id
+        const positions = await Operation.findAll({ where: { userId, portfolioId }, attributes: ['company', 'symbol'], group: ['company', 'symbol'] })
+        for (const p of positions) {
+          const company = p.company
+          const symbol = p.symbol || ''
+          const positionKey = `${company}|||${symbol}`
+          let priceData = await fetchPriceFinnhub(symbol)
+          let source = 'finnhub'
+          if (!priceData) {
+            priceData = await fetchPriceYahoo(symbol)
+            source = 'yahoo'
+          }
+          if (!priceData) continue
+          const { price, change = null, changePercent = null } = priceData
+          const existing = await PriceCache.findOne({ where: { userId, portfolioId, positionKey } })
+          if (existing) {
+            await existing.update({ lastPrice: price, change, changePercent, source, updatedAt: new Date() })
+            updateCount++
+          } else {
+            await PriceCache.create({ userId, portfolioId, positionKey, lastPrice: price, change, changePercent, source })
+            updateCount++
+          }
+          await checkAndNotify(userId, portfolioId, company, symbol, positionKey, price)
         }
-        if (!priceData) continue
-        const { price, change = null, changePercent = null } = priceData
-        const existing = await PriceCache.findOne({ where: { userId, positionKey } })
-        if (existing) {
-          await existing.update({ lastPrice: price, change, changePercent, source, updatedAt: new Date() })
-          updateCount++
-        } else {
-          await PriceCache.create({ userId, positionKey, lastPrice: price, change, changePercent, source })
-          updateCount++
-        }
-        await checkAndNotify(userId, company, symbol, positionKey, price)
       }
     }
     await setLastRun()

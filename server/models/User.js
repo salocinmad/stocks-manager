@@ -20,6 +20,12 @@ const User = sequelize.define('User', {
   isAdmin: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  favoritePortfolioId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'Portfolios', key: 'id' },
+    onDelete: 'SET NULL'
   }
 }, {
   hooks: {

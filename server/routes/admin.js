@@ -15,6 +15,7 @@ import DailyPrice from '../models/DailyPrice.js'
 import Note from '../models/Note.js'
 import PositionOrder from '../models/PositionOrder.js'
 import ProfilePicture from '../models/ProfilePicture.js'
+import Portfolio from '../models/Portfolio.js'
 
 const upload = multer({ storage: multer.memoryStorage() })
 
@@ -186,7 +187,7 @@ router.post('/reset-alerts', async (req, res) => {
 router.get('/backup/export', async (req, res) => {
   try {
     const format = req.query.format === 'sql' ? 'sql' : 'json'
-    const models = [User, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
+    const models = [User, Portfolio, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
     const data = {}
 
     // Fetch all data
@@ -242,7 +243,7 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
 
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t })
 
-    const models = [User, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
+    const models = [User, Portfolio, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
 
     // Truncate all tables first
     for (const model of models) {

@@ -1,5 +1,6 @@
 import Config from '../models/Config.js'
 import Operation from '../models/Operation.js'
+import Portfolio from '../models/Portfolio.js'
 import DailyPrice from '../models/DailyPrice.js'
 import yahooFinance from 'yahoo-finance2';
 
@@ -77,8 +78,12 @@ export const runDailyOnce = async () => {
     for (const u of users) {
       const userId = u.userId
 
+      const portfolios = await Portfolio.findAll({ where: { userId } })
+      for (const pf of portfolios) {
+        const portfolioId = pf.id
+
       // 1. Calculate Active Positions and Total Cost (Invested Capital)
-      const ops = await Operation.findAll({ where: { userId } })
+      const ops = await Operation.findAll({ where: { userId, portfolioId } })
       const positionsMap = new Map()
 
       for (const o of ops) {
@@ -111,7 +116,7 @@ export const runDailyOnce = async () => {
         const pk = `${p.company}|||${p.symbol}`
 
         // Try to find existing daily price first to avoid re-fetching if already run today
-        let dailyPrice = await DailyPrice.findOne({ where: { userId, positionKey: pk, date } })
+        let dailyPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date } })
 
         if (!dailyPrice) {
           const prev = await fetchPreviousClose(p.symbol)
@@ -119,7 +124,7 @@ export const runDailyOnce = async () => {
             const { close, currency = 'EUR', source = 'yahoo' } = prev
             const exchangeRate = fxMap[currency] ?? 1
             dailyPrice = await DailyPrice.create({
-              userId, positionKey: pk, company: p.company, symbol: p.symbol,
+              userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol,
               date, close, currency, exchangeRate, source
             })
           }
@@ -135,20 +140,22 @@ export const runDailyOnce = async () => {
       const pnlEUR = totalValueEUR - totalInvestedEUR
 
       // Check if snapshot already exists for this user and date
-      const existing = await DailyPortfolioStats.findOne({ where: { userId, date } })
+      const existing = await DailyPortfolioStats.findOne({ where: { userId, portfolioId, date } })
 
       if (!existing) {
         // Only create if it doesn't exist - historical data should not be overwritten
         await DailyPortfolioStats.create({
           userId,
+          portfolioId,
           date,
           totalInvestedEUR,
           totalValueEUR,
           pnlEUR
         })
-        console.log(`📊 Snapshot PnL guardado para usuario ${userId}, fecha ${date}: €${pnlEUR.toFixed(2)}`)
+        console.log(`📊 Snapshot PnL guardado para usuario ${userId}, portafolio ${portfolioId}, fecha ${date}: €${pnlEUR.toFixed(2)}`)
       } else {
-        console.log(`ℹ️ Snapshot ya existe para usuario ${userId}, fecha ${date} - no se sobrescribe`)
+        console.log(`ℹ️ Snapshot ya existe para usuario ${userId}, portafolio ${portfolioId}, fecha ${date} - no se sobrescribe`)
+      }
       }
     }
 

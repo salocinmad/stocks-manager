@@ -1,5 +1,7 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
+import User from './User.js';
+import Portfolio from './Portfolio.js';
 
 const PositionOrder = sequelize.define('PositionOrder', {
     id: {
@@ -14,6 +16,12 @@ const PositionOrder = sequelize.define('PositionOrder', {
             model: 'Users',
             key: 'id'
         },
+        onDelete: 'CASCADE'
+    },
+    portfolioId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: { model: 'Portfolios', key: 'id' },
         onDelete: 'CASCADE'
     },
     positionKey: {
@@ -33,12 +41,18 @@ const PositionOrder = sequelize.define('PositionOrder', {
     indexes: [
         {
             unique: true,
-            fields: ['userId', 'positionKey']
+            fields: ['userId', 'portfolioId', 'positionKey']
         },
         {
             fields: ['userId']
         }
     ]
 });
+
+PositionOrder.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE' })
+User.hasMany(PositionOrder, { foreignKey: 'userId' })
+
+PositionOrder.belongsTo(Portfolio, { foreignKey: 'portfolioId', onDelete: 'CASCADE' })
+Portfolio.hasMany(PositionOrder, { foreignKey: 'portfolioId' })
 
 export default PositionOrder;

@@ -1,6 +1,7 @@
 import { DataTypes } from 'sequelize'
 import sequelize from '../config/database.js'
 import User from './User.js'
+import Portfolio from './Portfolio.js'
 
 const DailyPrice = sequelize.define('DailyPrice', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -8,6 +9,7 @@ const DailyPrice = sequelize.define('DailyPrice', {
   positionKey: { type: DataTypes.STRING, allowNull: false },
   company: { type: DataTypes.STRING, allowNull: false },
   symbol: { type: DataTypes.STRING, allowNull: true, defaultValue: '' },
+  portfolioId: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'Portfolios', key: 'id' }, onDelete: 'CASCADE' },
   date: { type: DataTypes.DATEONLY, allowNull: false },
   close: { type: DataTypes.FLOAT, allowNull: false },
   currency: { type: DataTypes.STRING, allowNull: false, defaultValue: 'EUR' },
@@ -17,7 +19,7 @@ const DailyPrice = sequelize.define('DailyPrice', {
   tableName: 'DailyPrices',
   timestamps: true,
   indexes: [
-    { unique: true, fields: ['userId', 'positionKey', 'date'] },
+    { unique: true, fields: ['userId', 'portfolioId', 'positionKey', 'date'] },
     { fields: ['userId'] },
     { fields: ['date'] }
   ]
@@ -25,6 +27,9 @@ const DailyPrice = sequelize.define('DailyPrice', {
 
 DailyPrice.belongsTo(User, { foreignKey: 'userId', onDelete: 'CASCADE' })
 User.hasMany(DailyPrice, { foreignKey: 'userId' })
+
+DailyPrice.belongsTo(Portfolio, { foreignKey: 'portfolioId', onDelete: 'CASCADE' })
+Portfolio.hasMany(DailyPrice, { foreignKey: 'portfolioId' })
 
 export default DailyPrice
 
