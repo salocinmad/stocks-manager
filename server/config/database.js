@@ -106,6 +106,21 @@ export const connectDB = async () => {
     } catch (e) {
       // índice ya correcto o no aplicable
     }
+
+    // Ajuste de índice único en DailyPrices
+    try {
+      const [idx3] = await sequelize.query("SHOW INDEX FROM `DailyPrices` WHERE Non_unique=0")
+      for (const r of (idx3 || [])) {
+        const key = String(r.Key_name).toLowerCase()
+        if (key.includes('userid') && key.includes('position') && key.includes('date') && !key.includes('portfolioid')) {
+          await sequelize.query(`ALTER TABLE \`DailyPrices\` DROP INDEX \`${r.Key_name}\``)
+        }
+      }
+      await sequelize.query('ALTER TABLE `DailyPrices` ADD UNIQUE INDEX `dp_user_portfolio_pos_date` (`userId`,`portfolioId`,`positionKey`,`date`)')
+      console.log('✅ Índice único de DailyPrices actualizado a (userId, portfolioId, positionKey, date)')
+    } catch (e) {
+      // índice ya correcto o no aplicable
+    }
   } catch (error) {
     console.error('❌ Error conectando a MariaDB:', error);
     process.exit(1);

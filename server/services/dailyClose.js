@@ -115,25 +115,31 @@ export const runDailyOnce = async () => {
 
       for (const p of activePositions) {
         const pk = `${p.company}|||${p.symbol}`
+        try {
+          // Try to find existing daily price first to avoid re-fetching if already run today
+          let dailyPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date } })
 
-        // Try to find existing daily price first to avoid re-fetching if already run today
-        let dailyPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date } })
-
-        if (!dailyPrice) {
-          const prev = await fetchPreviousClose(p.symbol)
-          if (prev) {
-            const { close, currency = 'EUR', source = 'yahoo' } = prev
-            const exchangeRate = fxMap[currency] ?? 1
-            dailyPrice = await DailyPrice.create({
-              userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol,
-              date, close, currency, exchangeRate, source
-            })
+          if (!dailyPrice) {
+            const prev = await fetchPreviousClose(p.symbol)
+            if (prev) {
+              const { close, currency = 'EUR', source = 'yahoo' } = prev
+              const exchangeRate = fxMap[currency] ?? 1
+              dailyPrice = await DailyPrice.create({
+                userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol,
+                date, close, currency, exchangeRate, source
+              })
+            }
           }
-        }
 
-        if (dailyPrice) {
-          const val = (dailyPrice.close || 0) * (dailyPrice.exchangeRate || 1) * p.shares
-          totalValueEUR += val
+          if (dailyPrice) {
+            const val = (dailyPrice.close || 0) * (dailyPrice.exchangeRate || 1) * p.shares
+            totalValueEUR += val
+          }
+        } catch (err) {
+          const msg = String(err?.message || 'unknown')
+          failures.push({ userId, portfolioId, positionKey: pk, reason: msg })
+          console.log(`⚠️ Error guardando precio diario usuario ${userId}, portafolio ${portfolioId}, ${pk}: ${msg}`)
+          // continuar con siguiente posición
         }
       }
 
