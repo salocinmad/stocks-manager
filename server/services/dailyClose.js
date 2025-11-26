@@ -74,7 +74,8 @@ export const runDailyOnce = async () => {
     const date = await getPreviousBusinessDate()
     const fxMap = await getFxMapToEUR()
     const users = await Operation.findAll({ attributes: ['userId'], group: ['userId'] })
-
+    let processed = 0
+    let failures = []
     for (const u of users) {
       const userId = u.userId
 
@@ -136,31 +137,39 @@ export const runDailyOnce = async () => {
         }
       }
 
-      // 3. Calculate PnL and Save Snapshot (only if not exists - immutable historical data)
-      const pnlEUR = totalValueEUR - totalInvestedEUR
+        // 3. Calculate PnL and Save Snapshot (only if not exists - immutable historical data)
+        const pnlEUR = totalValueEUR - totalInvestedEUR
 
-      // Check if snapshot already exists for this user and date
-      const existing = await DailyPortfolioStats.findOne({ where: { userId, portfolioId, date } })
-
-      if (!existing) {
-        // Only create if it doesn't exist - historical data should not be overwritten
-        await DailyPortfolioStats.create({
-          userId,
-          portfolioId,
-          date,
-          totalInvestedEUR,
-          totalValueEUR,
-          pnlEUR
-        })
-        console.log(`📊 Snapshot PnL guardado para usuario ${userId}, portafolio ${portfolioId}, fecha ${date}: €${pnlEUR.toFixed(2)}`)
-      } else {
-        console.log(`ℹ️ Snapshot ya existe para usuario ${userId}, portafolio ${portfolioId}, fecha ${date} - no se sobrescribe`)
-      }
+        try {
+          const existing = await DailyPortfolioStats.findOne({ where: { userId, portfolioId, date } })
+          if (!existing) {
+            await DailyPortfolioStats.create({
+              userId,
+              portfolioId,
+              date,
+              totalInvestedEUR,
+              totalValueEUR,
+              pnlEUR
+            })
+            processed++
+            console.log(`📊 Snapshot PnL guardado para usuario ${userId}, portafolio ${portfolioId}, fecha ${date}: €${pnlEUR.toFixed(2)}`)
+          } else {
+            console.log(`ℹ️ Snapshot ya existe para usuario ${userId}, portafolio ${portfolioId}, fecha ${date} - no se sobrescribe`)
+          }
+        } catch (err) {
+          const msg = String(err?.message || 'unknown')
+          failures.push({ userId, portfolioId, reason: msg })
+          console.log(`⚠️ Error guardando snapshot usuario ${userId}, portafolio ${portfolioId}: ${msg}`)
+          // continuar con siguientes portafolios
+        }
       }
     }
 
-    await setLastRun(date)
-    return { ok: true, date }
+    if (processed > 0) {
+      await setLastRun(date)
+      return { ok: true, date, processed, failures }
+    }
+    return { ok: false, reason: failures.length > 0 ? 'partial_failures' : 'no_data', failures }
   } catch (e) {
     return { ok: false, reason: e.message }
   } finally {

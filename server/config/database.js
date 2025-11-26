@@ -89,6 +89,23 @@ export const connectDB = async () => {
     } catch (e) {
       // índice ya correcto o no aplicable
     }
+
+    // Ajuste de índice único en DailyPortfolioStats
+    try {
+      const [idx2] = await sequelize.query("SHOW INDEX FROM `DailyPortfolioStats` WHERE Non_unique=0")
+      const hasOld = Array.isArray(idx2) && idx2.some(r => String(r.Column_name).toLowerCase() === 'userid' && String(r.Key_name).toLowerCase().includes('user') && String(r.Column_name).toLowerCase() === 'userid')
+      // Drop cualquier índice único sencillo potencial antiguo sobre (userId,date)
+      for (const r of (idx2 || [])) {
+        if (String(r.Key_name).toLowerCase().includes('userid') && String(r.Key_name).toLowerCase().includes('date') && !String(r.Key_name).toLowerCase().includes('portfolioid')) {
+          await sequelize.query(`ALTER TABLE \`DailyPortfolioStats\` DROP INDEX \`${r.Key_name}\``)
+        }
+      }
+      // Crear el índice correcto (idempotente: si existe, MySQL fallará silenciosamente si nombre coincide; usamos nombre nuevo)
+      await sequelize.query('ALTER TABLE `DailyPortfolioStats` ADD UNIQUE INDEX `dps_user_portfolio_date` (`userId`,`portfolioId`,`date`)')
+      console.log('✅ Índice único de DailyPortfolioStats actualizado a (userId, portfolioId, date)')
+    } catch (e) {
+      // índice ya correcto o no aplicable
+    }
   } catch (error) {
     console.error('❌ Error conectando a MariaDB:', error);
     process.exit(1);

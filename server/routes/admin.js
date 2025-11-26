@@ -340,9 +340,12 @@ router.post('/daily-close/run', async (req, res) => {
       if (r.reason === 'already_running') {
         return res.json({ success: true, status: 'already_running' })
       }
+      if (r.reason === 'partial_failures' || r.reason === 'no_data') {
+        return res.json({ success: true, status: r.reason, failures: r.failures || [] })
+      }
       return res.status(400).json({ error: r.reason || 'run failed' })
     }
-    res.json({ success: true, date: r.date })
+    res.json({ success: true, date: r.date, processed: r.processed, failures: r.failures || [] })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

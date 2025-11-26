@@ -369,8 +369,12 @@ function Admin() {
                     const d = await r.json()
                     if (d.status === 'already_running') {
                       setSuccess('Cierre diario ya en ejecución')
+                    } else if (d.status === 'partial_failures') {
+                      setSuccess(`Cierre diario con incidencias (${(d.failures||[]).length})`)
+                    } else if (d.status === 'no_data') {
+                      setSuccess('Cierre diario sin datos que procesar')
                     } else {
-                      setSuccess(`Cierre diario ejecutado (${d.date})`)
+                      setSuccess(`Cierre diario ejecutado (${d.date || '—'})`)
                     }
                   } else {
                     setError('Error ejecutando cierre diario')
