@@ -119,6 +119,14 @@ export async function generateAllReports(date = null) {
         const currentEURUSD = await getCurrentEURUSD();
         console.log(`💱 EUR/USD exchange rate: ${currentEURUSD}`);
 
+        // DEBUG: Listar todos los portafolios para ver qué está pasando
+        const allPortfolios = await Portfolio.findAll();
+        console.log(`\n🔍 DEBUG: Total portfolios in DB: ${allPortfolios.length}`);
+        allPortfolios.forEach(p => {
+            console.log(`   - ID: ${p.id}, Name: ${p.name}, UserId: ${p.userId}`);
+        });
+        console.log('');
+
         // 2. Obtener todos los usuarios
         const users = await User.findAll({
             where: {
