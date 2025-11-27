@@ -2337,7 +2337,7 @@ function App() {
                     <th>Coste Promedio</th>
                     <th>Precio Actual</th>
                     <th>Valor Actual (EUR)</th>
-                    <th>Ganancia/Pérdida</th>
+                    <th>Ganancia pérdida</th>
                     <th>Precio Objetivo</th>
                     <th>Info</th>
                     <th>Editar</th>
