@@ -2,7 +2,7 @@ import { Op } from 'sequelize';
 import User from '../models/User.js';
 import Portfolio from '../models/Portfolio.js';
 import { generateDailyReport } from '../services/reportGenerator.js';
-import { authenticatedFetch } from '../utils/httpClient.js';
+
 
 /**
  * Script para generar reportes diarios automáticamente para todos los portafolios
