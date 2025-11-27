@@ -49,7 +49,23 @@ export const connectDB = async () => {
       await ensureColumn('PriceCaches')
       await ensureColumn('DailyPrices')
       await ensureColumn('DailyPortfolioStats')
-    } catch (e) { }
+
+      // Asegurar columnas para botones externos en Operations
+      const ensureExternalSymbols = async () => {
+        const table = 'Operations';
+        for (let i = 1; i <= 3; i++) {
+          const colName = `externalSymbol${i}`;
+          const [cols] = await sequelize.query(`SHOW COLUMNS FROM \`${table}\` LIKE '${colName}'`);
+          if (!Array.isArray(cols) || cols.length === 0) {
+            console.log(`🔧 Agregando columna ${colName} a ${table}...`);
+            await sequelize.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${colName}\` VARCHAR(100) NULL DEFAULT NULL`);
+          }
+        }
+      };
+      await ensureExternalSymbols();
+    } catch (e) {
+      console.error('Error en pre-migración de columnas:', e);
+    }
 
     const alter = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV === 'development'
     await sequelize.sync({ alter });
@@ -94,7 +110,7 @@ export const connectDB = async () => {
       if (Array.isArray(idx) && idx.length > 0) {
         await sequelize.query('ALTER TABLE `PriceCaches` DROP INDEX `price_caches_user_id_position_key`')
         await sequelize.query('ALTER TABLE `PriceCaches` ADD UNIQUE INDEX `price_caches_user_portfolio_position` (`userId`,`portfolioId`,`positionKey`)')
-        
+
       }
     } catch (e) {
       // índice ya correcto o no aplicable
@@ -119,7 +135,7 @@ export const connectDB = async () => {
         }
       }
       await sequelize.query('ALTER TABLE `DailyPortfolioStats` ADD UNIQUE INDEX `dps_user_portfolio_date` (`userId`,`portfolioId`,`date`)')
-      
+
     } catch (e) { }
 
     // Ajuste robusto de índice único en DailyPrices
@@ -141,7 +157,7 @@ export const connectDB = async () => {
         }
       }
       await sequelize.query('ALTER TABLE `DailyPrices` ADD UNIQUE INDEX `dp_user_portfolio_pos_date` (`userId`,`portfolioId`,`positionKey`,`date`)')
-      
+
     } catch (e) { }
 
     try {
