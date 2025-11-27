@@ -1,48 +1,45 @@
-# Stocks Manager
+# 📈 Stocks Manager
 
-Gestor de carteras de inversión personal diseñado para el seguimiento de posiciones, cálculo de PnL en EUR, y análisis de contribución. Soporta múltiples portafolios por usuario, actualizaciones de precios en tiempo real y snapshots diarios para el histórico.
+**Stocks Manager** es un gestor de carteras de inversión personal, diseñado para ofrecer un seguimiento detallado de posiciones, cálculo preciso de PnL (Ganancias/Pérdidas) en EUR, y análisis avanzado de contribución.
+
+Soporta **múltiples portafolios**, actualizaciones de precios en tiempo real, y snapshots diarios para construir un histórico fiable.
 
 ## 🚀 Funcionalidades Principales
 
-### 💼 Gestión de Portafolios (¡Nuevo!)
-- **Múltiples Portafolios**: Crea, renombra y elimina portafolios independientes para organizar tus inversiones (ej: "Largo Plazo", "Trading", "Ahorros").
-- **Portafolio Favorito**: Marca un portafolio como favorito para que se abra automáticamente al iniciar sesión.
-- **Datos Independientes**: Cada portafolio mantiene sus propias operaciones, historial de PnL y estadísticas.
+### 💼 Gestión de Portafolios
+- **Multi-Portafolio**: Organiza tus inversiones en carteras independientes (ej: "Largo Plazo", "Trading", "Ahorros").
+- **Favoritos**: Marca tu portafolio principal para acceso rápido.
+- **Aislamiento**: Cada portafolio mantiene sus propias operaciones, historial y estadísticas.
 
-### 📊 Seguimiento y Análisis
-- **Posiciones Activas**: Vista clara de tus acciones con cálculo de Ganancia/Pérdida en EUR.
-- **Gráficos Interactivos**:
-  - **Evolución PnL**: Histórico de ganancias/pérdidas de los últimos 30 días (independiente por portafolio).
-  - **Contribución**: Gráfico circular que muestra el peso de cada empresa en tu cartera.
-- **Multi-divisa**: Soporte automático para acciones en USD (conversión a EUR usando tipo de cambio actual).
+### 📊 Análisis Avanzado
+- **Dashboard Completo**: ROI, Win Rate, Tiempo de Tenencia, y Crecimiento Mensual.
+- **Gráficos Interactivos**: Evolución del PnL, distribución por activo (Pie Chart), y análisis mensual.
+- **Alertas Inteligentes**: Avisos automáticos sobre pérdidas significativas, oportunidades de toma de ganancias y riesgos de concentración.
+- **Reportes**: Generación de informes diarios, mensuales y anuales.
 
-### 🔄 Precios y Actualizaciones
-- **Fuentes de Datos**:
-  - **Finnhub**: Precios en tiempo real (requiere API Key).
-  - **Yahoo Finance**: Precios de cierre y tipos de cambio (EURUSD).
-  - **Caché**: Sistema inteligente para minimizar llamadas a APIs externas.
-- **Cierre Diario**:
-  - **Automático**: Se ejecuta cada madrugada (01:00 hora España) para guardar el histórico.
-  - **Manual**: Botón "Forzar PnL último día" en el panel de Admin para recalcular el cierre bajo demanda.
+### 🔄 Precios y Datos
+- **Multi-Fuente**: Integración con Finnhub (tiempo real) y Yahoo Finance (cierre/divisas).
+- **Multi-Divisa**: Conversión automática de activos en USD a EUR.
+- **Cierre Diario**: Snapshot automático de todas las posiciones cada madrugada (01:00 AM) para el histórico.
 
-### 🛡️ Administración y Seguridad
-- **Panel de Admin**: Configuración del sistema, gestión de tareas programadas y herramientas de mantenimiento.
-- **Backups**: Comandos Docker integrados para realizar copias de seguridad y restauración completa.
+### 🛡️ Administración
+- **Panel de Control**: Gestión de usuarios, configuración del sistema y tareas de mantenimiento.
+- **Seguridad**: Autenticación JWT y protección de rutas.
 
-## 🛠️ Instalación y Despliegue
+## 🛠️ Instalación Rápida
 
 ### Requisitos
 - Docker y Docker Compose
 
-### Pasos Rápidos
+### Pasos
 1. **Clonar el repositorio**:
    ```bash
    git clone https://github.com/salocinmad/stocks-manager.git
    cd stocks-manager
    ```
 
-2. **Configurar variables de entorno**:
-   Crea un archivo `.env` (puedes copiar `.env.example` si existe) con:
+2. **Configurar entorno**:
+   Crea un archivo `.env` (basado en `.env.example`):
    ```env
    MYSQL_USER=portfolio_manager
    MYSQL_PASSWORD=portfolio_manager
@@ -50,25 +47,24 @@ Gestor de carteras de inversión personal diseñado para el seguimiento de posic
    VITE_API_URL=/api
    ```
 
-3. **Arrancar con Docker**:
+3. **Iniciar**:
    ```bash
    docker compose up -d
    ```
 
 4. **Acceder**:
-   - Web: `http://localhost:80` (o el puerto configurado)
-   - Usuario inicial: Crea uno nuevo o usa el admin si ya está configurado.
+   - Web: `http://localhost:80`
+   - Usuario inicial: Crea uno nuevo o usa el admin predeterminado.
 
-> Para instrucciones detalladas sobre Docker, comandos de mantenimiento y solución de problemas, consulta [DOCKER.md](./DOCKER.md).
+## 📚 Documentación
 
-## 📚 Guías de Administración
+Para más detalles, consulta las guías especializadas:
 
-Para tareas avanzadas como restablecer la contraseña de administrador, gestión de backups o configuración del scheduler, consulta la guía unificada:
+- **[🛡️ Guía de Administración](./ADMINISTRATION.md)**: Gestión de usuarios, restablecimiento de contraseñas, cierre diario y configuración.
+- **[🐳 Guía de Infraestructura (Docker)](./DOCKER.md)**: Comandos de Docker, copias de seguridad (Backups), restauración y solución de problemas.
 
-👉 **[Guía de Administración (ADMINISTRATION.md)](./ADMINISTRATION.md)**
-
-## 🔧 Arquitectura Técnica
-- **Frontend**: React + Vite + Recharts (Modo Oscuro/Claro automático).
-- **Backend**: Node.js + Express.
-- **Base de Datos**: MariaDB con Sequelize ORM.
-- **Contenedores**: Docker Compose para orquestación completa.
+## 🔧 Stack Tecnológico
+- **Frontend**: React, Vite, Recharts.
+- **Backend**: Node.js, Express, Sequelize.
+- **Base de Datos**: MariaDB.
+- **Infraestructura**: Docker Compose.

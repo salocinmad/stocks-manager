@@ -1,74 +1,80 @@
 # 🛡️ Guía de Administración
 
-Esta guía cubre las tareas de mantenimiento y configuración avanzada para el administrador de Stocks Manager.
+Esta guía cubre las tareas esenciales para la administración, mantenimiento y recuperación del sistema Stocks Manager.
 
-## 🔑 Gestión de Acceso
+## 🔑 Gestión de Acceso y Contraseñas
 
 ### Restablecer Contraseña de Administrador
-Si has perdido el acceso a la cuenta `admin`, existen varios métodos para recuperarlo.
 
-#### Método 1: Usando /resetadmin (Recomendado)
-Este método utiliza la **contraseña maestra** generada al inicio del servidor.
+Si has perdido el acceso a la cuenta `admin`, existen 3 métodos para recuperarlo, ordenados por recomendación.
 
-1. **Localizar la contraseña maestra**:
-   - En los logs del servidor: `docker compose logs server | grep "CONTRASEÑA MAESTRA"`
-   - O en el archivo `.env`: variable `MASTER_PASSWORD`
+#### Método 1: Vía Web (Recomendado) ⭐
+Este método utiliza la **contraseña maestra** que se genera al iniciar el servidor por primera vez.
 
-2. **Acceder al formulario de recuperación**:
+1. **Localizar la Contraseña Maestra**:
+   - Opción A: Busca en los logs del servidor: `docker compose logs server | grep "CONTRASEÑA MAESTRA"`
+   - Opción B: Busca en el archivo `.env` la variable `MASTER_PASSWORD`.
+
+2. **Acceder al Formulario**:
    - Navega a `http://tu-servidor/resetadmin`
-   - Ingresa la contraseña maestra y define una nueva contraseña para el usuario `admin`.
+   - Ingresa la contraseña maestra y define tu nueva contraseña.
 
-#### Método 2: Modificación directa en Base de Datos
-Si no tienes la contraseña maestra, puedes resetear el usuario directamente en la BD.
+#### Método 2: Modificación en Base de Datos
+Si no tienes la contraseña maestra, puedes modificar el usuario directamente en la base de datos.
 
 1. Accede al contenedor de base de datos:
    ```bash
    docker compose exec mariadb mysql -u root -p portfolio
    ```
-   (La contraseña root está en tu archivo `.env`)
+   (La contraseña root está en tu archivo `.env`, por defecto `portfolio_manager`)
 
-2. Ejecuta el siguiente SQL para cambiar la contraseña (ejemplo para poner 'admin123' temporalmente - **cámbiala luego**):
+2. Ejecuta el siguiente SQL para establecer una contraseña temporal (ej: `admin123`):
    ```sql
-   -- El hash bcrypt de 'admin123' es: $2b$10$5.y.u.x.z.A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q.R.S.T.U
-   -- (Nota: Para producción, genera tu propio hash usando un generador bcrypt online o nodejs)
-   
-   UPDATE users SET password = '$2b$10$X7V.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z.0.1.2.3.4.5.6' WHERE username = 'admin';
+   -- Hash bcrypt para 'admin123':
+   UPDATE users SET password = '$2b$10$5.y.u.x.z.A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q.R.S.T.U' WHERE username = 'admin';
    ```
+   > **Importante**: Inicia sesión inmediatamente y cambia esta contraseña desde el panel de perfil.
 
----
+#### Método 3: Recrear Usuario Admin
+Como último recurso, puedes eliminar y volver a crear el usuario.
 
-## ⚙️ Operaciones Diarias y Mantenimiento
-
-### Cierre Diario (Cálculo de PnL)
-El sistema guarda un "snapshot" diario de tus posiciones para calcular el historial de Ganancias/Pérdidas.
-
-- **Automático**: Se ejecuta todos los días a las **01:00 AM (Hora España)**.
-- **Manual**: Si necesitas forzar una actualización (por ejemplo, tras corregir operaciones antiguas), ve a:
-  1. Panel de Admin (`🛠️ Admin` en el menú superior).
-  2. Busca la sección "Cierre Diario".
-  3. Haz clic en **"Forzar PnL último día"**.
-  
-  > **Nota**: Esto recalculará el PnL del último día registrado para **todos los portafolios** de todos los usuarios.
-
-### Scheduler de Precios
-El sistema actualiza los precios periódicamente para mantener la caché "fresca".
-
-- **Configuración**: En el Panel de Admin, puedes:
-  - Activar/Desactivar el scheduler.
-  - Ajustar el intervalo de actualización (en minutos).
-  - Ver la última ejecución exitosa.
-
----
-
-## 🧹 Limpieza y Mantenimiento
-
-### Logs del Sistema
-Para verificar la salud del sistema o depurar errores:
-
-```bash
-# Ver últimos 100 logs y seguir en tiempo real
-docker compose logs -f --tail=100
+```sql
+DELETE FROM users WHERE username = 'admin';
+INSERT INTO users (username, password, isAdmin) VALUES ('admin', '$2b$10$5.y.u.x.z.A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q.R.S.T.U', true);
 ```
 
-### Backups
-Consulta la guía [DOCKER.md](./DOCKER.md) para instrucciones detalladas sobre cómo realizar y restaurar copias de seguridad.
+---
+
+## ⚙️ Operaciones Diarias
+
+### Cierre Diario (Snapshot de PnL)
+El sistema guarda una "foto" diaria de todas las posiciones para calcular el historial de rendimiento.
+
+- **Automático**: Se ejecuta todos los días a las **01:00 AM (Hora Servidor)**.
+- **Manual**: Puedes forzarlo desde el Panel de Admin > "Mantenimiento" > **"Forzar PnL último día"**.
+  - Útil si has corregido operaciones antiguas y quieres que el gráfico de hoy refleje los cambios inmediatamente.
+
+### Generación de Reportes
+Los reportes de rendimiento (ROI, Win Rate, etc.) se generan automáticamente tras el cierre diario.
+
+- **Manual**: Desde el Panel de Admin > "Mantenimiento" > **"Generar Reportes"**.
+  - Útil para ver estadísticas actualizadas al momento antes del cierre oficial.
+
+### Scheduler de Precios
+El sistema actualiza los precios periódicamente (por defecto cada 5 minutos) usando las APIs configuradas (Finnhub/Yahoo).
+
+- **Configuración**: En el Panel de Admin puedes pausar el scheduler o cambiar el intervalo si deseas reducir el consumo de API.
+
+---
+
+## 🔧 Configuración del Sistema
+
+### Variables de Entorno (.env)
+Las configuraciones críticas residen en el archivo `.env` en la raíz del proyecto:
+
+- `MYSQL_*`: Credenciales de base de datos.
+- `JWT_SECRET`: Clave para firmar tokens de sesión (¡Cámbiala en producción!).
+- `FINNHUB_API_KEY`: Tu clave de API para precios en tiempo real.
+- `MASTER_PASSWORD`: Contraseña de respaldo para recuperación de cuenta.
+
+> Para tareas de infraestructura como Backups, Logs y Docker, consulta la **[Guía de Infraestructura](./DOCKER.md)**.

@@ -1,6 +1,6 @@
-# 🐳 Guía de Docker y Mantenimiento
+# 🐳 Guía de Infraestructura y Docker
 
-Esta guía detalla los comandos esenciales para gestionar la aplicación Stocks Manager usando Docker Compose.
+Esta guía técnica detalla los comandos esenciales para gestionar la infraestructura de Stocks Manager usando Docker Compose, así como procedimientos de respaldo y recuperación.
 
 ## 🚀 Comandos Básicos
 
@@ -13,51 +13,55 @@ Esta guía detalla los comandos esenciales para gestionar la aplicación Stocks 
   ```bash
   docker compose down
   ```
-- **Reiniciar un servicio específico** (ej. backend):
+- **Reiniciar un servicio** (ej. `server` o `frontend`):
   ```bash
   docker compose restart server
   ```
 
-### Construcción
-- **Reconstruir todo (recomendado tras actualizaciones)**:
+### Actualización y Reconstrucción
+Si has actualizado el código o cambiado dependencias:
+
+- **Reconstruir todo**:
   ```bash
   docker compose build --no-cache
   docker compose up -d
   ```
-- **Reconstruir solo frontend**:
+- **Reconstruir solo frontend** (útil si no ves cambios visuales):
   ```bash
   docker compose build frontend --no-cache && docker compose up -d
   ```
 
-### Logs
-- **Ver logs de todo**:
+### Ver Logs
+Para depurar errores o verificar el estado del sistema:
+
+- **Ver logs de todo** (seguimiento en tiempo real):
   ```bash
   docker compose logs -f
   ```
-- **Ver logs del backend**:
+- **Ver logs específicos** (ej. backend):
   ```bash
   docker compose logs -f server
   ```
 
 ---
 
-## 💾 Backups y Restauración (Importante)
+## 💾 Backups y Restauración
 
-Es fundamental realizar copias de seguridad periódicas de tu base de datos.
+Es **crítico** realizar copias de seguridad periódicas de tu base de datos.
 
 ### Crear un Backup (Exportar)
-Este comando crea un archivo `.sql` con todos tus datos (usuarios, portafolios, operaciones) en el directorio actual.
+Este comando genera un archivo `.sql` con todos los datos (usuarios, portafolios, operaciones) en tu directorio actual.
 
 ```bash
-# Formato: stocks_backup_FECHA_HORA.sql
+# Genera un archivo con fecha y hora: stocks_backup_YYYYMMDD_HHMM.sql
 docker compose exec mariadb sh -lc 'mariadb-dump -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' > stocks_backup_$(date +%Y%m%d_%H%M).sql
 ```
 
 ### Restaurar un Backup (Importar)
 ⚠️ **Advertencia**: Esto sobrescribirá todos los datos actuales en la base de datos.
 
-1. Asegúrate de tener el archivo `.sql` en el directorio actual.
-2. Ejecuta el siguiente comando (reemplaza `ARCHIVO_BACKUP.sql` por el nombre real):
+1. Coloca el archivo `.sql` en el directorio del proyecto.
+2. Ejecuta el comando (reemplaza `ARCHIVO_BACKUP.sql` por el nombre real):
 
 ```bash
 docker compose exec -T mariadb sh -lc 'mariadb -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < ARCHIVO_BACKUP.sql
@@ -65,10 +69,9 @@ docker compose exec -T mariadb sh -lc 'mariadb -u "$MYSQL_USER" -p"$MYSQL_PASSWO
 
 ---
 
-## 🔧 Acceso Avanzado
+## 🔧 Acceso Avanzado (Shell)
 
-### Shell dentro de los contenedores
-A veces es necesario entrar al contenedor para depurar o ejecutar scripts manuales.
+Para ejecutar scripts manuales o inspeccionar el sistema de archivos interno:
 
 - **Backend (Node.js)**:
   ```bash
@@ -79,17 +82,22 @@ A veces es necesario entrar al contenedor para depurar o ejecutar scripts manual
   docker compose exec mariadb sh -lc "mariadb -u \"$MYSQL_USER\" -p\"$MYSQL_PASSWORD\" \"$MYSQL_DATABASE\""
   ```
 
+---
+
 ## ❓ Solución de Problemas (Troubleshooting)
 
 ### Puertos ocupados
-Si al arrancar ves un error de "port already in use", verifica qué proceso está usando el puerto (por defecto 80 o 3000):
+Error: `port already in use`.
+- Verifica qué proceso usa el puerto 80 o 3000.
 - Windows: `netstat -ano | findstr :80`
 - Linux/Mac: `lsof -i :80`
 
 ### Cambios no visibles (Caché)
-Si has actualizado la aplicación pero no ves los cambios en el navegador:
-1. Intenta una **recarga forzada**: `Ctrl + Shift + R` (o `Cmd + Shift + R`).
-2. Si persiste, reconstruye el contenedor del frontend:
-   ```bash
-   docker compose build frontend --no-cache && docker compose up -d
-   ```
+Si el frontend no muestra tus cambios:
+1. **Recarga forzada**: `Ctrl + Shift + R` (o `Cmd + Shift + R`).
+2. **Reconstruir contenedor**: Ejecuta el comando de reconstrucción de frontend mencionado arriba.
+
+### Base de datos no conecta
+- Verifica que el contenedor `mariadb` esté saludable (`docker compose ps`).
+- Revisa los logs: `docker compose logs mariadb`.
+- Asegúrate de que las credenciales en `.env` coincidan con las usadas al crear el volumen (si cambias el `.env` después de crear la BD, no se actualizará la contraseña de root automáticamente).
