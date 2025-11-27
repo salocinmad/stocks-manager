@@ -174,7 +174,7 @@ function ExternalButtonsModal({ show, onClose, externalButtons, setExternalButto
                             type="text"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            placeholder="inest"
+                            placeholder="Investing (simbolo)"
                             maxLength={20}
                             style={{ width: '100%' }}
                         />
@@ -188,7 +188,7 @@ function ExternalButtonsModal({ show, onClose, externalButtons, setExternalButto
                             type="url"
                             value={formData.baseUrl}
                             onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-                            placeholder="https://nicolas.es/"
+                            placeholder="ejemplo: https://investing.com"
                             style={{ width: '100%' }}
                         />
                         <small style={{ color: '#888' }}>El símbolo se concatenará al final de esta URL</small>
@@ -201,7 +201,7 @@ function ExternalButtonsModal({ show, onClose, externalButtons, setExternalButto
                             type="text"
                             value={formData.imageUrl}
                             onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                            placeholder="/investing.webp"
+                            placeholder="ejemplo: https://investing.com/investing.webp"
                             style={{ width: '100%' }}
                         />
                         <small style={{ color: '#888' }}>
