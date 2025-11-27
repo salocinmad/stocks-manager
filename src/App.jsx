@@ -1556,7 +1556,10 @@ function App() {
         exchangeRate: editExchangeRate,
         commission: operation.commission.toString(),
         targetPrice: operation.targetPrice ? operation.targetPrice.toString() : '',
-        date: formattedDate
+        date: formattedDate,
+        externalSymbol1: operation.externalSymbol1 || '',
+        externalSymbol2: operation.externalSymbol2 || '',
+        externalSymbol3: operation.externalSymbol3 || ''
       });
 
       // Llenar el campo de símbolo si existe
@@ -1582,7 +1585,10 @@ function App() {
         exchangeRate: '1',
         commission: '0',
         targetPrice: '',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        externalSymbol1: '',
+        externalSymbol2: '',
+        externalSymbol3: ''
       });
     }
   };
@@ -1670,7 +1676,10 @@ function App() {
         commission: parseFloat(formData.commission) || 0,
         targetPrice: formData.targetPrice ? parseFloat(formData.targetPrice) : null,
         date: operationDate,
-        totalCost: totalCost
+        totalCost: totalCost,
+        externalSymbol1: formData.externalSymbol1 || null,
+        externalSymbol2: formData.externalSymbol2 || null,
+        externalSymbol3: formData.externalSymbol3 || null
       };
 
       if (editingOperation) {
