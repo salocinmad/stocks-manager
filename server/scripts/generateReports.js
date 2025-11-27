@@ -128,13 +128,7 @@ export async function generateAllReports(date = null) {
         console.log('');
 
         // 2. Obtener todos los usuarios
-        const users = await User.findAll({
-            where: {
-                isAdmin: {
-                    [Op.or]: [false, null]
-                }
-            }
-        });
+        const users = await User.findAll();
 
         summary.totalUsers = users.length;
         console.log(`👥 Found ${users.length} users\n`);
