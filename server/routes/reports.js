@@ -2,7 +2,7 @@ import express from 'express';
 import { Op } from 'sequelize';
 import PortfolioReport from '../models/PortfolioReport.js';
 import { generateDailyReport } from '../services/reportGenerator.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -18,7 +18,7 @@ const router = express.Router();
  *   - portfolioId: ID del portafolio (requerido)
  *   - eurUsd: Tipo de cambio EUR/USD (opcional)
  */
-router.get('/current', authenticateToken, async (req, res) => {
+router.get('/current', authenticate, async (req, res) => {
     try {
         const { portfolioId, eurUsd } = req.query;
         const userId = req.user.id;
@@ -58,7 +58,7 @@ router.get('/current', authenticateToken, async (req, res) => {
  *   - startDate: Fecha inicial YYYY-MM-DD (opcional)
  *   - endDate: Fecha final YYYY-MM-DD (opcional)
  */
-router.get('/history', authenticateToken, async (req, res) => {
+router.get('/history', authenticate, async (req, res) => {
     try {
         const { portfolioId, days = 30, startDate, endDate } = req.query;
         const userId = req.user.id;
@@ -115,7 +115,7 @@ router.get('/history', authenticateToken, async (req, res) => {
  *   - portfolioId: ID del portafolio (requerido)
  *   - year: Año (default: año actual)
  */
-router.get('/monthly', authenticateToken, async (req, res) => {
+router.get('/monthly', authenticate, async (req, res) => {
     try {
         const { portfolioId, year = new Date().getFullYear() } = req.query;
         const userId = req.user.id;
@@ -163,7 +163,7 @@ router.get('/monthly', authenticateToken, async (req, res) => {
  * Query params:
  *   - portfolioId: ID del portafolio (requerido)
  */
-router.get('/yearly', authenticateToken, async (req, res) => {
+router.get('/yearly', authenticate, async (req, res) => {
     try {
         const { portfolioId } = req.query;
         const userId = req.user.id;
@@ -204,7 +204,7 @@ router.get('/yearly', authenticateToken, async (req, res) => {
  * Query params:
  *   - days: Número de días hacia atrás (default: 30)
  */
-router.get('/comparison', authenticateToken, async (req, res) => {
+router.get('/comparison', authenticate, async (req, res) => {
     try {
         const { days = 30 } = req.query;
         const userId = req.user.id;
@@ -285,7 +285,7 @@ router.get('/comparison', authenticateToken, async (req, res) => {
  * DELETE /api/reports/:id
  * Elimina un reporte específico (solo el propio usuario puede eliminar sus reportes)
  */
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user.id;
