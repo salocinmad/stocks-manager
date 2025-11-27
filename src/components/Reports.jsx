@@ -219,13 +219,13 @@ function Reports({
                                 </span>
                             </div>
                         )}
-                        {reportData.worstMonth && (
+                        {reportData.worstMonth && (!reportData.bestMonth || reportData.bestMonth.month !== reportData.worstMonth.month) && (
                             <div className="monthly-highlight worst">
                                 <span className="highlight-label">📉 Peor Mes:</span>
                                 <span className="highlight-value">
                                     {reportData.worstMonth.month}
-                                    <span className="negative">
-                                        {' '}€{reportData.worstMonth.gain.toFixed(2)}
+                                    <span className={reportData.worstMonth.gain >= 0 ? "positive" : "negative"}>
+                                        {' '}{reportData.worstMonth.gain >= 0 ? '+' : ''}€{reportData.worstMonth.gain.toFixed(2)}
                                         ({reportData.worstMonth.growthRate.toFixed(1)}%)
                                     </span>
                                 </span>
