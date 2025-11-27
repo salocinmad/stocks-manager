@@ -8,7 +8,6 @@ const router = express.Router();
 // Todas las rutas requieren autenticación
 router.use(authenticate);
 
-// Obtener precio de Yahoo Finance
 router.get('/quote/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
@@ -17,10 +16,8 @@ router.get('/quote/:symbol', async (req, res) => {
       return res.status(400).json({ error: 'Símbolo requerido' });
     }
 
-    // Construir URL de Yahoo Finance
     const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
 
-    // Hacer la petición desde el servidor (sin problemas de CORS)
     const response = await fetch(yahooUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -72,7 +69,7 @@ router.get('/quote/:symbol', async (req, res) => {
     console.error('Error fetching from Yahoo Finance:', error);
     res.status(500).json({ error: error.message || 'Error al consultar Yahoo Finance' });
   }
-});
+})
 
 export default router;
 router.get('/fx/eurusd', async (req, res) => {

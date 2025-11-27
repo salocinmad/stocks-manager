@@ -38,8 +38,21 @@ export const connectDB = async () => {
       import('../models/ProfilePicture.js'),
     ])
 
-    // Sincronizar modelos, alterando tablas existentes para que coincidan con los modelos
-    await sequelize.sync({ alter: true });
+    // Pre-migración: asegurar columnas portfolioId antes de que Sequelize intente crear índices
+    try {
+      const ensureColumn = async (table) => {
+        const [cols] = await sequelize.query(`SHOW COLUMNS FROM \`${table}\` LIKE 'portfolioId'`)
+        if (!Array.isArray(cols) || cols.length === 0) {
+          await sequelize.query(`ALTER TABLE \`${table}\` ADD COLUMN \`portfolioId\` INT NULL`)
+        }
+      }
+      await ensureColumn('PriceCaches')
+      await ensureColumn('DailyPrices')
+      await ensureColumn('DailyPortfolioStats')
+    } catch (e) { }
+
+    const alter = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV === 'development'
+    await sequelize.sync({ alter });
     console.log('✅ Modelos sincronizados');
 
     try {
@@ -129,6 +142,21 @@ export const connectDB = async () => {
       }
       await sequelize.query('ALTER TABLE `DailyPrices` ADD UNIQUE INDEX `dp_user_portfolio_pos_date` (`userId`,`portfolioId`,`positionKey`,`date`)')
       
+    } catch (e) { }
+
+    try {
+      const [rowsU] = await sequelize.query("SHOW INDEX FROM `Users`")
+      const uniqUsername = (rowsU || []).filter(r => r.Non_unique === 0 && String(r.Column_name).toLowerCase() === 'username')
+      if (uniqUsername.length > 1) {
+        for (let i = 1; i < uniqUsername.length; i++) {
+          const k = String(uniqUsername[i].Key_name)
+          await sequelize.query(`ALTER TABLE \`Users\` DROP INDEX \`${k}\``)
+        }
+      }
+      const hasNamed = (rowsU || []).some(r => String(r.Key_name) === 'users_username_unique')
+      if (!hasNamed) {
+        await sequelize.query('ALTER TABLE `Users` ADD UNIQUE INDEX `users_username_unique` (`username`)')
+      }
     } catch (e) { }
   } catch (error) {
     console.error('❌ Error conectando a MariaDB:', error);

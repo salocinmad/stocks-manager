@@ -31,9 +31,15 @@ function Admin() {
   const [showPass, setShowPass] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [backupFormat, setBackupFormat] = useState('json');
+  const [theme, setTheme] = useState('dark');
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Cargar tema desde localStorage
+    const savedTheme = localStorage.getItem('portfolio-theme') || 'dark';
+    setTheme(savedTheme);
+    document.body.className = savedTheme;
+
     loadUsers();
     loadApiKey();
     loadSmtp();
@@ -370,7 +376,7 @@ function Admin() {
                     if (d.status === 'already_running') {
                       setSuccess('Cierre diario ya en ejecución')
                     } else if (d.status === 'partial_failures') {
-                      setSuccess(`Cierre diario con incidencias (${(d.failures||[]).length})`)
+                      setSuccess(`Cierre diario con incidencias (${(d.failures || []).length})`)
                     } else if (d.status === 'no_data') {
                       setSuccess('Cierre diario sin datos que procesar')
                     } else {
@@ -386,6 +392,26 @@ function Admin() {
               style={{ justifyContent: 'center' }}
             >
               📅 Ejecutar Cierre Diario
+            </button>
+            <button
+              className="button warning"
+              onClick={async () => {
+                if (!window.confirm('¿Forzar recálculo del PnL del último día con valores actuales?')) return
+                try {
+                  const r = await authenticatedFetch('/api/admin/daily-close/recompute-last', { method: 'POST' })
+                  const d = await r.json().catch(() => ({}))
+                  if (r.ok) {
+                    setSuccess(`Recalculado PnL del último día (${d.date || '—'})`)
+                  } else {
+                    setError(d?.error || 'Error forzando recálculo')
+                  }
+                } catch (e) {
+                  setError('Error forzando recálculo')
+                }
+              }}
+              style={{ justifyContent: 'center' }}
+            >
+              ♻️ Forzar PnL último día
             </button>
             <button
               className="button warning"

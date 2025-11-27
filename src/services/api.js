@@ -43,7 +43,7 @@ const fetchAPI = async (endpoint, options = {}) => {
           const withPid = endpoint.includes('?') ? `${endpoint}&portfolioId=${fallback.id}` : `${endpoint}?portfolioId=${fallback.id}`;
           return await authenticatedFetch(`${API_BASE_URL}${withPid}`, options).then(r => r.json());
         }
-      } catch {}
+      } catch { }
     }
     console.error('Error en API:', e?.error || e);
     throw (e?.error || e);
@@ -211,3 +211,18 @@ export const profilePicturesAPI = {
   })
 };
 
+// Botones externos personalizables
+export const externalButtonsAPI = {
+  getAll: () => fetchAPI('/external-buttons'),
+  create: (name, baseUrl, imageUrl, displayOrder) => fetchAPI('/external-buttons', {
+    method: 'POST',
+    body: JSON.stringify({ name, baseUrl, imageUrl, displayOrder })
+  }),
+  update: (id, data) => fetchAPI(`/external-buttons/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+  delete: (id) => fetchAPI(`/external-buttons/${id}`, {
+    method: 'DELETE'
+  })
+};

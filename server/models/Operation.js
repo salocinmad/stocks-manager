@@ -74,6 +74,24 @@ const Operation = sequelize.define('Operation', {
     allowNull: true,
     references: { model: 'Portfolios', key: 'id' },
     onDelete: 'CASCADE'
+  },
+  externalSymbol1: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Símbolo para el botón externo 1 (según displayOrder)'
+  },
+  externalSymbol2: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Símbolo para el botón externo 2 (según displayOrder)'
+  },
+  externalSymbol3: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    defaultValue: null,
+    comment: 'Símbolo para el botón externo 3 (según displayOrder)'
   }
 });
 

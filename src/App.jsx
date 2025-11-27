@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI, profilePicturesAPI } from './services/api.js';
+import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI, profilePicturesAPI, externalButtonsAPI } from './services/api.js';
 import { logout, verifySession, changePassword, authenticatedFetch } from './services/auth.js';
 import ProfilePictureModal from './components/ProfilePictureModal.jsx';
+import ExternalButtonsModal from './components/ExternalButtonsModal.jsx';
 import { usePositionOrder } from './usePositionOrder.jsx';
 
 function App() {
@@ -48,7 +49,10 @@ function App() {
     currency: 'EUR',
     exchangeRate: '1',
     commission: '0',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    externalSymbol1: '',
+    externalSymbol2: '',
+    externalSymbol3: ''
   });
 
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -66,6 +70,8 @@ function App() {
   const [dailyCloseLastRun, setDailyCloseLastRun] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false); // Nuevo estado para el menú de usuario
   const [showProfilePictureModal, setShowProfilePictureModal] = useState(false); // Nuevo estado para el modal de imagen de perfil
+  const [externalButtons, setExternalButtons] = useState([]); // Botones externos
+  const [showExternalButtonsModal, setShowExternalButtonsModal] = useState(false);
 
   const DEFAULT_PROFILE_PICTURE_URL = '/defaultpic.jpg'; // Imagen de perfil por defecto servida desde el frontend
 
@@ -274,24 +280,21 @@ function App() {
           console.log('No se pudo cargar contribución');
         }
 
-        // Cargar serie de PnL histórico (viene de DailyPortfolioStats)
+        // Cargar botones externos configurados
+        try {
+          const buttons = await externalButtonsAPI.getAll();
+          setExternalButtons(buttons || []);
+        } catch (e) {
+          console.log('No se pudieron cargar botones externos');
+        }
+
+        // Cargar serie de PnL histórico (viene de DailyPort folioStats)
         try {
           const ts = await portfolioAPI.timeseries({ days: 30 });
           // El backend ahora retorna pnlEUR directamente como totalValueEUR
           let series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }));
-
-          const { net, count } = computeCurrentNetPnL();
-          if (series.length > 0) {
-            // Actualizar el último punto con el PnL actual en tiempo real
-            if (count > 0) {
-              series[series.length - 1].pnlEUR = net;
-            }
-          } else if (count > 0) {
-            // Si no hay datos históricos, crear al menos el punto de hoy
-            const today = new Date().toISOString().slice(0, 10);
-            series = [{ date: today, pnlEUR: net }];
-          }
-
+          // Don't compute real-time PnL here during initial load - the useEffect 
+          // at line 398 will update it once currentPrices are loaded
           setPnlSeries(series);
         } catch (e) {
           console.log('No se pudo cargar la serie de PnL');
@@ -328,10 +331,8 @@ function App() {
         }
         const ts = await portfolioAPI.timeseries({ days: 30 });
         let series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }));
-        const { net, count } = computeCurrentNetPnL();
-        if (series.length > 0 && count > 0) {
-          series[series.length - 1].pnlEUR = net;
-        }
+        // Don't override with real-time PnL here - let the useEffect at line 398 handle it
+        // after operations state has been updated
         setPnlSeries(series);
       } catch (e) {
         console.log('Error recargando datos por cambio de portafolio');
@@ -363,7 +364,7 @@ function App() {
       await portfolioAPI.setFavorite(id);
       setCurrentUser(prev => prev ? { ...prev, favoritePortfolioId: id } : prev);
       localStorage.setItem('currentUserFavorite', String(id));
-    } catch {}
+    } catch { }
   };
 
   // Recalcular contribución con valor actual (EUR) para que coincida con la tabla
@@ -397,11 +398,20 @@ function App() {
   // Sincronizar el último punto del PnL con la suma de Ganancia/Pérdida por posición (en EUR)
   useEffect(() => {
     try {
-      if (!pnlSeries || pnlSeries.length === 0) return;
       const { net, count } = computeCurrentNetPnL();
-      if (count === 0) return;
+      if (count === 0) {
+        // No active positions, don't update PnL
+        return;
+      }
 
       const today = new Date().toISOString().slice(0, 10);
+
+      if (!pnlSeries || pnlSeries.length === 0) {
+        // No historical data yet, create today's point
+        setPnlSeries([{ date: today, pnlEUR: net }]);
+        return;
+      }
+
       const lastPoint = pnlSeries[pnlSeries.length - 1];
 
       if (lastPoint.date === today) {
@@ -2054,7 +2064,8 @@ function App() {
   return (
     <div className="container">
       {/* Header */}
-      <div className="header">
+      <div className="header" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+        {/* Primera fila: Logo + Nombre */}
         <h1>
           <img
             src="/logo64.png"
@@ -2068,148 +2079,157 @@ function App() {
           />
           Stocks Manager
         </h1>
-        <div>
-          {/* Selector de Portafolio */}
-          <span style={{ marginRight: '8px', position: 'relative' }}>
-            <select
-              value={currentPortfolioId || ''}
-              onChange={(e) => switchPortfolio(e.target.value)}
-              style={{ padding: '6px', borderRadius: '4px', marginRight: '6px' }}
-            >
-              <option value="" disabled>Selecciona Portafolio</option>
-              {portfolios.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.name}{currentUser?.favoritePortfolioId === p.id ? ' ⭐' : ''}
-                </option>
-              ))}
-            </select>
-            <button
-              className="button"
-              onClick={() => setShowPortfolioMenu(v => !v)}
-            >
-              ⚙️ Portafolios
-            </button>
-            {showPortfolioMenu && (
-              <div className="user-dropdown-menu" style={{ position: 'absolute', top: '36px', left: '0' }}>
-                <button
-                  className="dropdown-item"
-                  onClick={async () => {
-                    const name = window.prompt('Nombre del nuevo portafolio:');
-                    if (name && name.trim()) {
-                      const r = await portfolioAPI.create(name.trim());
-                      if (r?.item) {
-                        setPortfolios(prev => [...prev, r.item]);
-                        switchPortfolio(r.item.id);
+        {/* Segunda fila: Botones */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Selector de Portafolio */}
+            <span style={{ marginRight: '8px', position: 'relative' }}>
+              <select
+                value={currentPortfolioId || ''}
+                onChange={(e) => switchPortfolio(e.target.value)}
+                style={{ padding: '6px', borderRadius: '4px', marginRight: '6px' }}
+              >
+                <option value="" disabled>Selecciona Portafolio</option>
+                {portfolios.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}{currentUser?.favoritePortfolioId === p.id ? ' ⭐' : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="button"
+                onClick={() => setShowPortfolioMenu(v => !v)}
+              >
+                ⚙️ Portafolios
+              </button>
+              {showPortfolioMenu && (
+                <div className="user-dropdown-menu" style={{ position: 'absolute', top: '36px', left: '0' }}>
+                  <button
+                    className="dropdown-item"
+                    onClick={async () => {
+                      const name = window.prompt('Nombre del nuevo portafolio:');
+                      if (name && name.trim()) {
+                        const r = await portfolioAPI.create(name.trim());
+                        if (r?.item) {
+                          setPortfolios(prev => [...prev, r.item]);
+                          switchPortfolio(r.item.id);
+                        }
                       }
-                    }
-                    setShowPortfolioMenu(false);
-                  }}
-                >➕ Crear</button>
-                <button
-                  className="dropdown-item"
-                  onClick={async () => {
-                    if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
-                    const cur = portfolios.find(p => p.id === currentPortfolioId);
-                    const name = window.prompt('Nuevo nombre del portafolio:', cur?.name || '');
-                    if (name && name.trim()) {
-                      await portfolioAPI.rename(currentPortfolioId, name.trim());
-                      setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, name: name.trim() } : p));
-                    }
-                    setShowPortfolioMenu(false);
-                  }}
-                >✏️ Renombrar</button>
-                <button
-                  className="dropdown-item"
-                  onClick={async () => {
-                    if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
-                    if (window.confirm('¿Eliminar portafolio actual? (debe estar vacío de operaciones)')) {
-                      await portfolioAPI.remove(currentPortfolioId);
-                      const rem = portfolios.filter(p => p.id !== currentPortfolioId);
-                      setPortfolios(rem);
-                      const next = rem[0]?.id || null;
-                      switchPortfolio(next);
-                    }
-                    setShowPortfolioMenu(false);
-                  }}
-                >🗑️ Eliminar</button>
-                <button
-                  className="dropdown-item"
-                  onClick={async () => {
-                    if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
-                    await markFavorite(currentPortfolioId);
-                    setShowPortfolioMenu(false);
-                  }}
-                >⭐ Marcar favorito</button>
-              </div>
-            )}
-          </span>
-          <button className="theme-toggle" onClick={toggleTheme}>
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
-          <button className="button" onClick={() => setShowHistory(!showHistory)}>
-            {showHistory ? '🏠 Portada' : '📜 Histórico'}
-          </button>
-          {currentUser?.isAdmin && (
-            <button className="button" onClick={() => navigate('/admin')} title="Panel de Administración">
-              🛠️ Admin
-            </button>
-          )}
-
-
-          <button className="button success" onClick={() => openModal('purchase')}>
-            ➕ Comprar
-          </button>
-          <button className="button danger" onClick={() => {
-            const activePositions = getActivePositions();
-            if (Object.keys(activePositions).length === 0) {
-              alert('No tienes posiciones activas para vender');
-              return;
-            }
-            setShowSelectPositionModal(true);
-          }}>
-            ➖ Vender
-          </button>
-          <div className="user-menu-container">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="user-initial-button"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '20px' }}
-            >
-              {profilePictureUrl ? (
-                <img
-                  src={profilePictureUrl}
-                  alt="Profile"
-                  style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
-                />
-              ) : (
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#404040', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>
-                  {getUserInitial()}
+                      setShowPortfolioMenu(false);
+                    }}
+                  >➕ Crear</button>
+                  <button
+                    className="dropdown-item"
+                    onClick={async () => {
+                      if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                      const cur = portfolios.find(p => p.id === currentPortfolioId);
+                      const name = window.prompt('Nuevo nombre del portafolio:', cur?.name || '');
+                      if (name && name.trim()) {
+                        await portfolioAPI.rename(currentPortfolioId, name.trim());
+                        setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, name: name.trim() } : p));
+                      }
+                      setShowPortfolioMenu(false);
+                    }}
+                  >✏️ Renombrar</button>
+                  <button
+                    className="dropdown-item"
+                    onClick={async () => {
+                      if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                      if (window.confirm('¿Eliminar portafolio actual? Se eliminarán también sus operaciones y datos asociados.')) {
+                        await portfolioAPI.remove(currentPortfolioId);
+                        const rem = portfolios.filter(p => p.id !== currentPortfolioId);
+                        setPortfolios(rem);
+                        const next = rem[0]?.id || null;
+                        switchPortfolio(next);
+                      }
+                      setShowPortfolioMenu(false);
+                    }}
+                  >🗑️ Eliminar</button>
+                  <button
+                    className="dropdown-item"
+                    onClick={async () => {
+                      if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                      await markFavorite(currentPortfolioId);
+                      setShowPortfolioMenu(false);
+                    }}
+                  >⭐ Marcar favorito</button>
                 </div>
               )}
-              {currentUser && (
-                <span style={{ fontSize: '14px' }}>
-                  {currentUser.username}
-                </span>
-              )}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button className="theme-toggle" onClick={toggleTheme}>
+              {theme === 'dark' ? '☀️' : '🌙'}
             </button>
-            {showUserMenu && (
-              <div className="user-dropdown-menu">
-                <button onClick={generateFullCSV} className="dropdown-item">📊 Exportar CSV</button>
-                <button onClick={() => {
-                  setShowConfigModal(true);
-                  setShowUserMenu(false);
-                }} className="dropdown-item">⚙️ Config</button>
-                <button onClick={() => {
-                  setShowProfilePictureModal(true);
-                  setShowUserMenu(false);
-                }} className="dropdown-item">👤 Perfil</button>
-                <button onClick={() => {
-                  logout();
-                  navigate('/login');
-                  setShowUserMenu(false);
-                }} className="dropdown-item">🚪 Salir</button>
-              </div>
+            <button className="button" onClick={() => setShowHistory(!showHistory)}>
+              {showHistory ? '🏠 Portada' : '📜 Histórico'}
+            </button>
+            {currentUser?.isAdmin && (
+              <button className="button" onClick={() => navigate('/admin')} title="Panel de Administración">
+                🛠️ Admin
+              </button>
             )}
+
+
+            <button className="button success" onClick={() => openModal('purchase')}>
+              ➕ Comprar
+            </button>
+            <button className="button danger" onClick={() => {
+              const activePositions = getActivePositions();
+              if (Object.keys(activePositions).length === 0) {
+                alert('No tienes posiciones activas para vender');
+                return;
+              }
+              setShowSelectPositionModal(true);
+            }}>
+              ➖ Vender
+            </button>
+            <div className="user-menu-container">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="user-initial-button"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '20px' }}
+              >
+                {profilePictureUrl ? (
+                  <img
+                    src={profilePictureUrl}
+                    alt="Profile"
+                    style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#404040', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>
+                    {getUserInitial()}
+                  </div>
+                )}
+                {currentUser && (
+                  <span style={{ fontSize: '14px' }}>
+                    {currentUser.username}
+                  </span>
+                )}
+              </button>
+              {showUserMenu && (
+                <div className="user-dropdown-menu">
+                  <button onClick={generateFullCSV} className="dropdown-item">📊 Exportar CSV</button>
+                  <button onClick={() => {
+                    setShowConfigModal(true);
+                    setShowUserMenu(false);
+                  }} className="dropdown-item">⚙️ Config</button>
+                  <button onClick={() => {
+                    setShowExternalButtonsModal(true);
+                    setShowUserMenu(false);
+                  }} className="dropdown-item">🔗 Botones Externos</button>
+                  <button onClick={() => {
+                    setShowProfilePictureModal(true);
+                    setShowUserMenu(false);
+                  }} className="dropdown-item">👤 Perfil</button>
+                  <button onClick={() => {
+                    logout();
+                    navigate('/login');
+                    setShowUserMenu(false);
+                  }} className="dropdown-item">🚪 Salir</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2310,6 +2330,7 @@ function App() {
                     <th>Valor Actual (EUR)</th>
                     <th>Ganancia/Pérdida</th>
                     <th>Precio Objetivo</th>
+                    <th>Info</th>
                     <th>Editar</th>
                   </tr>
                 </thead>
@@ -2487,6 +2508,37 @@ function App() {
                             }
                             return <span style={{ color: '#888' }}>-</span>;
                           })()}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                            {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => {
+                              // Buscar si hay algún símbolo configurado para este botón en alguna operación de esta empresa
+                              const symbolForButton = (() => {
+                                // Buscar en las operaciones de esta empresa
+                                const op = companyOperations.find(o => o[`externalSymbol${button.displayOrder}`]);
+                                return op ? op[`externalSymbol${button.displayOrder}`] : null;
+                              })();
+
+                              if (!symbolForButton) return null;
+
+                              return (
+                                <a
+                                  key={button.id}
+                                  href={`${button.baseUrl}${symbolForButton}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={`${button.name}: ${symbolForButton}`}
+                                  style={{ display: 'block' }}
+                                >
+                                  <img
+                                    src={button.imageUrl}
+                                    alt={button.name}
+                                    style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }}
+                                  />
+                                </a>
+                              );
+                            })}
+                          </div>
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '5px' }}>
@@ -2996,6 +3048,25 @@ function App() {
                 </div>
               </div>
 
+              {/* Campos dinámicos para botones externos */}
+              {externalButtons.length > 0 && (
+                <div className="form-row">
+                  {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => (
+                    <div key={button.id} className="form-group" style={{ flex: 1 }}>
+                      <label>{button.name}:</label>
+                      <input
+                        type="text"
+                        name={`externalSymbol${button.displayOrder}`}
+                        value={formData[`externalSymbol${button.displayOrder}`] || ''}
+                        onChange={handleInputChange}
+                        className="input"
+                        placeholder="Símbolo"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Precio Objetivo (Opcional):</label>
                 <input
@@ -3432,6 +3503,26 @@ function App() {
           </div>
         </div>
       )}
+
+      <ExternalButtonsModal
+        show={showExternalButtonsModal}
+        onClose={() => setShowExternalButtonsModal(false)}
+        externalButtons={externalButtons}
+        setExternalButtons={setExternalButtons}
+      />
+
+      <ProfilePictureModal
+        show={showProfilePictureModal}
+        onClose={() => setShowProfilePictureModal(false)}
+        currentUser={currentUser}
+        onUpdate={(url) => {
+          setProfilePictureUrl(url);
+          // Actualizar también el usuario actual para reflejar el cambio si es necesario
+          if (currentUser) {
+            setCurrentUser({ ...currentUser });
+          }
+        }}
+      />
     </div>
   );
 }

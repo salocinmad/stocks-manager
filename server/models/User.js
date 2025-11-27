@@ -11,7 +11,8 @@ const User = sequelize.define('User', {
   username: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true
+    unique: 'users_username_unique',
+    validate: { notEmpty: true }
   },
   password: {
     type: DataTypes.STRING,
@@ -27,6 +28,11 @@ const User = sequelize.define('User', {
   }
 }, {
   hooks: {
+    beforeValidate: async (user) => {
+      if (typeof user.username === 'string') {
+        user.username = user.username.trim().toLowerCase()
+      }
+    },
     beforeCreate: async (user) => {
       if (user.password) {
         const salt = await bcrypt.genSalt(10);
