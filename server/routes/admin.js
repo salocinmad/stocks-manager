@@ -16,6 +16,7 @@ import Note from '../models/Note.js'
 import PositionOrder from '../models/PositionOrder.js'
 import ProfilePicture from '../models/ProfilePicture.js'
 import Portfolio from '../models/Portfolio.js'
+import yahooFinance from 'yahoo-finance2'
 
 const upload = multer({ storage: multer.memoryStorage() })
 
@@ -346,6 +347,92 @@ router.post('/daily-close/run', async (req, res) => {
       return res.status(400).json({ error: r.reason || 'run failed' })
     }
     res.json({ success: true, date: r.date, processed: r.processed, failures: r.failures || [] })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+router.post('/daily-close/recompute-last', async (req, res) => {
+  try {
+    await scheduler.runOnce().catch(() => {})
+    const nowMadrid = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' }))
+    const d = new Date(nowMadrid)
+    d.setDate(d.getDate() - 1)
+    const day = d.getDay()
+    if (day === 0) { d.setDate(d.getDate() - 2) } else if (day === 6) { d.setDate(d.getDate() - 1) }
+    const iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+    let eurPerUsd = null
+    try {
+      const q = await yahooFinance.quote('EURUSD=X')
+      const r = q?.regularMarketPrice || q?.regularMarketPreviousClose
+      if (r && r > 0) eurPerUsd = 1 / r
+    } catch { }
+    if (!eurPerUsd || eurPerUsd <= 0) eurPerUsd = 0.92
+
+    const portfolios = await Portfolio.findAll({ attributes: ['id', 'userId'] })
+    let processed = 0
+    for (const pf of portfolios) {
+      const userId = pf.userId
+      const portfolioId = pf.id
+      const ops = await Operation.findAll({ where: { userId, portfolioId } })
+      const positionsMap = new Map()
+      for (const o of ops) {
+        const key = `${o.company}|||${o.symbol || ''}`
+        const prev = positionsMap.get(key) || { company: o.company, symbol: o.symbol || '', shares: 0, totalCost: 0 }
+        if (o.type === 'purchase') {
+          prev.shares += o.shares
+          prev.totalCost += parseFloat(o.totalCost)
+        } else if (o.type === 'sale') {
+          prev.shares -= o.shares
+          prev.totalCost -= parseFloat(o.totalCost)
+        }
+        positionsMap.set(key, prev)
+      }
+      const activePositions = Array.from(positionsMap.values()).filter(p => p.shares > 0)
+      let totalInvestedEUR = activePositions.reduce((sum, p) => sum + p.totalCost, 0)
+      let totalValueEUR = 0
+      for (const p of activePositions) {
+        const pk = `${p.company}|||${p.symbol}`
+        const cache = await PriceCache.findOne({ where: { userId, portfolioId, positionKey: pk } })
+        if (!cache || !cache.lastPrice || cache.lastPrice <= 0) continue
+        const companyOps = ops.filter(o => {
+          const k = o.symbol ? `${o.company}|||${o.symbol}` : o.company
+          return k === pk
+        })
+        const purchases = companyOps.filter(o => o.type === 'purchase')
+        let currency = purchases.length > 0 ? (purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0].currency || 'EUR') : 'EUR'
+        let rate = 1
+        if (currency === 'USD') {
+          rate = eurPerUsd
+        } else if (currency !== 'EUR') {
+          let totalShares = 0
+          let totalExchangeRateWeighted = 0
+          for (const pur of purchases) {
+            totalShares += pur.shares
+            totalExchangeRateWeighted += pur.shares * (pur.exchangeRate || 1)
+          }
+          rate = totalShares > 0 ? (totalExchangeRateWeighted / totalShares) : (purchases[0]?.exchangeRate || 1)
+        }
+        const valEUR = cache.lastPrice * rate * p.shares
+        totalValueEUR += valEUR
+
+        const existingPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date: iso } })
+        if (existingPrice) {
+          await existingPrice.update({ company: p.company, symbol: p.symbol, close: cache.lastPrice, currency, exchangeRate: rate, source: cache.source || 'cache' })
+        } else {
+          await DailyPrice.create({ userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol, date: iso, close: cache.lastPrice, currency, exchangeRate: rate, source: cache.source || 'cache' })
+        }
+      }
+      const pnlEUR = totalValueEUR - totalInvestedEUR
+      const existing = await DailyPortfolioStats.findOne({ where: { userId, portfolioId, date: iso } })
+      if (existing) {
+        await existing.update({ totalInvestedEUR, totalValueEUR, pnlEUR })
+      } else {
+        await DailyPortfolioStats.create({ userId, portfolioId, date: iso, totalInvestedEUR, totalValueEUR, pnlEUR })
+      }
+      processed++
+    }
+    res.json({ success: true, date: iso, processed })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

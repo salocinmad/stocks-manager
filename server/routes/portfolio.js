@@ -6,6 +6,9 @@ import Portfolio from '../models/Portfolio.js'
 import User from '../models/User.js'
 import DailyPrice from '../models/DailyPrice.js'
 import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
+import PriceCache from '../models/PriceCache.js'
+import Note from '../models/Note.js'
+import PositionOrder from '../models/PositionOrder.js'
 import Config from '../models/Config.js'
 
 const router = express.Router()
@@ -125,9 +128,21 @@ router.delete('/:id', async (req, res) => {
     const id = parseInt(req.params.id, 10)
     const p = await Portfolio.findOne({ where: { id, userId } })
     if (!p) return res.status(404).json({ error: 'Portafolio no encontrado' })
-    await p.destroy()
-    // Si era favorito, limpiar en el usuario
-    await User.update({ favoritePortfolioId: null }, { where: { id: userId, favoritePortfolioId: id } })
+    const t = await Portfolio.sequelize.transaction()
+    try {
+      await Operation.destroy({ where: { userId, portfolioId: id }, transaction: t })
+      await PriceCache.destroy({ where: { userId, portfolioId: id }, transaction: t })
+      await DailyPrice.destroy({ where: { userId, portfolioId: id }, transaction: t })
+      await DailyPortfolioStats.destroy({ where: { userId, portfolioId: id }, transaction: t })
+      await Note.destroy({ where: { userId, portfolioId: id }, transaction: t })
+      await PositionOrder.destroy({ where: { userId, portfolioId: id }, transaction: t })
+      await p.destroy({ transaction: t })
+      await User.update({ favoritePortfolioId: null }, { where: { id: userId, favoritePortfolioId: id }, transaction: t })
+      await t.commit()
+    } catch (e) {
+      await t.rollback()
+      throw e
+    }
     res.json({ ok: true })
   } catch (error) {
     res.status(500).json({ error: error.message })

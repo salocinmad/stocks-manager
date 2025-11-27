@@ -8,6 +8,7 @@ let dailyTimer = null
 let dailyRunning = false
 
 import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
+import scheduler from './scheduler.js'
 
 const getConfig = async () => {
   const enabledRow = await Config.findOne({ where: { key: 'daily_close_enabled' } })
@@ -71,6 +72,7 @@ export const runDailyOnce = async () => {
   if (dailyRunning) return { ok: false, reason: 'already_running' }
   dailyRunning = true
   try {
+    await scheduler.runOnce().catch(() => {})
     const date = await getPreviousBusinessDate()
     const fxMap = await getFxMapToEUR()
     const users = await Operation.findAll({ attributes: ['userId'], group: ['userId'] })
