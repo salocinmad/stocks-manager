@@ -72,7 +72,7 @@ export const runDailyOnce = async () => {
   if (dailyRunning) return { ok: false, reason: 'already_running' }
   dailyRunning = true
   try {
-    await scheduler.runOnce().catch(() => {})
+    await scheduler.runOnce().catch(() => { })
     const date = await getPreviousBusinessDate()
     const fxMap = await getFxMapToEUR()
     const users = await Operation.findAll({ attributes: ['userId'], group: ['userId'] })
@@ -85,64 +85,64 @@ export const runDailyOnce = async () => {
       for (const pf of portfolios) {
         const portfolioId = pf.id
 
-      // 1. Calculate Active Positions and Total Cost (Invested Capital)
-      const ops = await Operation.findAll({ where: { userId, portfolioId } })
-      const positionsMap = new Map()
+        // 1. Calculate Active Positions and Total Cost (Invested Capital)
+        const ops = await Operation.findAll({ where: { userId, portfolioId } })
+        const positionsMap = new Map()
 
-      for (const o of ops) {
-        const key = `${o.company}|||${o.symbol || ''}`
-        const prev = positionsMap.get(key) || {
-          company: o.company,
-          symbol: o.symbol || '',
-          shares: 0,
-          totalCost: 0
+        for (const o of ops) {
+          const key = `${o.company}|||${o.symbol || ''}`
+          const prev = positionsMap.get(key) || {
+            company: o.company,
+            symbol: o.symbol || '',
+            shares: 0,
+            totalCost: 0
+          }
+
+          if (o.type === 'purchase') {
+            prev.shares += o.shares
+            prev.totalCost += parseFloat(o.totalCost)
+          } else if (o.type === 'sale') {
+            prev.shares -= o.shares
+            prev.totalCost -= parseFloat(o.totalCost)
+          }
+
+          positionsMap.set(key, prev)
         }
 
-        if (o.type === 'purchase') {
-          prev.shares += o.shares
-          prev.totalCost += parseFloat(o.totalCost)
-        } else if (o.type === 'sale') {
-          prev.shares -= o.shares
-          prev.totalCost -= parseFloat(o.totalCost)
-        }
+        const activePositions = Array.from(positionsMap.values()).filter(p => p.shares > 0)
+        const totalInvestedEUR = activePositions.reduce((sum, p) => sum + p.totalCost, 0)
 
-        positionsMap.set(key, prev)
-      }
+        // 2. Fetch/Update Daily Prices and Calculate Total Market Value
+        let totalValueEUR = 0
 
-      const activePositions = Array.from(positionsMap.values()).filter(p => p.shares > 0)
-      const totalInvestedEUR = activePositions.reduce((sum, p) => sum + p.totalCost, 0)
+        for (const p of activePositions) {
+          const pk = `${p.company}|||${p.symbol}`
+          try {
+            // Try to find existing daily price first to avoid re-fetching if already run today
+            let dailyPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date } })
 
-      // 2. Fetch/Update Daily Prices and Calculate Total Market Value
-      let totalValueEUR = 0
-
-      for (const p of activePositions) {
-        const pk = `${p.company}|||${p.symbol}`
-        try {
-          // Try to find existing daily price first to avoid re-fetching if already run today
-          let dailyPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date } })
-
-          if (!dailyPrice) {
-            const prev = await fetchPreviousClose(p.symbol)
-            if (prev) {
-              const { close, currency = 'EUR', source = 'yahoo' } = prev
-              const exchangeRate = fxMap[currency] ?? 1
-              dailyPrice = await DailyPrice.create({
-                userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol,
-                date, close, currency, exchangeRate, source
-              })
+            if (!dailyPrice) {
+              const prev = await fetchPreviousClose(p.symbol)
+              if (prev) {
+                const { close, currency = 'EUR', source = 'yahoo' } = prev
+                const exchangeRate = fxMap[currency] ?? 1
+                dailyPrice = await DailyPrice.create({
+                  userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol,
+                  date, close, currency, exchangeRate, source
+                })
+              }
             }
-          }
 
-          if (dailyPrice) {
-            const val = (dailyPrice.close || 0) * (dailyPrice.exchangeRate || 1) * p.shares
-            totalValueEUR += val
+            if (dailyPrice) {
+              const val = (dailyPrice.close || 0) * (dailyPrice.exchangeRate || 1) * p.shares
+              totalValueEUR += val
+            }
+          } catch (err) {
+            const msg = String(err?.message || 'unknown')
+            failures.push({ userId, portfolioId, positionKey: pk, reason: msg })
+            // continuar con siguiente posición
           }
-        } catch (err) {
-          const msg = String(err?.message || 'unknown')
-          failures.push({ userId, portfolioId, positionKey: pk, reason: msg })
-          // continuar con siguiente posición
         }
-      }
 
         // 3. Calculate PnL and Save Snapshot (only if not exists - immutable historical data)
         const pnlEUR = totalValueEUR - totalInvestedEUR
@@ -170,14 +170,33 @@ export const runDailyOnce = async () => {
     }
 
     if (processed > 0) {
-      await setLastRun(date)
-      return { ok: true, date, processed, failures }
+      await setLastRun(date);
+
+      // ✨ NUEVO: Generar reportes después del cierre diario exitoso
+      console.log('📊 Iniciando generación de reportes...');
+      try {
+        // Importar dinámicamente para evitar ciclos de dependencia
+        const { generateAllReports } = await import('../scripts/generateReports.js');
+        const reportResult = await generateAllReports(date);
+
+        if (reportResult.successfulReports > 0) {
+          console.log(`✅ Reportes generados: ${reportResult.successfulReports} portafolios`);
+        }
+        if (reportResult.failedReports > 0) {
+          console.log(`⚠️ Algunos reportes fallaron: ${reportResult.failedReports}`);
+        }
+      } catch (reportError) {
+        console.error('❌ Error generando reportes:', reportError.message);
+        // No fallar el cierre diario si falla la generación de reportes
+      }
+
+      return { ok: true, date, processed, failures };
     }
-    return { ok: false, reason: failures.length > 0 ? 'partial_failures' : 'no_data', failures }
+    return { ok: false, reason: failures.length > 0 ? 'partial_failures' : 'no_data', failures };
   } catch (e) {
-    return { ok: false, reason: e.message }
+    return { ok: false, reason: e.message };
   } finally {
-    dailyRunning = false
+    dailyRunning = false;
   }
 }
 

@@ -10,6 +10,7 @@ import configRoutes from './routes/config.js';
 import DailyPrice from './models/DailyPrice.js';
 import DailyPortfolioStats from './models/DailyPortfolioStats.js';
 import Portfolio from './models/Portfolio.js';
+import PortfolioReport from './models/PortfolioReport.js';
 import Config from './models/Config.js';
 import ProfilePicture from './models/ProfilePicture.js';
 import profilePicturesRoutes from './routes/profilePictures.js';
@@ -18,6 +19,7 @@ import pricesRoutes from './routes/prices.js';
 import notesRoutes from './routes/notes.js';
 import portfolioRoutes from './routes/portfolio.js';
 import externalButtonsRoutes from './routes/externalButtons.js';
+import reportsRoutes from './routes/reports.js';
 import scheduler from './services/scheduler.js';
 import dailyClose from './services/dailyClose.js';
 import path from 'path';
@@ -75,6 +77,7 @@ app.use('/api/notes', notesRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile-pictures', profilePicturesRoutes);
 app.use('/api/external-buttons', externalButtonsRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // Ruta de estado (Health Check)
 app.get('/api/health', (req, res) => {

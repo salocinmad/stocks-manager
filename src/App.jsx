@@ -5,6 +5,7 @@ import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioA
 import { logout, verifySession, changePassword, authenticatedFetch } from './services/auth.js';
 import ProfilePictureModal from './components/ProfilePictureModal.jsx';
 import ExternalButtonsModal from './components/ExternalButtonsModal.jsx';
+import Reports from './components/Reports.jsx';
 import { usePositionOrder } from './usePositionOrder.jsx';
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [showReports, setShowReports] = useState(false); // Estado para mostrar reportes
   const [editingOperation, setEditingOperation] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [finnhubApiKey, setFinnhubApiKey] = useState('');
@@ -2170,7 +2172,16 @@ function App() {
             <button className="theme-toggle" onClick={toggleTheme}>
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
-            <button className="button" onClick={() => setShowHistory(!showHistory)}>
+            <button className="button" onClick={() => {
+              setShowReports(!showReports);
+              if (!showReports) setShowHistory(false); // Si abrimos reportes, cerramos histórico
+            }}>
+              {showReports ? '🏠 Portada' : '📊 Análisis'}
+            </button>
+            <button className="button" onClick={() => {
+              setShowHistory(!showHistory);
+              if (!showHistory) setShowReports(false); // Si abrimos histórico, cerramos reportes
+            }}>
               {showHistory ? '🏠 Portada' : '📜 Histórico'}
             </button>
             {currentUser?.isAdmin && (
@@ -2243,7 +2254,15 @@ function App() {
         </div>
       </div>
 
-      {!showHistory ? (
+      {showReports ? (
+        <Reports
+          operations={operations.filter(op => op.portfolioId === currentPortfolioId)}
+          currentPrices={currentPrices}
+          currentEURUSD={currentEURUSD}
+          portfolioId={currentPortfolioId}
+          theme={theme}
+        />
+      ) : !showHistory ? (
         <>
           {/* Estadísticas */}
           <div className="stats">

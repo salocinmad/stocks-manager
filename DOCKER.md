@@ -1,57 +1,95 @@
-# Guía Docker
+# 🐳 Guía de Docker y Mantenimiento
 
-## Construcción y arranque
-- Construir todas las imágenes:
-  - `docker compose build`
-- Construcción completa sin caché:
-  - `docker compose build --no-cache`
-- Arrancar en segundo plano:
-  - `docker compose up -d`
-- Parar servicios:
-  - `docker compose down`
+Esta guía detalla los comandos esenciales para gestionar la aplicación Stocks Manager usando Docker Compose.
 
-## Servicios
-- Base de datos (MariaDB): `mariadb`
-- Backend (Express): `server`
-- Frontend (Vite/React): `frontend`
+## 🚀 Comandos Básicos
 
-## Logs
-- Todos los servicios:
-  - `docker compose logs -f`
-- Servicio específico:
-  - `docker compose logs -f server`
+### Iniciar y Detener
+- **Arrancar todo (segundo plano)**:
+  ```bash
+  docker compose up -d
+  ```
+- **Detener todo**:
+  ```bash
+  docker compose down
+  ```
+- **Reiniciar un servicio específico** (ej. backend):
+  ```bash
+  docker compose restart server
+  ```
 
-## Ejecutar comandos dentro de contenedores
-- Shell en backend:
-  - `docker compose exec server sh`
-- Cliente MariaDB:
-  - `docker compose exec mariadb sh -lc "mariadb -u \"$MYSQL_USER\" -p\"$MYSQL_PASSWORD\" \"$MYSQL_DATABASE\""`
+### Construcción
+- **Reconstruir todo (recomendado tras actualizaciones)**:
+  ```bash
+  docker compose build --no-cache
+  docker compose up -d
+  ```
+- **Reconstruir solo frontend**:
+  ```bash
+  docker compose build frontend --no-cache && docker compose up -d
+  ```
 
-## Backup y Restore
-- Backup SQL (MariaDB):
-  - `docker compose exec mariadb sh -lc 'mariadb-dump -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" > /tmp/stocks_backup_$(date +%F_%H%M).sql'`
-  - Copiar al host:
-    - `docker compose cp mariadb:/tmp/stocks_backup_YYYY-MM-DD_HHMM.sql .`
-- Restore SQL:
-  - `docker compose exec -T mariadb sh -lc 'mariadb -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < ./stocks_backup_YYYY-MM-DD_HHMM.sql`
+### Logs
+- **Ver logs de todo**:
+  ```bash
+  docker compose logs -f
+  ```
+- **Ver logs del backend**:
+  ```bash
+  docker compose logs -f server
+  ```
 
-## Reconstrucciones parciales
-- Solo frontend:
-  - `docker compose build frontend --no-cache && docker compose up -d`
-- Solo backend:
-  - `docker compose build server --no-cache && docker compose up -d`
+---
 
-## Variables de entorno
-- Definidas en `.env` o en `docker-compose.yml`.
-- Ejemplos:
-  - `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`
-  - `VITE_API_URL=/api`
+## 💾 Backups y Restauración (Importante)
 
-## Troubleshooting
-- Puertos ocupados:
-  - Ver qué escucha: `netstat -ano` (Windows) / `lsof -i` (Linux).
-- Caché de navegador:
-  - Recarga forzada: `Ctrl+F5`.
-- Reconstrucción forzada:
-  - `docker compose build --no-cache && docker compose up -d`
+Es fundamental realizar copias de seguridad periódicas de tu base de datos.
 
+### Crear un Backup (Exportar)
+Este comando crea un archivo `.sql` con todos tus datos (usuarios, portafolios, operaciones) en el directorio actual.
+
+```bash
+# Formato: stocks_backup_FECHA_HORA.sql
+docker compose exec mariadb sh -lc 'mariadb-dump -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' > stocks_backup_$(date +%Y%m%d_%H%M).sql
+```
+
+### Restaurar un Backup (Importar)
+⚠️ **Advertencia**: Esto sobrescribirá todos los datos actuales en la base de datos.
+
+1. Asegúrate de tener el archivo `.sql` en el directorio actual.
+2. Ejecuta el siguiente comando (reemplaza `ARCHIVO_BACKUP.sql` por el nombre real):
+
+```bash
+docker compose exec -T mariadb sh -lc 'mariadb -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < ARCHIVO_BACKUP.sql
+```
+
+---
+
+## 🔧 Acceso Avanzado
+
+### Shell dentro de los contenedores
+A veces es necesario entrar al contenedor para depurar o ejecutar scripts manuales.
+
+- **Backend (Node.js)**:
+  ```bash
+  docker compose exec server sh
+  ```
+- **Base de Datos (MariaDB)**:
+  ```bash
+  docker compose exec mariadb sh -lc "mariadb -u \"$MYSQL_USER\" -p\"$MYSQL_PASSWORD\" \"$MYSQL_DATABASE\""
+  ```
+
+## ❓ Solución de Problemas (Troubleshooting)
+
+### Puertos ocupados
+Si al arrancar ves un error de "port already in use", verifica qué proceso está usando el puerto (por defecto 80 o 3000):
+- Windows: `netstat -ano | findstr :80`
+- Linux/Mac: `lsof -i :80`
+
+### Cambios no visibles (Caché)
+Si has actualizado la aplicación pero no ves los cambios en el navegador:
+1. Intenta una **recarga forzada**: `Ctrl + Shift + R` (o `Cmd + Shift + R`).
+2. Si persiste, reconstruye el contenedor del frontend:
+   ```bash
+   docker compose build frontend --no-cache && docker compose up -d
+   ```

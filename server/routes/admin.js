@@ -438,3 +438,41 @@ router.post('/daily-close/recompute-last', async (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+/**
+ * POST /admin/reports/generate
+ * Forzar generación de reportes para todos los portafolios
+ */
+router.post('/reports/generate', async (req, res) => {
+  try {
+    // Importar dinámicamente para evitar ciclos de dependencia
+    const { generateAllReports } = await import('../scripts/generateReports.js');
+
+    // Ejecutar generación de reportes
+    const result = await generateAllReports();
+
+    if (result.failedReports > 0) {
+      return res.status(207).json({
+        success: true,
+        status: 'partial',
+        count: result.successfulReports,
+        totalPortfolios: result.totalPortfolios,
+        failedReports: result.failedReports,
+        errors: result.errors,
+        executionTimeMs: result.executionTimeMs
+      });
+    }
+
+    res.json({
+      success: true,
+      status: 'complete',
+      count: result.successfulReports,
+      totalPortfolios: result.totalPortfolios,
+      executionTimeMs: result.executionTimeMs
+    });
+  } catch (error) {
+    console.error('Error generating reports from admin:', error);
+    res.status(500).json({ error: error.message });
+  }
+})
+
