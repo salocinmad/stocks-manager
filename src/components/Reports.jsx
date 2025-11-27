@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authenticatedFetch } from '../services/auth.js';
 import './Reports.css';
 
 /**
@@ -30,15 +31,8 @@ function Reports({
                 setLoading(true);
                 setError(null);
 
-                const token = localStorage.getItem('token');
-                const response = await fetch(
-                    `/api/reports/current?portfolioId=${portfolioId}&eurUsd=${currentEURUSD}`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    }
+                const response = await authenticatedFetch(
+                    `/api/reports/current?portfolioId=${portfolioId}&eurUsd=${currentEURUSD}`
                 );
 
                 if (!response.ok) {
