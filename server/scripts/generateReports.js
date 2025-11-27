@@ -48,18 +48,26 @@ async function generateReportsForUser(user, date, currentEURUSD) {
             where: { userId: user.id }
         });
 
+        console.log(`  💼 Found ${portfolios.length} portfolios for user ${user.username}`);
+
         if (portfolios.length === 0) {
-            console.log(`User ${user.username} has no portfolios`);
+            console.log(`  ⚠️ User ${user.username} has no portfolios`);
             return result;
         }
 
         // Generar reporte para cada portafolio
         for (const portfolio of portfolios) {
+            console.log(`  Processing portfolio ${portfolio.id} (${portfolio.name})...`);
             try {
-                await generateDailyReport(user.id, portfolio.id, date, currentEURUSD);
-                result.portfoliosProcessed++;
+                const report = await generateDailyReport(user.id, portfolio.id, date, currentEURUSD);
+                if (report) {
+                    result.portfoliosProcessed++;
+                    console.log(`    ✅ Report generated for ${portfolio.name}`);
+                } else {
+                    console.log(`    ⚠️ Skipped ${portfolio.name}: No operations found`);
+                }
             } catch (error) {
-                console.error(`Error generating report for portfolio ${portfolio.id} (${portfolio.name}):`, error);
+                console.error(`    ❌ Error generating report for portfolio ${portfolio.id} (${portfolio.name}):`, error.message);
                 result.errors.push({
                     portfolioId: portfolio.id,
                     portfolioName: portfolio.name,
