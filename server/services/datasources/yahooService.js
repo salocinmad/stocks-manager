@@ -1,86 +1,84 @@
 /**
  * Servicio Yahoo Finance - API de precios y datos históricos
- * Versión 3 - Instanciación directa sin singleton
+ * Usa fetch directo como el legacy system (routes/yahoo.js)
+ * La librería yahoo-finance2 tiene problemas de conectividad en Docker
  */
 
-import YahooFinance from 'yahoo-finance2';
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
 
-// Crear instancia directamente aquí para cada módulo
-const yahooFinance = new YahooFinance();
-
 /**
- * Obtiene quote de Yahoo Finance
+ * Obtiene quote de Yahoo Finance usando fetch directo
  * @param {string} symbol - Símbolo bursátil
  * @returns {Promise<Object|null>} Datos de precio o null
  */
 export async function fetchQuote(symbol) {
     try {
-        console.log(`📞 Yahoo API llamando quote('${symbol}')...`);
-        const quote = await yahooFinance.quote(symbol);
+        console.log(`📞 Yahoo API (fetch directo) para '${symbol}'...`);
 
-        console.log(`📦 Yahoo respuesta para ${symbol}:`, {
-            hasQuote: !!quote,
-            regularMarketPrice: quote?.regularMarketPrice,
-            postMarketPrice: quote?.postMarketPrice,
-            preMarketPrice: quote?.preMarketPrice,
-            marketState: quote?.marketState
+        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+
+        const response = await fetch(yahooUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
         });
 
-        // Verificar que el quote existe y tiene datos válidos
-        if (!quote) {
-            console.log(`⚠️  Yahoo ${symbol}: Quote es null/undefined`);
+        if (!response.ok) {
+            console.log(`⚠️  Yahoo ${symbol}: HTTP ${response.status}`);
             return null;
         }
 
-        const price = quote.regularMarketPrice || quote.postMarketPrice || quote.preMarketPrice;
-        if (!price || price <= 0) {
-            console.log(`⚠️  Yahoo ${symbol}: Price inválido (${price})`);
+        const data = await response.json();
+
+        if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
+            console.log(`⚠️  Yahoo ${symbol}: No data in chart`);
             return null;
         }
 
-        // Manejar regularMarketTime correctamente (viene en milisegundos en v3)
-        let marketTime = new Date();
-        if (quote.regularMarketTime) {
-            // En v3, regularMarketTime ya es Date o timestamp en milisegundos
-            if (typeof quote.regularMarketTime === 'number') {
-                // Si es mayor a timestamp en segundos (año 2000+), asumir milisegundos
-                marketTime = quote.regularMarketTime > 946684800000
-                    ? new Date(quote.regularMarketTime)
-                    : new Date(quote.regularMarketTime * 1000);
-            } else if (quote.regularMarketTime instanceof Date) {
-                marketTime = quote.regularMarketTime;
-            }
+        const result = data.chart.result[0];
+        const meta = result.meta;
+        const quote = result.indicators?.quote?.[0];
 
-            // Validar que la fecha sea razonable (entre 1990 y 2100)
-            if (marketTime.getFullYear() < 1990 || marketTime.getFullYear() > 2100) {
-                marketTime = new Date();
-            }
+        if (!meta || !meta.regularMarketPrice) {
+            console.log(`⚠️  Yahoo ${symbol}: No regularMarketPrice`);
+            return null;
         }
 
-        const result = {
-            lastPrice: price,
-            change: quote.regularMarketChange || null,
-            changePercent: quote.regularMarketChangePercent || null,
-            open: quote.regularMarketOpen || null,
-            high: quote.regularMarketDayHigh || null,
-            low: quote.regularMarketDayLow || null,
-            volume: quote.regularMarketVolume || null,
-            previousClose: quote.regularMarketPreviousClose || quote.previousClose || null,
+        const lastPrice = meta.regularMarketPrice;
+        const previousClose = meta.chartPreviousClose || meta.previousClose;
+        const change = lastPrice - previousClose;
+        const changePercent = (change / previousClose) * 100;
+
+        // Obtener OHLC del último dato disponible
+        const lastIndex = quote?.close?.length - 1;
+        const open = lastIndex >= 0 ? quote.open?.[lastIndex] : null;
+        const high = lastIndex >= 0 ? quote.high?.[lastIndex] : null;
+        const low = lastIndex >= 0 ? quote.low?.[lastIndex] : null;
+        const volume = lastIndex >= 0 ? quote.volume?.[lastIndex] : null;
+
+        const resultData = {
+            lastPrice: lastPrice,
+            change: change || null,
+            changePercent: changePercent || null,
+            open: open || null,
+            high: high || null,
+            low: low || null,
+            volume: volume || null,
+            previousClose: previousClose || null,
             previousCloseDate: getPreviousMarketDay(),
-            marketState: quote.marketState || 'CLOSED',
-            currency: quote.currency || 'USD',
-            exchange: quote.fullExchangeName || null,
-            regularMarketTime: marketTime
+            marketState: meta.marketState || 'CLOSED',
+            currency: meta.currency || 'USD',
+            exchange: meta.exchangeName || null,
+            regularMarketTime: meta.regularMarketTime
+                ? new Date(meta.regularMarketTime * 1000)
+                : new Date()
         };
 
-        console.log(`✅ Yahoo ${symbol}: Construido exitosamente - ${result.lastPrice}`);
-        return result;
+        console.log(`✅ Yahoo ${symbol}: ${resultData.lastPrice} (${resultData.currency})`);
+        return resultData;
+
     } catch (error) {
         console.error(`❌ Yahoo ${symbol} EXCEPTION:`, error.message);
-        if (error.stack) {
-            console.error(`   Stack: ${error.stack.split('\n')[0]}`);
-        }
         return null;
     }
 }
@@ -93,25 +91,41 @@ export async function fetchQuote(symbol) {
  */
 export async function fetchHistorical(symbol, days = 365) {
     try {
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
+        const endDate = Math.floor(Date.now() / 1000);
+        const startDate = endDate - (days * 24 * 60 * 60);
 
-        const historical = await yahooFinance.historical(symbol, {
-            period1: startDate.toISOString().split('T')[0],
-            period2: endDate.toISOString().split('T')[0],
-            interval: '1d'
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${startDate}&period2=${endDate}&interval=1d`;
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
         });
 
-        return historical.map(day => ({
-            date: day.date.toISOString().split('T')[0],
-            open: day.open,
-            high: day.high,
-            low: day.low,
-            close: day.close,
-            volume: day.volume,
-            adjClose: day.adjClose
-        }));
+        if (!response.ok) {
+            return [];
+        }
+
+        const data = await response.json();
+        const result = data.chart?.result?.[0];
+
+        if (!result) {
+            return [];
+        }
+
+        const timestamps = result.timestamp || [];
+        const quote = result.indicators?.quote?.[0] || {};
+
+        return timestamps.map((timestamp, i) => ({
+            date: new Date(timestamp * 1000).toISOString().split('T')[0],
+            open: quote.open?.[i] || null,
+            high: quote.high?.[i] || null,
+            low: quote.low?.[i] || null,
+            close: quote.close?.[i] || null,
+            volume: quote.volume?.[i] || null,
+            adjClose: result.indicators?.adjclose?.[0]?.adjclose?.[i] || null
+        })).filter(day => day.close !== null);
+
     } catch (error) {
         console.error(`❌ Yahoo historical ${symbol}:`, error.message);
         return [];
