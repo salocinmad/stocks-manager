@@ -18,27 +18,49 @@ export async function fetchQuote(symbol) {
     try {
         const quote = await yahooFinance.quote(symbol);
 
+        // Verificar que el quote existe y tiene datos válidos
+        if (!quote) {
+            return null;
+        }
+
         const price = quote.regularMarketPrice || quote.postMarketPrice || quote.preMarketPrice;
         if (!price || price <= 0) {
             return null;
         }
 
+        // Manejar regularMarketTime correctamente (viene en milisegundos en v3)
+        let marketTime = new Date();
+        if (quote.regularMarketTime) {
+            // En v3, regularMarketTime ya es Date o timestamp en milisegundos
+            if (typeof quote.regularMarketTime === 'number') {
+                // Si es mayor a timestamp en segundos (año 2000+), asumir milisegundos
+                marketTime = quote.regularMarketTime > 946684800000
+                    ? new Date(quote.regularMarketTime)
+                    : new Date(quote.regularMarketTime * 1000);
+            } else if (quote.regularMarketTime instanceof Date) {
+                marketTime = quote.regularMarketTime;
+            }
+
+            // Validar que la fecha sea razonable (entre 1990 y 2100)
+            if (marketTime.getFullYear() < 1990 || marketTime.getFullYear() > 2100) {
+                marketTime = new Date();
+            }
+        }
+
         return {
             lastPrice: price,
-            change: quote.regularMarketChange,
-            changePercent: quote.regularMarketChangePercent,
-            open: quote.regularMarketOpen,
-            high: quote.regularMarketDayHigh,
-            low: quote.regularMarketDayLow,
-            volume: quote.regularMarketVolume,
-            previousClose: quote.regularMarketPreviousClose || quote.previousClose,
+            change: quote.regularMarketChange || null,
+            changePercent: quote.regularMarketChangePercent || null,
+            open: quote.regularMarketOpen || null,
+            high: quote.regularMarketDayHigh || null,
+            low: quote.regularMarketDayLow || null,
+            volume: quote.regularMarketVolume || null,
+            previousClose: quote.regularMarketPreviousClose || quote.previousClose || null,
             previousCloseDate: getPreviousMarketDay(),
             marketState: quote.marketState || 'CLOSED',
-            currency: quote.currency,
-            exchange: quote.fullExchangeName,
-            regularMarketTime: quote.regularMarketTime
-                ? new Date(quote.regularMarketTime * 1000)
-                : new Date()
+            currency: quote.currency || 'USD',
+            exchange: quote.fullExchangeName || null,
+            regularMarketTime: marketTime
         };
     } catch (error) {
         console.error(`❌ Yahoo ${symbol}:`, error.message);
