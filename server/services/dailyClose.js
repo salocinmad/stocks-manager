@@ -1,28 +1,15 @@
 import Config from '../models/Config.js'
 import Operation from '../models/Operation.js'
 import Portfolio from '../models/Portfolio.js'
-import DailyPrice from '../models/DailyPrice.js'
-import yahooFinance from 'yahoo-finance2';
+// Default to 01:00 if not set
+const timeStr = timeRow?.value || '01:00'
 
-let dailyTimer = null
-let dailyRunning = false
+// If time config doesn't exist, create it with default 01:00
+if (!timeRow) {
+  await Config.create({ key: 'daily_close_time', value: '01:00' })
+}
 
-import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
-import scheduler from './scheduler.js'
-
-const getConfig = async () => {
-  const enabledRow = await Config.findOne({ where: { key: 'daily_close_enabled' } })
-  const timeRow = await Config.findOne({ where: { key: 'daily_close_time' } })
-  const enabled = enabledRow ? enabledRow.value === 'true' : true
-  // Default to 01:00 if not set
-  const timeStr = timeRow?.value || '01:00'
-
-  // If time config doesn't exist, create it with default 01:00
-  if (!timeRow) {
-    await Config.create({ key: 'daily_close_time', value: '01:00' })
-  }
-
-  return { enabled, timeStr }
+return { enabled, timeStr }
 }
 
 const setLastRun = async (iso) => {

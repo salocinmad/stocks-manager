@@ -176,7 +176,7 @@ router.post('/reset-alerts', async (req, res) => {
 router.get('/backup/export', async (req, res) => {
   try {
     const format = req.query.format === 'sql' ? 'sql' : 'json'
-    const models = [User, Portfolio, PortfolioReport, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture, ExternalLinkButton]
+    const models = [User, Portfolio, PortfolioReport, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton]
     const data = {}
 
     // Fetch all data
@@ -232,7 +232,7 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
 
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t })
 
-    const models = [User, Portfolio, PortfolioReport, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture, ExternalLinkButton]
+    const models = [User, Portfolio, PortfolioReport, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton]
 
     // Truncate all tables first
     for (const model of models) {
@@ -439,6 +439,7 @@ import PortfolioReport from '../models/PortfolioReport.js'
 import Operation from '../models/Operation.js'
 import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
 import DailyPrice from '../models/DailyPrice.js'
+import DailyPositionSnapshot from '../models/DailyPositionSnapshot.js'
 import Note from '../models/Note.js'
 import PositionOrder from '../models/PositionOrder.js'
 import ProfilePicture from '../models/ProfilePicture.js'
