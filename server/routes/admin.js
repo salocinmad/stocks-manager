@@ -9,19 +9,6 @@ import scheduler from '../services/scheduler.js'
 import dailyClose from '../services/dailyClose.js'
 import multer from 'multer'
 import sequelize from '../config/database.js'
-import Operation from '../models/Operation.js'
-import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
-import DailyPrice from '../models/DailyPrice.js'
-import Note from '../models/Note.js'
-import PositionOrder from '../models/PositionOrder.js'
-import ProfilePicture from '../models/ProfilePicture.js'
-import Portfolio from '../models/Portfolio.js'
-import ExternalLinkButton from '../models/ExternalLinkButton.js'
-import yahooFinance from 'yahoo-finance2'
-
-const upload = multer({ storage: multer.memoryStorage() })
-
-const router = express.Router()
 
 router.use(authenticate)
 
@@ -189,7 +176,7 @@ router.post('/reset-alerts', async (req, res) => {
 router.get('/backup/export', async (req, res) => {
   try {
     const format = req.query.format === 'sql' ? 'sql' : 'json'
-    const models = [User, Portfolio, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture, ExternalLinkButton]
+    const models = [User, Portfolio, PortfolioReport, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture, ExternalLinkButton]
     const data = {}
 
     // Fetch all data
@@ -245,7 +232,7 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
 
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t })
 
-    const models = [User, Portfolio, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture, ExternalLinkButton]
+    const models = [User, Portfolio, PortfolioReport, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture, ExternalLinkButton]
 
     // Truncate all tables first
     for (const model of models) {
@@ -447,6 +434,15 @@ router.post('/reports/generate', async (req, res) => {
   try {
     // Importar dinámicamente para evitar ciclos de dependencia
     const { generateAllReports } = await import('../scripts/generateReports.js');
+import Portfolio from '../models/Portfolio.js'
+import PortfolioReport from '../models/PortfolioReport.js'
+import Operation from '../models/Operation.js'
+import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
+import DailyPrice from '../models/DailyPrice.js'
+import Note from '../models/Note.js'
+import PositionOrder from '../models/PositionOrder.js'
+import ProfilePicture from '../models/ProfilePicture.js'
+import ExternalLinkButton from '../models/ExternalLinkButton.js'
 
     // Ejecutar generación de reportes
     const result = await generateAllReports();
