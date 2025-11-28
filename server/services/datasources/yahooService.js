@@ -50,9 +50,19 @@ export async function fetchQuote(symbol) {
         }
 
         const lastPrice = meta.regularMarketPrice;
-        const previousClose = meta.chartPreviousClose || meta.previousClose;
-        const change = lastPrice - previousClose;
-        const changePercent = (change / previousClose) * 100;
+
+        // DEBUG: Ver todos los campos disponibles de previousClose
+        console.log(`🔍 ${symbol} previousClose fields:`, {
+            chartPreviousClose: meta.chartPreviousClose,
+            previousClose: meta.previousClose,
+            regularMarketPreviousClose: meta.regularMarketPreviousClose
+        });
+
+        const previousClose = meta.regularMarketPreviousClose || meta.chartPreviousClose || meta.previousClose;
+        const change = previousClose ? (lastPrice - previousClose) : 0;
+        const changePercent = previousClose > 0 ? ((change / previousClose) * 100) : 0;
+
+        console.log(`💰 ${symbol}: price=${lastPrice}, prevClose=${previousClose}, change=${change}, change%=${changePercent.toFixed(2)}%`);
 
         // Obtener OHLC del último dato disponible
         const lastIndex = quote?.close?.length - 1;
@@ -63,8 +73,8 @@ export async function fetchQuote(symbol) {
 
         const resultData = {
             lastPrice: lastPrice,
-            change: change || null,
-            changePercent: changePercent || null,
+            change: change || 0,
+            changePercent: changePercent || 0,
             open: open || null,
             high: high || null,
             low: low || null,

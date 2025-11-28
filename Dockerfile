@@ -50,7 +50,9 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copiar script de inicio
 COPY entrypoint-frontend.sh /entrypoint-frontend.sh
-RUN chmod +x /entrypoint-frontend.sh
+RUN apk add --no-cache dos2unix && \
+    dos2unix /entrypoint-frontend.sh && \
+    chmod +x /entrypoint-frontend.sh
 
 # Exponer puerto
 EXPOSE 80

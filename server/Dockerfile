@@ -22,8 +22,10 @@ RUN npm install
 # Copiar código fuente
 COPY . .
 
-# Hacer ejecutable el script de entrada
-RUN chmod +x entrypoint.sh
+# Hacer ejecutable el script de entrada y corregir finales de línea (CRLF -> LF)
+RUN apk add --no-cache dos2unix && \
+    dos2unix entrypoint.sh && \
+    chmod +x entrypoint.sh
 
 # Exponer puerto
 EXPOSE 5000

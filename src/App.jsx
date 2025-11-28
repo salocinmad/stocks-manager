@@ -28,6 +28,7 @@ function App() {
   const [priceError, setPriceError] = useState('');
   const [currentPrice, setCurrentPrice] = useState(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [missingApiKeyWarning, setMissingApiKeyWarning] = useState(false); // Warning for missing API key in ConfigModal
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
@@ -764,6 +765,7 @@ function App() {
   // Buscar empresas por nombre usando Finnhub
   const searchCompanies = async (query) => {
     if (!finnhubApiKey) {
+      setMissingApiKeyWarning(true);
       setShowConfigModal(true);
       return;
     }
@@ -3446,6 +3448,65 @@ function App() {
           <div className="modal-content" style={{ maxWidth: '550px' }}>
             <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>⚙️ Configuración</h2>
 
+            {/* Sección API Key */}
+            <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}` }}>
+              <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🔑 Finnhub API Key</h3>
+              {missingApiKeyWarning && (
+                <div style={{
+                  backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                  border: '1px solid #ffc107',
+                  color: '#ffc107',
+                  padding: '10px',
+                  borderRadius: '4px',
+                  marginBottom: '10px',
+                  fontSize: '13px'
+                }}>
+                  ⚠️ Necesitas configurar una API Key de Finnhub para buscar empresas.
+                </div>
+              )}
+              <div className="form-group" style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '13px', marginBottom: '4px' }}>API Key:</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={finnhubApiKey}
+                    onChange={(e) => setFinnhubApiKey(e.target.value)}
+                    className="input"
+                    placeholder="Introduce tu API Key de Finnhub"
+                    style={{ fontSize: '14px', padding: '8px', flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="button primary"
+                    onClick={async () => {
+                      try {
+                        const response = await authenticatedFetch('/api/admin/finnhub-api-key', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ value: finnhubApiKey })
+                        });
+                        if (response.ok) {
+                          alert('✅ API Key guardada correctamente');
+                          setMissingApiKeyWarning(false);
+                        } else {
+                          alert('❌ Error al guardar API Key');
+                        }
+                      } catch (e) {
+                        console.error(e);
+                        alert('❌ Error al guardar API Key');
+                      }
+                    }}
+                    style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
+                  >
+                    💾 Guardar
+                  </button>
+                </div>
+                <p style={{ fontSize: '11px', color: '#888', marginTop: '5px' }}>
+                  Obtén tu clave gratuita en <a href="https://finnhub.io/" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>finnhub.io</a>
+                </p>
+              </div>
+            </div>
+
             {/* Sección Cambiar Contraseña */}
             <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}` }}>
               <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🔒 Cambiar Contraseña</h3>
@@ -3519,6 +3580,7 @@ function App() {
                 className="button"
                 onClick={() => {
                   setShowConfigModal(false);
+                  setMissingApiKeyWarning(false);
                   setCurrentPassword('');
                   setNewPassword('');
                   setConfirmNewPassword('');
