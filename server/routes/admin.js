@@ -1,4 +1,15 @@
 import express from 'express'
+import Portfolio from '../models/Portfolio.js'
+import PortfolioReport from '../models/PortfolioReport.js'
+import Operation from '../models/Operation.js'
+import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
+import DailyPrice from '../models/DailyPrice.js'
+import DailyPositionSnapshot from '../models/DailyPositionSnapshot.js'
+import Note from '../models/Note.js'
+import PositionOrder from '../models/PositionOrder.js'
+import ProfilePicture from '../models/ProfilePicture.js'
+import ExternalLinkButton from '../models/ExternalLinkButton.js'
+
 import User from '../models/User.js'
 import PriceCache from '../models/PriceCache.js'
 import Config from '../models/Config.js'
@@ -434,16 +445,7 @@ router.post('/reports/generate', async (req, res) => {
   try {
     // Importar dinámicamente para evitar ciclos de dependencia
     const { generateAllReports } = await import('../scripts/generateReports.js');
-import Portfolio from '../models/Portfolio.js'
-import PortfolioReport from '../models/PortfolioReport.js'
-import Operation from '../models/Operation.js'
-import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
-import DailyPrice from '../models/DailyPrice.js'
-import DailyPositionSnapshot from '../models/DailyPositionSnapshot.js'
-import Note from '../models/Note.js'
-import PositionOrder from '../models/PositionOrder.js'
-import ProfilePicture from '../models/ProfilePicture.js'
-import ExternalLinkButton from '../models/ExternalLinkButton.js'
+
 
     // Ejecutar generación de reportes
     const result = await generateAllReports();
