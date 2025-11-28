@@ -10,6 +10,83 @@ import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
 const yahooFinance = new YahooFinance();
 
 /**
+ * Obtiene quote de Yahoo Finance
+ * @param {string} symbol - Símbolo bursátil
+ * @returns {Promise<Object|null>} Datos de precio o null
+ */
+export async function fetchQuote(symbol) {
+    try {
+        console.log(`📞 Yahoo API llamando quote('${symbol}')...`);
+        const quote = await yahooFinance.quote(symbol);
+
+        console.log(`📦 Yahoo respuesta para ${symbol}:`, {
+            hasQuote: !!quote,
+            regularMarketPrice: quote?.regularMarketPrice,
+            postMarketPrice: quote?.postMarketPrice,
+            preMarketPrice: quote?.preMarketPrice,
+            marketState: quote?.marketState
+        });
+
+        // Verificar que el quote existe y tiene datos válidos
+        if (!quote) {
+            console.log(`⚠️  Yahoo ${symbol}: Quote es null/undefined`);
+            return null;
+        }
+
+        const price = quote.regularMarketPrice || quote.postMarketPrice || quote.preMarketPrice;
+        if (!price || price <= 0) {
+            console.log(`⚠️  Yahoo ${symbol}: Price inválido (${price})`);
+            return null;
+        }
+
+        // Manejar regularMarketTime correctamente (viene en milisegundos en v3)
+        let marketTime = new Date();
+        if (quote.regularMarketTime) {
+            // En v3, regularMarketTime ya es Date o timestamp en milisegundos
+            if (typeof quote.regularMarketTime === 'number') {
+                // Si es mayor a timestamp en segundos (año 2000+), asumir milisegundos
+                marketTime = quote.regularMarketTime > 946684800000
+                    ? new Date(quote.regularMarketTime)
+                    : new Date(quote.regularMarketTime * 1000);
+            } else if (quote.regularMarketTime instanceof Date) {
+                marketTime = quote.regularMarketTime;
+            }
+
+            // Validar que la fecha sea razonable (entre 1990 y 2100)
+            if (marketTime.getFullYear() < 1990 || marketTime.getFullYear() > 2100) {
+                marketTime = new Date();
+            }
+        }
+
+        const result = {
+            lastPrice: price,
+            change: quote.regularMarketChange || null,
+            changePercent: quote.regularMarketChangePercent || null,
+            open: quote.regularMarketOpen || null,
+            high: quote.regularMarketDayHigh || null,
+            low: quote.regularMarketDayLow || null,
+            volume: quote.regularMarketVolume || null,
+            previousClose: quote.regularMarketPreviousClose || quote.previousClose || null,
+            previousCloseDate: getPreviousMarketDay(),
+            marketState: quote.marketState || 'CLOSED',
+            currency: quote.currency || 'USD',
+            exchange: quote.fullExchangeName || null,
+            regularMarketTime: marketTime
+        };
+
+        console.log(`✅ Yahoo ${symbol}: Construido exitosamente - ${result.lastPrice}`);
+        return result;
+    } catch (error) {
+        console.error(`❌ Yahoo ${symbol} EXCEPTION:`, error.message);
+        if (error.stack) {
+            console.error(`   Stack: ${error.stack.split('\n')[0]}`);
+        }
+        return null;
+    }
+}
+
+/**
+ * Obtiene datos históricos de Yahoo Finance
  * @param {string} symbol - Símbolo bursátil
  * @param {number} days - Días hacia atrás
  * @returns {Promise<Array>} Array de datos históricos
