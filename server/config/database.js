@@ -64,6 +64,43 @@ export const connectDB = async () => {
         }
       };
       await ensureExternalSymbols();
+
+      // Pre-migración: asegurar columnas para datos históricos mejorados
+      const ensureEnhancedDataColumns = async () => {
+        // DailyPortfolioStats
+        const statsCols = [
+          { name: 'dailyChangeEUR', type: 'FLOAT NULL DEFAULT NULL' },
+          { name: 'dailyChangePercent', type: 'FLOAT NULL DEFAULT NULL' },
+          { name: 'roi', type: 'FLOAT NULL DEFAULT NULL' },
+          { name: 'activePositionsCount', type: 'INT NULL DEFAULT 0' },
+          { name: 'closedOperationsCount', type: 'INT NULL DEFAULT 0' }
+        ];
+        for (const col of statsCols) {
+          const [cols] = await sequelize.query(`SHOW COLUMNS FROM \`DailyPortfolioStats\` LIKE '${col.name}'`);
+          if (!Array.isArray(cols) || cols.length === 0) {
+            console.log(`🔧 Agregando columna ${col.name} a DailyPortfolioStats...`);
+            await sequelize.query(`ALTER TABLE \`DailyPortfolioStats\` ADD COLUMN \`${col.name}\` ${col.type}`);
+          }
+        }
+
+        // DailyPrices
+        const priceCols = [
+          { name: 'change', type: 'FLOAT NULL DEFAULT NULL' },
+          { name: 'changePercent', type: 'FLOAT NULL DEFAULT NULL' },
+          { name: 'open', type: 'FLOAT NULL DEFAULT NULL' },
+          { name: 'high', type: 'FLOAT NULL DEFAULT NULL' },
+          { name: 'low', type: 'FLOAT NULL DEFAULT NULL' },
+          { name: 'shares', type: 'FLOAT NULL DEFAULT NULL' }
+        ];
+        for (const col of priceCols) {
+          const [cols] = await sequelize.query(`SHOW COLUMNS FROM \`DailyPrices\` LIKE '${col.name}'`);
+          if (!Array.isArray(cols) || cols.length === 0) {
+            console.log(`🔧 Agregando columna ${col.name} a DailyPrices...`);
+            await sequelize.query(`ALTER TABLE \`DailyPrices\` ADD COLUMN \`${col.name}\` ${col.type}`);
+          }
+        }
+      };
+      await ensureEnhancedDataColumns();
     } catch (e) {
       console.error('Error en pre-migración de columnas:', e);
     }
