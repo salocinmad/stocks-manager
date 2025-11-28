@@ -13,24 +13,11 @@ import ExternalLinkButton from '../models/ExternalLinkButton.js'
 import User from '../models/User.js'
 import PriceCache from '../models/PriceCache.js'
 import Config from '../models/Config.js'
-import { authenticate, isAdmin } from '../middleware/auth.js'
-import { encrypt, decrypt } from '../utils/crypto.js'
-import { sendNotification } from '../services/notify.js'
-import scheduler from '../services/scheduler.js'
-import dailyClose from '../services/dailyClose.js'
-import multer from 'multer'
-import sequelize from '../config/database.js'
-
-router.use(authenticate)
-
-router.get('/finnhub-api-key', async (req, res) => {
-  try {
-    const config = await Config.findOne({ where: { key: 'finnhub-api-key' } })
-    if (!config) return res.json({ value: null })
-    res.json({ value: config.value })
+if (!config) return res.json({ value: null })
+res.json({ value: config.value })
   } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
+  res.status(500).json({ error: error.message })
+}
 })
 
 router.use(isAdmin)
