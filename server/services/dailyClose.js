@@ -53,6 +53,11 @@ const fetchPreviousClose = async (symbol) => {
     const ySymbol = String(symbol).replace(/[:\-]/g, '.')
     const q = await yahooFinance.quote(ySymbol)
     let close = q?.regularMarketPreviousClose || q?.regularMarketPrice || null
+
+    // Capturar change y changePercent desde Yahoo Finance
+    const change = q?.regularMarketChange ?? null
+    const changePercent = q?.regularMarketChangePercent ?? null
+
     if (!close || close <= 0) {
       const chart = await yahooFinance.chart(symbol, { period1: '7d', interval: '1d' })
       const arr = chart?.quotes || []
@@ -62,7 +67,7 @@ const fetchPreviousClose = async (symbol) => {
       }
     }
     if (!close || close <= 0) return null
-    return { close, currency: q?.currency || 'EUR', source: 'yahoo' }
+    return { close, currency: q?.currency || 'EUR', change, changePercent, source: 'yahoo' }
   } catch {
     return null
   }

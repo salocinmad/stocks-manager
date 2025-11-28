@@ -30,6 +30,12 @@ const fetchPriceYahoo = async (symbol) => {
     const price = quote?.regularMarketPrice || quote?.postMarketPrice || quote?.preMarketPrice
     const change = quote?.regularMarketChange ?? null
     const changePercent = quote?.regularMarketChangePercent ?? null
+
+    // Debug: Log para verificar que Yahoo devuelve estos campos
+    if (change === null || changePercent === null) {
+      console.log(`⚠️ Yahoo ${symbol}: change=${change}, changePercent=${changePercent}`)
+    }
+
     if (!price || price <= 0) return null
     return { price, change, changePercent }
   } catch {
