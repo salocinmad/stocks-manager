@@ -31,19 +31,53 @@ const setLastRun = async () => {
   const [row, created] = await Config.findOrCreate({ where: { key }, defaults: { value: now } })
   if (!created) { row.value = now; await row.save() }
 }
-const apiKeyRow = await Config.findOne({ where: { key: 'finnhub-api-key' } })
-const token = apiKeyRow?.value || ''
-if (!token || !symbol) return null
-const resp = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`)
-if (!resp.ok) return null
-const data = await resp.json()
-if (data?.c > 0) {
-  return { price: data.c, change: data.d ?? null, changePercent: data.dp ?? null }
+
+const fetchPriceYahoo = async (symbol) => {
+  try {
+    if (!symbol) return null
+    const quote = await yahooFinance.quote(symbol)
+    const price = quote?.regularMarketPrice || quote?.postMarketPrice || quote?.preMarketPrice
+    
+    // Intentar obtener change y changePercent de Yahoo
+    let change = quote?.regularMarketChange
+    let changePercent = quote?.regularMarketChangePercent
+    
+    // Si Yahoo no proporciona change/changePercent, calcularlos manualmente
+    const previousClose = quote?.regularMarketPreviousClose || quote?.previousClose
+    
+    if ((change === null || change === undefined) && price && previousClose) {
+      change = price - previousClose
+      console.log(`📊 Yahoo ${symbol}: Change calculado = ${change} (precio: ${price}, cierre anterior: ${previousClose})`)
+    }
+    
+    if ((changePercent === null || changePercent === undefined) && change !== null && change !== undefined && previousClose && previousClose > 0) {
+      changePercent = (change / previousClose) * 100
+      console.log(`📊 Yahoo ${symbol}: ChangePercent calculado = ${changePercent.toFixed(2)}%`)
+    }
+
+    if (!price || price <= 0) return null
+    return { price, change, changePercent }
+  } catch (error) {
+    console.error(`❌ Error fetching Yahoo ${symbol}:`, error.message)
+    return null
+  }
 }
-return null
+
+const fetchPriceFinnhub = async (symbol) => {
+  try {
+    const apiKeyRow = await Config.findOne({ where: { key: 'finnhub-api-key' } })
+    const token = apiKeyRow?.value || ''
+    if (!token || !symbol) return null
+    const resp = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`)
+    if (!resp.ok) return null
+    const data = await resp.json()
+    if (data?.c > 0) {
+      return { price: data.c, change: data.d ?? null, changePercent: data.dp ?? null }
+    }
+    return null
   } catch {
-  return null
-}
+    return null
+  }
 }
 
 const checkAndNotify = async (userId, portfolioId, company, symbol, positionKey, price) => {
