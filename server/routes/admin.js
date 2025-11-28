@@ -19,7 +19,9 @@ import scheduler from '../services/scheduler.js'
 import dailyClose from '../services/dailyClose.js'
 import multer from 'multer'
 import sequelize from '../config/database.js'
+import yahooFinance from 'yahoo-finance2'
 
+const upload = multer({ storage: multer.memoryStorage() })
 const router = express.Router()
 
 router.use(authenticate)
