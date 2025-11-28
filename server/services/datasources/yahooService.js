@@ -7,6 +7,26 @@
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
 
 /**
+ * Obtiene quote de Yahoo Finance usando fetch directo
+ * @param {string} symbol - Símbolo bursátil
+ * @returns {Promise<Object|null>} Datos de precio o null
+ */
+export async function fetchQuote(symbol) {
+    try {
+        // CRITICAL: Yahoo usa punto (.) no dos puntos (:) para mercados internacionales
+        // DB tiene: OHLA:MC, DIA:MC, AMP:MC
+        // Yahoo requiere: OHLA.MC, DIA.MC, AMP.MC
+        const yahooSymbol = symbol.replace(/:/g, '.');
+
+        console.log(`📞 Yahoo API (fetch directo) para '${symbol}' → '${yahooSymbol}'...`);
+
+        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?interval=1d&range=1d`;
+
+        const response = await fetch(yahooUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+        });
 
         if (!response.ok) {
             console.log(`⚠️  Yahoo ${symbol}: HTTP ${response.status}`);
