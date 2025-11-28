@@ -1,10 +1,13 @@
 /**
  * Servicio Yahoo Finance - API de precios y datos históricos
- * Complementa Finnhub y proporciona historical data
+ * Versión 3 - Instanciación directa sin singleton
  */
 
-import yahooFinance from './yahooFinanceInstance.js';
+import YahooFinance from 'yahoo-finance2';
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
+
+// Crear instancia directamente aquí para cada módulo
+const yahooFinance = new YahooFinance();
 
 /**
  * Obtiene quote de Yahoo Finance

@@ -1,10 +1,11 @@
 /**
  * Instancia compartida de Yahoo Finance v3
- * En v3, no se usa setGlobalConfig, se exporta directamente
+ * En v3 se requiere instanciar explícitamente
  */
 
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
 
-// yahoo-finance2 v3 maneja configuración internamente
-// No necesitamos setGlobalConfig, funciona out-of-the-box
+// Crear instancia para yahoo-finance2 v3
+const yahooFinance = new YahooFinance();
+
 export default yahooFinance;
