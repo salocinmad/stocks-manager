@@ -147,79 +147,163 @@ export const connectDB = async () => {
       }
     } catch (mErr) { }
 
+    // Migración automática a tablas globales de precios
     try {
-      const [idx] = await sequelize.query("SHOW INDEX FROM `PriceCaches` WHERE Key_name='price_caches_user_id_position_key'")
-      if (Array.isArray(idx) && idx.length > 0) {
-        await sequelize.query('ALTER TABLE `PriceCaches` DROP INDEX `price_caches_user_id_position_key`')
-        await sequelize.query('ALTER TABLE `PriceCaches` ADD UNIQUE INDEX `price_caches_user_portfolio_position` (`userId`,`portfolioId`,`positionKey`)')
+      const { default: Config } = await import('../models/Config.js')
+      const flag = await Config.findOne({ where: { key: 'migration_global_tables_done' } })
 
+      if (!flag) {
+        console.log('\n🔄 Ejecutando migración a tablas globales...')
+
+        // Importar script de migración
+        const migrateToGlobal = await import('../scripts/migrateToGlobal.js')
+        const migrationFn = migrateToGlobal.default
+
+        try {
+          const stats = await migrationFn()
+          console.log(`✅ Migración global completada:`)
+          console.log(`   - GlobalCurrentPrices: ${stats.currentPrices}`)
+          console.log(`   - GlobalStockPrices: ${stats.historicalPrices}`)
+          console.log(`   - UserStockAlerts: ${stats.alerts}`)
+
+          // Marcar como completada
+          await Config.create({ key: 'migration_global_tables_done', value: 'true' })
+        } catch (migErr) {
+          console.error('⚠️  Error en migración global (continuando):', migErr.message)
+          // No bloqueamos el arranque si falla
+        }
       }
-    } catch (e) {
-      // índice ya correcto o no aplicable
+    } catch (mErr) {
+      console.error('⚠️  Verificación de migración global fallida:', mErr.message)
     }
 
-    // Ajuste robusto de índice único en DailyPortfolioStats
     try {
-      const [rows] = await sequelize.query("SHOW INDEX FROM `DailyPortfolioStats`")
-      const byKey = new Map()
-      for (const r of (rows || [])) {
-        const key = String(r.Key_name)
-        const arr = byKey.get(key) || []
-        arr.push(r)
-        byKey.set(key, arr)
+      const { default: ExternalLinkButton } = await import('../models/ExternalLinkButton.js')
+      const { default: Config } = await import('../models/Config.js')
+      const flag = await Config.findOne({ where: { key: 'default_buttons_created' } })
+      if (!flag) {
+        await ExternalLinkButton.bulkCreate([
+          { label: 'Google Finance', url: 'https://www.google.com/finance/quote/{symbol}', color: '#4285F4', icon: '📈', displayOrder: 1 },
+          { label: 'Yahoo Finance', url: 'https://finance.yahoo.com/quote/{symbol}', color: '#720E9E', icon: '💹', displayOrder: 2 },
+          { label: 'MarketWatch', url: 'https://www.marketwatch.com/investing/stock/{symbol}', color: '#00AC4E', icon: '📊', displayOrder: 3 }
+        ])
+        await Config.create({ key: 'default_buttons_created', value: 'true' })
       }
-      for (const [key, arr] of byKey.entries()) {
-        const unique = arr[0]?.Non_unique === 0
-        if (!unique) continue
-        const cols = new Set(arr.map(x => String(x.Column_name).toLowerCase()))
-        if (cols.has('userid') && cols.has('date') && !cols.has('portfolioid')) {
-          await sequelize.query(`ALTER TABLE \`DailyPortfolioStats\` DROP INDEX \`${key}\``)
-        }
-      }
-      await sequelize.query('ALTER TABLE `DailyPortfolioStats` ADD UNIQUE INDEX `dps_user_portfolio_date` (`userId`,`portfolioId`,`date`)')
-
-    } catch (e) { }
-
-    // Ajuste robusto de índice único en DailyPrices
-    try {
-      const [rows2] = await sequelize.query("SHOW INDEX FROM `DailyPrices`")
-      const byKey2 = new Map()
-      for (const r of (rows2 || [])) {
-        const key = String(r.Key_name)
-        const arr = byKey2.get(key) || []
-        arr.push(r)
-        byKey2.set(key, arr)
-      }
-      for (const [key, arr] of byKey2.entries()) {
-        const unique = arr[0]?.Non_unique === 0
-        if (!unique) continue
-        const cols = new Set(arr.map(x => String(x.Column_name).toLowerCase()))
-        if (cols.has('userid') && cols.has('positionkey') && cols.has('date') && !cols.has('portfolioid')) {
-          await sequelize.query(`ALTER TABLE \`DailyPrices\` DROP INDEX \`${key}\``)
-        }
-      }
-      await sequelize.query('ALTER TABLE `DailyPrices` ADD UNIQUE INDEX `dp_user_portfolio_pos_date` (`userId`,`portfolioId`,`positionKey`,`date`)')
-
     } catch (e) { }
 
     try {
-      const [rowsU] = await sequelize.query("SHOW INDEX FROM `Users`")
-      const uniqUsername = (rowsU || []).filter(r => r.Non_unique === 0 && String(r.Column_name).toLowerCase() === 'username')
-      if (uniqUsername.length > 1) {
-        for (let i = 1; i < uniqUsername.length; i++) {
-          const k = String(uniqUsername[i].Key_name)
-          await sequelize.query(`ALTER TABLE \`Users\` DROP INDEX \`${k}\``)
+      const { default: Config } = await import('../models/Config.js')
+      const { default: PortfolioReport } = await import('../models/PortfolioReport.js')
+      const flag = await Config.findOne({ where: { key: 'migration_portfolio_reports_done' } })
+      if (!flag) {
+        const { default: Portfolio } = await import('../models/Portfolio.js')
+        const { default: DailyPortfolioStats } = await import('../models/DailyPortfolioStats.js')
+
+        const portfolios = await Portfolio.findAll()
+        for (const p of portfolios) {
+          const lastStats = await DailyPortfolioStats.findOne({
+            where: { userId: p.userId, portfolioId: p.id },
+            order: [['date', 'DESC']],
+            limit: 1
+          })
+          if (lastStats) {
+            await PortfolioReport.upsert({
+              userId: p.userId,
+              portfolioId: p.id,
+              date: lastStats.date,
+              totalValueEUR: lastStats.pnlEUR || 0,
+              pnlEUR: lastStats.pnlEUR || 0,
+              dailyChangeEUR: lastStats.dailyChangeEUR || 0,
+              activePositionsCount: lastStats.activePositionsCount || 0
+            })
+          }
         }
-      }
-      const hasNamed = (rowsU || []).some(r => String(r.Key_name) === 'users_username_unique')
-      if (!hasNamed) {
-        await sequelize.query('ALTER TABLE `Users` ADD UNIQUE INDEX `users_username_unique` (`username`)')
+        await Config.create({ key: 'migration_portfolio_reports_done', value: 'true' })
       }
     } catch (e) { }
   } catch (error) {
-    console.error('❌ Error conectando a MariaDB:', error);
+    console.error('❌ Error al conectar con MariaDB:', error);
     process.exit(1);
   }
+};
+
+export default sequelize;
+      }
+    } catch (mErr) { }
+
+try {
+  const [idx] = await sequelize.query("SHOW INDEX FROM `PriceCaches` WHERE Key_name='price_caches_user_id_position_key'")
+  if (Array.isArray(idx) && idx.length > 0) {
+    await sequelize.query('ALTER TABLE `PriceCaches` DROP INDEX `price_caches_user_id_position_key`')
+    await sequelize.query('ALTER TABLE `PriceCaches` ADD UNIQUE INDEX `price_caches_user_portfolio_position` (`userId`,`portfolioId`,`positionKey`)')
+
+  }
+} catch (e) {
+  // índice ya correcto o no aplicable
+}
+
+// Ajuste robusto de índice único en DailyPortfolioStats
+try {
+  const [rows] = await sequelize.query("SHOW INDEX FROM `DailyPortfolioStats`")
+  const byKey = new Map()
+  for (const r of (rows || [])) {
+    const key = String(r.Key_name)
+    const arr = byKey.get(key) || []
+    arr.push(r)
+    byKey.set(key, arr)
+  }
+  for (const [key, arr] of byKey.entries()) {
+    const unique = arr[0]?.Non_unique === 0
+    if (!unique) continue
+    const cols = new Set(arr.map(x => String(x.Column_name).toLowerCase()))
+    if (cols.has('userid') && cols.has('date') && !cols.has('portfolioid')) {
+      await sequelize.query(`ALTER TABLE \`DailyPortfolioStats\` DROP INDEX \`${key}\``)
+    }
+  }
+  await sequelize.query('ALTER TABLE `DailyPortfolioStats` ADD UNIQUE INDEX `dps_user_portfolio_date` (`userId`,`portfolioId`,`date`)')
+
+} catch (e) { }
+
+// Ajuste robusto de índice único en DailyPrices
+try {
+  const [rows2] = await sequelize.query("SHOW INDEX FROM `DailyPrices`")
+  const byKey2 = new Map()
+  for (const r of (rows2 || [])) {
+    const key = String(r.Key_name)
+    const arr = byKey2.get(key) || []
+    arr.push(r)
+    byKey2.set(key, arr)
+  }
+  for (const [key, arr] of byKey2.entries()) {
+    const unique = arr[0]?.Non_unique === 0
+    if (!unique) continue
+    const cols = new Set(arr.map(x => String(x.Column_name).toLowerCase()))
+    if (cols.has('userid') && cols.has('positionkey') && cols.has('date') && !cols.has('portfolioid')) {
+      await sequelize.query(`ALTER TABLE \`DailyPrices\` DROP INDEX \`${key}\``)
+    }
+  }
+  await sequelize.query('ALTER TABLE `DailyPrices` ADD UNIQUE INDEX `dp_user_portfolio_pos_date` (`userId`,`portfolioId`,`positionKey`,`date`)')
+
+} catch (e) { }
+
+try {
+  const [rowsU] = await sequelize.query("SHOW INDEX FROM `Users`")
+  const uniqUsername = (rowsU || []).filter(r => r.Non_unique === 0 && String(r.Column_name).toLowerCase() === 'username')
+  if (uniqUsername.length > 1) {
+    for (let i = 1; i < uniqUsername.length; i++) {
+      const k = String(uniqUsername[i].Key_name)
+      await sequelize.query(`ALTER TABLE \`Users\` DROP INDEX \`${k}\``)
+    }
+  }
+  const hasNamed = (rowsU || []).some(r => String(r.Key_name) === 'users_username_unique')
+  if (!hasNamed) {
+    await sequelize.query('ALTER TABLE `Users` ADD UNIQUE INDEX `users_username_unique` (`username`)')
+  }
+} catch (e) { }
+  } catch (error) {
+  console.error('❌ Error conectando a MariaDB:', error);
+  process.exit(1);
+}
 };
 
 export default sequelize;
