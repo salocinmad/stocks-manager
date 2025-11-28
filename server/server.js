@@ -22,6 +22,9 @@ import externalButtonsRoutes from './routes/externalButtons.js';
 import reportsRoutes from './routes/reports.js';
 import scheduler from './services/scheduler.js';
 import dailyClose from './services/dailyClose.js';
+
+// Nuevas rutas API modulares
+import pricesApiRoutes from './routes/api/prices.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -78,6 +81,9 @@ app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile-pictures', profilePicturesRoutes);
 app.use('/api/external-buttons', externalButtonsRoutes);
 app.use('/api/reports', reportsRoutes);
+
+// Nuevas rutas API modulares
+app.use('/api/prices', pricesApiRoutes);
 
 // Ruta de estado (Health Check)
 app.get('/api/health', (req, res) => {

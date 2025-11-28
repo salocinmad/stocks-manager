@@ -30,13 +30,17 @@ export const connectDB = async () => {
       import('../models/User.js'),
       import('../models/Portfolio.js'),
       import('../models/Operation.js'),
-      import('../models/PriceCache.js'),
-      import('../models/DailyPrice.js'),
+      import('../models/PriceCache.js'),  // Legacy - mantener para migración
+      import('../models/DailyPrice.js'),  // Legacy - mantener para migración
       import('../models/DailyPortfolioStats.js'),
       import('../models/DailyPositionSnapshot.js'),
       import('../models/Note.js'),
       import('../models/PositionOrder.js'),
       import('../models/ProfilePicture.js'),
+      // NUEVOS MODELOS GLOBALES
+      import('../models/GlobalCurrentPrice.js'),
+      import('../models/GlobalStockPrice.js'),
+      import('../models/UserStockAlert.js'),
     ])
 
     // Pre-migración: asegurar columnas portfolioId antes de que Sequelize intente crear índices

@@ -12,6 +12,10 @@ import ExternalLinkButton from '../models/ExternalLinkButton.js'
 import User from '../models/User.js'
 import PriceCache from '../models/PriceCache.js'
 import Config from '../models/Config.js'
+// Nuevos modelos globales
+import GlobalCurrentPrice from '../models/GlobalCurrentPrice.js'
+import GlobalStockPrice from '../models/GlobalStockPrice.js'
+import UserStockAlert from '../models/UserStockAlert.js'
 import { authenticate, isAdmin } from '../middleware/auth.js'
 import { encrypt, decrypt } from '../utils/crypto.js'
 import { sendNotification } from '../services/notify.js'
@@ -20,6 +24,8 @@ import dailyClose from '../services/dailyClose.js'
 import multer from 'multer'
 import sequelize from '../config/database.js'
 import YahooFinance from 'yahoo-finance2'
+// Nuevo servicio modular
+import { runManualUpdate } from '../services/scheduler/priceScheduler.js'
 
 const upload = multer({ storage: multer.memoryStorage() })
 const router = express.Router()
@@ -191,7 +197,15 @@ router.post('/reset-alerts', async (req, res) => {
 router.get('/backup/export', async (req, res) => {
   try {
     const format = req.query.format === 'sql' ? 'sql' : 'json'
-    const models = [User, Portfolio, PortfolioReport, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton]
+    const models = [
+      User, Portfolio, PortfolioReport, Config, Operation,
+      // Nuevas tablas globales (PRIORITY)
+      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert,
+      // Tablas legacy (mantener para rollback)
+      PriceCache, DailyPrice,
+      // Resto de tablas
+      DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
+    ]
     const data = {}
 
     // Fetch all data
@@ -247,7 +261,12 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
 
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t })
 
-    const models = [User, Portfolio, PortfolioReport, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton]
+    const models = [
+      User, Portfolio, PortfolioReport, Config, Operation,
+      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert,
+      PriceCache, DailyPrice,
+      DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
+    ]
 
     // Truncate all tables first
     for (const model of models) {
@@ -284,19 +303,40 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
     await t.rollback()
     console.error('Backup import error:', error)
 
-// Instancia de Yahoo Finance v3
-const yahooFinance = new YahooFinance({
-  suppressNotices: ['yahooSurvey'],
-  queue: {
-    concurrency: 1,
-    timeout: 300
-  }
-});
+    // Instancia de Yahoo Finance v3
+    const yahooFinance = new YahooFinance({
+      suppressNotices: ['yahooSurvey'],
+      queue: {
+        concurrency: 1,
+        timeout: 300
+      }
+    });
     res.status(500).json({ error: 'Error en restauración: ' + error.message })
   }
 })
 
+/**
+ * POST /api/admin/update-prices-manual
+ * Ejecuta actualización manual de precios (botón "Actualizar Precios")
+ */
+router.post('/update-prices-manual', async (req, res) => {
+  try {
+    console.log('🔄 Actualización manual de precios solicitada desde admin panel');
+    const result = await runManualUpdate();
+
+    res.json({
+      success: true,
+      message: `Actualización completada: ${result.updated} acciones actualizadas`,
+      stats: result
+    });
+  } catch (error) {
+    console.error('Error en actualización manual:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router
+
 
 // Scheduler config routes
 router.get('/scheduler', async (req, res) => {
