@@ -495,3 +495,8 @@ body.light .metric-card {
 body.light .metric-card:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
+/* PDF Export Button */
+.header-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.download-pdf-button { padding: 0.6rem 1.2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 600; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); }
+.download-pdf-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4); }
+.download-pdf-button:disabled { opacity: 0.6; cursor: not-allowed; }

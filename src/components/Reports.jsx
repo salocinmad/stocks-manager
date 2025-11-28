@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { authenticatedFetch } from '../services/auth.js';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import './Reports.css';
 
 /**
@@ -17,6 +19,8 @@ function Reports({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedPeriod, setSelectedPeriod] = useState('30'); // días
+    const [generatingPDF, setGeneratingPDF] = useState(false);
+    const reportRef = useRef(null);
 
     // Fetch reporte actual
     useEffect(() => {
@@ -51,6 +55,44 @@ function Reports({
 
         fetchReport();
     }, [portfolioId, currentEURUSD]);
+
+    // Handle PDF download
+    const handleDownloadPDF = async () => {
+        if (!reportRef.current || !reportData) return;
+
+        try {
+            setGeneratingPDF(true);
+
+            // Capture the report container as canvas
+            const canvas = await html2canvas(reportRef.current, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: theme === 'dark' ? '#1a1a2e' : '#ffffff',
+                logging: false
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = canvas.width;
+            const imgHeight = canvas.height;
+            const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+            const imgX = (pdfWidth - imgWidth * ratio) / 2;
+            const imgY = 10;
+
+            pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+
+            const fileName = `Reporte_Portfolio_${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(fileName);
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Error al generar el PDF. Por favor, inténtalo de nuevo.');
+        } finally {
+            setGeneratingPDF(false);
+        }
+    };
 
     // Loading state
     if (loading) {
@@ -90,18 +132,27 @@ function Reports({
     }
 
     return (
-        <div className="reports-container">
+        <div className="reports-container" ref={reportRef}>
             {/* Header con título y filtros */}
             <div className="reports-header">
                 <h2>📊 Análisis del Portafolio</h2>
-                <div className="period-selector">
-                    <label>Período:</label>
-                    <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}>
-                        <option value="7">Últimos 7 días</option>
-                        <option value="30">Último mes</option>
-                        <option value="90">Últimos 3 meses</option>
-                        <option value="365">Último año</option>
-                    </select>
+                <div className="header-actions">
+                    <div className="period-selector">
+                        <label>Período:</label>
+                        <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}>
+                            <option value="7">Últimos 7 días</option>
+                            <option value="30">Último mes</option>
+                            <option value="90">Últimos 3 meses</option>
+                            <option value="365">Último año</option>
+                        </select>
+                    </div>
+                    <button
+                        className="download-pdf-button"
+                        onClick={handleDownloadPDF}
+                        disabled={generatingPDF}
+                    >
+                        {generatingPDF ? '⏳ Generando...' : '📄 Descargar PDF'}
+                    </button>
                 </div>
             </div>
 
