@@ -31,42 +31,19 @@ const setLastRun = async () => {
   const [row, created] = await Config.findOrCreate({ where: { key }, defaults: { value: now } })
   if (!created) { row.value = now; await row.save() }
 }
-
-const fetchPriceYahoo = async (symbol) => {
-  try {
-    if (!symbol) return null
-    const quote = await yahooFinance.quote(symbol)
-    const price = quote?.regularMarketPrice || quote?.postMarketPrice || quote?.preMarketPrice
-    const change = quote?.regularMarketChange ?? null
-    const changePercent = quote?.regularMarketChangePercent ?? null
-
-    // Debug: Log para verificar que Yahoo devuelve estos campos
-    if (change === null || changePercent === null) {
-      console.log(`⚠️ Yahoo ${symbol}: change=${change}, changePercent=${changePercent}`)
-    }
-
-    if (!price || price <= 0) return null
-    return { price, change, changePercent }
-  } catch {
-    return null
-  }
+const apiKeyRow = await Config.findOne({ where: { key: 'finnhub-api-key' } })
+const token = apiKeyRow?.value || ''
+if (!token || !symbol) return null
+const resp = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`)
+if (!resp.ok) return null
+const data = await resp.json()
+if (data?.c > 0) {
+  return { price: data.c, change: data.d ?? null, changePercent: data.dp ?? null }
 }
-
-const fetchPriceFinnhub = async (symbol) => {
-  try {
-    const apiKeyRow = await Config.findOne({ where: { key: 'finnhub-api-key' } })
-    const token = apiKeyRow?.value || ''
-    if (!token || !symbol) return null
-    const resp = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`)
-    if (!resp.ok) return null
-    const data = await resp.json()
-    if (data?.c > 0) {
-      return { price: data.c, change: data.d ?? null, changePercent: data.dp ?? null }
-    }
-    return null
+return null
   } catch {
-    return null
-  }
+  return null
+}
 }
 
 const checkAndNotify = async (userId, portfolioId, company, symbol, positionKey, price) => {
