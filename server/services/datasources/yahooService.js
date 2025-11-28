@@ -7,21 +7,6 @@
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
 
 /**
- * Obtiene quote de Yahoo Finance usando fetch directo
- * @param {string} symbol - Símbolo bursátil
- * @returns {Promise<Object|null>} Datos de precio o null
- */
-export async function fetchQuote(symbol) {
-    try {
-        console.log(`📞 Yahoo API (fetch directo) para '${symbol}'...`);
-
-        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-
-        const response = await fetch(yahooUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-        });
 
         if (!response.ok) {
             console.log(`⚠️  Yahoo ${symbol}: HTTP ${response.status}`);
@@ -91,10 +76,13 @@ export async function fetchQuote(symbol) {
  */
 export async function fetchHistorical(symbol, days = 365) {
     try {
+        // Convertir : a . para Yahoo Finance
+        const yahooSymbol = symbol.replace(/:/g, '.');
+
         const endDate = Math.floor(Date.now() / 1000);
         const startDate = endDate - (days * 24 * 60 * 60);
 
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${startDate}&period2=${endDate}&interval=1d`;
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?period1=${startDate}&period2=${endDate}&interval=1d`;
 
         const response = await fetch(url, {
             headers: {
