@@ -33,6 +33,7 @@ export const connectDB = async () => {
       import('../models/PriceCache.js'),
       import('../models/DailyPrice.js'),
       import('../models/DailyPortfolioStats.js'),
+      import('../models/DailyPositionSnapshot.js'),
       import('../models/Note.js'),
       import('../models/PositionOrder.js'),
       import('../models/ProfilePicture.js'),

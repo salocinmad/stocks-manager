@@ -1,15 +1,29 @@
 import Config from '../models/Config.js'
 import Operation from '../models/Operation.js'
 import Portfolio from '../models/Portfolio.js'
-// Default to 01:00 if not set
-const timeStr = timeRow?.value || '01:00'
+import DailyPrice from '../models/DailyPrice.js'
+import yahooFinance from 'yahoo-finance2';
 
-// If time config doesn't exist, create it with default 01:00
-if (!timeRow) {
-  await Config.create({ key: 'daily_close_time', value: '01:00' })
-}
+let dailyTimer = null
+let dailyRunning = false
 
-return { enabled, timeStr }
+import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
+import DailyPositionSnapshot from '../models/DailyPositionSnapshot.js'
+import scheduler from './scheduler.js'
+
+const getConfig = async () => {
+  const enabledRow = await Config.findOne({ where: { key: 'daily_close_enabled' } })
+  const timeRow = await Config.findOne({ where: { key: 'daily_close_time' } })
+  const enabled = enabledRow ? enabledRow.value === 'true' : true
+  // Default to 01:00 if not set
+  const timeStr = timeRow?.value || '01:00'
+
+  // If time config doesn't exist, create it with default 01:00
+  if (!timeRow) {
+    await Config.create({ key: 'daily_close_time', value: '01:00' })
+  }
+
+  return { enabled, timeStr }
 }
 
 const setLastRun = async (iso) => {
@@ -120,7 +134,11 @@ export const runDailyOnce = async () => {
                 const exchangeRate = fxMap[currency] ?? 1
                 dailyPrice = await DailyPrice.create({
                   userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol,
-                  date, close, currency, exchangeRate, source
+                  date, close, currency, exchangeRate, source,
+                  // Nuevos campos de análisis histórico
+                  change: prev.change,
+                  changePercent: prev.changePercent,
+                  shares: p.shares
                 })
               }
             }
@@ -128,6 +146,40 @@ export const runDailyOnce = async () => {
             if (dailyPrice) {
               const val = (dailyPrice.close || 0) * (dailyPrice.exchangeRate || 1) * p.shares
               totalValueEUR += val
+            }
+
+            // Crear snapshot de la posición
+            try {
+              const existingSnapshot = await DailyPositionSnapshot.findOne({
+                where: { userId, portfolioId, positionKey: pk, date }
+              })
+              if (!existingSnapshot && dailyPrice) {
+                const avgCost = p.totalCost / p.shares
+                const currentPrice = dailyPrice.close * (dailyPrice.exchangeRate || 1)
+                const totalValue = currentPrice * p.shares
+                const pnl = totalValue - p.totalCost
+                const pnlPercent = p.totalCost > 0 ? (pnl / p.totalCost) * 100 : 0
+
+                await DailyPositionSnapshot.create({
+                  userId,
+                  portfolioId,
+                  positionKey: pk,
+                  company: p.company,
+                  symbol: p.symbol,
+                  date,
+                  shares: p.shares,
+                  avgCost,
+                  totalInvested: p.totalCost,
+                  currentPrice,
+                  totalValue,
+                  pnl,
+                  pnlPercent,
+                  currency: dailyPrice.currency,
+                  exchangeRate: dailyPrice.exchangeRate
+                })
+              }
+            } catch (snapshotErr) {
+              console.error('Error creando snapshot:', snapshotErr.message)
             }
           } catch (err) {
             const msg = String(err?.message || 'unknown')
@@ -140,6 +192,35 @@ export const runDailyOnce = async () => {
         const pnlEUR = totalValueEUR - totalInvestedEUR
 
         try {
+
+          // Calcular métricas adicionales para análisis histórico
+          const roi = totalInvestedEUR > 0 ? (pnlEUR / totalInvestedEUR) * 100 : 0
+          const activePositionsCount = activePositions.length
+          const closedOps = ops.filter(o => o.type === 'sale')
+          const closedOperationsCount = closedOps.length
+
+          // Buscar estadísticas del día anterior para calcular cambio diario
+          let dailyChangeEUR = null
+          let dailyChangePercent = null
+          try {
+            const prevDate = new Date(date)
+            prevDate.setDate(prevDate.getDate() - 1)
+            const prevDateStr = prevDate.toISOString().split('T')[0]
+            const prevStats = await DailyPortfolioStats.findOne({
+              where: { userId, portfolioId, date: prevDateStr },
+              order: [['date', 'DESC']]
+            })
+            if (prevStats) {
+              dailyChangeEUR = totalValueEUR - prevStats.totalValueEUR
+              dailyChangePercent = prevStats.totalValueEUR > 0
+                ? (dailyChangeEUR / prevStats.totalValueEUR) * 100
+                : 0
+            }
+          } catch (e) {
+            // Si no hay datos previos, dejar en null
+          }
+
+
           const existing = await DailyPortfolioStats.findOne({ where: { userId, portfolioId, date } })
           if (!existing) {
             await DailyPortfolioStats.create({
@@ -148,7 +229,13 @@ export const runDailyOnce = async () => {
               date,
               totalInvestedEUR,
               totalValueEUR,
-              pnlEUR
+              pnlEUR,
+              // Nuevos campos de análisis histórico
+              dailyChangeEUR,
+              dailyChangePercent,
+              roi,
+              activePositionsCount,
+              closedOperationsCount
             })
             processed++
           } else {
