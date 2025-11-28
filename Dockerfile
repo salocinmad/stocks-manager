@@ -1,9 +1,17 @@
 ARG VITE_API_URL
 
 # Build stage
-FROM node:18-alpine AS build
+FROM node:22-alpine AS build
+
+# Configurar timezone española
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/Europe/Madrid /etc/localtime && \
+    echo "Europe/Madrid" > /etc/timezone && \
+    apk del tzdata
 
 WORKDIR /app
+
+ENV TZ=Europe/Madrid
 
 # Copiar archivos de dependencias
 COPY package*.json ./
@@ -12,16 +20,24 @@ COPY package*.json ./
 RUN npm install
 
 # Copiar código fuente
- COPY . .
+COPY . .
 
- # Pasar VITE_API_URL a la fase de construcción de Vite
- ENV VITE_API_URL=$VITE_API_URL
+# Pasar VITE_API_URL a la fase de construcción de Vite
+ENV VITE_API_URL=$VITE_API_URL
 
- # Build de la aplicación
- RUN npm run build
+# Build de la aplicación
+RUN npm run build
 
 # Production stage
 FROM nginx:alpine
+
+# Configurar timezone española
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/Europe/Madrid /etc/localtime && \
+    echo "Europe/Madrid" > /etc/timezone && \
+    apk del tzdata
+
+ENV TZ=Europe/Madrid
 
 # Instalar netcat para verificar conectividad
 RUN apk add --no-cache netcat-openbsd

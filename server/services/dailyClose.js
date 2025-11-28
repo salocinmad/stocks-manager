@@ -2,7 +2,7 @@ import Config from '../models/Config.js'
 import Operation from '../models/Operation.js'
 import Portfolio from '../models/Portfolio.js'
 import DailyPrice from '../models/DailyPrice.js'
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
 
 let dailyTimer = null
 let dailyRunning = false
@@ -10,6 +10,15 @@ let dailyRunning = false
 import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
 import DailyPositionSnapshot from '../models/DailyPositionSnapshot.js'
 import scheduler from './scheduler.js'
+
+// Instancia de Yahoo Finance v3
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+  queue: {
+    concurrency: 1,
+    timeout: 300
+  }
+});
 
 const getConfig = async () => {
   const enabledRow = await Config.findOne({ where: { key: 'daily_close_enabled' } })

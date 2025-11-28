@@ -19,7 +19,7 @@ import scheduler from '../services/scheduler.js'
 import dailyClose from '../services/dailyClose.js'
 import multer from 'multer'
 import sequelize from '../config/database.js'
-import yahooFinance from 'yahoo-finance2'
+import YahooFinance from 'yahoo-finance2'
 
 const upload = multer({ storage: multer.memoryStorage() })
 const router = express.Router()
@@ -283,6 +283,15 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
   } catch (error) {
     await t.rollback()
     console.error('Backup import error:', error)
+
+// Instancia de Yahoo Finance v3
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+  queue: {
+    concurrency: 1,
+    timeout: 300
+  }
+});
     res.status(500).json({ error: 'Error en restauración: ' + error.message })
   }
 })

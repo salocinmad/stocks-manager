@@ -1,7 +1,16 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
 import Config from '../models/Config.js';
+
+// Instancia de Yahoo Finance v3
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+  queue: {
+    concurrency: 1,
+    timeout: 300
+  }
+});
 
 const router = express.Router();
 

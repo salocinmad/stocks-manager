@@ -1,9 +1,17 @@
-FROM node:18-alpine
+FROM node:22-alpine
 
-# Instalar netcat para verificar conexión a MongoDB
+# Configurar timezone española
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/Europe/Madrid /etc/localtime && \
+    echo "Europe/Madrid" > /etc/timezone && \
+    apk del tzdata
+
+# Instalar netcat para verificar conexión
 RUN apk add --no-cache netcat-openbsd
 
 WORKDIR /app
+
+ENV TZ=Europe/Madrid
 
 # Copiar archivos de dependencias
 COPY package*.json ./
