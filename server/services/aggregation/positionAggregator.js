@@ -3,7 +3,7 @@
  * Funciones puras para agrupar y calcular posiciones desde operaciones
  */
 
-import { createPositionKey, getSymbolFromPositionKey } from '../../utils/symbolHelpers.js';
+import { createPositionKey } from '../../utils/symbolHelpers.js';
 
 /**
  * Agrupa operaciones por positionKey
@@ -72,44 +72,64 @@ export function calculateActivePositions(operations) {
             const proportion = op.shares / (positions[key].shares + op.shares);
             positions[key].totalCost -= positions[key].totalCost * proportion;
             positions[key].totalOriginalCost -= positions[key].totalOriginalCost * proportion;
+        }
+
+        positions[key].operations.push(op);
+    });
+
+    // Filtrar solo las posiciones activas (con shares > 0)
+    const activePositions = {};
+    Object.keys(positions).forEach(key => {
+        if (positions[key].shares > 0) {
+            activePositions[key] = positions[key];
+        }
+    });
+
+    return activePositions;
+}
+
+/**
+ * Obtiene símbolos únicos de un array de operaciones
+ * @param {Array} operations - Array de operaciones
+ * @returns {Array<string>} Array de símbolos únicos
  */
-            export function getUniqueSymbolsFromOperations(operations) {
-                const symbols = new Set();
+export function getUniqueSymbolsFromOperations(operations) {
+    const symbols = new Set();
 
-                operations.forEach(op => {
-                    if (op.symbol && op.symbol.trim() !== '') {
-                        symbols.add(op.symbol);
-                    }
-                });
+    operations.forEach(op => {
+        if (op.symbol && op.symbol.trim() !== '') {
+            symbols.add(op.symbol);
+        }
+    });
 
-                return Array.from(symbols);
-            }
+    return Array.from(symbols);
+}
 
-            /**
-             * Calcula shares por posición para un portfolio
-             * @param {Array} operations - Array de operaciones
-             * @returns {Map} Map con shares por positionKey
-             */
-            export function calculateSharesByPosition(operations) {
-                const map = new Map();
+/**
+ * Calcula shares por posición para un portfolio
+ * @param {Array} operations - Array de operaciones
+ * @returns {Map} Map con shares por positionKey
+ */
+export function calculateSharesByPosition(operations) {
+    const map = new Map();
 
-                for (const op of operations) {
-                    const key = createPositionKey(op.company, op.symbol);
-                    const prev = map.get(key) || {
-                        company: op.company,
-                        symbol: op.symbol || '',
-                        shares: 0
-                    };
-                    prev.shares += (op.type === 'purchase' ? op.shares : -op.shares);
-                    map.set(key, prev);
-                }
+    for (const op of operations) {
+        const key = createPositionKey(op.company, op.symbol);
+        const prev = map.get(key) || {
+            company: op.company,
+            symbol: op.symbol || '',
+            shares: 0
+        };
+        prev.shares += (op.type === 'purchase' ? op.shares : -op.shares);
+        map.set(key, prev);
+    }
 
-                return map;
-            }
+    return map;
+}
 
-            export default {
-                groupOperationsByPosition,
-                calculateActivePositions,
-                getUniqueSymbolsFromOperations,
-                calculateSharesByPosition
-            };
+export default {
+    groupOperationsByPosition,
+    calculateActivePositions,
+    getUniqueSymbolsFromOperations,
+    calculateSharesByPosition
+};
