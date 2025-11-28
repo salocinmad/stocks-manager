@@ -75,7 +75,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/yahoo', yahooRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/positions', positionRoutes);
-app.use('/api/prices', pricesRoutes);
+// app.use('/api/prices', pricesRoutes);  // ← DEPRECATED: usar API modular abajo
 app.use('/api/notes', notesRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile-pictures', profilePicturesRoutes);
@@ -83,7 +83,7 @@ app.use('/api/external-buttons', externalButtonsRoutes);
 app.use('/api/reports', reportsRoutes);
 
 // Nuevas rutas API modulares
-app.use('/api/prices', pricesApiRoutes);
+app.use('/api/prices', pricesApiRoutes);  // ← NUEVO: API modular
 
 // Ruta de estado (Health Check)
 app.get('/api/health', (req, res) => {
