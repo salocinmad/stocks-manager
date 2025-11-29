@@ -43,10 +43,17 @@ router.post('/bulk', async (req, res) => {
       }
     })
 
+    console.log('🔍 /api/prices/bulk - Símbolos extraídos:', symbols);
+
     // Obtener precios de GlobalCurrentPrices (nueva tabla con datos correctos)
     const rows = await GlobalCurrentPrice.findAll({
       where: { symbol: symbols }
     })
+
+    console.log('📊 /api/prices/bulk - Registros encontrados:', rows.length);
+    rows.forEach(r => {
+      console.log(`   ${r.symbol}: change=${r.change}, changePercent=${r.changePercent}`);
+    });
 
     // Mapear por positionKey para mantener compatibilidad con frontend
     const map = {}
@@ -62,6 +69,9 @@ router.post('/bulk', async (req, res) => {
           source: price.source || 'unknown',
           updatedAt: price.updatedAt
         }
+        console.log(`✅ Mapeado ${pk}: change=${map[pk].change}, changePercent=${map[pk].changePercent}`);
+      } else {
+        console.log(`⚠️  No se encontró precio para ${pk} (symbol: ${symbol})`);
       }
     })
 
