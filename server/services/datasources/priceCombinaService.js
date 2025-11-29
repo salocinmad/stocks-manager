@@ -41,11 +41,24 @@ export async function fetchCombinedPrice(symbol) {
         return null;
     }
 
+    // DEBUG: Mostrar qué datos vienen de cada fuente
+    console.log(`📊 ${symbol} - Finnhub data:`, finnhubData ? {
+        price: finnhubData.lastPrice,
+        change: finnhubData.change,
+        changePercent: finnhubData.changePercent
+    } : 'null');
+
+    console.log(`📊 ${symbol} - Yahoo data:`, yahooData ? {
+        price: yahooData.lastPrice,
+        change: yahooData.change,
+        changePercent: yahooData.changePercent
+    } : 'null');
+
     // 4. Combinar datos (prioridad Finnhub para core, Yahoo para complementar)
     const combined = {
         lastPrice: finnhubData?.lastPrice || yahooData?.lastPrice,
-        change: finnhubData?.change || yahooData?.change,
-        changePercent: finnhubData?.changePercent || yahooData?.changePercent,
+        change: finnhubData?.change ?? yahooData?.change ?? 0,
+        changePercent: finnhubData?.changePercent ?? yahooData?.changePercent ?? 0,
         open: yahooData?.open || finnhubData?.open,
         high: yahooData?.high || finnhubData?.high,
         low: yahooData?.low || finnhubData?.low,
@@ -58,6 +71,13 @@ export async function fetchCombinedPrice(symbol) {
         regularMarketTime: yahooData?.regularMarketTime || new Date(),
         source: finnhubData && yahooData ? 'finnhub+yahoo' : (finnhubData ? 'finnhub' : 'yahoo')
     };
+
+    console.log(`🔀 ${symbol} - Combined:`, {
+        price: combined.lastPrice,
+        change: combined.change,
+        changePercent: combined.changePercent,
+        source: combined.source
+    });
 
     return combined;
 }

@@ -1,11 +1,13 @@
 import express from 'express'
 import { authenticate } from '../middleware/auth.js'
 import PriceCache from '../models/PriceCache.js'
+import GlobalCurrentPrice from '../models/GlobalCurrentPrice.js'
 import Operation from '../models/Operation.js'
 import Portfolio from '../models/Portfolio.js'
 import User from '../models/User.js'
 import Config from '../models/Config.js'
 import { sendNotification } from '../services/notify.js'
+import { getSymbolFromPositionKey } from '../utils/symbolHelpers.js'
 
 const router = express.Router()
 
@@ -32,23 +34,34 @@ router.post('/bulk', async (req, res) => {
       return res.status(400).json({ error: 'positionKeys requerido (array no vacío)' })
     }
 
-    const portfolioId = await resolvePortfolioId(req)
-    const rows = await PriceCache.findAll({
-      where: {
-        userId: req.user.id,
-        portfolioId,
-        positionKey: positionKeys
+    // Extraer símbolos únicos de positionKeys
+    const symbols = []
+    positionKeys.forEach(pk => {
+      const symbol = getSymbolFromPositionKey(pk)
+      if (symbol && !symbols.includes(symbol)) {
+        symbols.push(symbol)
       }
     })
 
+    // Obtener precios de GlobalCurrentPrices (nueva tabla con datos correctos)
+    const rows = await GlobalCurrentPrice.findAll({
+      where: { symbol: symbols }
+    })
+
+    // Mapear por positionKey para mantener compatibilidad con frontend
     const map = {}
-    rows.forEach(r => {
-      map[r.positionKey] = {
-        price: r.lastPrice,
-        change: r.change ?? null,
-        changePercent: r.changePercent ?? null,
-        source: r.source,
-        updatedAt: r.updatedAt
+    positionKeys.forEach(pk => {
+      const symbol = getSymbolFromPositionKey(pk)
+      const price = rows.find(r => r.symbol === symbol)
+
+      if (price) {
+        map[pk] = {
+          price: price.lastPrice,
+          change: price.change ?? 0,
+          changePercent: price.changePercent ?? 0,
+          source: price.source || 'unknown',
+          updatedAt: price.updatedAt
+        }
       }
     })
 
