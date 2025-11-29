@@ -1,7 +1,21 @@
 import express from 'express'
+import Portfolio from '../models/Portfolio.js'
+import PortfolioReport from '../models/PortfolioReport.js'
+import Operation from '../models/Operation.js'
+import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
+import DailyPrice from '../models/DailyPrice.js'
+import DailyPositionSnapshot from '../models/DailyPositionSnapshot.js'
+import Note from '../models/Note.js'
+import PositionOrder from '../models/PositionOrder.js'
+import ProfilePicture from '../models/ProfilePicture.js'
+import ExternalLinkButton from '../models/ExternalLinkButton.js'
 import User from '../models/User.js'
 import PriceCache from '../models/PriceCache.js'
 import Config from '../models/Config.js'
+// Nuevos modelos globales
+import GlobalCurrentPrice from '../models/GlobalCurrentPrice.js'
+import GlobalStockPrice from '../models/GlobalStockPrice.js'
+import UserStockAlert from '../models/UserStockAlert.js'
 import { authenticate, isAdmin } from '../middleware/auth.js'
 import { encrypt, decrypt } from '../utils/crypto.js'
 import { sendNotification } from '../services/notify.js'
@@ -9,17 +23,11 @@ import scheduler from '../services/scheduler.js'
 import dailyClose from '../services/dailyClose.js'
 import multer from 'multer'
 import sequelize from '../config/database.js'
-import Operation from '../models/Operation.js'
-import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
-import DailyPrice from '../models/DailyPrice.js'
-import Note from '../models/Note.js'
-import PositionOrder from '../models/PositionOrder.js'
-import ProfilePicture from '../models/ProfilePicture.js'
-import Portfolio from '../models/Portfolio.js'
-import yahooFinance from 'yahoo-finance2'
+import YahooFinance from 'yahoo-finance2'
+// Nuevo servicio modular
+import { runManualUpdate } from '../services/scheduler/priceScheduler.js'
 
 const upload = multer({ storage: multer.memoryStorage() })
-
 const router = express.Router()
 
 router.use(authenticate)
@@ -27,6 +35,7 @@ router.use(authenticate)
 router.get('/finnhub-api-key', async (req, res) => {
   try {
     const config = await Config.findOne({ where: { key: 'finnhub-api-key' } })
+
     if (!config) return res.json({ value: null })
     res.json({ value: config.value })
   } catch (error) {
@@ -188,7 +197,15 @@ router.post('/reset-alerts', async (req, res) => {
 router.get('/backup/export', async (req, res) => {
   try {
     const format = req.query.format === 'sql' ? 'sql' : 'json'
-    const models = [User, Portfolio, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
+    const models = [
+      User, Portfolio, PortfolioReport, Config, Operation,
+      // Nuevas tablas globales (PRIORITY)
+      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert,
+      // Tablas legacy (mantener para rollback)
+      PriceCache, DailyPrice,
+      // Resto de tablas
+      DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
+    ]
     const data = {}
 
     // Fetch all data
@@ -197,6 +214,7 @@ router.get('/backup/export', async (req, res) => {
     }
 
     if (format === 'json') {
+      console.log('Attempting to export JSON. Data keys:', Object.keys(data));
       res.setHeader('Content-Type', 'application/json')
       res.setHeader('Content-Disposition', `attachment; filename=backup_${new Date().toISOString().split('T')[0]}.json`)
       return res.send(JSON.stringify(data, null, 2))
@@ -229,8 +247,8 @@ router.get('/backup/export', async (req, res) => {
     res.send(sql)
 
   } catch (error) {
-    console.error('Backup export error:', error)
-    res.status(500).json({ error: error.message })
+    console.error('Backup export error:', error);
+    res.status(500).json({ error: error.message });
   }
 })
 
@@ -244,7 +262,12 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
 
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t })
 
-    const models = [User, Portfolio, Config, Operation, PriceCache, DailyPortfolioStats, DailyPrice, Note, PositionOrder, ProfilePicture]
+    const models = [
+      User, Portfolio, PortfolioReport, Config, Operation,
+      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert,
+      PriceCache, DailyPrice,
+      DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
+    ]
 
     // Truncate all tables first
     for (const model of models) {
@@ -273,18 +296,57 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { transaction: t })
     await t.commit()
 
-    // Reload scheduler config just in case
-    await scheduler.reload()
-
     res.json({ success: true, message: 'Restauración completada' })
+
+    // Reload scheduler config after successful import and response sent
+    try {
+      await scheduler.reload()
+      console.log('Scheduler reloaded successfully after import.');
+    } catch (schedulerError) {
+      console.error('Error reloading scheduler after import:', schedulerError);
+    }
+
   } catch (error) {
-    await t.rollback()
+    // Only rollback if the transaction hasn't been committed yet
+    if (t.finished !== 'commit') { // Check if transaction is not committed
+      await t.rollback()
+    }
     console.error('Backup import error:', error)
+
+    // Instancia de Yahoo Finance v3
+    const yahooFinance = new YahooFinance({
+      suppressNotices: ['yahooSurvey'],
+      queue: {
+        concurrency: 1,
+        timeout: 300
+      }
+    });
     res.status(500).json({ error: 'Error en restauración: ' + error.message })
   }
 })
 
+/**
+ * POST /api/admin/update-prices-manual
+ * Ejecuta actualización manual de precios (botón "Actualizar Precios")
+ */
+router.post('/update-prices-manual', async (req, res) => {
+  try {
+    console.log('🔄 Actualización manual de precios solicitada desde admin panel');
+    const result = await runManualUpdate();
+
+    res.json({
+      success: true,
+      message: `Actualización completada: ${result.updated} acciones actualizadas`,
+      stats: result
+    });
+  } catch (error) {
+    console.error('Error en actualización manual:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router
+
 
 // Scheduler config routes
 router.get('/scheduler', async (req, res) => {
@@ -354,7 +416,7 @@ router.post('/daily-close/run', async (req, res) => {
 
 router.post('/daily-close/recompute-last', async (req, res) => {
   try {
-    await scheduler.runOnce().catch(() => {})
+    await scheduler.runOnce().catch(() => { })
     const nowMadrid = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' }))
     const d = new Date(nowMadrid)
     d.setDate(d.getDate() - 1)
@@ -393,8 +455,7 @@ router.post('/daily-close/recompute-last', async (req, res) => {
       let totalValueEUR = 0
       for (const p of activePositions) {
         const pk = `${p.company}|||${p.symbol}`
-        const cache = await PriceCache.findOne({ where: { userId, portfolioId, positionKey: pk } })
-        if (!cache || !cache.lastPrice || cache.lastPrice <= 0) continue
+
         const companyOps = ops.filter(o => {
           const k = o.symbol ? `${o.company}|||${o.symbol}` : o.company
           return k === pk
@@ -413,14 +474,32 @@ router.post('/daily-close/recompute-last', async (req, res) => {
           }
           rate = totalShares > 0 ? (totalExchangeRateWeighted / totalShares) : (purchases[0]?.exchangeRate || 1)
         }
-        const valEUR = cache.lastPrice * rate * p.shares
+
+        // Usar PnL en tiempo real: leer precio actual desde GlobalCurrentPrice
+        let gcp = await GlobalCurrentPrice.findOne({ where: { symbol: p.symbol } })
+        let close = gcp?.lastPrice || null
+        let dailyCurrency = gcp?.currency || currency
+        let change = gcp?.change ?? null
+        let changePercent = gcp?.changePercent ?? null
+
+        // Fallback a PriceCache si no hay precio actual
+        if (!close || close <= 0) {
+          const cache = await PriceCache.findOne({ where: { userId, portfolioId, positionKey: pk } })
+          if (cache && cache.lastPrice && cache.lastPrice > 0) {
+            close = cache.lastPrice
+            dailyCurrency = currency
+          }
+        }
+        if (!close || close <= 0) continue
+
+        const valEUR = close * rate * p.shares
         totalValueEUR += valEUR
 
         const existingPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date: iso } })
         if (existingPrice) {
-          await existingPrice.update({ company: p.company, symbol: p.symbol, close: cache.lastPrice, currency, exchangeRate: rate, source: cache.source || 'cache' })
+          await existingPrice.update({ company: p.company, symbol: p.symbol, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares })
         } else {
-          await DailyPrice.create({ userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol, date: iso, close: cache.lastPrice, currency, exchangeRate: rate, source: cache.source || 'cache' })
+          await DailyPrice.create({ userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol, date: iso, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares })
         }
       }
       const pnlEUR = totalValueEUR - totalInvestedEUR
@@ -437,3 +516,42 @@ router.post('/daily-close/recompute-last', async (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+/**
+ * POST /admin/reports/generate
+ * Forzar generación de reportes para todos los portafolios
+ */
+router.post('/reports/generate', async (req, res) => {
+  try {
+    // Importar dinámicamente para evitar ciclos de dependencia
+    const { generateAllReports } = await import('../scripts/generateReports.js');
+
+
+    // Ejecutar generación de reportes
+    const result = await generateAllReports();
+
+    if (result.failedReports > 0) {
+      return res.status(207).json({
+        success: true,
+        status: 'partial',
+        count: result.successfulReports,
+        totalPortfolios: result.totalPortfolios,
+        failedReports: result.failedReports,
+        errors: result.errors,
+        executionTimeMs: result.executionTimeMs
+      });
+    }
+
+    res.json({
+      success: true,
+      status: 'complete',
+      count: result.successfulReports,
+      totalPortfolios: result.totalPortfolios,
+      executionTimeMs: result.executionTimeMs
+    });
+  } catch (error) {
+    console.error('Error generating reports from admin:', error);
+    res.status(500).json({ error: error.message });
+  }
+})
+

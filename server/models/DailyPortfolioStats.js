@@ -10,7 +10,13 @@ const DailyPortfolioStats = sequelize.define('DailyPortfolioStats', {
     date: { type: DataTypes.DATEONLY, allowNull: false },
     totalInvestedEUR: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
     totalValueEUR: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
-    pnlEUR: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 }
+    pnlEUR: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+    // Nuevos campos para análisis histórico mejorado
+    dailyChangeEUR: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
+    dailyChangePercent: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
+    roi: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
+    activePositionsCount: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
+    closedOperationsCount: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 }
 }, {
     tableName: 'DailyPortfolioStats',
     timestamps: true,

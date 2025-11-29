@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI, profilePicturesAPI } from './services/api.js';
+import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI, profilePicturesAPI, externalButtonsAPI } from './services/api.js';
 import { logout, verifySession, changePassword, authenticatedFetch } from './services/auth.js';
 import ProfilePictureModal from './components/ProfilePictureModal.jsx';
+import ExternalButtonsModal from './components/ExternalButtonsModal.jsx';
+import Reports from './components/Reports.jsx';
+import ExpandablePositionRow from './components/ExpandablePositionRow.jsx';
 import { usePositionOrder } from './usePositionOrder.jsx';
 
 function App() {
@@ -13,6 +16,7 @@ function App() {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [showReports, setShowReports] = useState(false); // Estado para mostrar reportes
   const [editingOperation, setEditingOperation] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [finnhubApiKey, setFinnhubApiKey] = useState('');
@@ -25,6 +29,7 @@ function App() {
   const [priceError, setPriceError] = useState('');
   const [currentPrice, setCurrentPrice] = useState(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [missingApiKeyWarning, setMissingApiKeyWarning] = useState(false); // Warning for missing API key in ConfigModal
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [loadingSearch, setLoadingSearch] = useState(false);
@@ -48,7 +53,10 @@ function App() {
     currency: 'EUR',
     exchangeRate: '1',
     commission: '0',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    externalSymbol1: '',
+    externalSymbol2: '',
+    externalSymbol3: ''
   });
 
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -66,6 +74,11 @@ function App() {
   const [dailyCloseLastRun, setDailyCloseLastRun] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false); // Nuevo estado para el menú de usuario
   const [showProfilePictureModal, setShowProfilePictureModal] = useState(false); // Nuevo estado para el modal de imagen de perfil
+  const [externalButtons, setExternalButtons] = useState([]); // Botones externos
+  const [showExternalButtonsModal, setShowExternalButtonsModal] = useState(false);
+  const [expandedPositions, setExpandedPositions] = useState(new Set()); // Gráficos desplegables abiertos
+  const [historicalDataCache, setHistoricalDataCache] = useState({}); // Caché de datos históricos por positionKey
+
 
   const DEFAULT_PROFILE_PICTURE_URL = '/defaultpic.jpg'; // Imagen de perfil por defecto servida desde el frontend
 
@@ -169,7 +182,7 @@ function App() {
             setCurrentPortfolioId(pid);
           }
         } catch (e) {
-          console.log('No se pudo cargar portafolios');
+          // console.log('No se pudo cargar portafolios');
         }
 
         // Cargar operaciones desde API
@@ -223,7 +236,7 @@ function App() {
             }
           }
         } catch (e) {
-          console.log('No se pudieron precargar precios desde caché');
+          // console.log('No se pudieron precargar precios desde caché');
         }
 
         // Cargar API key global (configurada por admin)
@@ -235,7 +248,7 @@ function App() {
             setFinnhubApiKey(apiKey);
           }
         } catch (error) {
-          console.log('No se pudo cargar la API key global (solo admin puede configurarla)');
+          // console.log('No se pudo cargar la API key global (solo admin puede configurarla)');
         }
 
         // Cargar última sincronización global desde Config
@@ -245,7 +258,7 @@ function App() {
             setLastUpdatedAt(new Date(lastSync.value));
           }
         } catch (e) {
-          console.log('No se pudo cargar last_prices_sync_at');
+          // console.log('No se pudo cargar last_prices_sync_at');
         }
 
         // Cargar última ejecución de cierre diario
@@ -255,7 +268,7 @@ function App() {
             setDailyCloseLastRun(dclr.value);
           }
         } catch (e) {
-          console.log('No se pudo cargar daily_close_last_run');
+          // console.log('No se pudo cargar daily_close_last_run');
         }
 
         // Cargar tipo de cambio EUR/USD al iniciar
@@ -271,10 +284,18 @@ function App() {
             setContributionChartData(data);
           }
         } catch (e) {
-          console.log('No se pudo cargar contribución');
+          // console.log('No se pudo cargar contribución');
         }
 
-        // Cargar serie de PnL histórico (viene de DailyPortfolioStats)
+        // Cargar botones externos configurados
+        try {
+          const buttons = await externalButtonsAPI.getAll();
+          setExternalButtons(buttons || []);
+        } catch (e) {
+          // console.log('No se pudieron cargar botones externos');
+        }
+
+        // Cargar serie de PnL histórico (viene de DailyPort folioStats)
         try {
           const ts = await portfolioAPI.timeseries({ days: 30 });
           // El backend ahora retorna pnlEUR directamente como totalValueEUR
@@ -283,7 +304,7 @@ function App() {
           // at line 398 will update it once currentPrices are loaded
           setPnlSeries(series);
         } catch (e) {
-          console.log('No se pudo cargar la serie de PnL');
+          // console.log('No se pudo cargar la serie de PnL');
         }
       } catch (error) {
         console.error('Error cargando datos:', error);
@@ -321,7 +342,7 @@ function App() {
         // after operations state has been updated
         setPnlSeries(series);
       } catch (e) {
-        console.log('Error recargando datos por cambio de portafolio');
+        // console.log('Error recargando datos por cambio de portafolio');
       }
     };
     reloadForPortfolio();
@@ -748,6 +769,7 @@ function App() {
   // Buscar empresas por nombre usando Finnhub
   const searchCompanies = async (query) => {
     if (!finnhubApiKey) {
+      setMissingApiKeyWarning(true);
       setShowConfigModal(true);
       return;
     }
@@ -842,7 +864,7 @@ function App() {
       if (!eurPerUsd || eurPerUsd <= 0) throw new Error('Tipo de cambio inválido');
       setCurrentEURUSD(eurPerUsd);
       setCurrentEURUSDSource(String(data.source || ''));
-      console.log(`💱 Tipo de cambio EUR/USD actual: ${eurPerUsd.toFixed(4)} (1 USD = ${eurPerUsd.toFixed(4)} EUR)`);
+      // console.log(`💱 Tipo de cambio EUR/USD actual: ${eurPerUsd.toFixed(4)} (1 USD = ${eurPerUsd.toFixed(4)} EUR)`);
       return eurPerUsd;
     } catch (error) {
       console.error('Error al obtener tipo de cambio EUR/USD:', error);
@@ -878,7 +900,7 @@ function App() {
         }
       }
 
-      console.log(`Buscando en Yahoo Finance: ${yahooSymbol}`);
+      // console.log(`Buscando en Yahoo Finance: ${yahooSymbol}`);
 
       // Usar el backend para evitar problemas de CORS
       const response = await authenticatedFetch(`/api/yahoo/quote/${yahooSymbol}`);
@@ -978,7 +1000,7 @@ function App() {
             }
           }
         } catch (error) {
-          console.log('Finnhub falló, intentando Yahoo Finance...');
+          // console.log('Finnhub falló, intentando Yahoo Finance...');
         }
       }
 
@@ -1140,7 +1162,7 @@ function App() {
       }
     });
 
-    console.log('📊 Símbolos a consultar:', Object.entries(positionSymbols).map(([k, s]) => `${k}: ${s}`).join(', '));
+    // console.log('📊 Símbolos a consultar:', Object.entries(positionSymbols).map(([k, s]) => `${k}: ${s}`).join(', '));
 
     // Consultar precios para cada posición con símbolo
     const pricePromises = companies.map(async (positionKey) => {
@@ -1152,7 +1174,7 @@ function App() {
       const position = activePositions[positionKey];
       const companyName = position?.company || positionKey.split('|||')[0];
 
-      console.log(`[${companyName}] Consultando precio con símbolo: ${symbol}`);
+      // console.log(`[${companyName}] Consultando precio con símbolo: ${symbol}`);
 
       try {
         let symbolInput = symbol.toUpperCase().trim();
@@ -1216,12 +1238,12 @@ function App() {
                   source: 'finnhub',
                   updatedAt: new Date().toISOString()
                 };
-                console.log(`[${companyName}] Precio obtenido de Finnhub: $${priceData.price}`);
+                // console.log(`[${companyName}] Precio obtenido de Finnhub: $${priceData.price}`);
               }
             }
           } catch (error) {
             if (error.name !== 'AbortError') {
-              console.log(`[${companyName}] Finnhub falló, intentando Yahoo Finance...`);
+              // console.log(`[${companyName}] Finnhub falló, intentando Yahoo Finance...`);
             }
           }
         }
@@ -1245,7 +1267,7 @@ function App() {
             }
 
             if (priceData) {
-              console.log(`[${companyName}] Precio obtenido de Yahoo: $${priceData.price}`);
+              // console.log(`[${companyName}] Precio obtenido de Yahoo: $${priceData.price}`);
             }
           } catch (error) {
             if (error.message.includes('Timeout')) {
@@ -1266,7 +1288,7 @@ function App() {
               source: priceData.source
             });
           } catch (e) {
-            console.log(`[${companyName}] Error guardando precio en caché`);
+            // console.log(`[${companyName}] Error guardando precio en caché`);
           }
         }
 
@@ -1300,12 +1322,12 @@ function App() {
       }
     });
 
-    console.log(`✅ Precios actualizados: ${updated.length} empresas`);
+    // console.log(`✅ Precios actualizados: ${updated.length} empresas`);
     if (updated.length > 0) {
-      console.log(`   Empresas con precio: ${updated.join(', ')}`);
+      // console.log(`   Empresas con precio: ${updated.join(', ')}`);
     }
     if (failed.length > 0) {
-      console.log(`⚠️  Empresas sin precio: ${failed.join(', ')}`);
+      // console.log(`⚠️  Empresas sin precio: ${failed.join(', ')}`);
     }
 
     setCurrentPrices(prices);
@@ -1317,7 +1339,7 @@ function App() {
     try {
       await configAPI.set('last_prices_sync_at', nowIso);
     } catch (e) {
-      console.log('No se pudo actualizar last_prices_sync_at');
+      // console.log('No se pudo actualizar last_prices_sync_at');
     }
   };
 
@@ -1542,7 +1564,10 @@ function App() {
         exchangeRate: editExchangeRate,
         commission: operation.commission.toString(),
         targetPrice: operation.targetPrice ? operation.targetPrice.toString() : '',
-        date: formattedDate
+        date: formattedDate,
+        externalSymbol1: operation.externalSymbol1 || '',
+        externalSymbol2: operation.externalSymbol2 || '',
+        externalSymbol3: operation.externalSymbol3 || ''
       });
 
       // Llenar el campo de símbolo si existe
@@ -1568,7 +1593,10 @@ function App() {
         exchangeRate: '1',
         commission: '0',
         targetPrice: '',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        externalSymbol1: '',
+        externalSymbol2: '',
+        externalSymbol3: ''
       });
     }
   };
@@ -1656,7 +1684,10 @@ function App() {
         commission: parseFloat(formData.commission) || 0,
         targetPrice: formData.targetPrice ? parseFloat(formData.targetPrice) : null,
         date: operationDate,
-        totalCost: totalCost
+        totalCost: totalCost,
+        externalSymbol1: formData.externalSymbol1 || null,
+        externalSymbol2: formData.externalSymbol2 || null,
+        externalSymbol3: formData.externalSymbol3 || null
       };
 
       if (editingOperation) {
@@ -2147,7 +2178,16 @@ function App() {
             <button className="theme-toggle" onClick={toggleTheme}>
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
-            <button className="button" onClick={() => setShowHistory(!showHistory)}>
+            <button className="button" onClick={() => {
+              setShowReports(!showReports);
+              if (!showReports) setShowHistory(false); // Si abrimos reportes, cerramos histórico
+            }}>
+              {showReports ? '🏠 Portada' : '📊 Análisis'}
+            </button>
+            <button className="button" onClick={() => {
+              setShowHistory(!showHistory);
+              if (!showHistory) setShowReports(false); // Si abrimos histórico, cerramos reportes
+            }}>
               {showHistory ? '🏠 Portada' : '📜 Histórico'}
             </button>
             {currentUser?.isAdmin && (
@@ -2201,6 +2241,10 @@ function App() {
                     setShowUserMenu(false);
                   }} className="dropdown-item">⚙️ Config</button>
                   <button onClick={() => {
+                    setShowExternalButtonsModal(true);
+                    setShowUserMenu(false);
+                  }} className="dropdown-item">🔗 Botones Externos</button>
+                  <button onClick={() => {
                     setShowProfilePictureModal(true);
                     setShowUserMenu(false);
                   }} className="dropdown-item">👤 Perfil</button>
@@ -2216,7 +2260,15 @@ function App() {
         </div>
       </div>
 
-      {!showHistory ? (
+      {showReports ? (
+        <Reports
+          operations={operations.filter(op => op.portfolioId === currentPortfolioId)}
+          currentPrices={currentPrices}
+          currentEURUSD={currentEURUSD}
+          portfolioId={currentPortfolioId}
+          theme={theme}
+        />
+      ) : !showHistory ? (
         <>
           {/* Estadísticas */}
           <div className="stats">
@@ -2310,8 +2362,9 @@ function App() {
                     <th>Coste Promedio</th>
                     <th>Precio Actual</th>
                     <th>Valor Actual (EUR)</th>
-                    <th>Ganancia/Pérdida</th>
+                    <th>Ganancia pérdida</th>
                     <th>Precio Objetivo</th>
+                    <th>Info</th>
                     <th>Editar</th>
                   </tr>
                 </thead>
@@ -2367,25 +2420,18 @@ function App() {
                     let profitLossPercent = null;
 
                     if (currentPriceData) {
-                      // Precio actual está en la moneda de la acción (ej: USD para acciones de NASDAQ)
-                      // Calcular valor actual en la moneda base
                       currentValueInBaseCurrency = position.shares * currentPriceData.price;
 
-                      // Convertir a EUR usando el tipo de cambio ACTUAL (no el histórico)
-                      // Si la moneda es EUR, no hay conversión
-                      // Si es USD u otra moneda, usar el tipo de cambio EUR/USD actual
-                      if (currency === 'EUR') {
-                        currentValueInEUR = currentValueInBaseCurrency;
-                      } else if (currency === 'USD') {
-                        // Usar el tipo de cambio EUR/USD actual
-                        // currentEURUSD es cuántos EUR por 1 USD (ej: 0.92)
-                        // Para convertir USD a EUR: valor en USD × EUR por USD
-                        const eurPerUsd = currentEURUSD || 0.92; // Fallback si no está disponible (aprox 0.92)
-                        currentValueInEUR = currentValueInBaseCurrency * eurPerUsd;
-                      } else {
-                        // Para otras monedas, usar el tipo de cambio promedio ponderado como fallback
-                        currentValueInEUR = currentValueInBaseCurrency * weightedExchangeRatePurchase;
+                      // Convertir a EUR usando el tipo de cambio ACTUAL
+                      let rate = 1;
+                      if (currency === 'USD') {
+                        rate = currentEURUSD || 0.92; // Fallback si no hay dato
+                      } else if (currency !== 'EUR') {
+                        // Para otras monedas, usar el tipo de cambio almacenado en la operación más reciente (fallback)
+                        // Idealmente deberíamos tener un servicio de tipos de cambio en tiempo real para todas las monedas
+                        rate = latestOperation.exchangeRate || 1;
                       }
+                      currentValueInEUR = currentValueInBaseCurrency * rate;
 
                       // Ganancia/pérdida = Valor actual en EUR (con tipo de cambio actual) - Coste total en EUR (con tipo de cambio de compra + comisiones)
                       // position.totalCost ya incluye todas las comisiones de las compras
@@ -2398,142 +2444,69 @@ function App() {
                     }
 
                     return (
-                      <tr
+                      <ExpandablePositionRow
                         key={positionKey}
-                        draggable="true"
-                        onDragStart={(e) => handleDragStart(e, positionKey)}
+                        positionKey={positionKey}
+                        company={company}
+                        symbol={symbol}
+                        position={position}
+                        currency={currency}
+                        currentPriceData={currentPriceData}
+                        avgCostPerShare={avgCostPerShare}
+                        profitLossInEUR={profitLossInEUR}
+                        profitLossPercent={profitLossPercent}
+                        currentValueInEUR={currentValueInEUR}
+                        theme={theme}
+                        portfolioId={currentPortfolioId}
+                        formatPrice={formatPrice}
+                        formatCurrency={formatCurrency}
+                        onNoteClick={(pk) => {
+                          setNotePositionKey(pk);
+                          setNoteContent(notesCache[pk] === true ? 'Cargando...' : (typeof notesCache[pk] === 'string' ? notesCache[pk] : ''));
+                          setNoteOriginalContent('');
+                          setNoteEditMode(false);
+                          setShowNoteModal(true);
+
+                          if (notesCache[pk] === true) {
+                            setNoteLoading(true);
+                            notesAPI.getNote(pk, currentPortfolioId)
+                              .then(data => {
+                                setNoteContent(data.content || '');
+                                setNoteOriginalContent(data.content || '');
+                                setNoteEditMode(!data.content);
+                                setNotesCache(prev => ({ ...prev, [pk]: data.content || '' }));
+                              })
+                              .catch(() => {
+                                setNoteContent('');
+                                setNoteEditMode(true);
+                              })
+                              .finally(() => setNoteLoading(false));
+                          } else if (typeof notesCache[pk] === 'string') {
+                            setNoteOriginalContent(notesCache[pk]);
+                          } else {
+                            setNoteLoading(true);
+                            notesAPI.getNote(pk, currentPortfolioId)
+                              .then(data => {
+                                setNoteContent(data.content || '');
+                                setNoteOriginalContent(data.content || '');
+                                setNoteEditMode(!data.content);
+                                setNotesCache(prev => ({ ...prev, [pk]: data.content || '' }));
+                              })
+                              .catch(() => {
+                                setNoteContent('');
+                                setNoteEditMode(true);
+                              })
+                              .finally(() => setNoteLoading(false));
+                          }
+                        }}
+                        notesCache={notesCache}
+                        onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
                         onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, positionKey, Object.keys(activePositions))}
-                        className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
-                      >
-                        <td>
-                          <div>{company}</div>
-                          {symbol && (
-                            <div style={{ fontSize: '11px', color: '#888' }}>{symbol}</div>
-                          )}
-                        </td>
-                        <td>{position.shares}</td>
-                        <td>€{position.totalCost.toFixed(2)}</td>
-                        <td>{formatCurrency(avgCostPerShare, position.currency)}</td>
-                        <td>
-                          {currentPriceData ? (
-                            <div>
-                              <div style={{ fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                <span>{currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}</span>
-                                {(() => {
-                                  const src = currentPriceData.source;
-                                  const url = src === 'finnhub' ? 'https://finnhub.io/static/img/webp/finnhub-logo.webp' : (src === 'yahoo' ? 'https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg' : null);
-                                  const title = src ? `${src.toUpperCase()}${currentPriceData.updatedAt ? ` • ${new Date(currentPriceData.updatedAt).toLocaleString('es-ES', { hour12: false })}` : ''}` : '';
-                                  if (url) {
-                                    return (
-                                      <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="lazy" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
-                                    );
-                                  }
-                                  return null;
-                                })()}
-                              </div>
-                              {currentPriceData.change !== null && (
-                                <div style={{
-                                  fontSize: '11px',
-                                  color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444'
-                                }}>
-                                  {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)}
-                                  {' '}({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ color: '#888', fontSize: '12px' }}>
-                              {'Sin datos'}
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          {currentValueInEUR !== null ? (
-                            `€${currentValueInEUR.toFixed(2)}`
-                          ) : (
-                            <span style={{ color: '#888' }}>-</span>
-                          )}
-                        </td>
-                        <td>
-                          {profitLossInEUR !== null ? (
-                            <div style={{
-                              color: profitLossInEUR >= 0 ? '#10b981' : '#ef4444',
-                              fontWeight: 'bold'
-                            }}>
-                              {profitLossInEUR >= 0 ? '+' : ''}€{profitLossInEUR.toFixed(2)}
-                              {profitLossPercent !== null && (
-                                <div style={{ fontSize: '11px' }}>
-                                  ({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ color: '#888' }}>-</span>
-                          )}
-                        </td>
-                        <td>
-                          {(() => {
-                            const purchases = companyOperations.filter(op => op.type === 'purchase');
-                            if (purchases.length === 0) return <span style={{ color: '#888' }}>-</span>;
-
-                            const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-
-                            if (latestPurchase.targetPrice) {
-                              return (
-                                <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>
-                                  {currency === 'EUR' ? '€' : '$'}{formatPrice(latestPurchase.targetPrice)}
-                                </div>
-                              );
-                            }
-                            return <span style={{ color: '#888' }}>-</span>;
-                          })()}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '5px' }}>
-                            {companyOperations.map((operation) => (
-                              <button
-                                key={operation.id}
-                                className="button"
-                                onClick={() => openModal(operation.type, operation)}
-                                style={{ fontSize: '12px', padding: '5px 8px' }}
-                                title={`Editar ${operation.type === 'purchase' ? 'compra' : 'venta'}`}
-                              >
-                                ✏️ {operation.type === 'purchase' ? 'C' : 'V'}
-                              </button>
-                            ))}
-                            <button
-                              className="button"
-                              onClick={async () => {
-                                const pk = positionKey;
-                                setNotePositionKey(pk);
-                                setShowNoteModal(true);
-                                setNoteLoading(true);
-                                try {
-                                  const r = await notesAPI.get(pk);
-                                  const content = r?.content || '';
-                                  setNoteContent(content);
-                                  setNoteOriginalContent(content);
-                                  // If note is empty, start in edit mode; otherwise start in read mode
-                                  setNoteEditMode(!content || content.trim() === '');
-                                  setNotesCache(prev => ({ ...prev, [pk]: !!content }));
-                                } catch (e) {
-                                  setNoteContent('');
-                                  setNoteOriginalContent('');
-                                  setNoteEditMode(true); // Empty note, start in edit mode
-                                } finally {
-                                  setNoteLoading(false);
-                                }
-                              }}
-                              style={{ fontSize: '12px', padding: '5px 8px' }}
-                              title="Nota"
-                            >
-                              📝 Nota
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                        onDrop={handleDrop}
+                        draggedPosition={draggedPosition}
+                        allPositionKeys={Object.keys(activePositions)}
+                      />
                     );
                   })}
                 </tbody>
@@ -2620,6 +2593,7 @@ function App() {
               </div>
             </div>
           )}
+
           <div className="card">
             <h2>Operaciones Recientes</h2>
             {operations.length === 0 ? (
@@ -2998,6 +2972,25 @@ function App() {
                 </div>
               </div>
 
+              {/* Campos dinámicos para botones externos */}
+              {externalButtons.length > 0 && (
+                <div className="form-row">
+                  {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => (
+                    <div key={button.id} className="form-group" style={{ flex: 1 }}>
+                      <label>{button.name}:</label>
+                      <input
+                        type="text"
+                        name={`externalSymbol${button.displayOrder}`}
+                        value={formData[`externalSymbol${button.displayOrder}`] || ''}
+                        onChange={handleInputChange}
+                        className="input"
+                        placeholder="Símbolo"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Precio Objetivo (Opcional):</label>
                 <input
@@ -3026,415 +3019,508 @@ function App() {
             </form>
           </div>
         </div>
-      )}
+      )
+      }
 
       {/* Modal de Confirmación de Borrado con Contraseña */}
-      {showDeleteConfirm && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>⚠️ Confirmar Borrado de Datos</h2>
-            <p style={{ marginBottom: '20px', color: '#dc3545', fontWeight: 'bold' }}>
-              Esta acción borrará TODAS las operaciones guardadas. Esta acción NO se puede deshacer.
-            </p>
-            <div className="form-group">
-              <label>Ingresa la contraseña para confirmar el borrado:</label>
-              <input
-                type="password"
-                value={tempDeletePassword}
-                onChange={(e) => setTempDeletePassword(e.target.value)}
-                className="input"
-                placeholder="Escribe tu contraseña para confirmar"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    confirmDeleteWithPassword();
-                  }
-                }}
-              />
-            </div>
-            <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                className="button danger"
-                onClick={confirmDeleteWithPassword}
-                disabled={!tempDeletePassword}
-              >
-                🗑️ Confirmar Borrado
-              </button>
-              <button type="button" className="button" onClick={cancelDelete}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Selección de Posición para Vender */}
-      {showSelectPositionModal && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>📊 Seleccionar Posición para Vender</h2>
-            <p style={{ marginBottom: '20px', fontSize: '14px', color: '#888' }}>
-              Selecciona una posición activa para vender acciones. Puedes vender una cantidad parcial.
-            </p>
-            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              {Object.keys(getActivePositions()).length === 0 ? (
-                <p>No hay posiciones activas disponibles</p>
-              ) : (
-                <div>
-                  {Object.entries(getActivePositions()).map(([positionKey, position]) => {
-                    const company = position.company || positionKey.split('|||')[0];
-                    const symbol = position.symbol || '';
-
-                    // Filtrar operaciones que coincidan con esta posición
-                    const companyOperations = operations.filter(op => {
-                      const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
-                      return opKey === positionKey;
-                    });
-
-                    const avgCostPerShare = position.shares > 0 ? position.totalOriginalCost / position.shares : 0;
-                    const currentPriceData = currentPrices[positionKey];
-
-                    return (
-                      <div
-                        key={positionKey}
-                        onClick={() => selectPositionForSale(positionKey, position.shares)}
-                        style={{
-                          padding: '15px',
-                          margin: '10px 0',
-                          border: `2px solid ${theme === 'dark' ? '#404040' : '#d0d0d0'}`,
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = '#007bff';
-                          e.currentTarget.style.backgroundColor = theme === 'dark' ? '#404040' : '#f0f0f0';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = theme === 'dark' ? '#404040' : '#d0d0d0';
-                          e.currentTarget.style.backgroundColor = theme === 'dark' ? '#2d2d2d' : '#ffffff';
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '5px' }}>
-                              {company}
-                            </div>
-                            {symbol && (
-                              <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px' }}>
-                                {symbol}
-                              </div>
-                            )}
-                            <div style={{ display: 'flex', gap: '15px', fontSize: '14px' }}>
-                              <div>
-                                <strong>Acciones disponibles:</strong> {position.shares}
-                              </div>
-                              <div>
-                                <strong>Coste promedio:</strong> {formatCurrency(avgCostPerShare, position.currency)}
-                              </div>
-                              <div>
-                                <strong>Coste total:</strong> €{position.totalCost.toFixed(2)}
-                              </div>
-                            </div>
-                            {currentPriceData && (() => {
-                              // Usar la moneda de las operaciones de compra
-                              const purchases = companyOperations.filter(op => op.type === 'purchase');
-                              let positionCurrency = 'EUR';
-                              if (purchases.length > 0) {
-                                const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-                                positionCurrency = latestPurchase?.currency || 'EUR';
-                              }
-                              return (
-                                <div style={{ marginTop: '8px', fontSize: '13px', color: '#888' }}>
-                                  Precio actual: <strong style={{ color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444' }}>
-                                    {positionCurrency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}
-                                  </strong>
-                                  {' '}({currentPriceData.change >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
-                                </div>
-                              );
-                            })()}
-                          </div>
-                          <div style={{ marginLeft: '15px', fontSize: '24px' }}>
-                            →
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="button"
-                onClick={() => setShowSelectPositionModal(false)}
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showNoteModal && (
-        <div className="modal">
-          <div className="modal-content" style={{ maxWidth: '900px', width: '100%' }}>
-            <h2>📝 Nota</h2>
-
-            {noteEditMode ? (
-              // Edit Mode: Show only textarea (no preview to avoid multiple scrollbars)
-              <div className="form-group" style={{ margin: 0 }}>
-                <label>Markdown</label>
-                <textarea
+      {
+        showDeleteConfirm && (
+          <div className="modal">
+            <div className="modal-content">
+              <h2>⚠️ Confirmar Borrado de Datos</h2>
+              <p style={{ marginBottom: '20px', color: '#dc3545', fontWeight: 'bold' }}>
+                Esta acción borrará TODAS las operaciones guardadas. Esta acción NO se puede deshacer.
+              </p>
+              <div className="form-group">
+                <label>Ingresa la contraseña para confirmar el borrado:</label>
+                <input
+                  type="password"
+                  value={tempDeletePassword}
+                  onChange={(e) => setTempDeletePassword(e.target.value)}
                   className="input"
-                  style={{ minHeight: '300px', width: '100%', resize: 'vertical' }}
-                  value={noteContent}
-                  onChange={(e) => setNoteContent(e.target.value)}
-                  disabled={noteLoading || noteSaving}
-                  placeholder="# Título\n\nEscribe tu nota en Markdown..."
+                  placeholder="Escribe tu contraseña para confirmar"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      confirmDeleteWithPassword();
+                    }
+                  }}
                 />
               </div>
-            ) : (
-              // Read Mode: Show only preview (use modal's scrollbar, not card's)
-              <div className="card" style={{ width: '100%' }}>
-                <div dangerouslySetInnerHTML={{ __html: markdownToHtml(noteContent || '') }} />
+              <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="button danger"
+                  onClick={confirmDeleteWithPassword}
+                  disabled={!tempDeletePassword}
+                >
+                  🗑️ Confirmar Borrado
+                </button>
+                <button type="button" className="button" onClick={cancelDelete}>
+                  Cancelar
+                </button>
               </div>
-            )}
-
-            <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
-              {noteEditMode ? (
-                // Edit mode buttons: Save, Cancel, and Help
-                <>
-                  <button
-                    className="button primary"
-                    disabled={noteLoading || noteSaving}
-                    onClick={async () => {
-                      try {
-                        setNoteSaving(true);
-                        await notesAPI.upsert(notePositionKey, noteContent || '');
-                        setNotesCache(prev => ({ ...prev, [notePositionKey]: !!(noteContent) }));
-                        setNoteOriginalContent(noteContent);
-                        setNoteEditMode(false); // Switch to read mode to see the result
-                      } catch (e) {
-                        alert('Error guardando nota');
-                      } finally {
-                        setNoteSaving(false);
-                      }
-                    }}
-                  >
-                    Guardar
-                  </button>
-                  <button
-                    className="button"
-                    onClick={() => {
-                      setNoteContent(noteOriginalContent);
-                      if (noteOriginalContent && noteOriginalContent.trim()) {
-                        setNoteEditMode(false); // Return to read mode if there was content
-                      } else {
-                        setShowNoteModal(false); // Close if it was empty
-                      }
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    className="button"
-                    onClick={() => setShowMarkdownHelp(true)}
-                    style={{ marginLeft: 'auto' }}
-                    title="Guía de Markdown"
-                  >
-                    ❓ Ayuda
-                  </button>
-                </>
-              ) : (
-                // Read mode buttons: Edit and Close
-                <>
-                  <button
-                    className="button primary"
-                    onClick={() => setNoteEditMode(true)}
-                  >
-                    Editar
-                  </button>
-                  <button className="button" onClick={() => setShowNoteModal(false)}>Cerrar</button>
-                </>
-              )}
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
+
+      {/* Modal de Selección de Posición para Vender */}
+      {
+        showSelectPositionModal && (
+          <div className="modal">
+            <div className="modal-content">
+              <h2>📊 Seleccionar Posición para Vender</h2>
+              <p style={{ marginBottom: '20px', fontSize: '14px', color: '#888' }}>
+                Selecciona una posición activa para vender acciones. Puedes vender una cantidad parcial.
+              </p>
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {Object.keys(getActivePositions()).length === 0 ? (
+                  <p>No hay posiciones activas disponibles</p>
+                ) : (
+                  <div>
+                    {Object.entries(getActivePositions()).map(([positionKey, position]) => {
+                      const company = position.company || positionKey.split('|||')[0];
+                      const symbol = position.symbol || '';
+
+                      // Filtrar operaciones que coincidan con esta posición
+                      const companyOperations = operations.filter(op => {
+                        const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
+                        return opKey === positionKey;
+                      });
+
+                      const avgCostPerShare = position.shares > 0 ? position.totalOriginalCost / position.shares : 0;
+                      const currentPriceData = currentPrices[positionKey];
+
+                      return (
+                        <div
+                          key={positionKey}
+                          onClick={() => selectPositionForSale(positionKey, position.shares)}
+                          style={{
+                            padding: '15px',
+                            margin: '10px 0',
+                            border: `2px solid ${theme === 'dark' ? '#404040' : '#d0d0d0'}`,
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#007bff';
+                            e.currentTarget.style.backgroundColor = theme === 'dark' ? '#404040' : '#f0f0f0';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = theme === 'dark' ? '#404040' : '#d0d0d0';
+                            e.currentTarget.style.backgroundColor = theme === 'dark' ? '#2d2d2d' : '#ffffff';
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '5px' }}>
+                                {company}
+                              </div>
+                              {symbol && (
+                                <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px' }}>
+                                  {symbol}
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', gap: '15px', fontSize: '14px' }}>
+                                <div>
+                                  <strong>Acciones disponibles:</strong> {position.shares}
+                                </div>
+                                <div>
+                                  <strong>Coste promedio:</strong> {formatCurrency(avgCostPerShare, position.currency)}
+                                </div>
+                                <div>
+                                  <strong>Coste total:</strong> €{position.totalCost.toFixed(2)}
+                                </div>
+                              </div>
+                              {currentPriceData && (() => {
+                                // Usar la moneda de las operaciones de compra
+                                const purchases = companyOperations.filter(op => op.type === 'purchase');
+                                let positionCurrency = 'EUR';
+                                if (purchases.length > 0) {
+                                  const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+                                  positionCurrency = latestPurchase?.currency || 'EUR';
+                                }
+                                return (
+                                  <div style={{ marginTop: '8px', fontSize: '13px', color: '#888' }}>
+                                    Precio actual: <strong style={{ color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444' }}>
+                                      {positionCurrency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}
+                                    </strong>
+                                    {' '}({currentPriceData.change >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            <div style={{ marginLeft: '15px', fontSize: '24px' }}>
+                              →
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => setShowSelectPositionModal(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        showNoteModal && (
+          <div className="modal">
+            <div className="modal-content" style={{ maxWidth: '900px', width: '100%' }}>
+              <h2>📝 Nota</h2>
+
+              {noteEditMode ? (
+                // Edit Mode: Show only textarea (no preview to avoid multiple scrollbars)
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Markdown</label>
+                  <textarea
+                    className="input"
+                    style={{ minHeight: '300px', width: '100%', resize: 'vertical' }}
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    disabled={noteLoading || noteSaving}
+                    placeholder="# Título\n\nEscribe tu nota en Markdown..."
+                  />
+                </div>
+              ) : (
+                // Read Mode: Show only preview (use modal's scrollbar, not card's)
+                <div className="card" style={{ width: '100%' }}>
+                  <div dangerouslySetInnerHTML={{ __html: markdownToHtml(noteContent || '') }} />
+                </div>
+              )}
+
+              <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
+                {noteEditMode ? (
+                  // Edit mode buttons: Save, Cancel, and Help
+                  <>
+                    <button
+                      className="button primary"
+                      disabled={noteLoading || noteSaving}
+                      onClick={async () => {
+                        try {
+                          setNoteSaving(true);
+                          await notesAPI.upsert(notePositionKey, noteContent || '');
+                          setNotesCache(prev => ({ ...prev, [notePositionKey]: !!(noteContent) }));
+                          setNoteOriginalContent(noteContent);
+                          setNoteEditMode(false); // Switch to read mode to see the result
+                        } catch (e) {
+                          alert('Error guardando nota');
+                        } finally {
+                          setNoteSaving(false);
+                        }
+                      }}
+                    >
+                      Guardar
+                    </button>
+                    <button
+                      className="button"
+                      onClick={() => {
+                        setNoteContent(noteOriginalContent);
+                        if (noteOriginalContent && noteOriginalContent.trim()) {
+                          setNoteEditMode(false); // Return to read mode if there was content
+                        } else {
+                          setShowNoteModal(false); // Close if it was empty
+                        }
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      className="button"
+                      onClick={() => setShowMarkdownHelp(true)}
+                      style={{ marginLeft: 'auto' }}
+                      title="Guía de Markdown"
+                    >
+                      ❓ Ayuda
+                    </button>
+                  </>
+                ) : (
+                  // Read mode buttons: Edit and Close
+                  <>
+                    <button
+                      className="button primary"
+                      onClick={() => setNoteEditMode(true)}
+                    >
+                      Editar
+                    </button>
+                    <button className="button" onClick={() => setShowNoteModal(false)}>Cerrar</button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      }
 
       {/* Markdown Help Modal */}
-      {showMarkdownHelp && (
-        <div className="modal" style={{ zIndex: 10001 }}>
-          <div className="modal-content" style={{ maxWidth: '700px', width: '100%' }}>
-            <h2>📖 Guía Rápida de Markdown</h2>
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Encabezados</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`# Título Principal (H1)\n## Título Secundario (H2)\n### Título Terciario (H3)\n#### Subtítulo (H4)`}</pre>
-            </div>
-
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Énfasis</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`**Texto en negrita**\n*Texto en cursiva*`}</pre>
-              <div style={{ marginTop: '8px', fontSize: '14px' }}>
-                <strong>Texto en negrita</strong><br />
-                <em>Texto en cursiva</em>
+      {
+        showMarkdownHelp && (
+          <div className="modal" style={{ zIndex: 10001 }}>
+            <div className="modal-content" style={{ maxWidth: '700px', width: '100%' }}>
+              <h2>📖 Guía Rápida de Markdown</h2>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Encabezados</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`# Título Principal (H1)\n## Título Secundario (H2)\n### Título Terciario (H3)\n#### Subtítulo (H4)`}</pre>
               </div>
-            </div>
 
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Listas</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`- Elemento 1\n- Elemento 2\n- Elemento 3`}</pre>
-              <div style={{ marginTop: '8px', fontSize: '14px' }}>
-                <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
-                  <li>Elemento 1</li>
-                  <li>Elemento 2</li>
-                  <li>Elemento 3</li>
-                </ul>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Énfasis</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`**Texto en negrita**\n*Texto en cursiva*`}</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <strong>Texto en negrita</strong><br />
+                  <em>Texto en cursiva</em>
+                </div>
               </div>
-            </div>
 
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Enlaces</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>[Texto del enlace](https://ejemplo.com)</pre>
-              <div style={{ marginTop: '8px', fontSize: '14px' }}>
-                <a href="https://ejemplo.com" target="_blank" rel="noopener noreferrer">Texto del enlace</a>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Listas</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`- Elemento 1\n- Elemento 2\n- Elemento 3`}</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                    <li>Elemento 1</li>
+                    <li>Elemento 2</li>
+                    <li>Elemento 3</li>
+                  </ul>
+                </div>
               </div>
-            </div>
 
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Código</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`Código inline: \`código aquí\`\n\nBloque de código:\n\`\`\`\nfunción ejemplo() {\n  return "Hola";\n}\n\`\`\``}</pre>
-            </div>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Enlaces</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>[Texto del enlace](https://ejemplo.com)</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <a href="https://ejemplo.com" target="_blank" rel="noopener noreferrer">Texto del enlace</a>
+                </div>
+              </div>
 
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Línea Horizontal</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>---</pre>
-              <hr style={{ margin: '8px 0' }} />
-            </div>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Código</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`Código inline: \`código aquí\`\n\nBloque de código:\n\`\`\`\nfunción ejemplo() {\n  return "Hola";\n}\n\`\`\``}</pre>
+              </div>
 
-            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="button primary" onClick={() => setShowMarkdownHelp(false)}>
-                Cerrar
-              </button>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Línea Horizontal</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>---</pre>
+                <hr style={{ margin: '8px 0' }} />
+              </div>
+
+              <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="button primary" onClick={() => setShowMarkdownHelp(false)}>
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
 
 
       {/* Modal de Imagen de Perfil */}
-      {showProfilePictureModal && (
-        <ProfilePictureModal
-          show={true}
-          onClose={() => setShowProfilePictureModal(false)}
-          onUploadSuccess={() => {
-            setShowProfilePictureModal(false);
-          }}
-          onDeleteSuccess={() => {
-            setShowProfilePictureModal(false);
-          }}
-          currentProfilePictureUrl={profilePictureUrl}
-          fetchProfilePicture={fetchProfilePicture}
-        />
-      )}
+      {
+        showProfilePictureModal && (
+          <ProfilePictureModal
+            show={true}
+            onClose={() => setShowProfilePictureModal(false)}
+            onUploadSuccess={() => {
+              setShowProfilePictureModal(false);
+            }}
+            onDeleteSuccess={() => {
+              setShowProfilePictureModal(false);
+            }}
+            currentProfilePictureUrl={profilePictureUrl}
+            fetchProfilePicture={fetchProfilePicture}
+          />
+        )
+      }
 
       {/* Modal de Configuración */}
-      {showConfigModal && (
-        <div className="modal">
-          <div className="modal-content" style={{ maxWidth: '550px' }}>
-            <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>⚙️ Configuración</h2>
+      {
+        showConfigModal && (
+          <div className="modal">
+            <div className="modal-content" style={{ maxWidth: '550px' }}>
+              <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>⚙️ Configuración</h2>
 
-            {/* Sección Cambiar Contraseña */}
-            <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}` }}>
-              <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🔒 Cambiar Contraseña</h3>
-              <div className="form-group" style={{ marginBottom: '10px' }}>
-                <label style={{ fontSize: '13px', marginBottom: '4px' }}>Contraseña Actual:</label>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="input"
-                  placeholder="Contraseña actual"
-                  style={{ fontSize: '14px', padding: '8px' }}
-                  autoComplete="current-password"
-                />
+              {/* Sección API Key */}
+              <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}` }}>
+                <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🔑 Finnhub API Key</h3>
+                {missingApiKeyWarning && (
+                  <div style={{
+                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                    border: '1px solid #ffc107',
+                    color: '#ffc107',
+                    padding: '10px',
+                    borderRadius: '4px',
+                    marginBottom: '10px',
+                    fontSize: '13px'
+                  }}>
+                    ⚠️ Necesitas configurar una API Key de Finnhub para buscar empresas.
+                  </div>
+                )}
+                <div className="form-group" style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '13px', marginBottom: '4px' }}>API Key:</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      value={finnhubApiKey}
+                      onChange={(e) => setFinnhubApiKey(e.target.value)}
+                      className="input"
+                      placeholder="Introduce tu API Key de Finnhub"
+                      style={{ fontSize: '14px', padding: '8px', flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      className="button primary"
+                      onClick={async () => {
+                        try {
+                          const response = await authenticatedFetch('/api/admin/finnhub-api-key', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ value: finnhubApiKey })
+                          });
+                          if (response.ok) {
+                            alert('✅ API Key guardada correctamente');
+                            setMissingApiKeyWarning(false);
+                          } else {
+                            alert('❌ Error al guardar API Key');
+                          }
+                        } catch (e) {
+                          console.error(e);
+                          alert('❌ Error al guardar API Key');
+                        }
+                      }}
+                      style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
+                    >
+                      💾 Guardar
+                    </button>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#888', marginTop: '5px' }}>
+                    Obtén tu clave gratuita en <a href="https://finnhub.io/" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>finnhub.io</a>
+                  </p>
+                </div>
               </div>
-              <div className="form-group" style={{ marginBottom: '10px' }}>
-                <label style={{ fontSize: '13px', marginBottom: '4px' }}>Nueva Contraseña:</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="input"
-                  placeholder="Nueva contraseña (mín. 6 caracteres)"
-                  style={{ fontSize: '14px', padding: '8px' }}
-                  autoComplete="new-password"
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: '0', display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '13px', marginBottom: '4px' }}>Confirmar Nueva:</label>
+
+              {/* Sección Cambiar Contraseña */}
+              <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}` }}>
+                <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🔒 Cambiar Contraseña</h3>
+                <div className="form-group" style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '13px', marginBottom: '4px' }}>Contraseña Actual:</label>
                   <input
                     type="password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
                     className="input"
-                    placeholder="Confirma la nueva contraseña"
+                    placeholder="Contraseña actual"
+                    style={{ fontSize: '14px', padding: '8px' }}
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '13px', marginBottom: '4px' }}>Nueva Contraseña:</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="input"
+                    placeholder="Nueva contraseña (mín. 6 caracteres)"
                     style={{ fontSize: '14px', padding: '8px' }}
                     autoComplete="new-password"
                   />
                 </div>
+                <div className="form-group" style={{ marginBottom: '0', display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '13px', marginBottom: '4px' }}>Confirmar Nueva:</label>
+                    <input
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className="input"
+                      placeholder="Confirma la nueva contraseña"
+                      style={{ fontSize: '14px', padding: '8px' }}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="button primary"
+                    onClick={handleChangePassword}
+                    style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
+                  >
+                    💾 Cambiar
+                  </button>
+                </div>
+              </div>
+
+              {/* Sección Borrar Datos */}
+              <div style={{ marginBottom: '0' }}>
+                <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🗑️ Borrar Todas las Operaciones</h3>
+                <p style={{ marginBottom: '10px', fontSize: '12px', color: '#dc3545', fontWeight: 'bold' }}>
+                  ⚠️ Esta acción borrará TODAS las operaciones. NO se puede deshacer.
+                </p>
                 <button
                   type="button"
-                  className="button primary"
-                  onClick={handleChangePassword}
-                  style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
+                  className="button danger"
+                  onClick={clearAllOperations}
+                  style={{ fontSize: '14px', padding: '8px 16px' }}
                 >
-                  💾 Cambiar
+                  🗑️ Borrar Todas las Operaciones
+                </button>
+              </div>
+
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    setShowConfigModal(false);
+                    setMissingApiKeyWarning(false);
+                    setCurrentPassword('');
+                    setNewPassword('');
+                    setConfirmNewPassword('');
+                  }}
+                  style={{ fontSize: '14px', padding: '8px 16px' }}
+                >
+                  Cerrar
                 </button>
               </div>
             </div>
-
-            {/* Sección Borrar Datos */}
-            <div style={{ marginBottom: '0' }}>
-              <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🗑️ Borrar Todas las Operaciones</h3>
-              <p style={{ marginBottom: '10px', fontSize: '12px', color: '#dc3545', fontWeight: 'bold' }}>
-                ⚠️ Esta acción borrará TODAS las operaciones. NO se puede deshacer.
-              </p>
-              <button
-                type="button"
-                className="button danger"
-                onClick={clearAllOperations}
-                style={{ fontSize: '14px', padding: '8px 16px' }}
-              >
-                🗑️ Borrar Todas las Operaciones
-              </button>
-            </div>
-
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  setShowConfigModal(false);
-                  setCurrentPassword('');
-                  setNewPassword('');
-                  setConfirmNewPassword('');
-                }}
-                style={{ fontSize: '14px', padding: '8px 16px' }}
-              >
-                Cerrar
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+
+      <ExternalButtonsModal
+        show={showExternalButtonsModal}
+        onClose={() => setShowExternalButtonsModal(false)}
+        externalButtons={externalButtons}
+        setExternalButtons={setExternalButtons}
+      />
+
+      <ProfilePictureModal
+        show={showProfilePictureModal}
+        onClose={() => setShowProfilePictureModal(false)}
+        currentUser={currentUser}
+        onUpdate={(url) => {
+          setProfilePictureUrl(url);
+          // Actualizar también el usuario actual para reflejar el cambio si es necesario
+          if (currentUser) {
+            setCurrentUser({ ...currentUser });
+          }
+        }}
+      />
+    </div >
   );
 }
 

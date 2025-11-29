@@ -437,6 +437,26 @@ function Admin() {
             >
               🔁 Rearmar Alertas
             </button>
+            <button
+              className="button"
+              onClick={async () => {
+                if (!window.confirm('¿Generar reportes para todos los portafolios ahora?')) return;
+                try {
+                  const r = await authenticatedFetch('/api/admin/reports/generate', { method: 'POST' });
+                  const d = await r.json().catch(() => ({}));
+                  if (r.ok) {
+                    setSuccess(`Reportes generados (${d.count || '—'} portafolios procesados)`);
+                  } else {
+                    setError(d?.error || 'Error generando reportes');
+                  }
+                } catch (e) {
+                  setError('Error generando reportes');
+                }
+              }}
+              style={{ justifyContent: 'center' }}
+            >
+              📊 Generar Reportes
+            </button>
           </div>
         </div>
       </div>

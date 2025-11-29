@@ -1,101 +1,70 @@
-# Stocks Manager
+# 📈 Stocks Manager
 
-Gestor de carteras diseñado para seguimiento de posiciones, cálculo de PnL en EUR, contribución por empresa y snapshots diarios, con un panel de administración para automatizaciones y tareas de mantenimiento.
+**Stocks Manager** es un gestor de carteras de inversión personal, diseñado para ofrecer un seguimiento detallado de posiciones, cálculo preciso de PnL (Ganancias/Pérdidas) en EUR, y análisis avanzado de contribución.
 
-## Arquitectura
-- Frontend: React + Vite (gráficas con Recharts).
-- Backend: Node.js + Express.
-- Persistencia: Sequelize (MariaDB).
-- Integraciones externas:
-  - Yahoo Finance: cotizaciones y tipos de cambio (EURUSD=X, EURGBP=X).
-  - Finnhub (opcional): cotizaciones en tiempo real si se configura API Key. Dispone de plan gratuito con límite de 60 peticiones por minuto.
+Soporta **múltiples portafolios**, actualizaciones de precios en tiempo real, y snapshots diarios para construir un histórico fiable.
 
-## Funcionalidades
-- Posiciones activas con cálculo de “Ganancia/Pérdida” en EUR (usa tipo de cambio actual para USD; otras divisas usan el exchangeRate de compra ponderado).
-- Gráfica “Contribución por Empresa” con colores diferenciados y leyenda sincronizada.
-- Gráfica de PnL de los últimos 30 días (serie diaria basada en snapshots).
-- Actualización de precios y FX bajo demanda (botón “🔄 Actualizar Precios”).
-- Cierre diario: genera snapshots (DailyPrices) del día laboral anterior en horario de España.
-- Panel de administración: configuración del scheduler, ejecución manual del cierre y acciones de mantenimiento.
+## 🚀 Funcionalidades Principales
 
-## API (resumen)
-- Base: `VITE_API_URL` (por defecto `/api`).
-- Autenticación:
-  - `POST /api/auth/login` (token/session usada por `authenticatedFetch`).
-- Operaciones:
-  - `GET /api/operations` | `POST /api/operations` | `PUT /api/operations/:id` | `DELETE /api/operations/:id` | `DELETE /api/operations`.
-- Notas:
-  - `GET /api/notes/:positionKey` | `PUT /api/notes/:positionKey` | `DELETE /api/notes/:positionKey`.
-- Precios (caché):
-  - `POST /api/prices/bulk` (por positionKeys) | `PUT /api/prices/:positionKey`.
-- Portfolio:
-  - `GET /api/portfolio/contribution?date=YYYY-MM-DD`.
-  - `GET /api/portfolio/timeseries?days=30`.
-- Admin:
-  - `GET/POST /api/admin/scheduler` | `POST /api/admin/scheduler/run`.
-  - `POST /api/admin/daily-close/run`.
-  - `POST /api/admin/resetadmin` | `GET /api/admin/resetadmin/status` | `POST /api/admin/resetadmin/rollback`.
-- Config:
-  - `GET /api/config` | `GET /api/config/:key` | `POST /api/config/:key` | `DELETE /api/config/:key`.
-- Salud:
-  - `GET /api/health`.
+### 💼 Gestión de Portafolios
+- **Multi-Portafolio**: Organiza tus inversiones en carteras independientes (ej: "Largo Plazo", "Trading", "Ahorros").
+- **Favoritos**: Marca tu portafolio principal para acceso rápido.
+- **Aislamiento**: Cada portafolio mantiene sus propias operaciones, historial y estadísticas.
 
-## Yahoo Finance y normalización
-- Cotizaciones: `regularMarketPreviousClose` y `regularMarketPrice`.
-- Símbolos: se normalizan mapeando separadores `:` y `-` a `.` donde corresponde.
-- Tipos de cambio a EUR:
-  - `EURUSD=X`: se usa “EUR por 1 USD” y se multiplica el valor en USD por ese factor.
-  - `EURGBP=X`: mapeo similar para GBP.
+### 📊 Análisis Avanzado
+- **Dashboard Completo**: ROI, Win Rate, Tiempo de Tenencia, y Crecimiento Mensual.
+- **Gráficos Interactivos**: Evolución del PnL, distribución por activo (Pie Chart), y análisis mensual.
+- **Alertas Inteligentes**: Avisos automáticos sobre pérdidas significativas, oportunidades de toma de ganancias y riesgos de concentración.
+- **Reportes**: Generación de informes diarios, mensuales y anuales.
 
-## Cierre diario (Spain timezone)
-- Fecha objetivo: “día laboral anterior” calculado en zona `Europe/Madrid`.
-- Por cada posición (empresa+símbolo), se guarda `close`, `currency`, `exchangeRate` y `source=yahoo`.
-- Índice único: `(userId, positionKey, date)`.
+### 🔄 Precios y Datos
+- **Multi-Fuente**: Integración con Finnhub (tiempo real) y Yahoo Finance (cierre/divisas).
+- **Multi-Divisa**: Conversión automática de activos en USD a EUR.
+- **Cierre Diario**: Snapshot automático de todas las posiciones cada madrugada (01:00 AM) para el histórico.
 
-## Scheduler de precios
-- Configurable en `/admin` (enabled/interval en minutos) y persistente en base de datos.
-- Ejecuta actualizaciones periódicas de caché de precios.
+### 🛡️ Administración
+- **Panel de Control**: Gestión de usuarios, configuración del sistema y tareas de mantenimiento.
+- **Seguridad**: Autenticación JWT y protección de rutas.
 
-## Variables de entorno (ejemplo)
-- `.env`:
-  - `MYSQL_USER=portfolio_manager`
-  - `MYSQL_PASSWORD=portfolio_manager`
-  - `MYSQL_DATABASE=portfolio_manager`
-  - `VITE_API_URL=/api`
+## 🛠️ Instalación Rápida
 
-## Instalación con Docker
-1. Clonar el repositorio:
-   - `git clone https://github.com/salocinmad/stocks-manager.git`
-   - `cd stocks-manager`
-2. Construcción estándar:
-   - `docker compose build`
-3. Arranque:
-   - `docker compose up -d`
-4. Reconstrucción sin caché (recomendado tras cambios grandes):
-   - `docker compose build --no-cache`
-   - `docker compose up -d`
-5. Logs:
-   - `docker compose logs -f`
+### Requisitos
+- Docker y Docker Compose
 
-> Ver guía ampliada en `DOCKER.md` (backup/restore, troubleshooting, exec dentro de contenedores).
+### Pasos
+1. **Clonar el repositorio**:
+   ```bash
+   git clone https://github.com/salocinmad/stocks-manager.git
+   cd stocks-manager
+   ```
 
-## Instalación en Desarrollo (sin Docker)
-1. Clonar el repositorio:
-   - `git clone https://github.com/salocinmad/stocks-manager.git`
-   - `cd stocks-manager`
-2. Backend:
-   - `cd server && npm install && npm start`
-3. Frontend:
-   - `cd frontend && npm install && npm run dev`
+2. **Configurar entorno**:
+   Crea un archivo `.env` (basado en `.env.example`):
+   ```env
+   MYSQL_USER=portfolio_manager
+   MYSQL_PASSWORD=portfolio_manager
+   MYSQL_DATABASE=portfolio_manager
+   VITE_API_URL=/api
+   ```
 
-## Panel de Administración
-- Botón `🛠️ Admin` visible solo para usuarios admin.
-- Configuración de scheduler, ejecución de cierre diario y utilidades.
+3. **Iniciar**:
+   ```bash
+   docker compose up -d
+   ```
 
-## Reset de Administrador
-- Documento dedicado: `ADMIN_RESET.md`.
-- Método principal: `POST /api/admin/resetadmin`.
+4. **Acceder**:
+   - Web: `http://localhost:80`
+   - Usuario inicial: Crea uno nuevo o usa el admin predeterminado.
 
-## Troubleshooting
-- Frontend en negro: revisar consola (p. ej. `React is not defined` → importar hooks correctamente) y reconstruir frontend.
-- Cierre diario: verificar `daily_close_last_run` y filas en `DailyPrices` para la fecha esperada.
+## 📚 Documentación
+
+Para más detalles, consulta las guías especializadas:
+
+- **[🛡️ Guía de Administración](./ADMINISTRATION.md)**: Gestión de usuarios, restablecimiento de contraseñas, cierre diario y configuración.
+- **[🐳 Guía de Infraestructura (Docker)](./DOCKER.md)**: Comandos de Docker, copias de seguridad (Backups), restauración y solución de problemas.
+
+## 🔧 Stack Tecnológico
+- **Frontend**: React, Vite, Recharts.
+- **Backend**: Node.js, Express, Sequelize.
+- **Base de Datos**: MariaDB.
+- **Infraestructura**: Docker Compose.

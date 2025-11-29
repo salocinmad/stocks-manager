@@ -1,7 +1,16 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
 import Config from '../models/Config.js';
+
+// Instancia de Yahoo Finance v3
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey'],
+  queue: {
+    concurrency: 1,
+    timeout: 300
+  }
+});
 
 const router = express.Router();
 
@@ -50,7 +59,12 @@ router.get('/quote/:symbol', async (req, res) => {
       return res.status(404).json({ error: 'Precio no disponible en Yahoo Finance' });
     }
 
-    const previousClose = meta.previousClose || regularMarketPrice;
+    const previousClose = (
+      meta.regularMarketPreviousClose ??
+      meta.chartPreviousClose ??
+      meta.previousClose ??
+      regularMarketPrice
+    );
     const change = regularMarketPrice - previousClose;
     const changePercent = previousClose > 0 ? (change / previousClose) * 100 : 0;
 
@@ -91,7 +105,7 @@ router.get('/fx/eurusd', async (req, res) => {
     }
     const q = await yahooFinance.quote('EURUSD=X');
     const r = q?.regularMarketPrice || q?.regularMarketPreviousClose || null;
-    console.log(`💱 Yahoo EUR/USD: ${r} (Source: ${q?.regularMarketPrice ? 'price' : 'close'})`);
+    // console.log(`💱 Yahoo EUR/USD: ${r} (Source: ${q?.regularMarketPrice ? 'price' : 'close'})`);
     if (!r || r <= 0) {
       return res.status(502).json({ error: 'Tipo de cambio no disponible' });
     }

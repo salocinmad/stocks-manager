@@ -14,7 +14,14 @@ const DailyPrice = sequelize.define('DailyPrice', {
   close: { type: DataTypes.FLOAT, allowNull: false },
   currency: { type: DataTypes.STRING, allowNull: false, defaultValue: 'EUR' },
   exchangeRate: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 1 },
-  source: { type: DataTypes.STRING, allowNull: true, defaultValue: 'yahoo' }
+  source: { type: DataTypes.STRING, allowNull: true, defaultValue: 'yahoo' },
+  // Nuevos campos para análisis histórico mejorado
+  change: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
+  changePercent: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
+  open: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
+  high: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
+  low: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
+  shares: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null }
 }, {
   tableName: 'DailyPrices',
   timestamps: true,

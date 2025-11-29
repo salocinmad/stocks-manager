@@ -10,15 +10,21 @@ import configRoutes from './routes/config.js';
 import DailyPrice from './models/DailyPrice.js';
 import DailyPortfolioStats from './models/DailyPortfolioStats.js';
 import Portfolio from './models/Portfolio.js';
+import PortfolioReport from './models/PortfolioReport.js';
 import Config from './models/Config.js';
 import ProfilePicture from './models/ProfilePicture.js';
 import profilePicturesRoutes from './routes/profilePictures.js';
 import positionRoutes from './routes/positions.js';
-import pricesRoutes from './routes/prices.js';
+
 import notesRoutes from './routes/notes.js';
 import portfolioRoutes from './routes/portfolio.js';
+import externalButtonsRoutes from './routes/externalButtons.js';
+import reportsRoutes from './routes/reports.js';
 import scheduler from './services/scheduler.js';
 import dailyClose from './services/dailyClose.js';
+
+// Nuevas rutas API modulares
+import pricesApiRoutes from './routes/api/prices.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -69,10 +75,15 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/yahoo', yahooRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/positions', positionRoutes);
-app.use('/api/prices', pricesRoutes);
+// app.use('/api/prices', pricesRoutes);  // ← DEPRECATED: usar API modular abajo
 app.use('/api/notes', notesRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile-pictures', profilePicturesRoutes);
+app.use('/api/external-buttons', externalButtonsRoutes);
+app.use('/api/reports', reportsRoutes);
+
+// Nuevas rutas API modulares
+app.use('/api/prices', pricesApiRoutes);  // ← NUEVO: API modular
 
 // Ruta de estado (Health Check)
 app.get('/api/health', (req, res) => {
