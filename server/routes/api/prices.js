@@ -11,6 +11,8 @@ import { getSymbolFromPositionKey } from '../../utils/symbolHelpers.js';
 
 const router = express.Router();
 
+console.log('🚀 routes/api/prices.js LOADED - endpoints: /bulk, /current/:symbol, /historical/:symbol, /update/:symbol');
+
 // Aplicar autenticación a todas las rutas
 router.use(authenticate);
 
