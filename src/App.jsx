@@ -224,7 +224,7 @@ function App() {
               }
             });
             if (Object.keys(cachePrices).length > 0) {
-              setCurrentPrices(prev => ({ ...cachePrices, ...prev }));
+              setCurrentPrices(prev => ({ ...prev, ...cachePrices }));
             }
             // Fallback: si Config no tiene fecha, usar el máximo updatedAt de caché
             if (!lastUpdatedAt && maxUpdatedAt) {
@@ -562,31 +562,20 @@ function App() {
     // Esta función solo actualiza el estado local
   };
 
-  // Determinar número de decimales apropiado para un precio
-  const getPriceDecimals = (price) => {
-    if (!price || price === 0) return 2;
-
-    // Si el precio es menor a 1, usar 4 decimales
-    if (price < 1) {
-      return 4;
-    }
-    // Si el precio es menor a 10, usar 3 decimales
-    if (price < 10) {
-      return 3;
-    }
-    // Si el precio es menor a 100, usar 2 decimales
-    if (price < 100) {
-      return 2;
-    }
-    // Para precios mayores, usar 2 decimales
-    return 2;
-  };
-
-  // Formatear precio con decimales apropiados
+  // Formatear precio con decimales dinámicos (máx 4)
   const formatPrice = (price) => {
     if (price === null || price === undefined) return '-';
-    const decimals = getPriceDecimals(price);
-    return price.toFixed(decimals);
+    const val = parseFloat(price);
+    if (isNaN(val)) return '-';
+
+    const absVal = Math.abs(val);
+    let decimals = 2;
+
+    if (absVal < 1 && absVal > 0) decimals = 4;
+    else if (absVal < 10 && absVal > 0) decimals = 3;
+    else decimals = 2;
+
+    return val.toFixed(decimals);
   };
 
   // Formatear moneda con símbolo correcto

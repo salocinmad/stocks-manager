@@ -1,0 +1,316 @@
+server-1  | 🚀 Iniciando Stocks Manager Backend...
+server-1  | ✅ Enlace simbólico creado: /app/.env -> /app/env/.env
+server-1  | 📝 Verificando archivo .env...
+server-1  | ✅ Archivo .env ya existe con contenido, no se generará uno nuevo
+server-1  | ⏳ Esperando a que MariaDB esté disponible...
+server-1  |    Intento 1/30: MariaDB no está listo aún, esperando...
+server-1  |    Intento 2/30: MariaDB no está listo aún, esperando...
+server-1  |    Intento 3/30: MariaDB no está listo aún, esperando...
+server-1  | ✅ MariaDB está disponible (conectado a 'mariadb')
+server-1  | 👤 Verificando usuario administrador...
+server-1  | ✅ Conectado a MariaDB correctamente
+server-1  | ✅ Modelos sincronizados
+server-1  | 🌐 Iniciando servidor...
+server-1  | 🚀 routes/api/prices.js LOADED - endpoints: /bulk, /current/:symbol, /historical/:symbol, /update/:symbol
+server-1  | Server running on port 5000
+server-1  | ✅ Conectado a MariaDB correctamente
+server-1  | ✅ Modelos sincronizados
+server-1  | 🚀 Iniciando scheduler de precios (cada 5 minutos)...
+server-1  | 🔄 Actualizando precios de acciones EN USO...
+server-1  | 📊 9 acciones activas
+server-1  | 🔍 Intentando Yahoo para BOW...
+server-1  | 📞 Yahoo API (fetch directo) para 'BOW' → 'BOW'...
+server-1  | 🔍 BOW previousClose fields: {
+server-1  |   chartPreviousClose: 27.89,
+server-1  |   previousClose: undefined,
+server-1  |   regularMarketPreviousClose: undefined
+server-1  | }
+server-1  | 💰 BOW: price=27.85, prevClose=27.89, change=-0.03999999999999915, change%=-0.14%
+server-1  | ✅ Yahoo BOW: 27.85 (USD)
+server-1  | ✅ Yahoo BOW: Datos obtenidos - 27.85
+server-1  | 📊 BOW - Finnhub data: { price: 27.85, change: -0.04, changePercent: -0.1434 }
+server-1  | 📊 BOW - Yahoo data: {
+server-1  |   price: 27.85,
+server-1  |   change: -0.03999999999999915,
+server-1  |   changePercent: -0.14342058085334938
+server-1  | }
+server-1  | 🔀 BOW - Combined: {
+server-1  |   price: 27.85,
+server-1  |   change: -0.04,
+server-1  |   changePercent: -0.1434,
+server-1  |   source: 'finnhub+yahoo'
+server-1  | }
+server-1  | ✅ BOW: 27.85 (finnhub+yahoo)
+server-1  | 🔍 Intentando Yahoo para OHLA:MC...
+server-1  | 📞 Yahoo API (fetch directo) para 'OHLA:MC' → 'OHLA.MC'...
+server-1  | 🔍 OHLA:MC previousClose fields: {
+server-1  |   chartPreviousClose: 0.4265,
+server-1  |   previousClose: undefined,
+server-1  |   regularMarketPreviousClose: undefined
+server-1  | }
+server-1  | 💰 OHLA:MC: price=0.385, prevClose=0.4265, change=-0.04149999999999998, change%=-9.73%
+server-1  | ✅ Yahoo OHLA:MC: 0.385 (EUR)
+server-1  | ✅ Yahoo OHLA:MC: Datos obtenidos - 0.385
+server-1  | 📊 OHLA:MC - Finnhub data: null
+server-1  | 📊 OHLA:MC - Yahoo data: {
+server-1  |   price: 0.385,
+server-1  |   change: -0.04149999999999998,
+server-1  |   changePercent: -9.730363423212188
+server-1  | }
+server-1  | 🔀 OHLA:MC - Combined: {
+server-1  |   price: 0.385,
+server-1  |   change: -0.04149999999999998,
+server-1  |   changePercent: -9.730363423212188,
+server-1  |   source: 'yahoo'
+server-1  | }
+server-1  | ✅ OHLA:MC: 0.385 (yahoo)
+server-1  | 🔍 Intentando Yahoo para AMD...
+server-1  | 📞 Yahoo API (fetch directo) para 'AMD' → 'AMD'...
+server-1  | 🔍 AMD previousClose fields: {
+server-1  |   chartPreviousClose: 214.24,
+server-1  |   previousClose: undefined,
+server-1  |   regularMarketPreviousClose: undefined
+server-1  | }
+server-1  | 💰 AMD: price=217.53, prevClose=214.24, change=3.289999999999992, change%=1.54%
+server-1  | ✅ Yahoo AMD: 217.53 (USD)
+server-1  | ✅ Yahoo AMD: Datos obtenidos - 217.53
+server-1  | 📊 AMD - Finnhub data: { price: 217.53, change: 3.29, changePercent: 1.5357 }
+server-1  | 📊 AMD - Yahoo data: {
+server-1  |   price: 217.53,
+server-1  |   change: 3.289999999999992,
+server-1  |   changePercent: 1.5356609410007431
+server-1  | }
+server-1  | 🔀 AMD - Combined: {
+server-1  |   price: 217.53,
+server-1  |   change: 3.29,
+server-1  |   changePercent: 1.5357,
+server-1  |   source: 'finnhub+yahoo'
+server-1  | }
+server-1  | ✅ AMD: 217.53 (finnhub+yahoo)
+server-1  | 🔍 Intentando Yahoo para MSFT...
+server-1  | 📞 Yahoo API (fetch directo) para 'MSFT' → 'MSFT'...
+server-1  | 🔍 MSFT previousClose fields: {
+server-1  |   chartPreviousClose: 485.5,
+server-1  |   previousClose: undefined,
+server-1  |   regularMarketPreviousClose: undefined
+server-1  | }
+server-1  | 💰 MSFT: price=492.01, prevClose=485.5, change=6.509999999999991, change%=1.34%
+server-1  | ✅ Yahoo MSFT: 492.01 (USD)
+server-1  | ✅ Yahoo MSFT: Datos obtenidos - 492.01
+server-1  | 📊 MSFT - Finnhub data: { price: 492.01, change: 6.51, changePercent: 1.3409 }
+server-1  | 📊 MSFT - Yahoo data: {
+server-1  |   price: 492.01,
+server-1  |   change: 6.509999999999991,
+server-1  |   changePercent: 1.3408856848609663
+server-1  | }
+server-1  | 🔀 MSFT - Combined: {
+server-1  |   price: 492.01,
+server-1  |   change: 6.51,
+server-1  |   changePercent: 1.3409,
+server-1  |   source: 'finnhub+yahoo'
+server-1  | }
+server-1  | ✅ MSFT: 492.01 (finnhub+yahoo)
+server-1  | 🔍 Intentando Yahoo para AVTR...
+server-1  | 📞 Yahoo API (fetch directo) para 'AVTR' → 'AVTR'...
+server-1  | 🔍 AVTR previousClose fields: {
+server-1  |   chartPreviousClose: 11.74,
+server-1  |   previousClose: undefined,
+server-1  |   regularMarketPreviousClose: undefined
+server-1  | }
+server-1  | 💰 AVTR: price=11.73, prevClose=11.74, change=-0.009999999999999787, change%=-0.09%
+server-1  | ✅ Yahoo AVTR: 11.73 (USD)
+server-1  | ✅ Yahoo AVTR: Datos obtenidos - 11.73
+server-1  | 📊 AVTR - Finnhub data: { price: 11.73, change: -0.01, changePercent: -0.0852 }
+server-1  | 📊 AVTR - Yahoo data: {
+server-1  |   price: 11.73,
+server-1  |   change: -0.009999999999999787,
+server-1  |   changePercent: -0.08517887563883975
+server-1  | }
+server-1  | 🔀 AVTR - Combined: {
+server-1  |   price: 11.73,
+server-1  |   change: -0.01,
+server-1  |   changePercent: -0.0852,
+server-1  |   source: 'finnhub+yahoo'
+server-1  | }
+server-1  | ✅ AVTR: 11.73 (finnhub+yahoo)
+server-1  | 🔍 Intentando Yahoo para BABA...
+server-1  | 📞 Yahoo API (fetch directo) para 'BABA' → 'BABA'...
+server-1  | 🔍 BABA previousClose fields: {
+server-1  |   chartPreviousClose: 157.6,
+server-1  |   previousClose: undefined,
+server-1  |   regularMarketPreviousClose: undefined
+server-1  | }
+server-1  | 💰 BABA: price=157.3, prevClose=157.6, change=-0.29999999999998295, change%=-0.19%
+server-1  | ✅ Yahoo BABA: 157.3 (USD)
+server-1  | ✅ Yahoo BABA: Datos obtenidos - 157.3
+server-1  | 📊 BABA - Finnhub data: { price: 157.3, change: -0.3, changePercent: -0.1904 }
+server-1  | 📊 BABA - Yahoo data: {
+server-1  |   price: 157.3,
+server-1  |   change: -0.29999999999998295,
+server-1  |   changePercent: -0.19035532994922777
+server-1  | }
+server-1  | 🔀 BABA - Combined: {
+server-1  |   price: 157.3,
+server-1  |   change: -0.3,
+server-1  |   changePercent: -0.1904,
+server-1  |   source: 'finnhub+yahoo'
+server-1  | }
+server-1  | ✅ BABA: 157.3 (finnhub+yahoo)
+server-1  | 🔍 Intentando Yahoo para DIA:MC...
+server-1  | 📞 Yahoo API (fetch directo) para 'DIA:MC' → 'DIA.MC'...
+server-1  | 🔍 DIA:MC previousClose fields: {
+server-1  |   chartPreviousClose: 29.45,
+server-1  |   previousClose: undefined,
+server-1  |   regularMarketPreviousClose: undefined
+server-1  | }
+server-1  | 💰 DIA:MC: price=30.2, prevClose=29.45, change=0.75, change%=2.55%
+server-1  | ✅ Yahoo DIA:MC: 30.2 (EUR)
+server-1  | ✅ Yahoo DIA:MC: Datos obtenidos - 30.2
+server-1  | 📊 DIA:MC - Finnhub data: null
+server-1  | 📊 DIA:MC - Yahoo data: { price: 30.2, change: 0.75, changePercent: 2.5466893039049237 }
+server-1  | 🔀 DIA:MC - Combined: {
+server-1  |   price: 30.2,
+server-1  |   change: 0.75,
+server-1  |   changePercent: 2.5466893039049237,
+server-1  |   source: 'yahoo'
+server-1  | }
+server-1  | ✅ DIA:MC: 30.2 (yahoo)
+server-1  | 🔍 Intentando Yahoo para AMP:MC...
+server-1  | 📞 Yahoo API (fetch directo) para 'AMP:MC' → 'AMP.MC'...
+server-1  | 🔍 AMP:MC previousClose fields: {
+server-1  |   chartPreviousClose: 0.1376,
+server-1  |   previousClose: undefined,
+server-1  |   regularMarketPreviousClose: undefined
+server-1  | }
+server-1  | 💰 AMP:MC: price=0.1388, prevClose=0.1376, change=0.0012000000000000066, change%=0.87%
+server-1  | ✅ Yahoo AMP:MC: 0.1388 (EUR)
+server-1  | ✅ Yahoo AMP:MC: Datos obtenidos - 0.1388
+server-1  | 📊 AMP:MC - Finnhub data: null
+server-1  | 📊 AMP:MC - Yahoo data: {
+server-1  |   price: 0.1388,
+server-1  |   change: 0.0012000000000000066,
+server-1  |   changePercent: 0.8720930232558188
+server-1  | }
+server-1  | 🔀 AMP:MC - Combined: {
+server-1  |   price: 0.1388,
+server-1  |   change: 0.0012000000000000066,
+server-1  |   changePercent: 0.8720930232558188,
+server-1  |   source: 'yahoo'
+server-1  | }
+server-1  | ✅ AMP:MC: 0.1388 (yahoo)
+server-1  | 🔍 Intentando Yahoo para ASTS...
+server-1  | 📞 Yahoo API (fetch directo) para 'ASTS' → 'ASTS'...
+server-1  | 🔍 ASTS previousClose fields: {
+server-1  |   chartPreviousClose: 55.52,
+server-1  |   previousClose: undefined,
+server-1  |   regularMarketPreviousClose: undefined
+server-1  | }
+server-1  | 💰 ASTS: price=56.2, prevClose=55.52, change=0.6799999999999997, change%=1.22%
+server-1  | ✅ Yahoo ASTS: 56.2 (USD)
+server-1  | ✅ Yahoo ASTS: Datos obtenidos - 56.2
+server-1  | 📊 ASTS - Finnhub data: { price: 56.2, change: 0.68, changePercent: 1.2248 }
+server-1  | 📊 ASTS - Yahoo data: {
+server-1  |   price: 56.2,
+server-1  |   change: 0.6799999999999997,
+server-1  |   changePercent: 1.2247838616714692
+server-1  | }
+server-1  | 🔀 ASTS - Combined: {
+server-1  |   price: 56.2,
+server-1  |   change: 0.68,
+server-1  |   changePercent: 1.2248,
+server-1  |   source: 'finnhub+yahoo'
+server-1  | }
+server-1  | ✅ ASTS: 56.2 (finnhub+yahoo)
+server-1  | 📊 Resumen: ✅ 9 actualizadas, ❌ 0 errores
+server-1  | ✅ Scheduler de precios iniciado
+server-1  | 🕒 Scheduler iniciado cada 15 min
+server-1  | 📅 Snapshot diario programado a las 01:00
+server-1  | 📥 GET /api/config/scheduler_last_run
+server-1  | 📥 GET /api/config/daily_close_last_run
+server-1  | 📥 GET /api/config/scheduler_last_run
+server-1  | 📥 GET /api/config/daily_close_last_run
+server-1  | 📥 GET /api/config/scheduler_last_run
+server-1  | 📥 GET /api/config/daily_close_last_run
+server-1  | 📥 GET /api/config/daily_close_last_run
+server-1  | 📥 GET /api/config/scheduler_last_run
+server-1  | 📥 GET /api/auth/me
+server-1  | 📥 GET /api/positions/order?portfolioId=1
+server-1  | 📥 GET /api/auth/me
+server-1  | 📥 GET /api/portfolio
+server-1  | 📥 GET /api/profile-pictures
+server-1  | 📥 GET /api/operations?portfolioId=1
+server-1  | 📥 GET /api/operations?portfolioId=1
+server-1  | 📥 POST /api/prices/bulk
+server-1  | 🔍 /api/prices/bulk - Símbolos extraídos: [
+server-1  |   'BOW',     'AMD',
+server-1  |   'MSFT',    'AVTR',
+server-1  |   'BABA',    'DIA:MC',
+server-1  |   'OHLA:MC', 'AMP:MC',
+server-1  |   'ASTS'
+server-1  | ]
+server-1  | 📥 GET /api/portfolio/contribution?portfolioId=1
+server-1  | 📊 /api/prices/bulk - Registros encontrados: 9
+server-1  |    AMD: change=3.29, changePercent=1.5357
+server-1  |    AMP:MC: change=0.0012, changePercent=0.872093
+server-1  |    ASTS: change=0.68, changePercent=1.2248
+server-1  |    AVTR: change=-0.01, changePercent=-0.0852
+server-1  |    BABA: change=-0.3, changePercent=-0.1904
+server-1  |    BOW: change=-0.04, changePercent=-0.1434
+server-1  |    DIA:MC: change=0.75, changePercent=2.54669
+server-1  |    MSFT: change=6.51, changePercent=1.3409
+server-1  |    OHLA:MC: change=-0.0415, changePercent=-9.73036
+server-1  | ✅ Mapeado Bowhead Specialty Holdings Inc|||BOW: change=-0.04, changePercent=-0.1434
+server-1  | ✅ Mapeado ADVANCED MICRO DEVICES|||AMD: change=3.29, changePercent=1.5357
+server-1  | ✅ Mapeado Microsoft Corp|||MSFT: change=6.51, changePercent=1.3409
+server-1  | ✅ Mapeado Avantor Inc|||AVTR: change=-0.01, changePercent=-0.0852
+server-1  | ✅ Mapeado Alibaba Group Holding Ltd|||BABA: change=-0.3, changePercent=-0.1904
+server-1  | ✅ Mapeado Distribuidora Internacional de Alimentacion SA|||DIA:MC: change=0.75, changePercent=2.54669
+server-1  | ✅ Mapeado Obrascon Huarte Lain SA|||OHLA:MC: change=-0.0415, changePercent=-9.73036
+server-1  | ✅ Mapeado Amper SA|||AMP:MC: change=0.0012, changePercent=0.872093
+server-1  | ✅ Mapeado AST SPACEMOBILE INC|||ASTS: change=0.68, changePercent=1.2248
+server-1  | 📥 GET /api/admin/finnhub-api-key
+server-1  | 📥 GET /api/config/last_prices_sync_at
+server-1  | 📥 GET /api/portfolio/timeseries?portfolioId=1&days=30
+server-1  | 📥 GET /api/config/daily_close_last_run
+server-1  | 📥 GET /api/yahoo/fx/eurusd
+server-1  | 📥 GET /api/portfolio/contribution?portfolioId=1
+server-1  | 📥 GET /api/portfolio/timeseries?portfolioId=1&days=30
+server-1  | 📥 GET /api/external-buttons
+server-1  | 📥 GET /api/portfolio/timeseries?portfolioId=1&days=30
+server-1  | 💱 Yahoo EUR/USD: 1.1602274 (Source: price)
+server-1  | 📥 GET /api/yahoo/fx/eurusd
+server-1  | 💱 Yahoo EUR/USD: 1.1602274 (Source: price)
+server-1  | 📥 GET /api/yahoo/fx/eurusd
+server-1  | 💱 Yahoo EUR/USD: 1.1602274 (Source: price)
+server-1  | 📥 GET /api/yahoo/quote/OHLA.MC
+server-1  | 📥 PUT /api/prices/Avantor%20Inc%7C%7C%7CAVTR
+server-1  | 📥 PUT /api/prices/Alibaba%20Group%20Holding%20Ltd%7C%7C%7CBABA
+server-1  | 📥 PUT /api/prices/Bowhead%20Specialty%20Holdings%20Inc%7C%7C%7CBOW
+server-1  | 📥 PUT /api/prices/ADVANCED%20MICRO%20DEVICES%7C%7C%7CAMD
+server-1  | 📥 GET /api/yahoo/quote/DIA.MC
+server-1  | 📥 PUT /api/prices/AST%20SPACEMOBILE%20INC%7C%7C%7CASTS
+server-1  | 📥 PUT /api/prices/Microsoft%20Corp%7C%7C%7CMSFT
+server-1  | 📥 GET /api/portfolio
+server-1  | 📥 GET /api/yahoo/quote/AMP.MC
+server-1  | 📥 GET /api/portfolio
+server-1  | 📥 PUT /api/prices/Avantor%20Inc%7C%7C%7CAVTR?portfolioId=1
+server-1  | 📥 GET /api/portfolio
+server-1  | 📥 PUT /api/prices/Alibaba%20Group%20Holding%20Ltd%7C%7C%7CBABA?portfolioId=1
+server-1  | 📥 GET /api/portfolio
+server-1  | 📥 PUT /api/prices/Bowhead%20Specialty%20Holdings%20Inc%7C%7C%7CBOW?portfolioId=1
+server-1  | 📥 GET /api/portfolio
+server-1  | 📥 PUT /api/prices/ADVANCED%20MICRO%20DEVICES%7C%7C%7CAMD?portfolioId=1
+server-1  | 📥 GET /api/portfolio
+server-1  | 📥 PUT /api/prices/AST%20SPACEMOBILE%20INC%7C%7C%7CASTS?portfolioId=1
+server-1  | 📥 PUT /api/prices/Microsoft%20Corp%7C%7C%7CMSFT?portfolioId=1
+server-1  | 📥 PUT /api/prices/Obrascon%20Huarte%20Lain%20SA%7C%7C%7COHLA%3AMC
+server-1  | 📥 GET /api/portfolio
+server-1  | 📥 PUT /api/prices/Distribuidora%20Internacional%20de%20Alimentacion%20SA%7C%7C%7CDIA%3AMC
+server-1  | 📥 PUT /api/prices/Obrascon%20Huarte%20Lain%20SA%7C%7C%7COHLA%3AMC?portfolioId=1
+server-1  | 📥 GET /api/portfolio
+server-1  | 📥 PUT /api/prices/Distribuidora%20Internacional%20de%20Alimentacion%20SA%7C%7C%7CDIA%3AMC?portfolioId=1
+server-1  | 📥 PUT /api/prices/Amper%20SA%7C%7C%7CAMP%3AMC
+server-1  | 📥 GET /api/portfolio
+server-1  | 📥 PUT /api/prices/Amper%20SA%7C%7C%7CAMP%3AMC?portfolioId=1
+server-1  | 📥 POST /api/config/last_prices_sync_at
+server-1  | 📥 GET /api/config/scheduler_last_run
