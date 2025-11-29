@@ -15,7 +15,7 @@ import Config from './models/Config.js';
 import ProfilePicture from './models/ProfilePicture.js';
 import profilePicturesRoutes from './routes/profilePictures.js';
 import positionRoutes from './routes/positions.js';
-import pricesRoutes from './routes/prices.js';
+
 import notesRoutes from './routes/notes.js';
 import portfolioRoutes from './routes/portfolio.js';
 import externalButtonsRoutes from './routes/externalButtons.js';

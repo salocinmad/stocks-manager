@@ -86,8 +86,6 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
             if (existingDailyPrices.length < 365) {
                 console.log(`✅ Entrando al bloque de obtención de datos históricos de Yahoo Finance para ${position.positionKey}.`);
                 console.log(`⏳ Obteniendo datos históricos de Yahoo Finance para ${position.positionKey}...`);
-                console.log(`DEBUG: existingDailyPrices.length es ${existingDailyPrices.length}, se intentará obtener de Yahoo Finance.`);
-                console.error(`ERROR_DEBUG: Entrando al bloque de obtención de datos históricos de Yahoo Finance para ${position.positionKey}.`);
                 let yahooHistoricalData = [];
                 try {
                     yahooHistoricalData = await fetchHistorical(position.positionKey, 365);
@@ -102,7 +100,6 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
                         userId,
                         portfolioId,
                         positionKey: position.positionKey,
-                        company: position.positionKey.split('|||')[0],
                         date: data.date,
                         open: data.open,
                         high: data.high,
@@ -111,18 +108,12 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
                         volume: data.volume,
                         adjClose: data.adjClose,
                     }));
-                    console.log(`DEBUG: dailyPriceRecords para ${position.positionKey} tiene ${dailyPriceRecords.length} registros. Primer registro:`, dailyPriceRecords[0]);
 
                     // Usar bulkCreate con updateOnDuplicate para insertar/actualizar eficientemente
-                    console.log(`DEBUG: Intentando bulkCreate para ${position.positionKey} con ${dailyPriceRecords.length} registros.`);
-                    try {
-                        const result = await DailyPrice.bulkCreate(dailyPriceRecords, {
-                            updateOnDuplicate: ['open', 'high', 'low', 'close', 'volume', 'adjClose']
-                        });
-                        console.log(`✅ bulkCreate exitoso para ${position.positionKey}. Se afectaron ${result.length} registros.`);
-                    } catch (dbError) {
-                        console.error(`❌ Error al guardar/actualizar registros históricos para ${position.positionKey}:`, dbError);
-                    }
+                    await DailyPrice.bulkCreate(dailyPriceRecords, {
+                        updateOnDuplicate: ['open', 'high', 'low', 'close', 'volume', 'adjClose']
+                    });
+                    console.log(`✅ ${yahooHistoricalData.length} registros históricos guardados/actualizados para ${position.positionKey}.`);
                 } else {
                     console.log(`⚠️ No se obtuvieron datos históricos de Yahoo Finance para ${position.positionKey}.`);
                 }

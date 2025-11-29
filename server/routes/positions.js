@@ -3,6 +3,8 @@ import { authenticate } from '../middleware/auth.js';
 import PositionOrder from '../models/PositionOrder.js';
 import Portfolio from '../models/Portfolio.js';
 import User from '../models/User.js';
+import DailyPrice from '../models/DailyPrice.js';
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -55,6 +57,45 @@ router.put('/order', authenticate, async (req, res) => {
     } catch (error) {
         console.error('Error updating position order:', error);
         res.status(500).json({ error: 'Error al actualizar el orden de posiciones' });
+    }
+});
+
+// GET /api/positions/history/:positionKey - Get historical price data for a specific position (last 30 days)
+router.get('/history/:positionKey', authenticate, async (req, res) => {
+    try {
+        const portfolioId = await resolvePortfolioId(req);
+        const { positionKey } = req.params;
+
+        // Decode positionKey (may contain special characters like |||)
+        const decodedPositionKey = decodeURIComponent(positionKey);
+
+        // Calculate date 30 days ago
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const dateLimit = thirtyDaysAgo.toISOString().split('T')[0];
+
+        // Fetch historical data from DailyPrice
+        const historicalData = await DailyPrice.findAll({
+            where: {
+                userId: req.user.id,
+                portfolioId,
+                positionKey: decodedPositionKey,
+                date: { [Op.gte]: dateLimit }
+            },
+            attributes: ['date', 'open', 'high', 'low', 'close'],
+            order: [['date', 'ASC']]
+        });
+
+        res.json({
+            success: true,
+            data: historicalData
+        });
+    } catch (error) {
+        console.error('Error fetching historical data:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Error al obtener datos históricos'
+        });
     }
 });
 

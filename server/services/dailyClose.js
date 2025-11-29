@@ -57,7 +57,7 @@ const getPreviousBusinessDate = async () => {
   return isoMadrid // YYYY-MM-DD en huso Madrid
 }
 
-const fetchPreviousClose = async (symbol) => {
+export const fetchPreviousClose = async (symbol) => {
   try {
     if (!symbol) return null
     const ySymbol = String(symbol).replace(/[:\-]/g, '.')
@@ -69,7 +69,7 @@ const fetchPreviousClose = async (symbol) => {
     const changePercent = q?.regularMarketChangePercent ?? null
 
     if (!close || close <= 0) {
-      const chart = await yahooFinance.chart(symbol, { period1: '7d', interval: '1d' })
+      const chart = await yahooFinance.chart(ySymbol, { period1: '7d', interval: '1d' })
       const arr = chart?.quotes || []
       if (arr.length > 0) {
         const last = arr[arr.length - 1]

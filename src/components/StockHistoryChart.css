@@ -1,0 +1,25 @@
+.stock-history-container {
+    padding: 16px;
+    background-color: inherit;
+}
+
+.chart-wrapper {
+    width: 100%;
+    margin-top: 8px;
+}
+
+.custom-tooltip {
+    background-color: #2d2d2d;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    padding: 10px;
+    color: #ffffff;
+    font-size: 12px;
+}
+
+/* Light theme support */
+body[data-theme="light"] .custom-tooltip {
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
+    color: #1f2937;
+}

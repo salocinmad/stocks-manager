@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI, profilePicturesAPI, externalButtonsAPI } from './services/api.js';
@@ -6,6 +6,7 @@ import { logout, verifySession, changePassword, authenticatedFetch } from './ser
 import ProfilePictureModal from './components/ProfilePictureModal.jsx';
 import ExternalButtonsModal from './components/ExternalButtonsModal.jsx';
 import Reports from './components/Reports.jsx';
+import StockHistoryChart from './components/StockHistoryChart.jsx';
 import { usePositionOrder } from './usePositionOrder.jsx';
 
 function App() {
@@ -75,6 +76,7 @@ function App() {
   const [showProfilePictureModal, setShowProfilePictureModal] = useState(false); // Nuevo estado para el modal de imagen de perfil
   const [externalButtons, setExternalButtons] = useState([]); // Botones externos
   const [showExternalButtonsModal, setShowExternalButtonsModal] = useState(false);
+  const [expandedPositions, setExpandedPositions] = useState({}); // Track which positions are expanded
 
   const DEFAULT_PROFILE_PICTURE_URL = '/defaultpic.jpg'; // Imagen de perfil por defecto servida desde el frontend
 
@@ -224,7 +226,7 @@ function App() {
               }
             });
             if (Object.keys(cachePrices).length > 0) {
-              setCurrentPrices(prev => ({ ...prev, ...cachePrices }));
+              setCurrentPrices(prev => ({ ...cachePrices, ...prev }));
             }
             // Fallback: si Config no tiene fecha, usar el máximo updatedAt de caché
             if (!lastUpdatedAt && maxUpdatedAt) {
@@ -562,20 +564,31 @@ function App() {
     // Esta función solo actualiza el estado local
   };
 
-  // Formatear precio con decimales dinámicos (máx 4)
+  // Determinar número de decimales apropiado para un precio
+  const getPriceDecimals = (price) => {
+    if (!price || price === 0) return 2;
+
+    // Si el precio es menor a 1, usar 4 decimales
+    if (price < 1) {
+      return 4;
+    }
+    // Si el precio es menor a 10, usar 3 decimales
+    if (price < 10) {
+      return 3;
+    }
+    // Si el precio es menor a 100, usar 2 decimales
+    if (price < 100) {
+      return 2;
+    }
+    // Para precios mayores, usar 2 decimales
+    return 2;
+  };
+
+  // Formatear precio con decimales apropiados
   const formatPrice = (price) => {
     if (price === null || price === undefined) return '-';
-    const val = parseFloat(price);
-    if (isNaN(val)) return '-';
-
-    const absVal = Math.abs(val);
-    let decimals = 2;
-
-    if (absVal < 1 && absVal > 0) decimals = 4;
-    else if (absVal < 10 && absVal > 0) decimals = 3;
-    else decimals = 2;
-
-    return val.toFixed(decimals);
+    const decimals = getPriceDecimals(price);
+    return price.toFixed(decimals);
   };
 
   // Formatear moneda con símbolo correcto
@@ -2436,259 +2449,308 @@ function App() {
                     }
 
                     return (
-                      <tr
-                        key={positionKey}
-                        draggable="true"
-                        onDragStart={(e) => handleDragStart(e, positionKey)}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, positionKey, Object.keys(activePositions))}
-                        className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
-                      >
-                        <td>
-                          <div>{company}</div>
-                          {symbol && (
-                            <div style={{ fontSize: '11px', color: '#888' }}>{symbol}</div>
-                          )}
-                        </td>
-                        <td>{position.shares}</td>
-                        <td>€{position.totalCost.toFixed(2)}</td>
-                        <td>{formatCurrency(avgCostPerShare, position.currency)}</td>
-                        <td>
-                          {currentPriceData ? (
-                            <div>
-                              <div style={{ fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                <span>{currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}</span>
-                                {(() => {
-                                  const src = currentPriceData.source;
-                                  const url = src === 'finnhub' ? 'https://finnhub.io/static/img/webp/finnhub-logo.webp' : (src === 'yahoo' ? 'https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg' : null);
-                                  const title = src ? `${src.toUpperCase()}${currentPriceData.updatedAt ? ` • ${new Date(currentPriceData.updatedAt).toLocaleString('es-ES', { hour12: false })}` : ''}` : '';
-                                  if (url) {
-                                    return (
-                                      <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="lazy" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
-                                    );
-                                  }
-                                  return null;
-                                })()}
-                              </div>
-                              {currentPriceData.change !== null && (
-                                <div style={{
-                                  fontSize: '11px',
-                                  color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444'
-                                }}>
-                                  {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)}
-                                  {' '}({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ color: '#888', fontSize: '12px' }}>
-                              {'Sin datos'}
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          {currentValueInEUR !== null ? (
-                            `€${currentValueInEUR.toFixed(2)}`
-                          ) : (
-                            <span style={{ color: '#888' }}>-</span>
-                          )}
-                        </td>
-                        <td>
-                          {profitLossInEUR !== null ? (
-                            <div style={{
-                              color: profitLossInEUR >= 0 ? '#10b981' : '#ef4444',
-                              fontWeight: 'bold'
-                            }}>
-                              {profitLossInEUR >= 0 ? '+' : ''}€{profitLossInEUR.toFixed(2)}
-                              {profitLossPercent !== null && (
-                                <div style={{ fontSize: '11px' }}>
-                                  ({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ color: '#888' }}>-</span>
-                          )}
-                        </td>
-                        <td>
-                          {(() => {
-                            const purchases = companyOperations.filter(op => op.type === 'purchase');
-                            if (purchases.length === 0) return <span style={{ color: '#888' }}>-</span>;
-
-                            const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-
-                            if (latestPurchase.targetPrice) {
-                              return (
-                                <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>
-                                  {currency === 'EUR' ? '€' : '$'}{formatPrice(latestPurchase.targetPrice)}
-                                </div>
-                              );
-                            }
-                            return <span style={{ color: '#888' }}>-</span>;
-                          })()}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                            {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => {
-                              // Buscar si hay algún símbolo configurado para este botón en alguna operación de esta empresa
-                              const symbolForButton = (() => {
-                                // Buscar en las operaciones de esta empresa
-                                const op = companyOperations.find(o => o[`externalSymbol${button.displayOrder}`]);
-                                return op ? op[`externalSymbol${button.displayOrder}`] : null;
-                              })();
-
-                              if (!symbolForButton) return null;
-
-                              return (
-                                <a
-                                  key={button.id}
-                                  href={`${button.baseUrl}${symbolForButton}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  title={`${button.name}: ${symbolForButton}`}
-                                  style={{ display: 'block' }}
-                                >
-                                  <img
-                                    src={button.imageUrl}
-                                    alt={button.name}
-                                    style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }}
-                                  />
-                                </a>
-                              );
-                            })}
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '5px' }}>
-                            {companyOperations.map((operation) => (
-                              <button
-                                key={operation.id}
-                                className="button"
-                                onClick={() => openModal(operation.type, operation)}
-                                style={{ fontSize: '12px', padding: '5px 8px' }}
-                                title={`Editar ${operation.type === 'purchase' ? 'compra' : 'venta'}`}
-                              >
-                                ✏️ {operation.type === 'purchase' ? 'C' : 'V'}
-                              </button>
-                            ))}
-                            <button
-                              className="button"
-                              onClick={async () => {
-                                const pk = positionKey;
-                                setNotePositionKey(pk);
-                                setShowNoteModal(true);
-                                setNoteLoading(true);
-                                try {
-                                  const r = await notesAPI.get(pk);
-                                  const content = r?.content || '';
-                                  setNoteContent(content);
-                                  setNoteOriginalContent(content);
-                                  // If note is empty, start in edit mode; otherwise start in read mode
-                                  setNoteEditMode(!content || content.trim() === '');
-                                  setNotesCache(prev => ({ ...prev, [pk]: !!content }));
-                                } catch (e) {
-                                  setNoteContent('');
-                                  setNoteOriginalContent('');
-                                  setNoteEditMode(true); // Empty note, start in edit mode
-                                } finally {
-                                  setNoteLoading(false);
-                                }
+                      <React.Fragment key={positionKey}>
+                        <tr
+                          draggable="true"
+                          onDragStart={(e) => handleDragStart(e, positionKey)}
+                          onDragEnd={handleDragEnd}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, positionKey, Object.keys(activePositions))}
+                          className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
+                        >
+                          <td>
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedPositions(prev => ({
+                                  ...prev,
+                                  [positionKey]: !prev[positionKey]
+                                }));
                               }}
-                              style={{ fontSize: '12px', padding: '5px 8px' }}
-                              title="Nota"
+                              style={{
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                userSelect: 'none'
+                              }}
                             >
-                              📝 Nota
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                              <span style={{
+                                display: 'inline-block',
+                                width: '0',
+                                height: '0',
+                                borderLeft: '5px solid transparent',
+                                borderRight: '5px solid transparent',
+                                borderTop: '6px solid currentColor',
+                                transform: expandedPositions[positionKey] ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                transition: 'transform 0.2s ease',
+                                opacity: 0.7
+                              }}></span>
+                              <span style={{ fontWeight: 'bold' }}>{company}</span>
+                            </div>
+                            {symbol && (
+                              <div style={{ fontSize: '11px', color: '#888' }}>{symbol}</div>
+                            )}
+                          </td>
+                          <td>{position.shares}</td>
+                          <td>€{position.totalCost.toFixed(2)}</td>
+                          <td>{formatCurrency(avgCostPerShare, position.currency)}</td>
+                          <td>
+                            {currentPriceData ? (
+                              <div>
+                                <div style={{ fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                  <span>{currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}</span>
+                                  {(() => {
+                                    const src = currentPriceData.source;
+                                    const url = src === 'finnhub' ? 'https://finnhub.io/static/img/webp/finnhub-logo.webp' : (src === 'yahoo' ? 'https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg' : null);
+                                    const title = src ? `${src.toUpperCase()}${currentPriceData.updatedAt ? ` • ${new Date(currentPriceData.updatedAt).toLocaleString('es-ES', { hour12: false })}` : ''}` : '';
+                                    if (url) {
+                                      return (
+                                        <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="lazy" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
+                                {currentPriceData.change !== null && (
+                                  <div style={{
+                                    fontSize: '11px',
+                                    color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444'
+                                  }}>
+                                    {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)}
+                                    {' '}({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#888', fontSize: '12px' }}>
+                                {'Sin datos'}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {currentValueInEUR !== null ? (
+                              `€${currentValueInEUR.toFixed(2)}`
+                            ) : (
+                              <span style={{ color: '#888' }}>-</span>
+                            )}
+                          </td>
+                          <td>
+                            {profitLossInEUR !== null ? (
+                              <div style={{
+                                color: profitLossInEUR >= 0 ? '#10b981' : '#ef4444',
+                                fontWeight: 'bold'
+                              }}>
+                                {profitLossInEUR >= 0 ? '+' : ''}€{profitLossInEUR.toFixed(2)}
+                                {profitLossPercent !== null && (
+                                  <div style={{ fontSize: '11px' }}>
+                                    ({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#888' }}>-</span>
+                            )}
+                          </td>
+                          <td>
+                            {(() => {
+                              const purchases = companyOperations.filter(op => op.type === 'purchase');
+                              if (purchases.length === 0) return <span style={{ color: '#888' }}>-</span>;
+
+                              const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+                              if (latestPurchase.targetPrice) {
+                                return (
+                                  <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>
+                                    {currency === 'EUR' ? '€' : '$'}{formatPrice(latestPurchase.targetPrice)}
+                                  </div>
+                                );
+                              }
+                              return <span style={{ color: '#888' }}>-</span>;
+                            })()}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                              {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => {
+                                // Buscar si hay algún símbolo configurado para este botón en alguna operación de esta empresa
+                                const symbolForButton = (() => {
+                                  // Buscar en las operaciones de esta empresa
+                                  const op = companyOperations.find(o => o[`externalSymbol${button.displayOrder}`]);
+                                  return op ? op[`externalSymbol${button.displayOrder}`] : null;
+                                })();
+
+                                if (!symbolForButton) return null;
+
+                                return (
+                                  <a
+                                    key={button.id}
+                                    href={`${button.baseUrl}${symbolForButton}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={`${button.name}: ${symbolForButton}`}
+                                    style={{ display: 'block' }}
+                                  >
+                                    <img
+                                      src={button.imageUrl}
+                                      alt={button.name}
+                                      style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }}
+                                    />
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              {companyOperations.map((operation) => (
+                                <button
+                                  key={operation.id}
+                                  className="button"
+                                  onClick={() => openModal(operation.type, operation)}
+                                  style={{ fontSize: '12px', padding: '5px 8px' }}
+                                  title={`Editar ${operation.type === 'purchase' ? 'compra' : 'venta'}`}
+                                >
+                                  ✏️ {operation.type === 'purchase' ? 'C' : 'V'}
+                                </button>
+                              ))}
+                              <button
+                                className="button"
+                                onClick={async () => {
+                                  const pk = positionKey;
+                                  setNotePositionKey(pk);
+                                  setShowNoteModal(true);
+                                  setNoteLoading(true);
+                                  try {
+                                    const r = await notesAPI.get(pk);
+                                    const content = r?.content || '';
+                                    setNoteContent(content);
+                                    setNoteOriginalContent(content);
+                                    // If note is empty, start in edit mode; otherwise start in read mode
+                                    setNoteEditMode(!content || content.trim() === '');
+                                    setNotesCache(prev => ({ ...prev, [pk]: !!content }));
+                                  } catch (e) {
+                                    setNoteContent('');
+                                    setNoteOriginalContent('');
+                                    setNoteEditMode(true); // Empty note, start in edit mode
+                                  } finally {
+                                    setNoteLoading(false);
+                                  }
+                                }}
+                                style={{ fontSize: '12px', padding: '5px 8px' }}
+                                title="Nota"
+                              >
+                                📝 Nota
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {/* Expandable row for stock history chart */}
+                        {
+                          expandedPositions[positionKey] && (
+                            <tr className="expanded-chart-row">
+                              <td colSpan="10" style={{ padding: 0, backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f9fafb' }}>
+                                <StockHistoryChart
+                                  positionKey={positionKey}
+                                  userId={currentUser?.id}
+                                  portfolioId={currentPortfolioId}
+                                  theme={theme}
+                                />
+                              </td>
+                            </tr>
+                          )
+                        }
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
-              </table>
-            )}
-          </div>
+              </table >
+            )
+            }
+          </div >
 
           {/* Gráfico de Inversión vs Ganancias */}
-          {Object.keys(activePositions).length > 0 && chartData.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div className="card">
-                <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>📊 Inversión vs Ganancias</h2>
-                <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
-                  Distribución del dinero invertido y ganancias obtenidas
-                </p>
-                <div style={{ width: '100%', height: '300px', marginTop: '10px' }}>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie data={chartData} cx="50%" cy="50%" labelLine={true} label={({ name, value, percent }) => `${name}\n${(percent * 100).toFixed(1)}%`} outerRadius={90} fill="#8884d8" dataKey="value">
-                        {chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value, name) => { const total = chartData.reduce((sum, d) => sum + d.value, 0); const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'; return [`€${Number(value).toFixed(2)} (${percentage}%)`, name.split(':')[0]]; }}
-                        contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }}
-                        itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
-                        labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
-                      />
-                      <Legend formatter={(value) => value.split(':')[0]} wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+          {
+            Object.keys(activePositions).length > 0 && chartData.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="card">
+                  <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>📊 Inversión vs Ganancias</h2>
+                  <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
+                    Distribución del dinero invertido y ganancias obtenidas
+                  </p>
+                  <div style={{ width: '100%', height: '300px', marginTop: '10px' }}>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie data={chartData} cx="50%" cy="50%" labelLine={true} label={({ name, value, percent }) => `${name}\n${(percent * 100).toFixed(1)}%`} outerRadius={90} fill="#8884d8" dataKey="value">
+                          {chartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value, name) => { const total = chartData.reduce((sum, d) => sum + d.value, 0); const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'; return [`€${Number(value).toFixed(2)} (${percentage}%)`, name.split(':')[0]]; }}
+                          contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }}
+                          itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
+                          labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
+                        />
+                        <Legend formatter={(value) => value.split(':')[0]} wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {chartData.length === 1 && chartData[0].name === 'Sin datos' && (
+                    <p style={{ textAlign: 'center', color: '#888', marginTop: '10px', fontSize: '12px' }}>Actualiza los precios para ver las ganancias</p>
+                  )}
                 </div>
-                {chartData.length === 1 && chartData[0].name === 'Sin datos' && (
-                  <p style={{ textAlign: 'center', color: '#888', marginTop: '10px', fontSize: '12px' }}>Actualiza los precios para ver las ganancias</p>
-                )}
-              </div>
 
-              <div className="card">
-                <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>🏷️ Contribución por Empresa</h2>
-                <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
-                  Participación de cada empresa en el valor total (último cierre)
-                </p>
-                <div style={{ width: '100%', height: '300px', marginTop: '10px' }}>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie data={contributionChartData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} dataKey="value" stroke={theme === 'dark' ? '#1f2937' : '#ffffff'} strokeWidth={1}>
-                        {contributionChartData.map((entry, index) => (
-                          <Cell key={`c-cell-${index}`} fill={contributionColorsMap[entry.name] || entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value, name) => { const total = contributionChartData.reduce((sum, d) => sum + d.value, 0); const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'; return [`€${Number(value).toFixed(2)} (${percentage}%)`, name]; }}
-                        contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }}
-                        itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
-                        labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
-                      />
-                      <Legend wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div className="card">
+                  <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>🏷️ Contribución por Empresa</h2>
+                  <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
+                    Participación de cada empresa en el valor total (último cierre)
+                  </p>
+                  <div style={{ width: '100%', height: '300px', marginTop: '10px' }}>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie data={contributionChartData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} dataKey="value" stroke={theme === 'dark' ? '#1f2937' : '#ffffff'} strokeWidth={1}>
+                          {contributionChartData.map((entry, index) => (
+                            <Cell key={`c-cell-${index}`} fill={contributionColorsMap[entry.name] || entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value, name) => { const total = contributionChartData.reduce((sum, d) => sum + d.value, 0); const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'; return [`€${Number(value).toFixed(2)} (${percentage}%)`, name]; }}
+                          contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }}
+                          itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
+                          labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginTop: '8px' }}>Fecha: {contributionDate || '—'}</div>
                 </div>
-                <div style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginTop: '8px' }}>Fecha: {contributionDate || '—'}</div>
               </div>
-            </div>
-          )}
+            )
+          }
 
           {/* Operaciones Recientes */}
-          {pnlSeries.length > 0 && (
-            <div className="card" style={{ marginTop: '16px' }}>
-              <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>📈 Ganancias/Pérdidas (últimos 30 días)</h2>
-              <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
-                Evolución diaria del PnL total (EUR)
-              </p>
-              <div style={{ width: '100%', height: '300px', marginTop: '10px' }}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={pnlSeries} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'} strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 12 }} />
-                    <YAxis tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 12 }} />
-                    <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }} itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }} labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }} formatter={(value) => [`€${Number(value).toFixed(2)}`, 'PnL']} />
-                    <Line type="monotone" dataKey="pnlEUR" stroke="#60a5fa" dot={false} strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
+          {
+            pnlSeries.length > 0 && (
+              <div className="card" style={{ marginTop: '16px' }}>
+                <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>📈 Ganancias/Pérdidas (últimos 30 días)</h2>
+                <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
+                  Evolución diaria del PnL total (EUR)
+                </p>
+                <div style={{ width: '100%', height: '300px', marginTop: '10px' }}>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={pnlSeries} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                      <CartesianGrid stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'} strokeDasharray="3 3" />
+                      <XAxis dataKey="date" tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 12 }} />
+                      <YAxis tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 12 }} />
+                      <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }} itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }} labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }} formatter={(value) => [`€${Number(value).toFixed(2)}`, 'PnL']} />
+                      <Line type="monotone" dataKey="pnlEUR" stroke="#60a5fa" dot={false} strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          }
           <div className="card">
             <h2>Operaciones Recientes</h2>
             {operations.length === 0 ? (
@@ -2793,795 +2855,810 @@ function App() {
             </div>
           )}
         </div>
-      )}
+      )
+      }
 
       {/* Modal */}
-      {showModal && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>{editingOperation ? `Editar ${modalType === 'purchase' ? 'Compra' : 'Venta'}` : `${modalType === 'purchase' ? 'Nueva Compra' : 'Nueva Venta'}`}</h2>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Buscar Empresa por Nombre:</label>
-                <div className="search-container" style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="Busca por nombre (ej: Apple, Microsoft, AMD, NXT...)"
-                    value={searchQuery}
-                    onChange={(e) => {
-                      const query = e.target.value;
-                      setSearchQuery(query);
-                      if (query.length >= 2) {
-                        searchCompanies(query);
-                      } else {
-                        setSearchResults([]);
-                        setShowSuggestions(false);
-                      }
-                    }}
-                    onFocus={() => {
-                      if (searchResults.length > 0) {
-                        setShowSuggestions(true);
-                      }
-                    }}
-                  />
-                  {loadingSearch && (
-                    <span style={{ position: 'absolute', right: '10px', top: '10px' }}>⏳</span>
-                  )}
-
-                  {/* Dropdown de sugerencias */}
-                  {showSuggestions && searchResults.length > 0 && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
-                      backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff',
-                      border: `1px solid ${theme === 'dark' ? '#404040' : '#d0d0d0'}`,
-                      borderRadius: '4px',
-                      marginTop: '5px',
-                      maxHeight: '300px',
-                      overflowY: 'auto',
-                      zIndex: 1000,
-                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                    }}>
-                      {searchResults.map((company, index) => (
-                        <div
-                          key={index}
-                          onClick={() => selectCompany(company)}
-                          style={{
-                            padding: '10px',
-                            cursor: 'pointer',
-                            borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}`,
-                            transition: 'background-color 0.2s'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.backgroundColor = theme === 'dark' ? '#404040' : '#f0f0f0';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.backgroundColor = 'transparent';
-                          }}
-                        >
-                          <div style={{ fontWeight: 'bold' }}>
-                            {company.description || company.symbol.split('.')[0] || company.symbol}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>
-                            <strong>{company.symbol.includes('.') ? company.symbol.replace('.', ':') : company.symbol}</strong>
-                            {company.exchange && company.exchange !== company.symbol.split('.')[1] && ` · ${company.exchange}`}
-                            {company.type && ` · ${company.type}`}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
-                  O ingresa directamente el símbolo con exchange: AMD:FRA, NXT:BME, MSFT:NASDAQ, etc.
-                </p>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group" style={{ flex: 2 }}>
-                  <label>Empresa:</label>
-                  <input
-                    type="text"
-                    name="company"
-                    value={formData.company}
-                    onChange={handleInputChange}
-                    className="input"
-                    placeholder="Nombre de la empresa"
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Símbolo (Ticker):</label>
-                  <div style={{ display: 'flex', gap: '5px' }}>
+      {
+        showModal && (
+          <div className="modal">
+            <div className="modal-content">
+              <h2>{editingOperation ? `Editar ${modalType === 'purchase' ? 'Compra' : 'Venta'}` : `${modalType === 'purchase' ? 'Nueva Compra' : 'Nueva Venta'}`}</h2>
+              <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                  <label>Buscar Empresa por Nombre:</label>
+                  <div className="search-container" style={{ position: 'relative' }}>
                     <input
                       type="text"
-                      id="ticker-symbol"
                       className="input"
-                      placeholder="AAPL, MSFT:NASDAQ, AMD:FRA..."
-                      style={{ flex: 1 }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const symbol = e.target.value;
-                          if (symbol) fetchCurrentPrice(symbol);
+                      placeholder="Busca por nombre (ej: Apple, Microsoft, AMD, NXT...)"
+                      value={searchQuery}
+                      onChange={(e) => {
+                        const query = e.target.value;
+                        setSearchQuery(query);
+                        if (query.length >= 2) {
+                          searchCompanies(query);
+                        } else {
+                          setSearchResults([]);
+                          setShowSuggestions(false);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (searchResults.length > 0) {
+                          setShowSuggestions(true);
                         }
                       }}
                     />
-                    <button
-                      type="button"
-                      className="button primary"
-                      onClick={() => {
-                        const symbol = document.getElementById('ticker-symbol')?.value;
-                        if (symbol) fetchCurrentPrice(symbol);
-                      }}
-                      disabled={loadingPrice}
-                      style={{ whiteSpace: 'nowrap' }}
-                      title="Consultar precio actual desde Finnhub"
-                    >
-                      {loadingPrice ? '⏳' : '🔍'}
-                    </button>
+                    {loadingSearch && (
+                      <span style={{ position: 'absolute', right: '10px', top: '10px' }}>⏳</span>
+                    )}
+
+                    {/* Dropdown de sugerencias */}
+                    {showSuggestions && searchResults.length > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff',
+                        border: `1px solid ${theme === 'dark' ? '#404040' : '#d0d0d0'}`,
+                        borderRadius: '4px',
+                        marginTop: '5px',
+                        maxHeight: '300px',
+                        overflowY: 'auto',
+                        zIndex: 1000,
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                      }}>
+                        {searchResults.map((company, index) => (
+                          <div
+                            key={index}
+                            onClick={() => selectCompany(company)}
+                            style={{
+                              padding: '10px',
+                              cursor: 'pointer',
+                              borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}`,
+                              transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.backgroundColor = theme === 'dark' ? '#404040' : '#f0f0f0';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <div style={{ fontWeight: 'bold' }}>
+                              {company.description || company.symbol.split('.')[0] || company.symbol}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>
+                              <strong>{company.symbol.includes('.') ? company.symbol.replace('.', ':') : company.symbol}</strong>
+                              {company.exchange && company.exchange !== company.symbol.split('.')[1] && ` · ${company.exchange}`}
+                              {company.type && ` · ${company.type}`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
+                    O ingresa directamente el símbolo con exchange: AMD:FRA, NXT:BME, MSFT:NASDAQ, etc.
+                  </p>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group" style={{ flex: 2 }}>
+                    <label>Empresa:</label>
+                    <input
+                      type="text"
+                      name="company"
+                      value={formData.company}
+                      onChange={handleInputChange}
+                      className="input"
+                      placeholder="Nombre de la empresa"
+                      required
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Símbolo (Ticker):</label>
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      <input
+                        type="text"
+                        id="ticker-symbol"
+                        className="input"
+                        placeholder="AAPL, MSFT:NASDAQ, AMD:FRA..."
+                        style={{ flex: 1 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const symbol = e.target.value;
+                            if (symbol) fetchCurrentPrice(symbol);
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="button primary"
+                        onClick={() => {
+                          const symbol = document.getElementById('ticker-symbol')?.value;
+                          if (symbol) fetchCurrentPrice(symbol);
+                        }}
+                        disabled={loadingPrice}
+                        style={{ whiteSpace: 'nowrap' }}
+                        title="Consultar precio actual desde Finnhub"
+                      >
+                        {loadingPrice ? '⏳' : '🔍'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Mostrar información del precio consultado solo si se consulta manualmente */}
-              {currentPrice && !editingOperation && (
-                <div style={{
-                  padding: '10px',
-                  marginBottom: '10px',
-                  backgroundColor: '#28a745',
-                  borderRadius: '4px',
-                  color: 'white'
-                }}>
-                  <strong>Precio actual consultado:</strong> ${formatPrice(currentPrice.price)}
-                  {currentPrice.change !== null && (
-                    <span style={{ marginLeft: '10px' }}>
-                      ({currentPrice.change >= 0 ? '+' : ''}{formatPrice(currentPrice.change)}
-                      {' '}({currentPrice.changePercent >= 0 ? '+' : ''}{currentPrice.changePercent.toFixed(2)}%))
-                    </span>
-                  )}
-                </div>
-              )}
+                {/* Mostrar información del precio consultado solo si se consulta manualmente */}
+                {currentPrice && !editingOperation && (
+                  <div style={{
+                    padding: '10px',
+                    marginBottom: '10px',
+                    backgroundColor: '#28a745',
+                    borderRadius: '4px',
+                    color: 'white'
+                  }}>
+                    <strong>Precio actual consultado:</strong> ${formatPrice(currentPrice.price)}
+                    {currentPrice.change !== null && (
+                      <span style={{ marginLeft: '10px' }}>
+                        ({currentPrice.change >= 0 ? '+' : ''}{formatPrice(currentPrice.change)}
+                        {' '}({currentPrice.changePercent >= 0 ? '+' : ''}{currentPrice.changePercent.toFixed(2)}%))
+                      </span>
+                    )}
+                  </div>
+                )}
 
-              {/* Mostrar error si hay */}
-              {priceError && (
-                <div style={{
-                  padding: '10px',
-                  marginBottom: '10px',
-                  backgroundColor: '#dc3545',
-                  borderRadius: '4px',
-                  color: 'white'
-                }}>
-                  <strong>Error:</strong> {priceError}
-                </div>
-              )}
+                {/* Mostrar error si hay */}
+                {priceError && (
+                  <div style={{
+                    padding: '10px',
+                    marginBottom: '10px',
+                    backgroundColor: '#dc3545',
+                    borderRadius: '4px',
+                    color: 'white'
+                  }}>
+                    <strong>Error:</strong> {priceError}
+                  </div>
+                )}
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Número de Títulos:</label>
-                  {modalType === 'sale' && formData.company && (() => {
-                    const positions = getPositions();
-                    const availableShares = positions[formData.company]?.shares || 0;
-                    return (
-                      <div style={{ marginBottom: '5px', fontSize: '12px', color: '#888' }}>
-                        Acciones disponibles: <strong>{availableShares}</strong>
-                        {availableShares > 0 && (
-                          <span style={{ marginLeft: '10px', color: '#007bff' }}>
-                            (Puedes vender menos acciones)
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <input
-                    type="number"
-                    name="shares"
-                    value={formData.shares}
-                    onChange={handleInputChange}
-                    className="input"
-                    min="1"
-                    max={modalType === 'sale' && formData.company ? (() => {
-                      const positions = getPositions();
-                      const tickerSymbol = document.getElementById('ticker-symbol')?.value || '';
-                      const positionKey = tickerSymbol ? `${formData.company}|||${tickerSymbol}` : formData.company;
-                      return positions[positionKey]?.shares || 0;
-                    })() : undefined}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Precio por Acción:</label>
-                  <input
-                    type="number"
-                    name="price"
-                    value={formData.price}
-                    onChange={handleInputChange}
-                    className="input"
-                    step="0.00000001"
-                    min="0"
-                    required
-                    placeholder={currentPrice ? `Precio consultado: ${formatPrice(currentPrice.price)}` : ''}
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Moneda:</label>
-                  <select
-                    name="currency"
-                    value={formData.currency}
-                    onChange={handleInputChange}
-                    className="input"
-                  >
-                    <option value="EUR">EUR</option>
-                    <option value="USD">USD</option>
-                    <option value="GBP">GBP</option>
-                    <option value="CAD">CAD</option>
-                    <option value="JPY">JPY</option>
-                  </select>
-                </div>
-                {formData.currency !== 'EUR' && (
+                <div className="form-row">
                   <div className="form-group">
-                    <label>Tipo de Cambio (EUR/{formData.currency}):</label>
+                    <label>Número de Títulos:</label>
+                    {modalType === 'sale' && formData.company && (() => {
+                      const positions = getPositions();
+                      const availableShares = positions[formData.company]?.shares || 0;
+                      return (
+                        <div style={{ marginBottom: '5px', fontSize: '12px', color: '#888' }}>
+                          Acciones disponibles: <strong>{availableShares}</strong>
+                          {availableShares > 0 && (
+                            <span style={{ marginLeft: '10px', color: '#007bff' }}>
+                              (Puedes vender menos acciones)
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <input
                       type="number"
-                      name="exchangeRate"
-                      value={formData.exchangeRate}
+                      name="shares"
+                      value={formData.shares}
+                      onChange={handleInputChange}
+                      className="input"
+                      min="1"
+                      max={modalType === 'sale' && formData.company ? (() => {
+                        const positions = getPositions();
+                        const tickerSymbol = document.getElementById('ticker-symbol')?.value || '';
+                        const positionKey = tickerSymbol ? `${formData.company}|||${tickerSymbol}` : formData.company;
+                        return positions[positionKey]?.shares || 0;
+                      })() : undefined}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Precio por Acción:</label>
+                    <input
+                      type="number"
+                      name="price"
+                      value={formData.price}
                       onChange={handleInputChange}
                       className="input"
                       step="0.00000001"
                       min="0"
                       required
+                      placeholder={currentPrice ? `Precio consultado: ${formatPrice(currentPrice.price)}` : ''}
                     />
                   </div>
-                )}
-              </div>
+                </div>
 
-              <div className="form-row">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Moneda:</label>
+                    <select
+                      name="currency"
+                      value={formData.currency}
+                      onChange={handleInputChange}
+                      className="input"
+                    >
+                      <option value="EUR">EUR</option>
+                      <option value="USD">USD</option>
+                      <option value="GBP">GBP</option>
+                      <option value="CAD">CAD</option>
+                      <option value="JPY">JPY</option>
+                    </select>
+                  </div>
+                  {formData.currency !== 'EUR' && (
+                    <div className="form-group">
+                      <label>Tipo de Cambio (EUR/{formData.currency}):</label>
+                      <input
+                        type="number"
+                        name="exchangeRate"
+                        value={formData.exchangeRate}
+                        onChange={handleInputChange}
+                        className="input"
+                        step="0.00000001"
+                        min="0"
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Comisiones:</label>
+                    <input
+                      type="number"
+                      name="commission"
+                      value={formData.commission}
+                      onChange={handleInputChange}
+                      className="input"
+                      step="0.00000001"
+                      min="0"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Fecha:</label>
+                    <input
+                      type="date"
+                      name="date"
+                      value={formData.date}
+                      onChange={handleInputChange}
+                      className="input"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Campos dinámicos para botones externos */}
+                {externalButtons.length > 0 && (
+                  <div className="form-row">
+                    {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => (
+                      <div key={button.id} className="form-group" style={{ flex: 1 }}>
+                        <label>{button.name}:</label>
+                        <input
+                          type="text"
+                          name={`externalSymbol${button.displayOrder}`}
+                          value={formData[`externalSymbol${button.displayOrder}`] || ''}
+                          onChange={handleInputChange}
+                          className="input"
+                          placeholder="Símbolo"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="form-group">
-                  <label>Comisiones:</label>
+                  <label>Precio Objetivo (Opcional):</label>
                   <input
                     type="number"
-                    name="commission"
-                    value={formData.commission}
+                    name="targetPrice"
+                    value={formData.targetPrice}
                     onChange={handleInputChange}
                     className="input"
                     step="0.00000001"
                     min="0"
+                    placeholder="Precio al que esperas vender"
                   />
+                  <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
+                    Ingresa el precio objetivo al que planeas vender esta acción
+                  </p>
                 </div>
-                <div className="form-group">
-                  <label>Fecha:</label>
-                  <input
-                    type="date"
-                    name="date"
-                    value={formData.date}
-                    onChange={handleInputChange}
-                    className="input"
-                    required
-                  />
-                </div>
-              </div>
 
-              {/* Campos dinámicos para botones externos */}
-              {externalButtons.length > 0 && (
-                <div className="form-row">
-                  {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => (
-                    <div key={button.id} className="form-group" style={{ flex: 1 }}>
-                      <label>{button.name}:</label>
-                      <input
-                        type="text"
-                        name={`externalSymbol${button.displayOrder}`}
-                        value={formData[`externalSymbol${button.displayOrder}`] || ''}
-                        onChange={handleInputChange}
-                        className="input"
-                        placeholder="Símbolo"
-                      />
-                    </div>
-                  ))}
+                <div style={{ marginTop: '20px' }}>
+                  <button type="submit" className={`button ${modalType === 'purchase' ? 'success' : 'danger'}`}>
+                    {editingOperation ? 'Guardar Cambios' : (modalType === 'purchase' ? 'Comprar' : 'Vender')}
+                  </button>
+                  <button type="button" className="button" onClick={closeModal}>
+                    Cancelar
+                  </button>
                 </div>
-              )}
+              </form>
+            </div>
+          </div>
+        )
+      }
 
+      {/* Modal de Confirmación de Borrado con Contraseña */}
+      {
+        showDeleteConfirm && (
+          <div className="modal">
+            <div className="modal-content">
+              <h2>⚠️ Confirmar Borrado de Datos</h2>
+              <p style={{ marginBottom: '20px', color: '#dc3545', fontWeight: 'bold' }}>
+                Esta acción borrará TODAS las operaciones guardadas. Esta acción NO se puede deshacer.
+              </p>
               <div className="form-group">
-                <label>Precio Objetivo (Opcional):</label>
+                <label>Ingresa la contraseña para confirmar el borrado:</label>
                 <input
-                  type="number"
-                  name="targetPrice"
-                  value={formData.targetPrice}
-                  onChange={handleInputChange}
+                  type="password"
+                  value={tempDeletePassword}
+                  onChange={(e) => setTempDeletePassword(e.target.value)}
                   className="input"
-                  step="0.00000001"
-                  min="0"
-                  placeholder="Precio al que esperas vender"
+                  placeholder="Escribe tu contraseña para confirmar"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      confirmDeleteWithPassword();
+                    }
+                  }}
                 />
-                <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
-                  Ingresa el precio objetivo al que planeas vender esta acción
-                </p>
               </div>
-
-              <div style={{ marginTop: '20px' }}>
-                <button type="submit" className={`button ${modalType === 'purchase' ? 'success' : 'danger'}`}>
-                  {editingOperation ? 'Guardar Cambios' : (modalType === 'purchase' ? 'Comprar' : 'Vender')}
+              <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="button danger"
+                  onClick={confirmDeleteWithPassword}
+                  disabled={!tempDeletePassword}
+                >
+                  🗑️ Confirmar Borrado
                 </button>
-                <button type="button" className="button" onClick={closeModal}>
+                <button type="button" className="button" onClick={cancelDelete}>
                   Cancelar
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Confirmación de Borrado con Contraseña */}
-      {showDeleteConfirm && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>⚠️ Confirmar Borrado de Datos</h2>
-            <p style={{ marginBottom: '20px', color: '#dc3545', fontWeight: 'bold' }}>
-              Esta acción borrará TODAS las operaciones guardadas. Esta acción NO se puede deshacer.
-            </p>
-            <div className="form-group">
-              <label>Ingresa la contraseña para confirmar el borrado:</label>
-              <input
-                type="password"
-                value={tempDeletePassword}
-                onChange={(e) => setTempDeletePassword(e.target.value)}
-                className="input"
-                placeholder="Escribe tu contraseña para confirmar"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    confirmDeleteWithPassword();
-                  }
-                }}
-              />
-            </div>
-            <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                className="button danger"
-                onClick={confirmDeleteWithPassword}
-                disabled={!tempDeletePassword}
-              >
-                🗑️ Confirmar Borrado
-              </button>
-              <button type="button" className="button" onClick={cancelDelete}>
-                Cancelar
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Modal de Selección de Posición para Vender */}
-      {showSelectPositionModal && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>📊 Seleccionar Posición para Vender</h2>
-            <p style={{ marginBottom: '20px', fontSize: '14px', color: '#888' }}>
-              Selecciona una posición activa para vender acciones. Puedes vender una cantidad parcial.
-            </p>
-            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              {Object.keys(getActivePositions()).length === 0 ? (
-                <p>No hay posiciones activas disponibles</p>
-              ) : (
-                <div>
-                  {Object.entries(getActivePositions()).map(([positionKey, position]) => {
-                    const company = position.company || positionKey.split('|||')[0];
-                    const symbol = position.symbol || '';
+      {
+        showSelectPositionModal && (
+          <div className="modal">
+            <div className="modal-content">
+              <h2>📊 Seleccionar Posición para Vender</h2>
+              <p style={{ marginBottom: '20px', fontSize: '14px', color: '#888' }}>
+                Selecciona una posición activa para vender acciones. Puedes vender una cantidad parcial.
+              </p>
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {Object.keys(getActivePositions()).length === 0 ? (
+                  <p>No hay posiciones activas disponibles</p>
+                ) : (
+                  <div>
+                    {Object.entries(getActivePositions()).map(([positionKey, position]) => {
+                      const company = position.company || positionKey.split('|||')[0];
+                      const symbol = position.symbol || '';
 
-                    // Filtrar operaciones que coincidan con esta posición
-                    const companyOperations = operations.filter(op => {
-                      const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
-                      return opKey === positionKey;
-                    });
+                      // Filtrar operaciones que coincidan con esta posición
+                      const companyOperations = operations.filter(op => {
+                        const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
+                        return opKey === positionKey;
+                      });
 
-                    const avgCostPerShare = position.shares > 0 ? position.totalOriginalCost / position.shares : 0;
-                    const currentPriceData = currentPrices[positionKey];
+                      const avgCostPerShare = position.shares > 0 ? position.totalOriginalCost / position.shares : 0;
+                      const currentPriceData = currentPrices[positionKey];
 
-                    return (
-                      <div
-                        key={positionKey}
-                        onClick={() => selectPositionForSale(positionKey, position.shares)}
-                        style={{
-                          padding: '15px',
-                          margin: '10px 0',
-                          border: `2px solid ${theme === 'dark' ? '#404040' : '#d0d0d0'}`,
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = '#007bff';
-                          e.currentTarget.style.backgroundColor = theme === 'dark' ? '#404040' : '#f0f0f0';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = theme === 'dark' ? '#404040' : '#d0d0d0';
-                          e.currentTarget.style.backgroundColor = theme === 'dark' ? '#2d2d2d' : '#ffffff';
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '5px' }}>
-                              {company}
-                            </div>
-                            {symbol && (
-                              <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px' }}>
-                                {symbol}
+                      return (
+                        <div
+                          key={positionKey}
+                          onClick={() => selectPositionForSale(positionKey, position.shares)}
+                          style={{
+                            padding: '15px',
+                            margin: '10px 0',
+                            border: `2px solid ${theme === 'dark' ? '#404040' : '#d0d0d0'}`,
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#007bff';
+                            e.currentTarget.style.backgroundColor = theme === 'dark' ? '#404040' : '#f0f0f0';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = theme === 'dark' ? '#404040' : '#d0d0d0';
+                            e.currentTarget.style.backgroundColor = theme === 'dark' ? '#2d2d2d' : '#ffffff';
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '5px' }}>
+                                {company}
                               </div>
-                            )}
-                            <div style={{ display: 'flex', gap: '15px', fontSize: '14px' }}>
-                              <div>
-                                <strong>Acciones disponibles:</strong> {position.shares}
-                              </div>
-                              <div>
-                                <strong>Coste promedio:</strong> {formatCurrency(avgCostPerShare, position.currency)}
-                              </div>
-                              <div>
-                                <strong>Coste total:</strong> €{position.totalCost.toFixed(2)}
-                              </div>
-                            </div>
-                            {currentPriceData && (() => {
-                              // Usar la moneda de las operaciones de compra
-                              const purchases = companyOperations.filter(op => op.type === 'purchase');
-                              let positionCurrency = 'EUR';
-                              if (purchases.length > 0) {
-                                const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-                                positionCurrency = latestPurchase?.currency || 'EUR';
-                              }
-                              return (
-                                <div style={{ marginTop: '8px', fontSize: '13px', color: '#888' }}>
-                                  Precio actual: <strong style={{ color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444' }}>
-                                    {positionCurrency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}
-                                  </strong>
-                                  {' '}({currentPriceData.change >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
+                              {symbol && (
+                                <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px' }}>
+                                  {symbol}
                                 </div>
-                              );
-                            })()}
-                          </div>
-                          <div style={{ marginLeft: '15px', fontSize: '24px' }}>
-                            →
+                              )}
+                              <div style={{ display: 'flex', gap: '15px', fontSize: '14px' }}>
+                                <div>
+                                  <strong>Acciones disponibles:</strong> {position.shares}
+                                </div>
+                                <div>
+                                  <strong>Coste promedio:</strong> {formatCurrency(avgCostPerShare, position.currency)}
+                                </div>
+                                <div>
+                                  <strong>Coste total:</strong> €{position.totalCost.toFixed(2)}
+                                </div>
+                              </div>
+                              {currentPriceData && (() => {
+                                // Usar la moneda de las operaciones de compra
+                                const purchases = companyOperations.filter(op => op.type === 'purchase');
+                                let positionCurrency = 'EUR';
+                                if (purchases.length > 0) {
+                                  const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+                                  positionCurrency = latestPurchase?.currency || 'EUR';
+                                }
+                                return (
+                                  <div style={{ marginTop: '8px', fontSize: '13px', color: '#888' }}>
+                                    Precio actual: <strong style={{ color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444' }}>
+                                      {positionCurrency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}
+                                    </strong>
+                                    {' '}({currentPriceData.change >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            <div style={{ marginLeft: '15px', fontSize: '24px' }}>
+                              →
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => setShowSelectPositionModal(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        showNoteModal && (
+          <div className="modal">
+            <div className="modal-content" style={{ maxWidth: '900px', width: '100%' }}>
+              <h2>📝 Nota</h2>
+
+              {noteEditMode ? (
+                // Edit Mode: Show only textarea (no preview to avoid multiple scrollbars)
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Markdown</label>
+                  <textarea
+                    className="input"
+                    style={{ minHeight: '300px', width: '100%', resize: 'vertical' }}
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    disabled={noteLoading || noteSaving}
+                    placeholder="# Título\n\nEscribe tu nota en Markdown..."
+                  />
+                </div>
+              ) : (
+                // Read Mode: Show only preview (use modal's scrollbar, not card's)
+                <div className="card" style={{ width: '100%' }}>
+                  <div dangerouslySetInnerHTML={{ __html: markdownToHtml(noteContent || '') }} />
                 </div>
               )}
-            </div>
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="button"
-                onClick={() => setShowSelectPositionModal(false)}
-              >
-                Cancelar
-              </button>
+
+              <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
+                {noteEditMode ? (
+                  // Edit mode buttons: Save, Cancel, and Help
+                  <>
+                    <button
+                      className="button primary"
+                      disabled={noteLoading || noteSaving}
+                      onClick={async () => {
+                        try {
+                          setNoteSaving(true);
+                          await notesAPI.upsert(notePositionKey, noteContent || '');
+                          setNotesCache(prev => ({ ...prev, [notePositionKey]: !!(noteContent) }));
+                          setNoteOriginalContent(noteContent);
+                          setNoteEditMode(false); // Switch to read mode to see the result
+                        } catch (e) {
+                          alert('Error guardando nota');
+                        } finally {
+                          setNoteSaving(false);
+                        }
+                      }}
+                    >
+                      Guardar
+                    </button>
+                    <button
+                      className="button"
+                      onClick={() => {
+                        setNoteContent(noteOriginalContent);
+                        if (noteOriginalContent && noteOriginalContent.trim()) {
+                          setNoteEditMode(false); // Return to read mode if there was content
+                        } else {
+                          setShowNoteModal(false); // Close if it was empty
+                        }
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      className="button"
+                      onClick={() => setShowMarkdownHelp(true)}
+                      style={{ marginLeft: 'auto' }}
+                      title="Guía de Markdown"
+                    >
+                      ❓ Ayuda
+                    </button>
+                  </>
+                ) : (
+                  // Read mode buttons: Edit and Close
+                  <>
+                    <button
+                      className="button primary"
+                      onClick={() => setNoteEditMode(true)}
+                    >
+                      Editar
+                    </button>
+                    <button className="button" onClick={() => setShowNoteModal(false)}>Cerrar</button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {showNoteModal && (
-        <div className="modal">
-          <div className="modal-content" style={{ maxWidth: '900px', width: '100%' }}>
-            <h2>📝 Nota</h2>
-
-            {noteEditMode ? (
-              // Edit Mode: Show only textarea (no preview to avoid multiple scrollbars)
-              <div className="form-group" style={{ margin: 0 }}>
-                <label>Markdown</label>
-                <textarea
-                  className="input"
-                  style={{ minHeight: '300px', width: '100%', resize: 'vertical' }}
-                  value={noteContent}
-                  onChange={(e) => setNoteContent(e.target.value)}
-                  disabled={noteLoading || noteSaving}
-                  placeholder="# Título\n\nEscribe tu nota en Markdown..."
-                />
-              </div>
-            ) : (
-              // Read Mode: Show only preview (use modal's scrollbar, not card's)
-              <div className="card" style={{ width: '100%' }}>
-                <div dangerouslySetInnerHTML={{ __html: markdownToHtml(noteContent || '') }} />
-              </div>
-            )}
-
-            <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
-              {noteEditMode ? (
-                // Edit mode buttons: Save, Cancel, and Help
-                <>
-                  <button
-                    className="button primary"
-                    disabled={noteLoading || noteSaving}
-                    onClick={async () => {
-                      try {
-                        setNoteSaving(true);
-                        await notesAPI.upsert(notePositionKey, noteContent || '');
-                        setNotesCache(prev => ({ ...prev, [notePositionKey]: !!(noteContent) }));
-                        setNoteOriginalContent(noteContent);
-                        setNoteEditMode(false); // Switch to read mode to see the result
-                      } catch (e) {
-                        alert('Error guardando nota');
-                      } finally {
-                        setNoteSaving(false);
-                      }
-                    }}
-                  >
-                    Guardar
-                  </button>
-                  <button
-                    className="button"
-                    onClick={() => {
-                      setNoteContent(noteOriginalContent);
-                      if (noteOriginalContent && noteOriginalContent.trim()) {
-                        setNoteEditMode(false); // Return to read mode if there was content
-                      } else {
-                        setShowNoteModal(false); // Close if it was empty
-                      }
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    className="button"
-                    onClick={() => setShowMarkdownHelp(true)}
-                    style={{ marginLeft: 'auto' }}
-                    title="Guía de Markdown"
-                  >
-                    ❓ Ayuda
-                  </button>
-                </>
-              ) : (
-                // Read mode buttons: Edit and Close
-                <>
-                  <button
-                    className="button primary"
-                    onClick={() => setNoteEditMode(true)}
-                  >
-                    Editar
-                  </button>
-                  <button className="button" onClick={() => setShowNoteModal(false)}>Cerrar</button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Markdown Help Modal */}
-      {showMarkdownHelp && (
-        <div className="modal" style={{ zIndex: 10001 }}>
-          <div className="modal-content" style={{ maxWidth: '700px', width: '100%' }}>
-            <h2>📖 Guía Rápida de Markdown</h2>
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Encabezados</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`# Título Principal (H1)\n## Título Secundario (H2)\n### Título Terciario (H3)\n#### Subtítulo (H4)`}</pre>
-            </div>
-
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Énfasis</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`**Texto en negrita**\n*Texto en cursiva*`}</pre>
-              <div style={{ marginTop: '8px', fontSize: '14px' }}>
-                <strong>Texto en negrita</strong><br />
-                <em>Texto en cursiva</em>
+      {
+        showMarkdownHelp && (
+          <div className="modal" style={{ zIndex: 10001 }}>
+            <div className="modal-content" style={{ maxWidth: '700px', width: '100%' }}>
+              <h2>📖 Guía Rápida de Markdown</h2>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Encabezados</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`# Título Principal (H1)\n## Título Secundario (H2)\n### Título Terciario (H3)\n#### Subtítulo (H4)`}</pre>
               </div>
-            </div>
 
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Listas</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`- Elemento 1\n- Elemento 2\n- Elemento 3`}</pre>
-              <div style={{ marginTop: '8px', fontSize: '14px' }}>
-                <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
-                  <li>Elemento 1</li>
-                  <li>Elemento 2</li>
-                  <li>Elemento 3</li>
-                </ul>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Énfasis</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`**Texto en negrita**\n*Texto en cursiva*`}</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <strong>Texto en negrita</strong><br />
+                  <em>Texto en cursiva</em>
+                </div>
               </div>
-            </div>
 
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Enlaces</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>[Texto del enlace](https://ejemplo.com)</pre>
-              <div style={{ marginTop: '8px', fontSize: '14px' }}>
-                <a href="https://ejemplo.com" target="_blank" rel="noopener noreferrer">Texto del enlace</a>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Listas</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`- Elemento 1\n- Elemento 2\n- Elemento 3`}</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                    <li>Elemento 1</li>
+                    <li>Elemento 2</li>
+                    <li>Elemento 3</li>
+                  </ul>
+                </div>
               </div>
-            </div>
 
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Código</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`Código inline: \`código aquí\`\n\nBloque de código:\n\`\`\`\nfunción ejemplo() {\n  return "Hola";\n}\n\`\`\``}</pre>
-            </div>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Enlaces</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>[Texto del enlace](https://ejemplo.com)</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <a href="https://ejemplo.com" target="_blank" rel="noopener noreferrer">Texto del enlace</a>
+                </div>
+              </div>
 
-            <div className="card" style={{ marginBottom: '12px' }}>
-              <h3 style={{ fontSize: '18px', marginTop: 0 }}>Línea Horizontal</h3>
-              <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>---</pre>
-              <hr style={{ margin: '8px 0' }} />
-            </div>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Código</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`Código inline: \`código aquí\`\n\nBloque de código:\n\`\`\`\nfunción ejemplo() {\n  return "Hola";\n}\n\`\`\``}</pre>
+              </div>
 
-            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="button primary" onClick={() => setShowMarkdownHelp(false)}>
-                Cerrar
-              </button>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Línea Horizontal</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>---</pre>
+                <hr style={{ margin: '8px 0' }} />
+              </div>
+
+              <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="button primary" onClick={() => setShowMarkdownHelp(false)}>
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
 
 
       {/* Modal de Imagen de Perfil */}
-      {showProfilePictureModal && (
-        <ProfilePictureModal
-          show={true}
-          onClose={() => setShowProfilePictureModal(false)}
-          onUploadSuccess={() => {
-            setShowProfilePictureModal(false);
-          }}
-          onDeleteSuccess={() => {
-            setShowProfilePictureModal(false);
-          }}
-          currentProfilePictureUrl={profilePictureUrl}
-          fetchProfilePicture={fetchProfilePicture}
-        />
-      )}
+      {
+        showProfilePictureModal && (
+          <ProfilePictureModal
+            show={true}
+            onClose={() => setShowProfilePictureModal(false)}
+            onUploadSuccess={() => {
+              setShowProfilePictureModal(false);
+            }}
+            onDeleteSuccess={() => {
+              setShowProfilePictureModal(false);
+            }}
+            currentProfilePictureUrl={profilePictureUrl}
+            fetchProfilePicture={fetchProfilePicture}
+          />
+        )
+      }
 
       {/* Modal de Configuración */}
-      {showConfigModal && (
-        <div className="modal">
-          <div className="modal-content" style={{ maxWidth: '550px' }}>
-            <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>⚙️ Configuración</h2>
+      {
+        showConfigModal && (
+          <div className="modal">
+            <div className="modal-content" style={{ maxWidth: '550px' }}>
+              <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>⚙️ Configuración</h2>
 
-            {/* Sección API Key */}
-            <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}` }}>
-              <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🔑 Finnhub API Key</h3>
-              {missingApiKeyWarning && (
-                <div style={{
-                  backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                  border: '1px solid #ffc107',
-                  color: '#ffc107',
-                  padding: '10px',
-                  borderRadius: '4px',
-                  marginBottom: '10px',
-                  fontSize: '13px'
-                }}>
-                  ⚠️ Necesitas configurar una API Key de Finnhub para buscar empresas.
-                </div>
-              )}
-              <div className="form-group" style={{ marginBottom: '10px' }}>
-                <label style={{ fontSize: '13px', marginBottom: '4px' }}>API Key:</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    value={finnhubApiKey}
-                    onChange={(e) => setFinnhubApiKey(e.target.value)}
-                    className="input"
-                    placeholder="Introduce tu API Key de Finnhub"
-                    style={{ fontSize: '14px', padding: '8px', flex: 1 }}
-                  />
-                  <button
-                    type="button"
-                    className="button primary"
-                    onClick={async () => {
-                      try {
-                        const response = await authenticatedFetch('/api/admin/finnhub-api-key', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ value: finnhubApiKey })
-                        });
-                        if (response.ok) {
-                          alert('✅ API Key guardada correctamente');
-                          setMissingApiKeyWarning(false);
-                        } else {
+              {/* Sección API Key */}
+              <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}` }}>
+                <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🔑 Finnhub API Key</h3>
+                {missingApiKeyWarning && (
+                  <div style={{
+                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                    border: '1px solid #ffc107',
+                    color: '#ffc107',
+                    padding: '10px',
+                    borderRadius: '4px',
+                    marginBottom: '10px',
+                    fontSize: '13px'
+                  }}>
+                    ⚠️ Necesitas configurar una API Key de Finnhub para buscar empresas.
+                  </div>
+                )}
+                <div className="form-group" style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '13px', marginBottom: '4px' }}>API Key:</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      value={finnhubApiKey}
+                      onChange={(e) => setFinnhubApiKey(e.target.value)}
+                      className="input"
+                      placeholder="Introduce tu API Key de Finnhub"
+                      style={{ fontSize: '14px', padding: '8px', flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      className="button primary"
+                      onClick={async () => {
+                        try {
+                          const response = await authenticatedFetch('/api/admin/finnhub-api-key', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ value: finnhubApiKey })
+                          });
+                          if (response.ok) {
+                            alert('✅ API Key guardada correctamente');
+                            setMissingApiKeyWarning(false);
+                          } else {
+                            alert('❌ Error al guardar API Key');
+                          }
+                        } catch (e) {
+                          console.error(e);
                           alert('❌ Error al guardar API Key');
                         }
-                      } catch (e) {
-                        console.error(e);
-                        alert('❌ Error al guardar API Key');
-                      }
-                    }}
-                    style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
-                  >
-                    💾 Guardar
-                  </button>
+                      }}
+                      style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
+                    >
+                      💾 Guardar
+                    </button>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#888', marginTop: '5px' }}>
+                    Obtén tu clave gratuita en <a href="https://finnhub.io/" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>finnhub.io</a>
+                  </p>
                 </div>
-                <p style={{ fontSize: '11px', color: '#888', marginTop: '5px' }}>
-                  Obtén tu clave gratuita en <a href="https://finnhub.io/" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>finnhub.io</a>
-                </p>
               </div>
-            </div>
 
-            {/* Sección Cambiar Contraseña */}
-            <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}` }}>
-              <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🔒 Cambiar Contraseña</h3>
-              <div className="form-group" style={{ marginBottom: '10px' }}>
-                <label style={{ fontSize: '13px', marginBottom: '4px' }}>Contraseña Actual:</label>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="input"
-                  placeholder="Contraseña actual"
-                  style={{ fontSize: '14px', padding: '8px' }}
-                  autoComplete="current-password"
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: '10px' }}>
-                <label style={{ fontSize: '13px', marginBottom: '4px' }}>Nueva Contraseña:</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="input"
-                  placeholder="Nueva contraseña (mín. 6 caracteres)"
-                  style={{ fontSize: '14px', padding: '8px' }}
-                  autoComplete="new-password"
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: '0', display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '13px', marginBottom: '4px' }}>Confirmar Nueva:</label>
+              {/* Sección Cambiar Contraseña */}
+              <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}` }}>
+                <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🔒 Cambiar Contraseña</h3>
+                <div className="form-group" style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '13px', marginBottom: '4px' }}>Contraseña Actual:</label>
                   <input
                     type="password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
                     className="input"
-                    placeholder="Confirma la nueva contraseña"
+                    placeholder="Contraseña actual"
+                    style={{ fontSize: '14px', padding: '8px' }}
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '13px', marginBottom: '4px' }}>Nueva Contraseña:</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="input"
+                    placeholder="Nueva contraseña (mín. 6 caracteres)"
                     style={{ fontSize: '14px', padding: '8px' }}
                     autoComplete="new-password"
                   />
                 </div>
+                <div className="form-group" style={{ marginBottom: '0', display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '13px', marginBottom: '4px' }}>Confirmar Nueva:</label>
+                    <input
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className="input"
+                      placeholder="Confirma la nueva contraseña"
+                      style={{ fontSize: '14px', padding: '8px' }}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="button primary"
+                    onClick={handleChangePassword}
+                    style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
+                  >
+                    💾 Cambiar
+                  </button>
+                </div>
+              </div>
+
+              {/* Sección Borrar Datos */}
+              <div style={{ marginBottom: '0' }}>
+                <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🗑️ Borrar Todas las Operaciones</h3>
+                <p style={{ marginBottom: '10px', fontSize: '12px', color: '#dc3545', fontWeight: 'bold' }}>
+                  ⚠️ Esta acción borrará TODAS las operaciones. NO se puede deshacer.
+                </p>
                 <button
                   type="button"
-                  className="button primary"
-                  onClick={handleChangePassword}
-                  style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
+                  className="button danger"
+                  onClick={clearAllOperations}
+                  style={{ fontSize: '14px', padding: '8px 16px' }}
                 >
-                  💾 Cambiar
+                  🗑️ Borrar Todas las Operaciones
+                </button>
+              </div>
+
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    setShowConfigModal(false);
+                    setMissingApiKeyWarning(false);
+                    setCurrentPassword('');
+                    setNewPassword('');
+                    setConfirmNewPassword('');
+                  }}
+                  style={{ fontSize: '14px', padding: '8px 16px' }}
+                >
+                  Cerrar
                 </button>
               </div>
             </div>
-
-            {/* Sección Borrar Datos */}
-            <div style={{ marginBottom: '0' }}>
-              <h3 style={{ marginBottom: '8px', fontSize: '16px' }}>🗑️ Borrar Todas las Operaciones</h3>
-              <p style={{ marginBottom: '10px', fontSize: '12px', color: '#dc3545', fontWeight: 'bold' }}>
-                ⚠️ Esta acción borrará TODAS las operaciones. NO se puede deshacer.
-              </p>
-              <button
-                type="button"
-                className="button danger"
-                onClick={clearAllOperations}
-                style={{ fontSize: '14px', padding: '8px 16px' }}
-              >
-                🗑️ Borrar Todas las Operaciones
-              </button>
-            </div>
-
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  setShowConfigModal(false);
-                  setMissingApiKeyWarning(false);
-                  setCurrentPassword('');
-                  setNewPassword('');
-                  setConfirmNewPassword('');
-                }}
-                style={{ fontSize: '14px', padding: '8px 16px' }}
-              >
-                Cerrar
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       <ExternalButtonsModal
         show={showExternalButtonsModal}
@@ -3602,7 +3679,7 @@ function App() {
           }
         }}
       />
-    </div>
+    </div >
   );
 }
 

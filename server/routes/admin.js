@@ -214,6 +214,7 @@ router.get('/backup/export', async (req, res) => {
     }
 
     if (format === 'json') {
+      console.log('Attempting to export JSON. Data keys:', Object.keys(data));
       res.setHeader('Content-Type', 'application/json')
       res.setHeader('Content-Disposition', `attachment; filename=backup_${new Date().toISOString().split('T')[0]}.json`)
       return res.send(JSON.stringify(data, null, 2))
@@ -246,8 +247,8 @@ router.get('/backup/export', async (req, res) => {
     res.send(sql)
 
   } catch (error) {
-    console.error('Backup export error:', error)
-    res.status(500).json({ error: error.message })
+    console.error('Backup export error:', error);
+    res.status(500).json({ error: error.message });
   }
 })
 
@@ -295,12 +296,21 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { transaction: t })
     await t.commit()
 
-    // Reload scheduler config just in case
-    await scheduler.reload()
-
     res.json({ success: true, message: 'Restauración completada' })
+
+    // Reload scheduler config after successful import and response sent
+    try {
+      await scheduler.reload()
+      console.log('Scheduler reloaded successfully after import.');
+    } catch (schedulerError) {
+      console.error('Error reloading scheduler after import:', schedulerError);
+    }
+
   } catch (error) {
-    await t.rollback()
+    // Only rollback if the transaction hasn't been committed yet
+    if (t.finished !== 'commit') { // Check if transaction is not committed
+      await t.rollback()
+    }
     console.error('Backup import error:', error)
 
     // Instancia de Yahoo Finance v3
@@ -331,6 +341,31 @@ router.post('/update-prices-manual', async (req, res) => {
     });
   } catch (error) {
     console.error('Error en actualización manual:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/overwrite-history
+ * Sobrescribe datos históricos de DailyPrice (Botón de emergencia)
+ */
+router.post('/overwrite-history', async (req, res) => {
+  try {
+    const { days = 30 } = req.body;
+    console.log(`⚠️ Solicitud de sobrescritura de historial recibida (días: ${days})`);
+
+    // Importar dinámicamente el servicio
+    const { overwriteHistoricalData } = await import('../services/historicalDataService.js');
+
+    const result = await overwriteHistoricalData(parseInt(days));
+
+    res.json({
+      success: true,
+      message: `Historial sobrescrito correctamente para ${result.updatedPositions} posiciones.`,
+      details: result
+    });
+  } catch (error) {
+    console.error('Error en sobrescritura de historial:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -445,8 +480,7 @@ router.post('/daily-close/recompute-last', async (req, res) => {
       let totalValueEUR = 0
       for (const p of activePositions) {
         const pk = `${p.company}|||${p.symbol}`
-        const cache = await PriceCache.findOne({ where: { userId, portfolioId, positionKey: pk } })
-        if (!cache || !cache.lastPrice || cache.lastPrice <= 0) continue
+
         const companyOps = ops.filter(o => {
           const k = o.symbol ? `${o.company}|||${o.symbol}` : o.company
           return k === pk
@@ -465,14 +499,32 @@ router.post('/daily-close/recompute-last', async (req, res) => {
           }
           rate = totalShares > 0 ? (totalExchangeRateWeighted / totalShares) : (purchases[0]?.exchangeRate || 1)
         }
-        const valEUR = cache.lastPrice * rate * p.shares
+
+        // Usar PnL en tiempo real: leer precio actual desde GlobalCurrentPrice
+        let gcp = await GlobalCurrentPrice.findOne({ where: { symbol: p.symbol } })
+        let close = gcp?.lastPrice || null
+        let dailyCurrency = gcp?.currency || currency
+        let change = gcp?.change ?? null
+        let changePercent = gcp?.changePercent ?? null
+
+        // Fallback a PriceCache si no hay precio actual
+        if (!close || close <= 0) {
+          const cache = await PriceCache.findOne({ where: { userId, portfolioId, positionKey: pk } })
+          if (cache && cache.lastPrice && cache.lastPrice > 0) {
+            close = cache.lastPrice
+            dailyCurrency = currency
+          }
+        }
+        if (!close || close <= 0) continue
+
+        const valEUR = close * rate * p.shares
         totalValueEUR += valEUR
 
         const existingPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date: iso } })
         if (existingPrice) {
-          await existingPrice.update({ company: p.company, symbol: p.symbol, close: cache.lastPrice, currency, exchangeRate: rate, source: cache.source || 'cache' })
+          await existingPrice.update({ company: p.company, symbol: p.symbol, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares })
         } else {
-          await DailyPrice.create({ userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol, date: iso, close: cache.lastPrice, currency, exchangeRate: rate, source: cache.source || 'cache' })
+          await DailyPrice.create({ userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol, date: iso, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares })
         }
       }
       const pnlEUR = totalValueEUR - totalInvestedEUR

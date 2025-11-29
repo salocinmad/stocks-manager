@@ -457,6 +457,40 @@ function Admin() {
             >
               📊 Generar Reportes
             </button>
+            <button
+              className="button warning"
+              onClick={async () => {
+                const days = prompt('¿Cuántos días de historial deseas sobrescribir? (Recomendado: 30)', '30');
+                if (!days) return;
+
+                if (!window.confirm(`⚠️ ADVERTENCIA DESTRUCTIVA ⚠️\n\nEstás a punto de SOBRESCRIBIR los datos históricos de los últimos ${days} días para TODAS las acciones activas.\n\nEsto eliminará cualquier corrección manual y reemplazará los datos con los de Yahoo Finance.\n\n¿Estás seguro de continuar?`)) return;
+
+                try {
+                  setLoading(true);
+                  const r = await authenticatedFetch('/api/admin/overwrite-history', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ days: parseInt(days) })
+                  });
+
+                  const d = await r.json().catch(() => ({}));
+
+                  if (r.ok) {
+                    setSuccess(d.message || 'Historial sobrescrito correctamente');
+                    alert(`✅ Proceso completado.\n\n${d.message}\n\nDetalles: ${d.details?.updatedPositions} posiciones actualizadas.`);
+                  } else {
+                    setError(d?.error || 'Error sobrescribiendo historial');
+                  }
+                } catch (e) {
+                  setError('Error de conexión al sobrescribir historial');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              style={{ justifyContent: 'center', marginTop: '10px', border: '1px solid #ef4444', color: '#ef4444' }}
+            >
+              🔄 Sobrescribir Historial (Emergencia)
+            </button>
           </div>
         </div>
       </div>

@@ -249,3 +249,20 @@ export function calculateContributionByCompany(activePositions, currentPrices, c
 
     return contributionsWithPercentage;
 }
+
+/**
+ * Transforma array de precios diarios históricos a formato de gráfico
+ * @param {Array} historicalPrices - Array de precios diarios históricos ({ date, close })
+ * @returns {Array} Array formateado para gráficos
+ */
+export function transformHistoricalPricesToChartData(historicalPrices) {
+    if (!historicalPrices || historicalPrices.length === 0) return [];
+
+    // Tomar solo los últimos 30 días
+    const last30Days = historicalPrices.slice(-30);
+
+    return last30Days.map(price => ({
+        date: price.date,
+        value: price.close
+    }));
+}

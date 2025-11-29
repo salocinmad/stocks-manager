@@ -94,7 +94,12 @@ export const positionsAPI = {
   updateOrder: (order) => fetchAPI('/positions/order', {
     method: 'PUT',
     body: JSON.stringify({ order, portfolioId: getCurrentPortfolioId() })
-  })
+  }),
+  getHistory: (positionKey) => {
+    const pid = getCurrentPortfolioId();
+    const q = pid ? `?portfolioId=${pid}` : '';
+    return fetchAPI(`/positions/history/${encodeURIComponent(positionKey)}${q}`);
+  }
 };
 
 // Precios (caché persistente)

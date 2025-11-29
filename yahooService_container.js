@@ -106,23 +106,20 @@ export async function fetchQuote(symbol) {
  */
 export async function fetchHistorical(symbol, days = 365) {
     try {
-        const parts = symbol.split('|||');
-        let yahooSymbol = parts[parts.length - 1]; // Obtener la última parte (el ticker)
-        yahooSymbol = yahooSymbol.replace(/:/g, '.'); // Reemplazar ':' por '.' si existe
-        console.error(`ERROR_DEBUG: Símbolo de Yahoo convertido: ${yahooSymbol}`);
+        // Convertir : a . para Yahoo Finance
+        const yahooSymbol = symbol.replace(/:/g, '.');
+        console.log(`📞 Yahoo API (fetch directo) para datos históricos de '${symbol}' (${days} días)...`);
 
         const endDate = Math.floor(Date.now() / 1000);
         const startDate = endDate - (days * 24 * 60 * 60);
 
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?period1=${startDate}&period2=${endDate}&interval=1d`;
-        console.error(`ERROR_DEBUG: URL de la API de Yahoo Finance: ${url}`);
 
         const response = await fetch(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             },
         });
-        console.error(`ERROR_DEBUG: Respuesta de la API de Yahoo Finance - Estado: ${response.status}`);
 
         if (!response.ok) {
             console.log(`⚠️  Yahoo historical ${symbol}: HTTP ${response.status}`);

@@ -59,7 +59,12 @@ router.get('/quote/:symbol', async (req, res) => {
       return res.status(404).json({ error: 'Precio no disponible en Yahoo Finance' });
     }
 
-    const previousClose = meta.previousClose || meta.chartPreviousClose || regularMarketPrice;
+    const previousClose = (
+      meta.regularMarketPreviousClose ??
+      meta.chartPreviousClose ??
+      meta.previousClose ??
+      regularMarketPrice
+    );
     const change = regularMarketPrice - previousClose;
     const changePercent = previousClose > 0 ? (change / previousClose) * 100 : 0;
 
