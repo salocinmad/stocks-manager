@@ -18,6 +18,20 @@ const ChartTypeToggle = ({ chartType, onChartTypeChange }) => {
             >
                 📊 Velas
             </button>
+            <button
+                className={`toggle-button ${chartType === 'bar' ? 'active' : ''}`}
+                onClick={() => onChartTypeChange('bar')}
+                type="button"
+            >
+                📊 Barras
+            </button>
+            <button
+                className={`toggle-button ${chartType === 'area' ? 'active' : ''}`}
+                onClick={() => onChartTypeChange('area')}
+                type="button"
+            >
+                📈 Área
+            </button>
         </div>
     );
 };

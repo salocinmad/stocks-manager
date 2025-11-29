@@ -9,7 +9,8 @@ import {
     Tooltip,
     ResponsiveContainer,
     ComposedChart,
-    Bar
+    Bar,
+    Area
 } from 'recharts';
 import ChartTypeToggle from './ChartTypeToggle';
 import './StockHistoryChart.css';
@@ -206,7 +207,7 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
 
             <div className="chart-wrapper">
                 <ResponsiveContainer width="100%" height={250}>
-                    {chartType === 'line' ? (
+                    {chartType === 'line' && (
                         <LineChart data={historicalData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                             <CartesianGrid
                                 stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'}
@@ -229,7 +230,9 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                                 strokeWidth={2}
                             />
                         </LineChart>
-                    ) : (
+                    )}
+
+                    {chartType === 'candlestick' && (
                         <ComposedChart data={historicalData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                             <CartesianGrid
                                 stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'}
@@ -251,6 +254,44 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                             />
                         </ComposedChart>
                     )}
+
+                    {chartType === 'bar' && (
+                            <ComposedChart data={historicalData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                                <CartesianGrid
+                                    stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'}
+                                    strokeDasharray="3 3"
+                                />
+                                <XAxis
+                                    dataKey="dateFormatted"
+                                    tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
+                                />
+                                <YAxis
+                                    tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
+                                    domain={['auto', 'auto']}
+                                />
+                                <Tooltip content={<CustomTooltip />} />
+                                <Bar dataKey="close" fill="#82ca9d" />
+                            </ComposedChart>
+                        )}
+
+                        {chartType === 'area' && (
+                            <ComposedChart data={historicalData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                                <CartesianGrid
+                                    stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'}
+                                    strokeDasharray="3 3"
+                                />
+                                <XAxis
+                                    dataKey="dateFormatted"
+                                    tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
+                                />
+                                <YAxis
+                                    tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
+                                    domain={['auto', 'auto']}
+                                />
+                                <Tooltip content={<CustomTooltip />} />
+                                 <Area dataKey="close" stroke="#8884d8" fill="#8884d8" />
+                            </ComposedChart>
+                        )}
                 </ResponsiveContainer>
             </div>
         </div>
