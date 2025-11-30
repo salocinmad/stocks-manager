@@ -27,6 +27,7 @@ function Admin() {
   const [smtpPass, setSmtpPass] = useState('');
   const [smtpSubject, setSmtpSubject] = useState('Alerta de precios');
   const [smtpTo, setSmtpTo] = useState('');
+  const [logLevelEnabled, setLogLevelEnabled] = useState(false); // Nuevo estado para el nivel de log
 
   const [showPass, setShowPass] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -43,7 +44,29 @@ function Admin() {
     loadUsers();
     loadApiKey();
     loadSmtp();
+    loadLogLevel();
   }, []);
+
+  const loadLogLevel = async () => {
+    try {
+      const response = await configAPI.get('logLevel');
+      setLogLevelEnabled(response.value === 'verbose');
+    } catch (err) {
+      console.error('Error cargando nivel de log:', err);
+    }
+  };
+
+  const handleToggleLogLevel = async () => {
+    const newLevel = logLevelEnabled ? 'minimal' : 'verbose';
+    try {
+      await configAPI.set('logLevel', newLevel);
+      setLogLevelEnabled(!logLevelEnabled);
+      setSuccess(`Nivel de log cambiado a ${newLevel}`);
+    } catch (err) {
+      setError('Error al cambiar el nivel de log');
+      console.error('Error al cambiar el nivel de log:', err);
+    }
+  };
 
   const loadApiKey = async () => {
     try {
@@ -352,39 +375,19 @@ function Admin() {
             >
               ⚙️ Scheduler
             </button>
+
             <button
               className="button"
-              onClick={async () => {
-                try {
-                  const r = await authenticatedFetch('/api/admin/daily-close/run', { method: 'POST' })
-                  const d = await r.json().catch(() => ({}))
-                  if (r.ok) {
-                    if (d.status === 'already_running') {
-                      setSuccess('Cierre diario ya en ejecución')
-                    } else if (d.status === 'partial_failures') {
-                      setSuccess(`Cierre diario con incidencias (${(d.failures || []).length})`)
-                    } else if (d.status === 'no_data') {
-                      setSuccess('Cierre diario sin datos que procesar')
-                    } else {
-                      setSuccess(`Cierre diario ejecutado (${d.date || '—'})`)
-                    }
-                  } else {
-                    setError(d?.error || 'Error ejecutando cierre diario')
-                  }
-                } catch (e) {
-                  setError('Error ejecutando cierre diario')
-                }
-              }}
+              onClick={handleToggleLogLevel}
               style={{ justifyContent: 'center' }}
             >
-              🔄 Actualizar Datos Históricos
+              {logLevelEnabled ? '✅ Logging Detallado' : '❌ Logging Minimal'}
             </button>
           </div>
         </div>
 
-        {/* Panel de Mantenimiento */}
-        <div className="card">
-          <h3 style={{ borderBottom: '1px solid #404040', paddingBottom: '10px', marginBottom: '15px' }}>🛠️ Mantenimiento</h3>
+        <div className="admin-card">
+              <h3>Mantenimiento</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               className="button"
@@ -483,6 +486,40 @@ function Admin() {
               style={{ justifyContent: 'center' }}
             >
               📊 Generar Reportes
+            </button>
+            <button
+              className="button warning"
+              onClick={async () => {
+                const days = prompt('¿Cuántos días de historial deseas sobrescribir? (Recomendado: 30)', '30');
+                if (!days) return;
+
+                if (!window.confirm(`⚠️ ADVERTENCIA DESTRUCTIVA ⚠️\n\nEstás a punto de SOBRESCRIBIR los datos históricos de los últimos ${days} días para TODAS las acciones activas.\n\nEsto eliminará cualquier corrección manual y reemplazará los datos con los de Yahoo Finance.\n\n¿Estás seguro de continuar?`)) return;
+
+                try {
+                  setLoading(true);
+                  const r = await authenticatedFetch('/api/admin/overwrite-history', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ days: parseInt(days) })
+                  });
+
+                  const d = await r.json().catch(() => ({}));
+
+                  if (r.ok) {
+                    setSuccess(d.message || 'Historial sobrescrito correctamente');
+                    alert(`✅ Proceso completado.\n\n${d.message}\n\nDetalles: ${d.details?.updatedPositions} posiciones actualizadas.`);
+                  } else {
+                    setError(d?.error || 'Error sobrescribiendo historial');
+                  }
+                } catch (e) {
+                  setError('Error de conexión al sobrescribir historial');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              style={{ justifyContent: 'center', marginTop: '10px', border: '1px solid #ef4444', color: '#ef4444' }}
+            >
+              🔄 Sobrescribir Historial (Emergencia)
             </button>
           </div>
         </div>

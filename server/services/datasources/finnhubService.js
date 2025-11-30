@@ -6,6 +6,7 @@
 import Config from '../../models/Config.js';
 import { API_TIMEOUTS } from '../../utils/constants.js';
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
+import { getLogLevel } from '../configService.js';
 
 /**
  * Obtiene quote de Finnhub
@@ -13,10 +14,13 @@ import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
  * @returns {Promise<Object|null>} Datos de precio o null
  */
 export async function fetchQuote(symbol) {
+    const currentLogLevel = await getLogLevel();
     try {
         const apiKey = await Config.findOne({ where: { key: 'finnhub-api-key' } });
         if (!apiKey?.value) {
-            // console.log('⚠️  Finnhub API key not configured');
+            if (currentLogLevel === 'verbose') {
+                console.log('⚠️  Finnhub API key not configured');
+            }
             return null;
         }
 
@@ -31,7 +35,9 @@ export async function fetchQuote(symbol) {
         clearTimeout(timeout);
 
         if (!response.ok) {
-            // console.log(`⚠️  Finnhub ${symbol}: HTTP ${response.status}`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`⚠️  Finnhub ${symbol}: HTTP ${response.status}`);
+            }
             return null;
         }
 
@@ -55,9 +61,13 @@ export async function fetchQuote(symbol) {
         };
     } catch (error) {
         if (error.name === 'AbortError') {
-            console.error(`⏱️  Finnhub ${symbol}: Timeout`);
+            if (currentLogLevel === 'verbose') {
+                console.error(`⏱️  Finnhub ${symbol}: Timeout`);
+            }
         } else {
-            console.error(`❌ Finnhub ${symbol}:`, error.message);
+            if (currentLogLevel === 'verbose') {
+                console.error(`❌ Finnhub ${symbol}:`, error.message);
+            }
         }
         return null;
     }

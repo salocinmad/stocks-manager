@@ -1,17 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI, profilePicturesAPI, externalButtonsAPI } from './services/api.js';
 import { logout, verifySession, changePassword, authenticatedFetch } from './services/auth.js';
 import ProfilePictureModal from './components/ProfilePictureModal.jsx';
 import ExternalButtonsModal from './components/ExternalButtonsModal.jsx';
 import Reports from './components/Reports.jsx';
-import DeleteConfirmModal from './components/DeleteConfirmModal.jsx';
-import NoteModal from './components/NoteModal.jsx';
-import SelectPositionModal from './components/SelectPositionModal.jsx';
-import PortfolioSummary from './components/PortfolioSummary.jsx';
-import OperationsHistory from './components/OperationsHistory.jsx';
+import StockHistoryChart from './components/StockHistoryChart.jsx';
+import PnLChart from './components/PnLChart.jsx';
 import { usePositionOrder } from './usePositionOrder.jsx';
-import { formatPrice, formatCurrency } from './utils/marketUtils.js';
 
 function App() {
   const navigate = useNavigate();
@@ -80,9 +77,7 @@ function App() {
   const [showProfilePictureModal, setShowProfilePictureModal] = useState(false); // Nuevo estado para el modal de imagen de perfil
   const [externalButtons, setExternalButtons] = useState([]); // Botones externos
   const [showExternalButtonsModal, setShowExternalButtonsModal] = useState(false);
-  const [expandedPositions, setExpandedPositions] = useState(new Set()); // Gráficos desplegables abiertos
-  const [historicalDataCache, setHistoricalDataCache] = useState({}); // Caché de datos históricos por positionKey
-
+  const [expandedPositions, setExpandedPositions] = useState({}); // Track which positions are expanded
 
   const DEFAULT_PROFILE_PICTURE_URL = '/defaultpic.jpg'; // Imagen de perfil por defecto servida desde el frontend
 
@@ -186,7 +181,7 @@ function App() {
             setCurrentPortfolioId(pid);
           }
         } catch (e) {
-          // console.log('No se pudo cargar portafolios');
+          console.log('No se pudo cargar portafolios');
         }
 
         // Cargar operaciones desde API
@@ -240,7 +235,7 @@ function App() {
             }
           }
         } catch (e) {
-          // console.log('No se pudieron precargar precios desde caché');
+          console.log('No se pudieron precargar precios desde caché');
         }
 
         // Cargar API key global (configurada por admin)
@@ -252,7 +247,7 @@ function App() {
             setFinnhubApiKey(apiKey);
           }
         } catch (error) {
-          // console.log('No se pudo cargar la API key global (solo admin puede configurarla)');
+          console.log('No se pudo cargar la API key global (solo admin puede configurarla)');
         }
 
         // Cargar última sincronización global desde Config
@@ -262,7 +257,7 @@ function App() {
             setLastUpdatedAt(new Date(lastSync.value));
           }
         } catch (e) {
-          // console.log('No se pudo cargar last_prices_sync_at');
+          console.log('No se pudo cargar last_prices_sync_at');
         }
 
         // Cargar última ejecución de cierre diario
@@ -272,7 +267,7 @@ function App() {
             setDailyCloseLastRun(dclr.value);
           }
         } catch (e) {
-          // console.log('No se pudo cargar daily_close_last_run');
+          console.log('No se pudo cargar daily_close_last_run');
         }
 
         // Cargar tipo de cambio EUR/USD al iniciar
@@ -288,7 +283,7 @@ function App() {
             setContributionChartData(data);
           }
         } catch (e) {
-          // console.log('No se pudo cargar contribución');
+          console.log('No se pudo cargar contribución');
         }
 
         // Cargar botones externos configurados
@@ -296,7 +291,7 @@ function App() {
           const buttons = await externalButtonsAPI.getAll();
           setExternalButtons(buttons || []);
         } catch (e) {
-          // console.log('No se pudieron cargar botones externos');
+          console.log('No se pudieron cargar botones externos');
         }
 
         // Cargar serie de PnL histórico (viene de DailyPort folioStats)
@@ -308,7 +303,7 @@ function App() {
           // at line 398 will update it once currentPrices are loaded
           setPnlSeries(series);
         } catch (e) {
-          // console.log('No se pudo cargar la serie de PnL');
+          console.log('No se pudo cargar la serie de PnL');
         }
       } catch (error) {
         console.error('Error cargando datos:', error);
@@ -346,7 +341,7 @@ function App() {
         // after operations state has been updated
         setPnlSeries(series);
       } catch (e) {
-        // console.log('Error recargando datos por cambio de portafolio');
+        console.log('Error recargando datos por cambio de portafolio');
       }
     };
     reloadForPortfolio();
@@ -868,7 +863,7 @@ function App() {
       if (!eurPerUsd || eurPerUsd <= 0) throw new Error('Tipo de cambio inválido');
       setCurrentEURUSD(eurPerUsd);
       setCurrentEURUSDSource(String(data.source || ''));
-      // console.log(`💱 Tipo de cambio EUR/USD actual: ${eurPerUsd.toFixed(4)} (1 USD = ${eurPerUsd.toFixed(4)} EUR)`);
+      console.log(`💱 Tipo de cambio EUR/USD actual: ${eurPerUsd.toFixed(4)} (1 USD = ${eurPerUsd.toFixed(4)} EUR)`);
       return eurPerUsd;
     } catch (error) {
       console.error('Error al obtener tipo de cambio EUR/USD:', error);
@@ -904,7 +899,7 @@ function App() {
         }
       }
 
-      // console.log(`Buscando en Yahoo Finance: ${yahooSymbol}`);
+      console.log(`Buscando en Yahoo Finance: ${yahooSymbol}`);
 
       // Usar el backend para evitar problemas de CORS
       const response = await authenticatedFetch(`/api/yahoo/quote/${yahooSymbol}`);
@@ -1004,7 +999,7 @@ function App() {
             }
           }
         } catch (error) {
-          // console.log('Finnhub falló, intentando Yahoo Finance...');
+          console.log('Finnhub falló, intentando Yahoo Finance...');
         }
       }
 
@@ -1166,7 +1161,7 @@ function App() {
       }
     });
 
-    // console.log('📊 Símbolos a consultar:', Object.entries(positionSymbols).map(([k, s]) => `${k}: ${s}`).join(', '));
+    console.log('📊 Símbolos a consultar:', Object.entries(positionSymbols).map(([k, s]) => `${k}: ${s}`).join(', '));
 
     // Consultar precios para cada posición con símbolo
     const pricePromises = companies.map(async (positionKey) => {
@@ -1178,7 +1173,7 @@ function App() {
       const position = activePositions[positionKey];
       const companyName = position?.company || positionKey.split('|||')[0];
 
-      // console.log(`[${companyName}] Consultando precio con símbolo: ${symbol}`);
+      console.log(`[${companyName}] Consultando precio con símbolo: ${symbol}`);
 
       try {
         let symbolInput = symbol.toUpperCase().trim();
@@ -1242,12 +1237,12 @@ function App() {
                   source: 'finnhub',
                   updatedAt: new Date().toISOString()
                 };
-                // console.log(`[${companyName}] Precio obtenido de Finnhub: $${priceData.price}`);
+                console.log(`[${companyName}] Precio obtenido de Finnhub: $${priceData.price}`);
               }
             }
           } catch (error) {
             if (error.name !== 'AbortError') {
-              // console.log(`[${companyName}] Finnhub falló, intentando Yahoo Finance...`);
+              console.log(`[${companyName}] Finnhub falló, intentando Yahoo Finance...`);
             }
           }
         }
@@ -1271,7 +1266,7 @@ function App() {
             }
 
             if (priceData) {
-              // console.log(`[${companyName}] Precio obtenido de Yahoo: $${priceData.price}`);
+              console.log(`[${companyName}] Precio obtenido de Yahoo: $${priceData.price}`);
             }
           } catch (error) {
             if (error.message.includes('Timeout')) {
@@ -1292,7 +1287,7 @@ function App() {
               source: priceData.source
             });
           } catch (e) {
-            // console.log(`[${companyName}] Error guardando precio en caché`);
+            console.log(`[${companyName}] Error guardando precio en caché`);
           }
         }
 
@@ -1326,12 +1321,12 @@ function App() {
       }
     });
 
-    // console.log(`✅ Precios actualizados: ${updated.length} empresas`);
+    console.log(`✅ Precios actualizados: ${updated.length} empresas`);
     if (updated.length > 0) {
-      // console.log(`   Empresas con precio: ${updated.join(', ')}`);
+      console.log(`   Empresas con precio: ${updated.join(', ')}`);
     }
     if (failed.length > 0) {
-      // console.log(`⚠️  Empresas sin precio: ${failed.join(', ')}`);
+      console.log(`⚠️  Empresas sin precio: ${failed.join(', ')}`);
     }
 
     setCurrentPrices(prices);
@@ -1343,7 +1338,7 @@ function App() {
     try {
       await configAPI.set('last_prices_sync_at', nowIso);
     } catch (e) {
-      // console.log('No se pudo actualizar last_prices_sync_at');
+      console.log('No se pudo actualizar last_prices_sync_at');
     }
   };
 
@@ -2275,449 +2270,1212 @@ function App() {
       ) : !showHistory ? (
         <>
           {/* Estadísticas */}
-          <PortfolioSummary
-            stats={stats}
-            chartData={chartData}
-            contributionChartData={contributionChartData}
-            contributionColorsMap={contributionColorsMap}
-            contributionDate={contributionDate}
-            pnlSeries={pnlSeries}
-            theme={theme}
-            activePositions={activePositions}
-            currentEURUSD={currentEURUSD}
-            currentEURUSDSource={currentEURUSDSource}
-            lastUpdatedAt={lastUpdatedAt}
-            loadingPrices={loadingPrices}
-            fetchCurrentEURUSD={fetchCurrentEURUSD}
-            fetchAllCurrentPrices={fetchAllCurrentPrices}
-            operations={operations}
-            currentPrices={currentPrices}
-            currentPortfolioId={currentPortfolioId}
-            formatPrice={formatPrice}
-            formatCurrency={formatCurrency}
-            openModal={openModal}
-            expandedPositions={expandedPositions}
-            setExpandedPositions={setExpandedPositions}
-            historicalDataCache={historicalDataCache}
-            setHistoricalDataCache={setHistoricalDataCache}
-            externalButtons={externalButtons}
-            handleNoteClick={(pk) => {
-              setNotePositionKey(pk);
-              setNoteContent(notesCache[pk] === true ? 'Cargando...' : (typeof notesCache[pk] === 'string' ? notesCache[pk] : ''));
-              setNoteOriginalContent('');
-              setNoteEditMode(false);
-              setShowNoteModal(true);
+          <div className="stats">
+            <div className="stat-item">
+              <div className="stat-value">€{stats.totalValue.toFixed(2)}</div>
+              <div className="stat-label">Valor Total</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-value">{stats.companiesCount}</div>
+              <div className="stat-label">Empresas</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-value">{stats.totalOperations}</div>
+              <div className="stat-label">Operaciones Abiertas</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-value">{stats.totalShares}</div>
+              <div className="stat-label">Acciones</div>
+            </div>
+          </div>
 
-              if (notesCache[pk] === true) {
-                setNoteLoading(true);
-                notesAPI.getNote(pk, currentPortfolioId)
-                  .then(data => {
-                    setNoteContent(data.content || '');
-                    setNoteOriginalContent(data.content || '');
-                    setNoteEditMode(!data.content);
-                    setNotesCache(prev => ({ ...prev, [pk]: data.content || '' }));
-                  })
-                  .catch(() => {
-                    setNoteContent('');
-                    setNoteEditMode(true);
-                  })
-                  .finally(() => setNoteLoading(false));
-              } else if (typeof notesCache[pk] === 'string') {
-                setNoteOriginalContent(notesCache[pk]);
-              } else {
-                setNoteLoading(true);
-                notesAPI.getNote(pk, currentPortfolioId)
-                  .then(data => {
-                    setNoteContent(data.content || '');
-                    setNoteOriginalContent(data.content || '');
-                    setNoteEditMode(!data.content);
-                    setNotesCache(prev => ({ ...prev, [pk]: data.content || '' }));
-                  })
-                  .catch(() => {
-                    setNoteContent('');
-                    setNoteEditMode(true);
-                  })
-                  .finally(() => setNoteLoading(false));
-              }
-            }}
-            notesCache={notesCache}
-            handleDragStart={handleDragStart}
-            handleDragEnd={handleDragEnd}
-            handleDragOver={handleDragOver}
-            handleDrop={handleDrop}
-            draggedPosition={draggedPosition}
-            sortPositions={sortPositions}
-            getActivePositions={getActivePositions}
-          />
+          {/* Posiciones Activas */}
+          <div className="card">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Posiciones Activas</h2>
+                {currentEURUSD && (
+                  <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>💱 1 USD = {currentEURUSD.toFixed(4)} EUR</span>
+                    {(() => {
+                      const src = currentEURUSDSource;
+                      if (src === 'finnhub') {
+                        return <img src="https://finnhub.io/static/img/webp/finnhub-logo.webp" alt="Finnhub" title="Finnhub" style={{ width: '14px', height: '14px' }} />
+                      } else if (src === 'yahoo') {
+                        return <img src="https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg" alt="Yahoo" title="Yahoo" style={{ width: '14px', height: '14px' }} />
+                      }
+                      return null;
+                    })()}
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                {lastUpdatedAt ? (
+                  <div style={{ fontSize: '12px', color: '#888' }}>
+                    🕒 Últ. act.: {lastUpdatedAt.toLocaleString('es-ES', { hour12: false })} ({(() => {
+                      const diffMs = Date.now() - lastUpdatedAt.getTime();
+                      const diffMin = Math.floor(diffMs / 60000);
+                      if (diffMin < 1) return 'hace <1 min';
+                      if (diffMin < 60) return `hace ${diffMin} min`;
+                      const diffH = Math.floor(diffMin / 60);
+                      if (diffH < 24) return `hace ${diffH} h`;
+                      const diffD = Math.floor(diffH / 24);
+                      return `hace ${diffD} d`;
+                    })()})
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '12px', color: '#888' }}>🕒 Últ. act.: -</div>
+                )}
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <img src="https://finnhub.io/static/img/webp/finnhub-logo.webp" alt="Finnhub" style={{ width: '14px', height: '14px' }} /> Finnhub
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <img src="https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg" alt="Yahoo" style={{ width: '14px', height: '14px' }} /> Yahoo
+                  </span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <button
+                  className="button primary"
+                  onClick={async () => {
+                    await fetchCurrentEURUSD();
+                    fetchAllCurrentPrices();
+                  }}
+                  disabled={loadingPrices}
+                  style={{ fontSize: '14px' }}
+                >
+                  {loadingPrices ? '⏳ Actualizando...' : '🔄 Actualizar Precios'}
+                </button>
+              </div>
+            </div>
+            {Object.keys(activePositions).length === 0 ? (
+              <p>No hay posiciones activas disponibles</p>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Empresa</th>
+                    <th>Acciones</th>
+                    <th>Coste Total (EUR)</th>
+                    <th>Coste Promedio</th>
+                    <th>Precio Actual</th>
+                    <th>Valor Actual (EUR)</th>
+                    <th>Ganancia pérdida</th>
+                    <th>Precio Objetivo</th>
+                    <th>Info</th>
+                    <th>Editar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(activePositions).map(([positionKey, position]) => {
+                    // Extraer nombre de empresa y símbolo de la clave
+                    const company = position.company || positionKey.split('|||')[0];
+                    const symbol = position.symbol || '';
 
-          <OperationsHistory
-            operations={operations}
-            showHistory={false}
-            theme={theme}
-          />
+                    // Filtrar operaciones que coincidan con empresa Y símbolo
+                    const companyOperations = operations.filter(op => {
+                      const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
+                      return opKey === positionKey;
+                    });
+
+                    const currentPriceData = currentPrices[positionKey];
+                    const avgCostPerShare = position.shares > 0 ? position.totalOriginalCost / position.shares : 0;
+
+                    // Obtener la moneda de las operaciones de compra (más confiable que inferir del exchange)
+                    // Usar la moneda de la última operación, o calcular promedio ponderado si hay múltiples compras
+                    const latestOperation = companyOperations.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+                    let currency = latestOperation?.currency || 'EUR';
+
+                    // Si hay múltiples compras, usar la moneda más común (o la de la última si todas son iguales)
+                    const purchases = companyOperations.filter(op => op.type === 'purchase');
+                    if (purchases.length > 0) {
+                      // Usar la moneda de la compra más reciente
+                      const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+                      currency = latestPurchase?.currency || currency;
+                    }
+
+                    // Calcular tipo de cambio promedio ponderado para operaciones de compra (usado para el coste histórico)
+                    let weightedExchangeRatePurchase = 1;
+                    if (currency !== 'EUR') {
+                      const purchases = companyOperations.filter(op => op.type === 'purchase');
+                      if (purchases.length > 0) {
+                        let totalShares = 0;
+                        let totalExchangeRateWeighted = 0;
+                        purchases.forEach(purchase => {
+                          totalShares += purchase.shares;
+                          totalExchangeRateWeighted += purchase.shares * purchase.exchangeRate;
+                        });
+                        weightedExchangeRatePurchase = totalShares > 0 ? totalExchangeRateWeighted / totalShares : latestOperation.exchangeRate;
+                      } else {
+                        weightedExchangeRatePurchase = latestOperation?.exchangeRate || 1;
+                      }
+                    }
+
+                    // Calcular valores
+                    let currentValueInBaseCurrency = null;
+                    let currentValueInEUR = null;
+                    let profitLossInEUR = null;
+                    let profitLossPercent = null;
+
+                    if (currentPriceData) {
+                      // Precio actual está en la moneda de la acción (ej: USD para acciones de NASDAQ)
+                      // Calcular valor actual en la moneda base
+                      currentValueInBaseCurrency = position.shares * currentPriceData.price;
+
+                      // Convertir a EUR usando el tipo de cambio ACTUAL (no el histórico)
+                      // Si la moneda es EUR, no hay conversión
+                      // Si es USD u otra moneda, usar el tipo de cambio EUR/USD actual
+                      if (currency === 'EUR') {
+                        currentValueInEUR = currentValueInBaseCurrency;
+                      } else if (currency === 'USD') {
+                        // Usar el tipo de cambio EUR/USD actual
+                        // currentEURUSD es cuántos EUR por 1 USD (ej: 0.92)
+                        // Para convertir USD a EUR: valor en USD × EUR por USD
+                        const eurPerUsd = currentEURUSD || 0.92; // Fallback si no está disponible (aprox 0.92)
+                        currentValueInEUR = currentValueInBaseCurrency * eurPerUsd;
+                      } else {
+                        // Para otras monedas, usar el tipo de cambio promedio ponderado como fallback
+                        currentValueInEUR = currentValueInBaseCurrency * weightedExchangeRatePurchase;
+                      }
+
+                      // Ganancia/pérdida = Valor actual en EUR (con tipo de cambio actual) - Coste total en EUR (con tipo de cambio de compra + comisiones)
+                      // position.totalCost ya incluye todas las comisiones de las compras
+                      profitLossInEUR = currentValueInEUR - position.totalCost;
+
+                      // Porcentaje de ganancia/pérdida
+                      profitLossPercent = position.totalCost > 0
+                        ? (profitLossInEUR / position.totalCost) * 100
+                        : 0;
+                    }
+
+                    return (
+                      <React.Fragment key={positionKey}>
+                        <tr
+                          draggable="true"
+                          onDragStart={(e) => handleDragStart(e, positionKey)}
+                          onDragEnd={handleDragEnd}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, positionKey, Object.keys(activePositions))}
+                          className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
+                        >
+                          <td>
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedPositions(prev => ({
+                                  ...prev,
+                                  [positionKey]: !prev[positionKey]
+                                }));
+                              }}
+                              style={{
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                userSelect: 'none'
+                              }}
+                            >
+                              <span style={{
+                                display: 'inline-block',
+                                width: '0',
+                                height: '0',
+                                borderLeft: '5px solid transparent',
+                                borderRight: '5px solid transparent',
+                                borderTop: '6px solid currentColor',
+                                transform: expandedPositions[positionKey] ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                transition: 'transform 0.2s ease',
+                                opacity: 0.7
+                              }}></span>
+                              <span style={{ fontWeight: 'bold' }}>{company}</span>
+                            </div>
+                            {symbol && (
+                              <div style={{ fontSize: '11px', color: '#888' }}>{symbol}</div>
+                            )}
+                          </td>
+                          <td>{position.shares}</td>
+                          <td>€{position.totalCost.toFixed(2)}</td>
+                          <td>{formatCurrency(avgCostPerShare, position.currency)}</td>
+                          <td>
+                            {currentPriceData ? (
+                              <div>
+                                <div style={{ fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                  <span>{currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}</span>
+                                  {(() => {
+                                    const src = currentPriceData.source;
+                                    const url = src === 'finnhub' ? 'https://finnhub.io/static/img/webp/finnhub-logo.webp' : (src === 'yahoo' ? 'https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg' : null);
+                                    const title = src ? `${src.toUpperCase()}${currentPriceData.updatedAt ? ` • ${new Date(currentPriceData.updatedAt).toLocaleString('es-ES', { hour12: false })}` : ''}` : '';
+                                    if (url) {
+                                      return (
+                                        <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="lazy" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
+                                {currentPriceData.change !== null && (
+                                  <div style={{
+                                    fontSize: '11px',
+                                    color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444'
+                                  }}>
+                                    {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)}
+                                    {' '}({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#888', fontSize: '12px' }}>
+                                {'Sin datos'}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {currentValueInEUR !== null ? (
+                              `€${currentValueInEUR.toFixed(2)}`
+                            ) : (
+                              <span style={{ color: '#888' }}>-</span>
+                            )}
+                          </td>
+                          <td>
+                            {profitLossInEUR !== null ? (
+                              <div style={{
+                                color: profitLossInEUR >= 0 ? '#10b981' : '#ef4444',
+                                fontWeight: 'bold'
+                              }}>
+                                {profitLossInEUR >= 0 ? '+' : ''}€{profitLossInEUR.toFixed(2)}
+                                {profitLossPercent !== null && (
+                                  <div style={{ fontSize: '11px' }}>
+                                    ({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#888' }}>-</span>
+                            )}
+                          </td>
+                          <td>
+                            {(() => {
+                              const purchases = companyOperations.filter(op => op.type === 'purchase');
+                              if (purchases.length === 0) return <span style={{ color: '#888' }}>-</span>;
+
+                              const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+                              if (latestPurchase.targetPrice) {
+                                return (
+                                  <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>
+                                    {currency === 'EUR' ? '€' : '$'}{formatPrice(latestPurchase.targetPrice)}
+                                  </div>
+                                );
+                              }
+                              return <span style={{ color: '#888' }}>-</span>;
+                            })()}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                              {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => {
+                                // Buscar si hay algún símbolo configurado para este botón en alguna operación de esta empresa
+                                const symbolForButton = (() => {
+                                  // Buscar en las operaciones de esta empresa
+                                  const op = companyOperations.find(o => o[`externalSymbol${button.displayOrder}`]);
+                                  return op ? op[`externalSymbol${button.displayOrder}`] : null;
+                                })();
+
+                                if (!symbolForButton) return null;
+
+                                return (
+                                  <a
+                                    key={button.id}
+                                    href={`${button.baseUrl}${symbolForButton}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={`${button.name}: ${symbolForButton}`}
+                                    style={{ display: 'block' }}
+                                  >
+                                    <img
+                                      src={button.imageUrl}
+                                      alt={button.name}
+                                      style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }}
+                                    />
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              {companyOperations.map((operation) => (
+                                <button
+                                  key={operation.id}
+                                  className="button"
+                                  onClick={() => openModal(operation.type, operation)}
+                                  style={{ fontSize: '12px', padding: '5px 8px' }}
+                                  title={`Editar ${operation.type === 'purchase' ? 'compra' : 'venta'}`}
+                                >
+                                  ✏️ {operation.type === 'purchase' ? 'C' : 'V'}
+                                </button>
+                              ))}
+                              <button
+                                className="button"
+                                onClick={async () => {
+                                  const pk = positionKey;
+                                  setNotePositionKey(pk);
+                                  setShowNoteModal(true);
+                                  setNoteLoading(true);
+                                  try {
+                                    const r = await notesAPI.get(pk);
+                                    const content = r?.content || '';
+                                    setNoteContent(content);
+                                    setNoteOriginalContent(content);
+                                    // If note is empty, start in edit mode; otherwise start in read mode
+                                    setNoteEditMode(!content || content.trim() === '');
+                                    setNotesCache(prev => ({ ...prev, [pk]: !!content }));
+                                  } catch (e) {
+                                    setNoteContent('');
+                                    setNoteOriginalContent('');
+                                    setNoteEditMode(true); // Empty note, start in edit mode
+                                  } finally {
+                                    setNoteLoading(false);
+                                  }
+                                }}
+                                style={{ fontSize: '12px', padding: '5px 8px' }}
+                                title="Nota"
+                              >
+                                📝 Nota
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {/* Expandable row for stock history chart */}
+                        {
+                          expandedPositions[positionKey] && (
+                            <tr className="expanded-chart-row">
+                              <td colSpan="10" style={{ padding: 0, backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f9fafb' }}>
+                                <StockHistoryChart
+                                  positionKey={positionKey}
+                                  userId={currentUser?.id}
+                                  portfolioId={currentPortfolioId}
+                                  theme={theme}
+                                />
+                              </td>
+                            </tr>
+                          )
+                        }
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table >
+            )
+            }
+          </div >
+
+          {/* Gráfico de Inversión vs Ganancias */}
+          {
+            Object.keys(activePositions).length > 0 && chartData.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="card">
+                  <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>📊 Inversión vs Ganancias</h2>
+                  <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
+                    Distribución del dinero invertido y ganancias obtenidas
+                  </p>
+                  <div style={{ width: '100%', height: '300px', marginTop: '10px' }}>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie data={chartData} cx="50%" cy="50%" labelLine={true} label={({ name, value, percent }) => `${name}\n${(percent * 100).toFixed(1)}%`} outerRadius={90} fill="#8884d8" dataKey="value">
+                          {chartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value, name) => { const total = chartData.reduce((sum, d) => sum + d.value, 0); const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'; return [`€${Number(value).toFixed(2)} (${percentage}%)`, name.split(':')[0]]; }}
+                          contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }}
+                          itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
+                          labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
+                        />
+                        <Legend formatter={(value) => value.split(':')[0]} wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {chartData.length === 1 && chartData[0].name === 'Sin datos' && (
+                    <p style={{ textAlign: 'center', color: '#888', marginTop: '10px', fontSize: '12px' }}>Actualiza los precios para ver las ganancias</p>
+                  )}
+                </div>
+
+                <div className="card">
+                  <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>🏷️ Contribución por Empresa</h2>
+                  <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
+                    Participación de cada empresa en el valor total (último cierre)
+                  </p>
+                  <div style={{ width: '100%', height: '300px', marginTop: '10px' }}>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie data={contributionChartData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} dataKey="value" stroke={theme === 'dark' ? '#1f2937' : '#ffffff'} strokeWidth={1}>
+                          {contributionChartData.map((entry, index) => (
+                            <Cell key={`c-cell-${index}`} fill={contributionColorsMap[entry.name] || entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value, name) => { const total = contributionChartData.reduce((sum, d) => sum + d.value, 0); const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0'; return [`€${Number(value).toFixed(2)} (${percentage}%)`, name]; }}
+                          contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }}
+                          itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
+                          labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginTop: '8px' }}>Fecha: {contributionDate || '—'}</div>
+                </div>
+              </div>
+            )
+          }
+
+          {/* Operaciones Recientes */}
+          {
+            pnlSeries.length > 0 && (
+              <div className="card" style={{ marginTop: '16px' }}>
+                <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>📈 Ganancias/Pérdidas (últimos 30 días)</h2>
+                <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
+                  Evolución diaria del PnL total (EUR)
+                </p>
+                                <PnLChart data={pnlSeries} theme={theme} />
+              </div>
+            )
+          }
+          <div className="card">
+            <h2>Operaciones Recientes</h2>
+            {operations.length === 0 ? (
+              <p>No hay operaciones registradas</p>
+            ) : (
+              <div>
+                {operations.slice(-5).reverse().map((operation) => (
+                  <div key={operation.id} style={{
+                    padding: '10px',
+                    margin: '5px 0',
+                    border: '1px solid #404040',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <strong>{operation.type === 'purchase' ? 'Compra' : 'Venta'} - {operation.company}</strong>
+                      <br />
+                      {operation.shares} acciones a {formatPrice(operation.price)} {operation.currency}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div>€{operation.totalCost.toFixed(2)}</div>
+                      <div style={{ fontSize: '12px', color: '#888' }}>
+                        {new Date(operation.date).toLocaleDateString('es-ES')}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </>
       ) : (
         /* Histórico de Operaciones Cerradas */
-        <OperationsHistory
-          operations={operations}
-          showHistory={true}
-          onEditOperation={openModal}
-          getHistoricalProfitLoss={getHistoricalProfitLoss}
-          closedOperations={closedOperations}
-          theme={theme}
-        />
-      )}
+        <div className="card">
+          <h2>📜 Histórico de Operaciones Cerradas</h2>
+
+          {/* Resumen de Ganancias/Pérdidas */}
+          {closedOperations.length > 0 && (
+            <div className="stats" style={{ marginBottom: '20px' }}>
+              <div className="stat-item">
+                <div className={`stat-value ${getHistoricalProfitLoss() >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  €{getHistoricalProfitLoss().toFixed(2)}
+                </div>
+                <div className="stat-label">
+                  {getHistoricalProfitLoss() >= 0 ? 'Ganancias Totales' : 'Pérdidas Totales'}
+                </div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-value">{closedOperations.filter(op => op.type === 'sale').length}</div>
+                <div className="stat-label">Ventas Realizadas</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-value">{closedOperations.filter(op => op.type === 'purchase').length}</div>
+                <div className="stat-label">Compras Realizadas</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-value">{new Set(closedOperations.map(op => op.company)).size}</div>
+                <div className="stat-label">Empresas Cerradas</div>
+              </div>
+            </div>
+          )}
+
+          {closedOperations.length === 0 ? (
+            <p>No hay operaciones cerradas en el historial</p>
+          ) : (
+            <div>
+              {closedOperations
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .map((operation) => (
+                  <div key={operation.id} style={{
+                    padding: '10px',
+                    margin: '5px 0',
+                    border: '1px solid #404040',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <strong>{operation.type === 'purchase' ? 'Compra' : 'Venta'} - {operation.company}</strong>
+                      <br />
+                      {operation.shares} acciones a {formatPrice(operation.price)} {operation.currency}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div>€{operation.totalCost.toFixed(2)}</div>
+                      <div style={{ fontSize: '12px', color: '#888' }}>
+                        {new Date(operation.date).toLocaleDateString('es-ES')}
+                      </div>
+                      <button
+                        className="button"
+                        onClick={() => openModal(operation.type, operation)}
+                        style={{ fontSize: '12px', padding: '5px 8px', marginTop: '5px' }}
+                        title={`Editar ${operation.type === 'purchase' ? 'compra' : 'venta'}`}
+                      >
+                        ✏️ Editar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )
+      }
 
       {/* Modal */}
-      {showModal && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>{editingOperation ? `Editar ${modalType === 'purchase' ? 'Compra' : 'Venta'}` : `${modalType === 'purchase' ? 'Nueva Compra' : 'Nueva Venta'}`}</h2>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Buscar Empresa por Nombre:</label>
-                <div className="search-container" style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="Busca por nombre (ej: Apple, Microsoft, AMD, NXT...)"
-                    value={searchQuery}
-                    onChange={(e) => {
-                      const query = e.target.value;
-                      setSearchQuery(query);
-                      if (query.length >= 2) {
-                        searchCompanies(query);
-                      } else {
-                        setSearchResults([]);
-                        setShowSuggestions(false);
-                      }
-                    }}
-                    onFocus={() => {
-                      if (searchResults.length > 0) {
-                        setShowSuggestions(true);
-                      }
-                    }}
-                  />
-                  {loadingSearch && (
-                    <span style={{ position: 'absolute', right: '10px', top: '10px' }}>⏳</span>
-                  )}
-
-                  {/* Dropdown de sugerencias */}
-                  {showSuggestions && searchResults.length > 0 && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
-                      backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff',
-                      border: `1px solid ${theme === 'dark' ? '#404040' : '#d0d0d0'}`,
-                      borderRadius: '4px',
-                      marginTop: '5px',
-                      maxHeight: '300px',
-                      overflowY: 'auto',
-                      zIndex: 1000,
-                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                    }}>
-                      {searchResults.map((company, index) => (
-                        <div
-                          key={index}
-                          onClick={() => selectCompany(company)}
-                          style={{
-                            padding: '10px',
-                            cursor: 'pointer',
-                            borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}`,
-                            transition: 'background-color 0.2s'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.backgroundColor = theme === 'dark' ? '#404040' : '#f0f0f0';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.backgroundColor = 'transparent';
-                          }}
-                        >
-                          <div style={{ fontWeight: 'bold' }}>
-                            {company.description || company.symbol.split('.')[0] || company.symbol}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>
-                            <strong>{company.symbol.includes('.') ? company.symbol.replace('.', ':') : company.symbol}</strong>
-                            {company.exchange && company.exchange !== company.symbol.split('.')[1] && ` · ${company.exchange}`}
-                            {company.type && ` · ${company.type}`}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
-                  O ingresa directamente el símbolo con exchange: AMD:FRA, NXT:BME, MSFT:NASDAQ, etc.
-                </p>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group" style={{ flex: 2 }}>
-                  <label>Empresa:</label>
-                  <input
-                    type="text"
-                    name="company"
-                    value={formData.company}
-                    onChange={handleInputChange}
-                    className="input"
-                    placeholder="Nombre de la empresa"
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Símbolo (Ticker):</label>
-                  <div style={{ display: 'flex', gap: '5px' }}>
+      {
+        showModal && (
+          <div className="modal">
+            <div className="modal-content">
+              <h2>{editingOperation ? `Editar ${modalType === 'purchase' ? 'Compra' : 'Venta'}` : `${modalType === 'purchase' ? 'Nueva Compra' : 'Nueva Venta'}`}</h2>
+              <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                  <label>Buscar Empresa por Nombre:</label>
+                  <div className="search-container" style={{ position: 'relative' }}>
                     <input
                       type="text"
-                      id="ticker-symbol"
                       className="input"
-                      placeholder="AAPL, MSFT:NASDAQ, AMD:FRA..."
-                      style={{ flex: 1 }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const symbol = e.target.value;
-                          if (symbol) fetchCurrentPrice(symbol);
+                      placeholder="Busca por nombre (ej: Apple, Microsoft, AMD, NXT...)"
+                      value={searchQuery}
+                      onChange={(e) => {
+                        const query = e.target.value;
+                        setSearchQuery(query);
+                        if (query.length >= 2) {
+                          searchCompanies(query);
+                        } else {
+                          setSearchResults([]);
+                          setShowSuggestions(false);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (searchResults.length > 0) {
+                          setShowSuggestions(true);
                         }
                       }}
                     />
-                    <button
-                      type="button"
-                      className="button primary"
-                      onClick={() => {
-                        const symbol = document.getElementById('ticker-symbol')?.value;
-                        if (symbol) fetchCurrentPrice(symbol);
-                      }}
-                      disabled={loadingPrice}
-                      style={{ whiteSpace: 'nowrap' }}
-                      title="Consultar precio actual desde Finnhub"
-                    >
-                      {loadingPrice ? '⏳' : '🔍'}
-                    </button>
+                    {loadingSearch && (
+                      <span style={{ position: 'absolute', right: '10px', top: '10px' }}>⏳</span>
+                    )}
+
+                    {/* Dropdown de sugerencias */}
+                    {showSuggestions && searchResults.length > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff',
+                        border: `1px solid ${theme === 'dark' ? '#404040' : '#d0d0d0'}`,
+                        borderRadius: '4px',
+                        marginTop: '5px',
+                        maxHeight: '300px',
+                        overflowY: 'auto',
+                        zIndex: 1000,
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                      }}>
+                        {searchResults.map((company, index) => (
+                          <div
+                            key={index}
+                            onClick={() => selectCompany(company)}
+                            style={{
+                              padding: '10px',
+                              cursor: 'pointer',
+                              borderBottom: `1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'}`,
+                              transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.backgroundColor = theme === 'dark' ? '#404040' : '#f0f0f0';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <div style={{ fontWeight: 'bold' }}>
+                              {company.description || company.symbol.split('.')[0] || company.symbol}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>
+                              <strong>{company.symbol.includes('.') ? company.symbol.replace('.', ':') : company.symbol}</strong>
+                              {company.exchange && company.exchange !== company.symbol.split('.')[1] && ` · ${company.exchange}`}
+                              {company.type && ` · ${company.type}`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
+                    O ingresa directamente el símbolo con exchange: AMD:FRA, NXT:BME, MSFT:NASDAQ, etc.
+                  </p>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group" style={{ flex: 2 }}>
+                    <label>Empresa:</label>
+                    <input
+                      type="text"
+                      name="company"
+                      value={formData.company}
+                      onChange={handleInputChange}
+                      className="input"
+                      placeholder="Nombre de la empresa"
+                      required
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Símbolo (Ticker):</label>
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      <input
+                        type="text"
+                        id="ticker-symbol"
+                        className="input"
+                        placeholder="AAPL, MSFT:NASDAQ, AMD:FRA..."
+                        style={{ flex: 1 }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const symbol = e.target.value;
+                            if (symbol) fetchCurrentPrice(symbol);
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="button primary"
+                        onClick={() => {
+                          const symbol = document.getElementById('ticker-symbol')?.value;
+                          if (symbol) fetchCurrentPrice(symbol);
+                        }}
+                        disabled={loadingPrice}
+                        style={{ whiteSpace: 'nowrap' }}
+                        title="Consultar precio actual desde Finnhub"
+                      >
+                        {loadingPrice ? '⏳' : '🔍'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Mostrar información del precio consultado solo si se consulta manualmente */}
-              {currentPrice && !editingOperation && (
-                <div style={{
-                  padding: '10px',
-                  marginBottom: '10px',
-                  backgroundColor: '#28a745',
-                  borderRadius: '4px',
-                  color: 'white'
-                }}>
-                  <strong>Precio actual consultado:</strong> ${formatPrice(currentPrice.price)}
-                  {currentPrice.change !== null && (
-                    <span style={{ marginLeft: '10px' }}>
-                      ({currentPrice.change >= 0 ? '+' : ''}{formatPrice(currentPrice.change)}
-                      {' '}({currentPrice.changePercent >= 0 ? '+' : ''}{currentPrice.changePercent.toFixed(2)}%))
-                    </span>
-                  )}
-                </div>
-              )}
+                {/* Mostrar información del precio consultado solo si se consulta manualmente */}
+                {currentPrice && !editingOperation && (
+                  <div style={{
+                    padding: '10px',
+                    marginBottom: '10px',
+                    backgroundColor: '#28a745',
+                    borderRadius: '4px',
+                    color: 'white'
+                  }}>
+                    <strong>Precio actual consultado:</strong> ${formatPrice(currentPrice.price)}
+                    {currentPrice.change !== null && (
+                      <span style={{ marginLeft: '10px' }}>
+                        ({currentPrice.change >= 0 ? '+' : ''}{formatPrice(currentPrice.change)}
+                        {' '}({currentPrice.changePercent >= 0 ? '+' : ''}{currentPrice.changePercent.toFixed(2)}%))
+                      </span>
+                    )}
+                  </div>
+                )}
 
-              {/* Mostrar error si hay */}
-              {priceError && (
-                <div style={{
-                  padding: '10px',
-                  marginBottom: '10px',
-                  backgroundColor: '#dc3545',
-                  borderRadius: '4px',
-                  color: 'white'
-                }}>
-                  <strong>Error:</strong> {priceError}
-                </div>
-              )}
+                {/* Mostrar error si hay */}
+                {priceError && (
+                  <div style={{
+                    padding: '10px',
+                    marginBottom: '10px',
+                    backgroundColor: '#dc3545',
+                    borderRadius: '4px',
+                    color: 'white'
+                  }}>
+                    <strong>Error:</strong> {priceError}
+                  </div>
+                )}
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Número de Títulos:</label>
-                  {modalType === 'sale' && formData.company && (() => {
-                    const positions = getPositions();
-                    const availableShares = positions[formData.company]?.shares || 0;
-                    return (
-                      <div style={{ marginBottom: '5px', fontSize: '12px', color: '#888' }}>
-                        Acciones disponibles: <strong>{availableShares}</strong>
-                        {availableShares > 0 && (
-                          <span style={{ marginLeft: '10px', color: '#007bff' }}>
-                            (Puedes vender menos acciones)
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <input
-                    type="number"
-                    name="shares"
-                    value={formData.shares}
-                    onChange={handleInputChange}
-                    className="input"
-                    min="1"
-                    max={modalType === 'sale' && formData.company ? (() => {
-                      const positions = getPositions();
-                      const tickerSymbol = document.getElementById('ticker-symbol')?.value || '';
-                      const positionKey = tickerSymbol ? `${formData.company}|||${tickerSymbol}` : formData.company;
-                      return positions[positionKey]?.shares || 0;
-                    })() : undefined}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Precio por Acción:</label>
-                  <input
-                    type="number"
-                    name="price"
-                    value={formData.price}
-                    onChange={handleInputChange}
-                    className="input"
-                    step="0.00000001"
-                    min="0"
-                    required
-                    placeholder={currentPrice ? `Precio consultado: ${formatPrice(currentPrice.price)}` : ''}
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Moneda:</label>
-                  <select
-                    name="currency"
-                    value={formData.currency}
-                    onChange={handleInputChange}
-                    className="input"
-                  >
-                    <option value="EUR">EUR</option>
-                    <option value="USD">USD</option>
-                    <option value="GBP">GBP</option>
-                    <option value="CAD">CAD</option>
-                    <option value="JPY">JPY</option>
-                  </select>
-                </div>
-                {formData.currency !== 'EUR' && (
+                <div className="form-row">
                   <div className="form-group">
-                    <label>Tipo de Cambio (EUR/{formData.currency}):</label>
+                    <label>Número de Títulos:</label>
+                    {modalType === 'sale' && formData.company && (() => {
+                      const positions = getPositions();
+                      const availableShares = positions[formData.company]?.shares || 0;
+                      return (
+                        <div style={{ marginBottom: '5px', fontSize: '12px', color: '#888' }}>
+                          Acciones disponibles: <strong>{availableShares}</strong>
+                          {availableShares > 0 && (
+                            <span style={{ marginLeft: '10px', color: '#007bff' }}>
+                              (Puedes vender menos acciones)
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <input
                       type="number"
-                      name="exchangeRate"
-                      value={formData.exchangeRate}
+                      name="shares"
+                      value={formData.shares}
+                      onChange={handleInputChange}
+                      className="input"
+                      min="1"
+                      max={modalType === 'sale' && formData.company ? (() => {
+                        const positions = getPositions();
+                        const tickerSymbol = document.getElementById('ticker-symbol')?.value || '';
+                        const positionKey = tickerSymbol ? `${formData.company}|||${tickerSymbol}` : formData.company;
+                        return positions[positionKey]?.shares || 0;
+                      })() : undefined}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Precio por Acción:</label>
+                    <input
+                      type="number"
+                      name="price"
+                      value={formData.price}
                       onChange={handleInputChange}
                       className="input"
                       step="0.00000001"
                       min="0"
                       required
+                      placeholder={currentPrice ? `Precio consultado: ${formatPrice(currentPrice.price)}` : ''}
                     />
                   </div>
-                )}
-              </div>
+                </div>
 
-              <div className="form-row">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Moneda:</label>
+                    <select
+                      name="currency"
+                      value={formData.currency}
+                      onChange={handleInputChange}
+                      className="input"
+                    >
+                      <option value="EUR">EUR</option>
+                      <option value="USD">USD</option>
+                      <option value="GBP">GBP</option>
+                      <option value="CAD">CAD</option>
+                      <option value="JPY">JPY</option>
+                    </select>
+                  </div>
+                  {formData.currency !== 'EUR' && (
+                    <div className="form-group">
+                      <label>Tipo de Cambio (EUR/{formData.currency}):</label>
+                      <input
+                        type="number"
+                        name="exchangeRate"
+                        value={formData.exchangeRate}
+                        onChange={handleInputChange}
+                        className="input"
+                        step="0.00000001"
+                        min="0"
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Comisiones:</label>
+                    <input
+                      type="number"
+                      name="commission"
+                      value={formData.commission}
+                      onChange={handleInputChange}
+                      className="input"
+                      step="0.00000001"
+                      min="0"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Fecha:</label>
+                    <input
+                      type="date"
+                      name="date"
+                      value={formData.date}
+                      onChange={handleInputChange}
+                      className="input"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Campos dinámicos para botones externos */}
+                {externalButtons.length > 0 && (
+                  <div className="form-row">
+                    {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => (
+                      <div key={button.id} className="form-group" style={{ flex: 1 }}>
+                        <label>{button.name}:</label>
+                        <input
+                          type="text"
+                          name={`externalSymbol${button.displayOrder}`}
+                          value={formData[`externalSymbol${button.displayOrder}`] || ''}
+                          onChange={handleInputChange}
+                          className="input"
+                          placeholder="Símbolo"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="form-group">
-                  <label>Comisiones:</label>
+                  <label>Precio Objetivo (Opcional):</label>
                   <input
                     type="number"
-                    name="commission"
-                    value={formData.commission}
+                    name="targetPrice"
+                    value={formData.targetPrice}
                     onChange={handleInputChange}
                     className="input"
                     step="0.00000001"
                     min="0"
+                    placeholder="Precio al que esperas vender"
                   />
+                  <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
+                    Ingresa el precio objetivo al que planeas vender esta acción
+                  </p>
                 </div>
-                <div className="form-group">
-                  <label>Fecha:</label>
-                  <input
-                    type="date"
-                    name="date"
-                    value={formData.date}
-                    onChange={handleInputChange}
-                    className="input"
-                    required
-                  />
+
+                <div style={{ marginTop: '20px' }}>
+                  <button type="submit" className={`button ${modalType === 'purchase' ? 'success' : 'danger'}`}>
+                    {editingOperation ? 'Guardar Cambios' : (modalType === 'purchase' ? 'Comprar' : 'Vender')}
+                  </button>
+                  <button type="button" className="button" onClick={closeModal}>
+                    Cancelar
+                  </button>
                 </div>
-              </div>
-
-              {/* Campos dinámicos para botones externos */}
-              {externalButtons.length > 0 && (
-                <div className="form-row">
-                  {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => (
-                    <div key={button.id} className="form-group" style={{ flex: 1 }}>
-                      <label>{button.name}:</label>
-                      <input
-                        type="text"
-                        name={`externalSymbol${button.displayOrder}`}
-                        value={formData[`externalSymbol${button.displayOrder}`] || ''}
-                        onChange={handleInputChange}
-                        className="input"
-                        placeholder="Símbolo"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="form-group">
-                <label>Precio Objetivo (Opcional):</label>
-                <input
-                  type="number"
-                  name="targetPrice"
-                  value={formData.targetPrice}
-                  onChange={handleInputChange}
-                  className="input"
-                  step="0.00000001"
-                  min="0"
-                  placeholder="Precio al que esperas vender"
-                />
-                <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
-                  Ingresa el precio objetivo al que planeas vender esta acción
-                </p>
-              </div>
-
-              <div style={{ marginTop: '20px' }}>
-                <button type="submit" className={`button ${modalType === 'purchase' ? 'success' : 'danger'}`}>
-                  {editingOperation ? 'Guardar Cambios' : (modalType === 'purchase' ? 'Comprar' : 'Vender')}
-                </button>
-                <button type="button" className="button" onClick={closeModal}>
-                  Cancelar
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )
+        )
       }
 
       {/* Modal de Confirmación de Borrado con Contraseña */}
-      <DeleteConfirmModal
-        isOpen={showDeleteConfirm}
-        onConfirm={confirmDeleteWithPassword}
-        onCancel={cancelDelete}
-        theme={theme}
-      />
+      {
+        showDeleteConfirm && (
+          <div className="modal">
+            <div className="modal-content">
+              <h2>⚠️ Confirmar Borrado de Datos</h2>
+              <p style={{ marginBottom: '20px', color: '#dc3545', fontWeight: 'bold' }}>
+                Esta acción borrará TODAS las operaciones guardadas. Esta acción NO se puede deshacer.
+              </p>
+              <div className="form-group">
+                <label>Ingresa la contraseña para confirmar el borrado:</label>
+                <input
+                  type="password"
+                  value={tempDeletePassword}
+                  onChange={(e) => setTempDeletePassword(e.target.value)}
+                  className="input"
+                  placeholder="Escribe tu contraseña para confirmar"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      confirmDeleteWithPassword();
+                    }
+                  }}
+                />
+              </div>
+              <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="button danger"
+                  onClick={confirmDeleteWithPassword}
+                  disabled={!tempDeletePassword}
+                >
+                  🗑️ Confirmar Borrado
+                </button>
+                <button type="button" className="button" onClick={cancelDelete}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
       {/* Modal de Selección de Posición para Vender */}
-      <SelectPositionModal
-        isOpen={showSelectPositionModal}
-        onClose={() => setShowSelectPositionModal(false)}
-        onSelectPosition={selectPositionForSale}
-        positions={getActivePositions()}
-        currentPrices={currentPrices}
-        operations={operations}
-        theme={theme}
-      />
+      {
+        showSelectPositionModal && (
+          <div className="modal">
+            <div className="modal-content">
+              <h2>📊 Seleccionar Posición para Vender</h2>
+              <p style={{ marginBottom: '20px', fontSize: '14px', color: '#888' }}>
+                Selecciona una posición activa para vender acciones. Puedes vender una cantidad parcial.
+              </p>
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {Object.keys(getActivePositions()).length === 0 ? (
+                  <p>No hay posiciones activas disponibles</p>
+                ) : (
+                  <div>
+                    {Object.entries(getActivePositions()).map(([positionKey, position]) => {
+                      const company = position.company || positionKey.split('|||')[0];
+                      const symbol = position.symbol || '';
 
-      {/* Modal de Notas */}
-      <NoteModal
-        isOpen={showNoteModal}
-        onClose={() => setShowNoteModal(false)}
-        positionKey={notePositionKey}
-        theme={theme}
-        notesCache={notesCache}
-        setNotesCache={setNotesCache}
-      />
+                      // Filtrar operaciones que coincidan con esta posición
+                      const companyOperations = operations.filter(op => {
+                        const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
+                        return opKey === positionKey;
+                      });
+
+                      const avgCostPerShare = position.shares > 0 ? position.totalOriginalCost / position.shares : 0;
+                      const currentPriceData = currentPrices[positionKey];
+
+                      return (
+                        <div
+                          key={positionKey}
+                          onClick={() => selectPositionForSale(positionKey, position.shares)}
+                          style={{
+                            padding: '15px',
+                            margin: '10px 0',
+                            border: `2px solid ${theme === 'dark' ? '#404040' : '#d0d0d0'}`,
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#007bff';
+                            e.currentTarget.style.backgroundColor = theme === 'dark' ? '#404040' : '#f0f0f0';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = theme === 'dark' ? '#404040' : '#d0d0d0';
+                            e.currentTarget.style.backgroundColor = theme === 'dark' ? '#2d2d2d' : '#ffffff';
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '5px' }}>
+                                {company}
+                              </div>
+                              {symbol && (
+                                <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px' }}>
+                                  {symbol}
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', gap: '15px', fontSize: '14px' }}>
+                                <div>
+                                  <strong>Acciones disponibles:</strong> {position.shares}
+                                </div>
+                                <div>
+                                  <strong>Coste promedio:</strong> {formatCurrency(avgCostPerShare, position.currency)}
+                                </div>
+                                <div>
+                                  <strong>Coste total:</strong> €{position.totalCost.toFixed(2)}
+                                </div>
+                              </div>
+                              {currentPriceData && (() => {
+                                // Usar la moneda de las operaciones de compra
+                                const purchases = companyOperations.filter(op => op.type === 'purchase');
+                                let positionCurrency = 'EUR';
+                                if (purchases.length > 0) {
+                                  const latestPurchase = purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+                                  positionCurrency = latestPurchase?.currency || 'EUR';
+                                }
+                                return (
+                                  <div style={{ marginTop: '8px', fontSize: '13px', color: '#888' }}>
+                                    Precio actual: <strong style={{ color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444' }}>
+                                      {positionCurrency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}
+                                    </strong>
+                                    {' '}({currentPriceData.change >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            <div style={{ marginLeft: '15px', fontSize: '24px' }}>
+                              →
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => setShowSelectPositionModal(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        showNoteModal && (
+          <div className="modal">
+            <div className="modal-content" style={{ maxWidth: '900px', width: '100%' }}>
+              <h2>📝 Nota</h2>
+
+              {noteEditMode ? (
+                // Edit Mode: Show only textarea (no preview to avoid multiple scrollbars)
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label>Markdown</label>
+                  <textarea
+                    className="input"
+                    style={{ minHeight: '300px', width: '100%', resize: 'vertical' }}
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    disabled={noteLoading || noteSaving}
+                    placeholder="# Título\n\nEscribe tu nota en Markdown..."
+                  />
+                </div>
+              ) : (
+                // Read Mode: Show only preview (use modal's scrollbar, not card's)
+                <div className="card" style={{ width: '100%' }}>
+                  <div dangerouslySetInnerHTML={{ __html: markdownToHtml(noteContent || '') }} />
+                </div>
+              )}
+
+              <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
+                {noteEditMode ? (
+                  // Edit mode buttons: Save, Cancel, and Help
+                  <>
+                    <button
+                      className="button primary"
+                      disabled={noteLoading || noteSaving}
+                      onClick={async () => {
+                        try {
+                          setNoteSaving(true);
+                          await notesAPI.upsert(notePositionKey, noteContent || '');
+                          setNotesCache(prev => ({ ...prev, [notePositionKey]: !!(noteContent) }));
+                          setNoteOriginalContent(noteContent);
+                          setNoteEditMode(false); // Switch to read mode to see the result
+                        } catch (e) {
+                          alert('Error guardando nota');
+                        } finally {
+                          setNoteSaving(false);
+                        }
+                      }}
+                    >
+                      Guardar
+                    </button>
+                    <button
+                      className="button"
+                      onClick={() => {
+                        setNoteContent(noteOriginalContent);
+                        if (noteOriginalContent && noteOriginalContent.trim()) {
+                          setNoteEditMode(false); // Return to read mode if there was content
+                        } else {
+                          setShowNoteModal(false); // Close if it was empty
+                        }
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      className="button"
+                      onClick={() => setShowMarkdownHelp(true)}
+                      style={{ marginLeft: 'auto' }}
+                      title="Guía de Markdown"
+                    >
+                      ❓ Ayuda
+                    </button>
+                  </>
+                ) : (
+                  // Read mode buttons: Edit and Close
+                  <>
+                    <button
+                      className="button primary"
+                      onClick={() => setNoteEditMode(true)}
+                    >
+                      Editar
+                    </button>
+                    <button className="button" onClick={() => setShowNoteModal(false)}>Cerrar</button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Markdown Help Modal */}
+      {
+        showMarkdownHelp && (
+          <div className="modal" style={{ zIndex: 10001 }}>
+            <div className="modal-content" style={{ maxWidth: '700px', width: '100%' }}>
+              <h2>📖 Guía Rápida de Markdown</h2>
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Encabezados</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`# Título Principal (H1)\n## Título Secundario (H2)\n### Título Terciario (H3)\n#### Subtítulo (H4)`}</pre>
+              </div>
+
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Énfasis</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`**Texto en negrita**\n*Texto en cursiva*`}</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <strong>Texto en negrita</strong><br />
+                  <em>Texto en cursiva</em>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Listas</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`- Elemento 1\n- Elemento 2\n- Elemento 3`}</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                    <li>Elemento 1</li>
+                    <li>Elemento 2</li>
+                    <li>Elemento 3</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Enlaces</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>[Texto del enlace](https://ejemplo.com)</pre>
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  <a href="https://ejemplo.com" target="_blank" rel="noopener noreferrer">Texto del enlace</a>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Código</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>{`Código inline: \`código aquí\`\n\nBloque de código:\n\`\`\`\nfunción ejemplo() {\n  return "Hola";\n}\n\`\`\``}</pre>
+              </div>
+
+              <div className="card" style={{ marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '18px', marginTop: 0 }}>Línea Horizontal</h3>
+                <pre style={{ background: theme === 'dark' ? '#2a2a2a' : '#f5f5f5', color: theme === 'dark' ? '#e8e8e8' : '#333', padding: '10px', borderRadius: '4px', fontSize: '13px', overflowX: 'auto' }}>---</pre>
+                <hr style={{ margin: '8px 0' }} />
+              </div>
+
+              <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="button primary" onClick={() => setShowMarkdownHelp(false)}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
 
 

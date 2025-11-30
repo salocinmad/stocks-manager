@@ -6,6 +6,7 @@
 import * as finnhubService from './finnhubService.js';
 import * as yahooService from './yahooService.js';
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
+import { getLogLevel } from '../configService.js';
 
 /**
  * Obtiene precio combinando Finnhub (priority) y Yahoo (complement)
@@ -15,25 +16,24 @@ import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
 export async function fetchCombinedPrice(symbol) {
     let finnhubData = null;
     let yahooData = null;
+    const currentLogLevel = await getLogLevel();
 
     // 1. Intentar Finnhub primero (solo US)
     try {
         finnhubData = await finnhubService.fetchQuote(symbol);
     } catch (error) {
-        console.log(`⚠️  Finnhub ${symbol}: ${error.message}`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`⚠️  Finnhub ${symbol}: ${error.message}`);
+        }
     }
 
     // 2. Intentar Yahoo (todos los mercados)
     try {
-        console.log(`🔍 Intentando Yahoo para ${symbol}...`);
         yahooData = await yahooService.fetchQuote(symbol);
-        if (yahooData) {
-            console.log(`✅ Yahoo ${symbol}: Datos obtenidos - ${yahooData.lastPrice}`);
-        } else {
-            console.log(`⚠️  Yahoo ${symbol}: No retornó datos (null)`);
-        }
     } catch (error) {
-        console.error(`❌ Yahoo ${symbol} ERROR:`, error.message);
+        if (currentLogLevel === 'verbose') {
+            console.error(`❌ Yahoo ${symbol} ERROR:`, error.message);
+        }
     }
 
     // 3. Si ambos fallan, retornar null
@@ -41,18 +41,7 @@ export async function fetchCombinedPrice(symbol) {
         return null;
     }
 
-    // DEBUG: Mostrar qué datos vienen de cada fuente
-    console.log(`📊 ${symbol} - Finnhub data:`, finnhubData ? {
-        price: finnhubData.lastPrice,
-        change: finnhubData.change,
-        changePercent: finnhubData.changePercent
-    } : 'null');
-
-    console.log(`📊 ${symbol} - Yahoo data:`, yahooData ? {
-        price: yahooData.lastPrice,
-        change: yahooData.change,
-        changePercent: yahooData.changePercent
-    } : 'null');
+    // 3. Si ambos fallan, retornar null');
 
     // 4. Combinar datos (prioridad Finnhub para core, Yahoo para complementar)
     const combined = {
@@ -72,12 +61,9 @@ export async function fetchCombinedPrice(symbol) {
         source: finnhubData && yahooData ? 'finnhub+yahoo' : (finnhubData ? 'finnhub' : 'yahoo')
     };
 
-    console.log(`🔀 ${symbol} - Combined:`, {
-        price: combined.lastPrice,
-        change: combined.change,
-        changePercent: combined.changePercent,
-        source: combined.source
-    });
+    if (currentLogLevel === 'verbose') {
+        console.log(`✅ ${symbol}: ${combined.lastPrice} (${combined.source})`);
+    }
 
     return combined;
 }

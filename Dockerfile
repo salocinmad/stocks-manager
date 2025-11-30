@@ -23,7 +23,7 @@ RUN npm install
 COPY . .
 
 # Pasar VITE_API_URL a la fase de construcción de Vite
-ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL:-}
 
 # Build de la aplicación
 RUN npm run build

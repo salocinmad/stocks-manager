@@ -3,6 +3,9 @@ import { authenticate } from '../middleware/auth.js';
 import PositionOrder from '../models/PositionOrder.js';
 import Portfolio from '../models/Portfolio.js';
 import User from '../models/User.js';
+import DailyPrice from '../models/DailyPrice.js';
+import Operation from '../models/Operation.js'; // Importar modelo Operation
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -58,7 +61,77 @@ router.put('/order', authenticate, async (req, res) => {
     }
 });
 
+// GET /api/positions/history/:positionKey - Get historical price data for a specific position
+// Query params: ?days=30 (default 30, supports 7, 30, 90, 180, 365)
+router.get('/history/:positionKey', authenticate, async (req, res) => {
+    try {
+        const portfolioId = await resolvePortfolioId(req);
+        const { positionKey } = req.params;
+        const { days } = req.query;
+
+        // Decode positionKey (may contain special characters like |||)
+        const decodedPositionKey = decodeURIComponent(positionKey);
+
+        // Parse days parameter, default to 30, max 365
+        let daysToFetch = parseInt(days) || 30;
+        daysToFetch = Math.min(Math.max(daysToFetch, 1), 365); // Clamp between 1 and 365
+
+        // Calculate date limit
+        const dateLimit = new Date();
+        dateLimit.setDate(dateLimit.getDate() - daysToFetch);
+        const dateLimitStr = dateLimit.toISOString().split('T')[0];
+
+        // Fetch historical data from DailyPrice
+        const historicalData = await DailyPrice.findAll({
+            where: {
+                userId: req.user.id,
+                portfolioId,
+                positionKey: decodedPositionKey,
+                date: { [Op.gte]: dateLimitStr }
+            },
+            attributes: ['date', 'open', 'high', 'low', 'close', 'volume'],
+            order: [['date', 'ASC']]
+        });
+
+        // Fetch operations for markers
+        // Extract pure symbol if it has format "EXCHANGE:SYMBOL"
+        let searchSymbol = decodedPositionKey;
+        if (decodedPositionKey.includes(':')) {
+            searchSymbol = decodedPositionKey.split(':')[1];
+        }
+
+        const operations = await Operation.findAll({
+            where: {
+                userId: req.user.id,
+                portfolioId,
+                [Op.or]: [
+                    { symbol: decodedPositionKey },
+                    { symbol: searchSymbol },
+                    { company: decodedPositionKey }
+                ]
+            },
+            attributes: ['id', 'type', 'date', 'price', 'shares'],
+            order: [['date', 'ASC']]
+        });
+
+        res.json({
+            success: true,
+            data: historicalData,
+            operations: operations,
+            daysRequested: daysToFetch,
+            daysReturned: historicalData.length
+        });
+    } catch (error) {
+        console.error('Error fetching historical data:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Error al obtener datos históricos'
+        });
+    }
+});
+
 export default router;
+
 async function resolvePortfolioId(req) {
     const userId = req.user.id;
     const raw = req.query.portfolioId || req.body?.portfolioId;

@@ -8,6 +8,7 @@ import GlobalCurrentPrice from '../../models/GlobalCurrentPrice.js';
 import Operation from '../../models/Operation.js';
 import { fetchCombinedPrice } from '../datasources/priceCombinaService.js';
 import { getUniqueSymbols } from '../../utils/symbolHelpers.js';
+import { getLogLevel } from '../configService.js';
 
 /**
  * Actualiza precios de TODAS las acciones en uso
@@ -15,7 +16,7 @@ import { getUniqueSymbols } from '../../utils/symbolHelpers.js';
  * @returns {Promise<Object>} Resumen de actualización
  */
 export async function updateAllActivePrices() {
-    // console.log('🔄 Actualizando precios de acciones EN USO...');
+    const currentLogLevel = await getLogLevel();
 
     // 1. Obtener símbolos únicos EN USO
     const operations = await Operation.findAll({
@@ -26,7 +27,6 @@ export async function updateAllActivePrices() {
     });
 
     const symbols = getUniqueSymbols(operations);
-    // console.log(`📊 ${symbols.length} acciones activas`);
 
     let updated = 0;
     let failed = 0;
@@ -37,7 +37,9 @@ export async function updateAllActivePrices() {
             const combined = await fetchCombinedPrice(symbol);
 
             if (!combined) {
-                // console.log(`⚠️  ${symbol}: Sin datos`);
+                if (currentLogLevel === 'verbose') {
+                    console.log(`⚠️  ${symbol}: Sin datos`);
+                }
                 continue;
             }
 
@@ -70,15 +72,18 @@ export async function updateAllActivePrices() {
                 await record.update(combined);
             }
 
-            // console.log(`✅ ${symbol}: ${combined.lastPrice} (${combined.source})`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`✅ ${symbol}: ${combined.lastPrice} (${combined.source})`);
+            }
             updated++;
         } catch (error) {
-            console.error(`❌ ${symbol}:`, error.message);
+            if (currentLogLevel === 'verbose') {
+                console.error(`❌ ${symbol}:`, error.message);
+            }
             failed++;
         }
     }
 
-    // console.log(`📊 Resumen: ✅ ${updated} actualizadas, ❌ ${failed} errores`);
     return { updated, failed, total: symbols.length };
 }
 
@@ -88,6 +93,7 @@ export async function updateAllActivePrices() {
  * @returns {Promise<Object|null>} Datos actualizados o null
  */
 export async function updateSinglePrice(symbol) {
+    const currentLogLevel = await getLogLevel();
     try {
         const priceData = await fetchCombinedPrice(symbol);
 
@@ -112,10 +118,14 @@ export async function updateSinglePrice(symbol) {
             ...priceData
         });
 
-        // console.log(`✅ ${symbol}: ${priceData.lastPrice} actualizado`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`✅ ${symbol}: ${priceData.lastPrice} actualizado`);
+        }
         return priceData;
     } catch (error) {
-        console.error(`❌ Error updating ${symbol}:`, error.message);
+        if (currentLogLevel === 'verbose') {
+            console.error(`❌ Error updating ${symbol}:`, error.message);
+        }
         return null;
     }
 }
@@ -126,10 +136,13 @@ export async function updateSinglePrice(symbol) {
  * @returns {Promise<Object|null>} Datos de precio o null
  */
 export async function getCurrentPrice(symbol) {
+    const currentLogLevel = await getLogLevel();
     try {
         return await GlobalCurrentPrice.findOne({ where: { symbol } });
     } catch (error) {
-        console.error(`Error getting current price for ${symbol}:`, error.message);
+        if (currentLogLevel === 'verbose') {
+            console.error(`Error getting current price for ${symbol}:`, error.message);
+        }
         return null;
     }
 }
@@ -140,12 +153,15 @@ export async function getCurrentPrice(symbol) {
  * @returns {Promise<Array>} Array de precios
  */
 export async function getCurrentBatch(symbols) {
+    const currentLogLevel = await getLogLevel();
     try {
         return await GlobalCurrentPrice.findAll({
             where: { symbol: { [Op.in]: symbols } }
         });
     } catch (error) {
-        console.error('Error getting batch prices:', error.message);
+        if (currentLogLevel === 'verbose') {
+            console.error('Error getting batch prices:', error.message);
+        }
         return [];
     }
 }

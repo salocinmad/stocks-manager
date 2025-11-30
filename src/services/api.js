@@ -94,7 +94,15 @@ export const positionsAPI = {
   updateOrder: (order) => fetchAPI('/positions/order', {
     method: 'PUT',
     body: JSON.stringify({ order, portfolioId: getCurrentPortfolioId() })
-  })
+  }),
+  getHistory: (positionKey, days = 30) => {
+    const pid = getCurrentPortfolioId();
+    const params = [];
+    if (pid) params.push(`portfolioId=${pid}`);
+    if (days) params.push(`days=${days}`);
+    const q = params.length ? `?${params.join('&')}` : '';
+    return fetchAPI(`/positions/history/${encodeURIComponent(positionKey)}${q}`);
+  }
 };
 
 // Precios (caché persistente)
@@ -106,7 +114,8 @@ export const pricesAPI = {
   upsert: (positionKey, data) => fetchAPI(`/prices/${encodeURIComponent(positionKey)}`, {
     method: 'PUT',
     body: JSON.stringify({ ...data, portfolioId: getCurrentPortfolioId() })
-  })
+  }),
+  getMarketHistory: (symbol, days = 365) => fetchAPI(`/prices/market/${encodeURIComponent(symbol)}?days=${days}`)
 };
 
 export const notesAPI = {

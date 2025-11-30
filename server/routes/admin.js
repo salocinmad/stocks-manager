@@ -345,6 +345,31 @@ router.post('/update-prices-manual', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/overwrite-history
+ * Sobrescribe datos históricos de DailyPrice (Botón de emergencia)
+ */
+router.post('/overwrite-history', async (req, res) => {
+  try {
+    const { days = 30 } = req.body;
+    console.log(`⚠️ Solicitud de sobrescritura de historial recibida (días: ${days})`);
+
+    // Importar dinámicamente el servicio
+    const { overwriteHistoricalData } = await import('../services/historicalDataService.js');
+
+    const result = await overwriteHistoricalData(parseInt(days));
+
+    res.json({
+      success: true,
+      message: `Historial sobrescrito correctamente para ${result.updatedPositions} posiciones.`,
+      details: result
+    });
+  } catch (error) {
+    console.error('Error en sobrescritura de historial:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router
 
 
@@ -497,9 +522,9 @@ router.post('/daily-close/recompute-last', async (req, res) => {
 
         const existingPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date: iso } })
         if (existingPrice) {
-          await existingPrice.update({ company: p.company, symbol: p.symbol, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares })
+          await existingPrice.update({ company: p.company, symbol: p.symbol, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares, volume: gcp?.volume || null })
         } else {
-          await DailyPrice.create({ userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol, date: iso, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares })
+          await DailyPrice.create({ userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol, date: iso, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares, volume: gcp?.volume || null })
         }
       }
       const pnlEUR = totalValueEUR - totalInvestedEUR

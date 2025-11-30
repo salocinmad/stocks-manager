@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import User from '../models/User.js';
 import Portfolio from '../models/Portfolio.js';
 import { generateDailyReport } from '../services/reportGenerator.js';
+import { getLogLevel } from '../services/configService.js';
 
 
 /**
@@ -13,10 +14,10 @@ import { generateDailyReport } from '../services/reportGenerator.js';
  * Obtiene el tipo de cambio EUR/USD actual
  * @returns {number} Tipo de cambio EUR/USD
  */
-async function getCurrentEURUSD() {
+async function getCurrentEURUSD(currentLogLevel) {
     try {
         // Intentar obtener desde el endpoint local de Yahoo
-        const response = await fetch('http://localhost:3001/api/yahoo/fx/eurusd');
+        const response = await fetch('http://localhost:5000/api/yahoo/fx/eurusd');
         if (response.ok) {
             const data = await response.json();
             return parseFloat(data.eurPerUsd) || 0.92;
@@ -34,7 +35,7 @@ async function getCurrentEURUSD() {
  * @param {number} currentEURUSD - Tipo de cambio EUR/USD
  * @returns {Object} Resultado de la generación
  */
-async function generateReportsForUser(user, date, currentEURUSD) {
+async function generateReportsForUser(user, date, currentEURUSD, currentLogLevel) {
     const result = {
         userId: user.id,
         username: user.username,
@@ -48,23 +49,33 @@ async function generateReportsForUser(user, date, currentEURUSD) {
             where: { userId: user.id }
         });
 
-        console.log(`  💼 Found ${portfolios.length} portfolios for user ${user.username}`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`  💼 Found ${portfolios.length} portfolios for user ${user.username}`);
+        }
 
         if (portfolios.length === 0) {
-            console.log(`  ⚠️ User ${user.username} has no portfolios`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`  ⚠️ User ${user.username} has no portfolios`);
+            }
             return result;
         }
 
         // Generar reporte para cada portafolio
         for (const portfolio of portfolios) {
-            console.log(`  Processing portfolio ${portfolio.id} (${portfolio.name})...`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`  Processing portfolio ${portfolio.id} (${portfolio.name})...`);
+            }
             try {
                 const report = await generateDailyReport(user.id, portfolio.id, date, currentEURUSD);
                 if (report) {
                     result.portfoliosProcessed++;
-                    console.log(`    ✅ Report generated for ${portfolio.name}`);
+                    if (currentLogLevel === 'verbose') {
+                        console.log(`    ✅ Report generated for ${portfolio.name}`);
+                    }
                 } else {
-                    console.log(`    ⚠️ Skipped ${portfolio.name}: No operations found`);
+                    if (currentLogLevel === 'verbose') {
+                        console.log(`    ⚠️ Skipped ${portfolio.name}: No operations found`);
+                    }
                 }
             } catch (error) {
                 console.error(`    ❌ Error generating report for portfolio ${portfolio.id} (${portfolio.name}):`, error.message);
@@ -92,15 +103,18 @@ async function generateReportsForUser(user, date, currentEURUSD) {
  * @returns {Object} Resultado de la generación
  */
 export async function generateAllReports(date = null) {
+    const currentLogLevel = await getLogLevel();
     const startTime = Date.now();
 
     // Usar fecha de hoy si no se especifica
     const reportDate = date || new Date().toISOString().split('T')[0];
 
-    console.log(`\n========================================`);
-    console.log(`📊 Generating Portfolio Reports`);
-    console.log(`📅 Date: ${reportDate}`);
-    console.log(`========================================\n`);
+    if (currentLogLevel === 'verbose') {
+        console.log(`\n========================================`);
+        console.log(`📊 Generating Portfolio Reports`);
+        console.log(`📅 Date: ${reportDate}`);
+        console.log(`========================================\n`);
+    }
 
     const summary = {
         date: reportDate,
@@ -116,34 +130,44 @@ export async function generateAllReports(date = null) {
 
     try {
         // 1. Obtener tipo de cambio EUR/USD actual
-        const currentEURUSD = await getCurrentEURUSD();
-        console.log(`💱 EUR/USD exchange rate: ${currentEURUSD}`);
+        const currentEURUSD = await getCurrentEURUSD(currentLogLevel);
+        if (currentLogLevel === 'verbose') {
+            console.log(`💱 EUR/USD exchange rate: ${currentEURUSD}`);
+        }
 
         // DEBUG: Listar todos los portafolios para ver qué está pasando
         const allPortfolios = await Portfolio.findAll();
-        console.log(`\n🔍 DEBUG: Total portfolios in DB: ${allPortfolios.length}`);
-        allPortfolios.forEach(p => {
-            console.log(`   - ID: ${p.id}, Name: ${p.name}, UserId: ${p.userId}`);
-        });
-        console.log('');
+        if (currentLogLevel === 'verbose') {
+            console.log(`\n🔍 DEBUG: Total portfolios in DB: ${allPortfolios.length}`);
+            allPortfolios.forEach(p => {
+                console.log(`   - ID: ${p.id}, Name: ${p.name}, UserId: ${p.userId}`);
+            });
+            console.log('');
+        }
 
         // 2. Obtener todos los usuarios
         const users = await User.findAll();
 
         summary.totalUsers = users.length;
-        console.log(`👥 Found ${users.length} users\n`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`👥 Found ${users.length} users\n`);
+        }
 
         if (users.length === 0) {
-            console.log('No users found');
+            if (currentLogLevel === 'verbose') {
+                console.log('No users found');
+            }
             summary.executionTimeMs = Date.now() - startTime;
             return summary;
         }
 
         // 3. Generar reportes para cada usuario
         for (const user of users) {
+            if (currentLogLevel === 'verbose') {
             console.log(`Processing user: ${user.username}...`);
+        }
 
-            const userResult = await generateReportsForUser(user, reportDate, currentEURUSD);
+            const userResult = await generateReportsForUser(user, reportDate, currentEURUSD, currentLogLevel);
             summary.userResults.push(userResult);
 
             summary.totalPortfolios += userResult.portfoliosProcessed;
@@ -154,24 +178,28 @@ export async function generateAllReports(date = null) {
                 summary.errors.push(...userResult.errors);
             }
 
+            if (currentLogLevel === 'verbose') {
             console.log(`  ✅ Processed ${userResult.portfoliosProcessed} portfolios`);
             if (userResult.errors.length > 0) {
                 console.log(`  ⚠️  ${userResult.errors.length} errors`);
             }
+        }
         }
 
         // 4. Resumen final
         summary.completedAt = new Date().toISOString();
         summary.executionTimeMs = Date.now() - startTime;
 
-        console.log(`\n========================================`);
-        console.log(`📊 Report Generation Complete`);
-        console.log(`========================================`);
-        console.log(`✅ Total portfolios: ${summary.totalPortfolios}`);
-        console.log(`✅ Successful reports: ${summary.successfulReports}`);
-        console.log(`❌ Failed reports: ${summary.failedReports}`);
-        console.log(`⏱️  Execution time: ${summary.executionTimeMs}ms`);
-        console.log(`========================================\n`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`\n========================================`);
+            console.log(`📊 Report Generation Complete`);
+            console.log(`========================================`);
+            console.log(`✅ Total portfolios: ${summary.totalPortfolios}`);
+            console.log(`✅ Successful reports: ${summary.successfulReports}`);
+            console.log(`❌ Failed reports: ${summary.failedReports}`);
+            console.log(`⏱️  Execution time: ${summary.executionTimeMs}ms`);
+            console.log(`========================================\n`);
+        }
 
         return summary;
     } catch (error) {
@@ -193,7 +221,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
     generateAllReports(date)
         .then(result => {
-            console.log('\nGeneration result:', JSON.stringify(result, null, 2));
+            if (currentLogLevel === 'verbose') {
+        console.log('\nGeneration result:', JSON.stringify(result, null, 2));
+    }
             process.exit(result.failedReports > 0 ? 1 : 0);
         })
         .catch(error => {

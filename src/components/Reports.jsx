@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { authenticatedFetch } from '../services/auth.js';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-// import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'; // Eliminado al quitar gráficas
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './Reports.css';
 
 /**
@@ -45,7 +45,7 @@ function Reports({
                 }
 
                 const data = await response.json();
-                // console.log('DEBUG: Datos del reporte recibidos:', data.data);
+                console.log('DEBUG: Datos del reporte recibidos:', data.data);
                 setReportData(data.data);
             } catch (err) {
                 console.error('Error fetching report:', err);
@@ -104,7 +104,7 @@ function Reports({
 
     // Loading state
     if (loading) {
-        return (
+    return (
             <div className="reports-container">
                 <div className="loading-container">
                     <div className="loading-spinner"></div>
@@ -353,7 +353,27 @@ function Reports({
                 </div>
             )}
 
-            {/* Gráficos de Precios Históricos - Eliminado por petición del usuario */}
+            {/* Gráficos de Precios Históricos */}
+            {reportData.historicalChartData && Object.keys(reportData.historicalChartData).length > 0 && (
+                <div className="historical-charts-section">
+                    <h3>📈 Evolución del Precio (Últimos 30 días)</h3>
+                    {Object.entries(reportData.historicalChartData).map(([key, data]) => (
+                        <div key={key} className="stock-chart-container">
+                            <h4>{key.split('|||')[0]} ({key.split('|||')[1]})</h4>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <LineChart data={data}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="date" tickFormatter={formatDate} />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Legend />
+                                    <Line type="monotone" dataKey="value" stroke="#8884d8" activeDot={{ r: 8 }} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Tabla de Precios Históricos (Último Año) - Eliminada por petición del usuario */}
 

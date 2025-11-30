@@ -8,6 +8,7 @@ import GlobalStockPrice from '../../models/GlobalStockPrice.js';
 import { fetchHistorical } from '../datasources/yahooService.js';
 import { HISTORICAL_CONFIG } from '../../utils/constants.js';
 import { formatDateOnly } from '../../utils/dateHelpers.js';
+import { getLogLevel } from '../configService.js';
 
 /**
  * Guarda histórico de Yahoo Finance en DB
@@ -80,6 +81,7 @@ export async function fetchAndSaveHistorical(symbol, days = HISTORICAL_CONFIG.DE
  * @param {number} maxDaysBack - Días máximos a revisar
  */
 export async function fillHistoricalGaps(symbol, maxDaysBack = HISTORICAL_CONFIG.DEFAULT_DAYS) {
+    const currentLogLevel = await getLogLevel();
     // Obtener primer registro
     const firstRecord = await GlobalStockPrice.findOne({
         where: { symbol },
@@ -89,7 +91,9 @@ export async function fillHistoricalGaps(symbol, maxDaysBack = HISTORICAL_CONFIG
 
     if (!firstRecord) {
         // No hay histórico, hacer backfill completo
-        console.log(`📊 ${symbol}: Sin histórico, backfill completo`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`📊 ${symbol}: Sin histórico, backfill completo`);
+        }
         await fetchAndSaveHistorical(symbol, maxDaysBack);
         return;
     }
@@ -101,12 +105,16 @@ export async function fillHistoricalGaps(symbol, maxDaysBack = HISTORICAL_CONFIG
     const expectedDays = daysSinceFirst * HISTORICAL_CONFIG.GAP_THRESHOLD;
 
     if (recordCount >= expectedDays) {
-        console.log(`✅ ${symbol}: Histórico completo (${recordCount} días)`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`✅ ${symbol}: Histórico completo (${recordCount} días)`);
+        }
         return;
     }
 
     // Hay gap, rellenar
-    console.log(`🔧 ${symbol}: Gap detectado, rellenando...`);
+    if (currentLogLevel === 'verbose') {
+        console.log(`🔧 ${symbol}: Gap detectado, rellenando...`);
+    }
     await fetchAndSaveHistorical(symbol, daysSinceFirst);
 }
 
