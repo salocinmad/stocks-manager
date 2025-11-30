@@ -1,19 +1,218 @@
 import React, { useState, useEffect } from 'react';
 import { positionsAPI } from '../services/api';
 import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
+    XAxis as RechartsXAxis,
+    YAxis as RechartsYAxis,
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
     ComposedChart,
     Bar,
-    Area
+    Area,
+    Line,
+    LineChart
 } from 'recharts';
+import {
+    ChartCanvas, Chart,
+    XAxis as FinancialXAxis, YAxis as FinancialYAxis,
+    PointAndFigureSeries,
+    KagiSeries,
+    RenkoSeries,
+    pointAndFigure,
+    kagi,
+    renko,
+
+    CrossHairCursor, CurrentCoordinate, EdgeIndicator,
+    MouseCoordinateX, MouseCoordinateY,
+    OHLCTooltip,
+    discontinuousTimeScaleProviderBuilder,
+    lastVisibleItemBasedZoomAnchor,
+    withSize,
+    withDeviceRatio,
+} from 'react-financial-charts';
+import { format } from "d3-format";
+import { timeFormat } from "d3-time-format";
 import ChartTypeToggle from './ChartTypeToggle';
 import './StockHistoryChart.css';
+
+const PointAndFigureChart = withSize(withDeviceRatio(({ data: initialData, width, ratio, theme }) => {
+    const margin = { left: 70, right: 70, top: 20, bottom: 30 };
+    const height = 250;
+
+    const calculator = pointAndFigure();
+    const calculatedData = calculator(initialData);
+
+    const xScaleProvider = discontinuousTimeScaleProviderBuilder()
+        .inputDateAccessor(d => d.date);
+    const { data, xScale, xAccessor, displayXAccessor } = xScaleProvider(calculatedData);
+
+            const xExtents = [
+                xAccessor(data[Math.max(0, data.length - 100)]),
+                xAccessor(data[data.length - 1]),
+            ];
+
+    const dateTimeFormat = timeFormat("%d %b");
+    const timeDisplayFormat = timeFormat("%H:%M");
+
+    const barColor = theme === 'dark' ? '#4CAF50' : '#26A69A'; // Green for bullish
+    const reversalColor = theme === 'dark' ? '#F44336' : '#EF5350'; // Red for bearish
+
+    return (
+        <ChartCanvas
+            height={height}
+            ratio={ratio}
+            width={width}
+            margin={margin}
+            data={data}
+            xScale={xScale}
+            xAccessor={xAccessor}
+            displayXAccessor={displayXAccessor}
+            xExtents={xExtents}
+             zoomAnchor={lastVisibleItemBasedZoomAnchor}
+        >
+            <Chart id={1} yExtents={d => [d.high, d.low]}>
+                <FinancialXAxis axisAt="bottom" orient="bottom" ticks={6} tickFormat={dateTimeFormat} />
+                <FinancialYAxis axisAt="left" orient="left" ticks={5} />
+                <PointAndFigureSeries
+                    stroke={barColor}
+                    fill={reversalColor}
+                />
+                <MouseCoordinateX
+                    at="bottom"
+                    orient="bottom"
+                    displayFormat={timeDisplayFormat}
+                />
+                <MouseCoordinateY
+                    at="left"
+                    orient="left"
+                    displayFormat={format(".2f")}
+                />
+                <OHLCTooltip origin={[-40, 0]} />
+                <CrossHairCursor />
+            </Chart>
+        </ChartCanvas>
+    );
+}));
+
+const KagiChart = withSize(withDeviceRatio(({ data: initialData, width, ratio, theme }) => {
+    const margin = { left: 70, right: 70, top: 20, bottom: 30 };
+    const height = 250;
+
+    const calculator = kagi();
+    const calculatedData = calculator(initialData);
+
+    const xScaleProvider = discontinuousTimeScaleProviderBuilder()
+        .inputDateAccessor(d => d.date);
+    const { data, xScale, xAccessor, displayXAccessor } = xScaleProvider(calculatedData);
+
+            const xExtents = [
+                xAccessor(data[Math.max(0, data.length - 100)]),
+                xAccessor(data[data.length - 1]),
+            ];
+
+    const dateTimeFormat = timeFormat("%d %b");
+    const timeDisplayFormat = timeFormat("%H:%M");
+
+    const strokeColor = theme === 'dark' ? '#60a5fa' : '#3b82f6';
+    const reversalColor = theme === 'dark' ? '#ef4444' : '#dc2626';
+
+    return (
+        <ChartCanvas
+            height={height}
+            ratio={ratio}
+            width={width}
+            margin={margin}
+            data={data}
+            xScale={xScale}
+            xAccessor={xAccessor}
+            displayXAccessor={displayXAccessor}
+            xExtents={xExtents}
+        >
+            <Chart id={1} yExtents={d => [d.high, d.low]}>
+                <FinancialXAxis axisAt="bottom" orient="bottom" ticks={6} tickFormat={dateTimeFormat} />
+                <FinancialYAxis axisAt="left" orient="left" ticks={5} />
+                <KagiSeries
+                    stroke={strokeColor}
+                    reversalColor={reversalColor}
+                />
+                <MouseCoordinateX
+                    at="bottom"
+                    orient="bottom"
+                    displayFormat={timeDisplayFormat}
+                />
+                <MouseCoordinateY
+                    at="left"
+                    orient="left"
+                    displayFormat={format(".2f")}
+                />
+                <OHLCTooltip origin={[-40, 0]} />
+                <CrossHairCursor />
+            </Chart>
+        </ChartCanvas>
+    );
+}));
+
+const RenkoChart = withSize(withDeviceRatio(({ data: initialData, width, ratio, theme }) => {
+    const margin = { left: 70, right: 70, top: 20, bottom: 30 };
+    const height = 250;
+
+    const calculator = renko();
+    const calculatedData = calculator(initialData);
+
+    const xScaleProvider = discontinuousTimeScaleProviderBuilder()
+        .inputDateAccessor(d => d.date);
+    const { data, xScale, xAccessor, displayXAccessor } = xScaleProvider(calculatedData);
+
+    const xExtents = [
+        xAccessor(data[Math.max(0, data.length - 100)]),
+        xAccessor(data[data.length - 1]),
+    ];
+
+    const dateTimeFormat = timeFormat("%d %b");
+    const timeDisplayFormat = timeFormat("%H:%M");
+
+    const strokeColor = theme === 'dark' ? '#4CAF50' : '#26A69A'; // Green for bullish
+    const reversalColor = theme === 'dark' ? '#F44336' : '#EF5350'; // Red for bearish
+
+    return (
+        <ChartCanvas
+            height={height}
+            ratio={ratio}
+            width={width}
+            margin={margin}
+            data={data}
+            xScale={xScale}
+            xAccessor={xAccessor}
+            displayXAccessor={displayXAccessor}
+            xExtents={xExtents}
+        >
+            <Chart id={1} yExtents={d => [d.high, d.low]}>
+                <FinancialXAxis axisAt="bottom" orient="bottom" ticks={6} tickFormat={dateTimeFormat} />
+                <FinancialYAxis axisAt="left" orient="left" ticks={5} />
+                <RenkoSeries
+                    stroke={strokeColor}
+                    fill={reversalColor}
+                />
+                <MouseCoordinateX
+                    at="bottom"
+                    orient="bottom"
+                    displayFormat={timeDisplayFormat}
+                />
+                <MouseCoordinateY
+                    at="left"
+                    orient="left"
+                    displayFormat={format(".2f")}
+                />
+                <OHLCTooltip origin={[-40, 0]} />
+                <CrossHairCursor />
+            </Chart>
+        </ChartCanvas>
+    );
+}));
+
+
+
+
 
 const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
     const [chartType, setChartType] = useState('line');
@@ -43,7 +242,7 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                     const low = parseFloat(item.low) || close;
 
                     return {
-                        date: item.date,
+                        date: new Date(item.date),
                         dateFormatted: formatDateForAxis(item.date),
                         open,
                         high,
@@ -213,11 +412,11 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                                 stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'}
                                 strokeDasharray="3 3"
                             />
-                            <XAxis
+                            <RechartsXAxis
                                 dataKey="dateFormatted"
                                 tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
                             />
-                            <YAxis
+                            <RechartsYAxis
                                 tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
                                 domain={['auto', 'auto']}
                             />
@@ -238,11 +437,11 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                                 stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'}
                                 strokeDasharray="3 3"
                             />
-                            <XAxis
+                            <RechartsXAxis
                                 dataKey="dateFormatted"
                                 tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
                             />
-                            <YAxis
+                            <RechartsYAxis
                                 tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
                                 domain={['auto', 'auto']}
                             />
@@ -261,14 +460,14 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                                     stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'}
                                     strokeDasharray="3 3"
                                 />
-                                <XAxis
-                                    dataKey="dateFormatted"
-                                    tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
-                                />
-                                <YAxis
-                                    tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
-                                    domain={['auto', 'auto']}
-                                />
+                                <RechartsXAxis
+                                     dataKey="dateFormatted"
+                                     tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
+                                 />
+                                 <RechartsYAxis
+                                     tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
+                                     domain={['auto', 'auto']}
+                                 />
                                 <Tooltip content={<CustomTooltip />} />
                                 <Bar dataKey="close" fill="#82ca9d" />
                             </ComposedChart>
@@ -280,18 +479,34 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                                     stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'}
                                     strokeDasharray="3 3"
                                 />
-                                <XAxis
-                                    dataKey="dateFormatted"
-                                    tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
-                                />
-                                <YAxis
-                                    tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
-                                    domain={['auto', 'auto']}
-                                />
+                                <RechartsXAxis
+                                     dataKey="dateFormatted"
+                                     tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
+                                 />
+                                 <RechartsYAxis
+                                     tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 11 }}
+                                     domain={['auto', 'auto']}
+                                 />
                                 <Tooltip content={<CustomTooltip />} />
                                  <Area dataKey="close" stroke="#8884d8" fill="#8884d8" />
                             </ComposedChart>
                         )}
+
+                        {chartType === 'puntosYFigura' && (
+                            <PointAndFigureChart data={historicalData} theme={theme} />
+                        )}
+
+                        {chartType === 'kagi' && (
+                            <KagiChart data={historicalData} theme={theme} />
+                        )}
+
+                        {chartType === 'renko' && (
+                            <RenkoChart data={historicalData} theme={theme} />
+                        )}
+
+
+
+                        
                 </ResponsiveContainer>
             </div>
         </div>
