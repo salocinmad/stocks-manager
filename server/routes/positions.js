@@ -4,6 +4,7 @@ import PositionOrder from '../models/PositionOrder.js';
 import Portfolio from '../models/Portfolio.js';
 import User from '../models/User.js';
 import DailyPrice from '../models/DailyPrice.js';
+import Operation from '../models/Operation.js'; // Importar modelo Operation
 import { Op } from 'sequelize';
 
 const router = express.Router();
@@ -88,13 +89,35 @@ router.get('/history/:positionKey', authenticate, async (req, res) => {
                 positionKey: decodedPositionKey,
                 date: { [Op.gte]: dateLimitStr }
             },
-            attributes: ['date', 'open', 'high', 'low', 'close'],
+            attributes: ['date', 'open', 'high', 'low', 'close', 'volume'],
+            order: [['date', 'ASC']]
+        });
+
+        // Fetch operations for markers
+        // Extract pure symbol if it has format "EXCHANGE:SYMBOL"
+        let searchSymbol = decodedPositionKey;
+        if (decodedPositionKey.includes(':')) {
+            searchSymbol = decodedPositionKey.split(':')[1];
+        }
+
+        const operations = await Operation.findAll({
+            where: {
+                userId: req.user.id,
+                portfolioId,
+                [Op.or]: [
+                    { symbol: decodedPositionKey },
+                    { symbol: searchSymbol },
+                    { company: decodedPositionKey }
+                ]
+            },
+            attributes: ['id', 'type', 'date', 'price', 'shares'],
             order: [['date', 'ASC']]
         });
 
         res.json({
             success: true,
             data: historicalData,
+            operations: operations,
             daysRequested: daysToFetch,
             daysReturned: historicalData.length
         });

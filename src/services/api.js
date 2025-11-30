@@ -114,7 +114,8 @@ export const pricesAPI = {
   upsert: (positionKey, data) => fetchAPI(`/prices/${encodeURIComponent(positionKey)}`, {
     method: 'PUT',
     body: JSON.stringify({ ...data, portfolioId: getCurrentPortfolioId() })
-  })
+  }),
+  getMarketHistory: (symbol, days = 365) => fetchAPI(`/prices/market/${encodeURIComponent(symbol)}?days=${days}`)
 };
 
 export const notesAPI = {

@@ -1,25 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { positionsAPI } from '../services/api';
-import { createChart } from 'lightweight-charts';
+import { positionsAPI, pricesAPI } from '../services/api';
+import { createChart, CrosshairMode, LineStyle } from 'lightweight-charts';
 import ChartTypeToggle from './ChartTypeToggle';
 import './StockHistoryChart.css';
 
 const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
     const [chartType, setChartType] = useState('line');
     const [historicalData, setHistoricalData] = useState([]);
+    const [operations, setOperations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [timePeriod, setTimePeriod] = useState('1m'); // 7d, 1m, 3m, 6m
+
+    // Advanced features state
+    const [showSMA, setShowSMA] = useState(false);
+    const [showMarkers, setShowMarkers] = useState(true);
+    const [compareSP500, setCompareSP500] = useState(false);
+    const [sp500Data, setSp500Data] = useState([]);
+
     const chartContainerRef = useRef(null);
     const chartRef = useRef(null);
-    const seriesRef = useRef(null);
+    const mainSeriesRef = useRef(null);
+    const smaSeriesRef = useRef(null);
+    const sp500SeriesRef = useRef(null);
 
     // Fetch data whenever positionKey, portfolioId, or timePeriod changes
     useEffect(() => {
         fetchHistoricalData();
     }, [positionKey, portfolioId, timePeriod]);
 
-    // Create/update chart whenever theme, chartType, or data changes
+    // Fetch SP500 data if enabled
+    useEffect(() => {
+        if (compareSP500 && sp500Data.length === 0) {
+            fetchSP500Data();
+        }
+    }, [compareSP500]);
+
+    // Create/update chart whenever theme, chartType, data, or features change
     useEffect(() => {
         if (historicalData.length > 0 && chartContainerRef.current) {
             createOrUpdateChart();
@@ -29,10 +46,12 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
             if (chartRef.current) {
                 chartRef.current.remove();
                 chartRef.current = null;
-                seriesRef.current = null;
+                mainSeriesRef.current = null;
+                smaSeriesRef.current = null;
+                sp500SeriesRef.current = null;
             }
         };
-    }, [historicalData, chartType, theme]);
+    }, [historicalData, chartType, theme, showSMA, showMarkers, compareSP500, sp500Data, operations]);
 
     const fetchHistoricalData = async () => {
         try {
@@ -44,7 +63,8 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                 '7d': 7,
                 '1m': 30,
                 '3m': 90,
-                '6m': 180
+                '6m': 180,
+                '1y': 365
             };
             const days = daysMap[timePeriod] || 30;
 
@@ -54,7 +74,6 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                 // Format data for Lightweight Charts
                 const formattedData = result.data.map(item => {
                     const date = new Date(item.date);
-                    // Lightweight Charts uses Unix timestamps in seconds
                     const time = Math.floor(date.getTime() / 1000);
 
                     const close = parseFloat(item.close) || 0;
@@ -75,6 +94,11 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                 // Sort by time ascending
                 formattedData.sort((a, b) => a.time - b.time);
                 setHistoricalData(formattedData);
+
+                // Set operations for markers
+                if (result.operations) {
+                    setOperations(result.operations);
+                }
             } else {
                 setHistoricalData([]);
             }
@@ -87,6 +111,48 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
         }
     };
 
+    const fetchSP500Data = async () => {
+        try {
+            // Map time period to days
+            const daysMap = {
+                '7d': 7,
+                '1m': 30,
+                '3m': 90,
+                '6m': 180,
+                '1y': 365
+            };
+            const days = daysMap[timePeriod] || 30;
+
+            const result = await pricesAPI.getMarketHistory('^GSPC', days);
+            if (result.success && result.data) {
+                const formatted = result.data.map(item => ({
+                    time: Math.floor(new Date(item.date).getTime() / 1000),
+                    value: parseFloat(item.close)
+                })).sort((a, b) => a.time - b.time);
+                setSp500Data(formatted);
+            }
+        } catch (err) {
+            console.error('Error fetching SP500 data:', err);
+        }
+    };
+
+    // Calculate Simple Moving Average (SMA)
+    const calculateSMA = (data, period) => {
+        const smaData = [];
+        for (let i = period - 1; i < data.length; i++) {
+            const val = data[i].value || data[i].close;
+            let sum = 0;
+            for (let j = 0; j < period; j++) {
+                sum += (data[i - j].value || data[i - j].close);
+            }
+            smaData.push({
+                time: data[i].time,
+                value: sum / period,
+            });
+        }
+        return smaData;
+    };
+
     const createOrUpdateChart = () => {
         if (!chartContainerRef.current) return;
 
@@ -94,13 +160,12 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
         if (chartRef.current) {
             chartRef.current.remove();
             chartRef.current = null;
-            seriesRef.current = null;
         }
 
         // Create new chart
         const chart = createChart(chartContainerRef.current, {
             width: chartContainerRef.current.clientWidth,
-            height: 250,
+            height: 300,
             layout: {
                 background: { color: 'transparent' },
                 textColor: theme === 'dark' ? '#9ca3af' : '#475569',
@@ -110,25 +175,16 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                 horzLines: { color: theme === 'dark' ? '#1f2937' : '#e5e7eb' },
             },
             crosshair: {
-                mode: 1, // Normal crosshair
-                vertLine: {
-                    width: 1,
-                    color: theme === 'dark' ? '#60a5fa' : '#3b82f6',
-                    style: 3, // Dashed
-                },
-                horzLine: {
-                    width: 1,
-                    color: theme === 'dark' ? '#60a5fa' : '#3b82f6',
-                    style: 3,
-                },
+                mode: CrosshairMode.Normal,
             },
             timeScale: {
                 borderColor: theme === 'dark' ? '#404040' : '#cbd5e1',
                 timeVisible: true,
-                secondsVisible: false,
             },
             rightPriceScale: {
                 borderColor: theme === 'dark' ? '#404040' : '#cbd5e1',
+                // If comparing, use percentage mode
+                mode: compareSP500 ? 2 : 1, // 2 = Percentage, 1 = Normal
             },
             handleScroll: {
                 mouseWheel: true,
@@ -145,9 +201,8 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
 
         chartRef.current = chart;
 
-        // Create series based on chart type
+        // 1. Add Main Series
         let series;
-
         switch (chartType) {
             case 'candlestick':
                 series = chart.addCandlestickSeries({
@@ -160,23 +215,10 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                 });
                 series.setData(historicalData);
                 break;
-
             case 'bar':
-                series = chart.addHistogramSeries({
-                    color: '#82ca9d',
-                    priceFormat: {
-                        type: 'price',
-                        precision: 2,
-                        minMove: 0.01,
-                    },
-                });
-                series.setData(historicalData.map(d => ({
-                    time: d.time,
-                    value: d.close,
-                    color: '#82ca9d'
-                })));
+                series = chart.addHistogramSeries({ color: '#82ca9d' });
+                series.setData(historicalData.map(d => ({ time: d.time, value: d.close, color: '#82ca9d' })));
                 break;
-
             case 'area':
                 series = chart.addAreaSeries({
                     topColor: 'rgba(136, 132, 216, 0.4)',
@@ -184,115 +226,132 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                     lineColor: '#8884d8',
                     lineWidth: 2,
                 });
-                series.setData(historicalData.map(d => ({
-                    time: d.time,
-                    value: d.close
-                })));
+                series.setData(historicalData.map(d => ({ time: d.time, value: d.close })));
                 break;
-
             case 'line':
             default:
-                series = chart.addLineSeries({
-                    color: '#60a5fa',
-                    lineWidth: 2,
-                });
-                series.setData(historicalData.map(d => ({
-                    time: d.time,
-                    value: d.close
-                })));
+                series = chart.addLineSeries({ color: '#60a5fa', lineWidth: 2 });
+                series.setData(historicalData.map(d => ({ time: d.time, value: d.close })));
                 break;
         }
+        mainSeriesRef.current = series;
 
-        seriesRef.current = series;
+        // 2. Add Markers (Operations)
+        if (showMarkers && operations.length > 0) {
+            const markers = [];
+            operations.forEach(op => {
+                const opTime = Math.floor(new Date(op.date).getTime() / 1000);
+                // Find closest data point time
+                const closest = historicalData.reduce((prev, curr) =>
+                    Math.abs(curr.time - opTime) < Math.abs(prev.time - opTime) ? curr : prev
+                );
 
-        // Fit content to view
+                if (closest) {
+                    markers.push({
+                        time: closest.time,
+                        position: op.type === 'purchase' ? 'belowBar' : 'aboveBar',
+                        color: op.type === 'purchase' ? '#10b981' : '#ef4444',
+                        shape: op.type === 'purchase' ? 'arrowUp' : 'arrowDown',
+                        text: op.type === 'purchase' ? 'Compra' : 'Venta',
+                        size: 1, // default size
+                    });
+                }
+            });
+            series.setMarkers(markers);
+        }
+
+        // 3. Add SMA Indicator
+        if (showSMA) {
+            const smaData = calculateSMA(historicalData, 20);
+            const smaSeries = chart.addLineSeries({
+                color: '#f59e0b', // Amber/Orange
+                lineWidth: 1,
+                lineStyle: LineStyle.Solid,
+                title: 'SMA 20',
+            });
+            smaSeries.setData(smaData);
+            smaSeriesRef.current = smaSeries;
+        }
+
+        // 4. Add S&P 500 Comparison
+        if (compareSP500 && sp500Data.length > 0) {
+            const spSeries = chart.addLineSeries({
+                color: '#a855f7', // Purple
+                lineWidth: 2,
+                lineStyle: LineStyle.Solid,
+                title: 'S&P 500',
+            });
+            spSeries.setData(sp500Data);
+            sp500SeriesRef.current = spSeries;
+        }
+
         chart.timeScale().fitContent();
 
-        // Handle window resize
         const handleResize = () => {
             if (chartContainerRef.current && chartRef.current) {
-                chartRef.current.applyOptions({
-                    width: chartContainerRef.current.clientWidth
-                });
+                chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
             }
         };
-
         window.addEventListener('resize', handleResize);
-
-        // Store cleanup function
-        chartRef.current.resizeHandler = () => {
-            window.removeEventListener('resize', handleResize);
-        };
+        chartRef.current.resizeHandler = () => window.removeEventListener('resize', handleResize);
     };
 
-    if (loading) {
-        return (
-            <div className="stock-history-container">
-                <p style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
-                    ⏳ Cargando datos históricos...
-                </p>
-            </div>
-        );
+    if (loading && historicalData.length === 0) {
+        return <div className="stock-history-container"><p style={{ textAlign: 'center', padding: '20px', color: '#888' }}>⏳ Cargando...</p></div>;
     }
 
     if (error) {
-        return (
-            <div className="stock-history-container">
-                <p style={{ textAlign: 'center', padding: '20px', color: '#ef4444' }}>
-                    ⚠️ {error}
-                </p>
-            </div>
-        );
+        return <div className="stock-history-container"><p style={{ textAlign: 'center', padding: '20px', color: '#ef4444' }}>⚠️ {error}</p></div>;
     }
 
     if (historicalData.length === 0) {
-        return (
-            <div className="stock-history-container">
-                <p style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
-                    No hay datos históricos disponibles para esta acción
-                </p>
-            </div>
-        );
+        return <div className="stock-history-container"><p style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No hay datos</p></div>;
     }
 
     return (
         <div className="stock-history-container">
-            <ChartTypeToggle chartType={chartType} onChartTypeChange={setChartType} />
+            <div className="chart-controls-row">
+                <ChartTypeToggle chartType={chartType} onChartTypeChange={setChartType} />
 
-            {/* Time Period Selector */}
+                <div className="advanced-controls">
+                    <button
+                        className={`control-button ${showSMA ? 'active' : ''}`}
+                        onClick={() => setShowSMA(!showSMA)}
+                        title="Media Móvil Simple (20 periodos)"
+                    >
+                        📈 SMA 20
+                    </button>
+                    <button
+                        className={`control-button ${showMarkers ? 'active' : ''}`}
+                        onClick={() => setShowMarkers(!showMarkers)}
+                        title="Mostrar mis operaciones"
+                    >
+                        📍 Operaciones
+                    </button>
+                    <button
+                        className={`control-button ${compareSP500 ? 'active' : ''}`}
+                        onClick={() => setCompareSP500(!compareSP500)}
+                        title="Comparar con S&P 500"
+                    >
+                        🆚 SP500
+                    </button>
+                </div>
+            </div>
+
             <div className="time-period-selector">
-                <button
-                    className={`period-button ${timePeriod === '7d' ? 'active' : ''}`}
-                    onClick={() => setTimePeriod('7d')}
-                    type="button"
-                >
-                    7D
-                </button>
-                <button
-                    className={`period-button ${timePeriod === '1m' ? 'active' : ''}`}
-                    onClick={() => setTimePeriod('1m')}
-                    type="button"
-                >
-                    1M
-                </button>
-                <button
-                    className={`period-button ${timePeriod === '3m' ? 'active' : ''}`}
-                    onClick={() => setTimePeriod('3m')}
-                    type="button"
-                >
-                    3M
-                </button>
-                <button
-                    className={`period-button ${timePeriod === '6m' ? 'active' : ''}`}
-                    onClick={() => setTimePeriod('6m')}
-                    type="button"
-                >
-                    6M
-                </button>
+                {['7d', '1m', '3m', '6m', '1y'].map(period => (
+                    <button
+                        key={period}
+                        className={`period-button ${timePeriod === period ? 'active' : ''}`}
+                        onClick={() => setTimePeriod(period)}
+                    >
+                        {period.toUpperCase()}
+                    </button>
+                ))}
             </div>
 
             <div className="chart-wrapper">
-                <div ref={chartContainerRef} style={{ width: '100%', height: '250px' }} />
+                <div ref={chartContainerRef} style={{ width: '100%', height: '300px' }} />
             </div>
         </div>
     );

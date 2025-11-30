@@ -3,9 +3,51 @@
     background-color: inherit;
 }
 
+.chart-controls-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.advanced-controls {
+    display: flex;
+    gap: 6px;
+}
+
+.control-button {
+    padding: 6px 12px;
+    border: 1px solid #404040;
+    background-color: transparent;
+    color: #9ca3af;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.control-button:hover {
+    background-color: rgba(96, 165, 250, 0.1);
+    border-color: #60a5fa;
+    color: #60a5fa;
+}
+
+.control-button.active {
+    background-color: rgba(96, 165, 250, 0.2);
+    border-color: #60a5fa;
+    color: #60a5fa;
+}
+
 .chart-wrapper {
     width: 100%;
     margin-top: 8px;
+    position: relative;
 }
 
 .time-period-selector {
@@ -70,4 +112,21 @@ body[data-theme="light"] .period-button.active {
     background-color: #60a5fa;
     border-color: #60a5fa;
     color: #ffffff;
+}
+
+body[data-theme="light"] .control-button {
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+body[data-theme="light"] .control-button:hover {
+    background-color: rgba(96, 165, 250, 0.1);
+    border-color: #60a5fa;
+    color: #60a5fa;
+}
+
+body[data-theme="light"] .control-button.active {
+    background-color: rgba(96, 165, 250, 0.2);
+    border-color: #60a5fa;
+    color: #60a5fa;
 }
