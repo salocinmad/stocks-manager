@@ -522,9 +522,9 @@ router.post('/daily-close/recompute-last', async (req, res) => {
 
         const existingPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date: iso } })
         if (existingPrice) {
-          await existingPrice.update({ company: p.company, symbol: p.symbol, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares })
+          await existingPrice.update({ company: p.company, symbol: p.symbol, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares, volume: gcp?.volume || null })
         } else {
-          await DailyPrice.create({ userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol, date: iso, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares })
+          await DailyPrice.create({ userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol, date: iso, close, currency: dailyCurrency, exchangeRate: rate, source: gcp?.source || 'cache', change, changePercent, shares: p.shares, volume: gcp?.volume || null })
         }
       }
       const pnlEUR = totalValueEUR - totalInvestedEUR

@@ -180,8 +180,9 @@ export const overwriteHistoricalData = async (days = 30) => {
                     currency,
                     exchangeRate,
                     source: 'yahoo_history_overwrite',
-                    shares: shares, // Usamos shares actuales (aproximación aceptable para historial reciente)
-                    change: 0, // No calculamos change diario en batch histórico simple
+                    shares: shares,
+                    volume: quote.volume || null, // Guardar volumen
+                    change: 0,
                     changePercent: 0
                 };
 

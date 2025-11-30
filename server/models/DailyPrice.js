@@ -21,6 +21,7 @@ const DailyPrice = sequelize.define('DailyPrice', {
   open: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
   high: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
   low: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null },
+  volume: { type: DataTypes.BIGINT, allowNull: true, defaultValue: null, comment: 'Volumen de negociación' },
   shares: { type: DataTypes.FLOAT, allowNull: true, defaultValue: null }
 }, {
   tableName: 'DailyPrices',
