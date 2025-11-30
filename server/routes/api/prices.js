@@ -188,12 +188,10 @@ router.get('/market/:symbol', async (req, res) => {
         }
 
         // Si no hay caché, descargar de Yahoo Finance
-        console.log(`📥 Downloading market data for ${decodedSymbol} from Yahoo Finance...`);
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - daysToFetch);
+        console.log(`📥 Downloading market data for ${decodedSymbol} from Yahoo Finance (days=${daysToFetch})...`);
 
-        const yahooData = await fetchHistorical(decodedSymbol, startDate, endDate);
+        // CORRECCIÓN: fetchHistorical espera (symbol, days), no (symbol, startDate, endDate)
+        const yahooData = await fetchHistorical(decodedSymbol, daysToFetch);
 
         if (!yahooData || yahooData.length === 0) {
             return res.status(404).json({
@@ -202,9 +200,15 @@ router.get('/market/:symbol', async (req, res) => {
             });
         }
 
+        // Filtrar datos de Yahoo para asegurar que respetan el rango de fechas solicitado
+        // Yahoo a veces devuelve más datos de los pedidos o todo el historial si hay error en parámetros
+        const filteredYahooData = yahooData.filter(item => item.date >= dateLimitStr);
+
+        console.log(`✅ Yahoo returned ${yahooData.length} records. Filtered to ${filteredYahooData.length} records (>= ${dateLimitStr})`);
+
         res.json({
             success: true,
-            data: yahooData,
+            data: filteredYahooData,
             source: 'yahoo'
         });
     } catch (error) {
