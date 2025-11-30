@@ -95,9 +95,12 @@ export const positionsAPI = {
     method: 'PUT',
     body: JSON.stringify({ order, portfolioId: getCurrentPortfolioId() })
   }),
-  getHistory: (positionKey) => {
+  getHistory: (positionKey, days = 30) => {
     const pid = getCurrentPortfolioId();
-    const q = pid ? `?portfolioId=${pid}` : '';
+    const params = [];
+    if (pid) params.push(`portfolioId=${pid}`);
+    if (days) params.push(`days=${days}`);
+    const q = params.length ? `?${params.join('&')}` : '';
     return fetchAPI(`/positions/history/${encodeURIComponent(positionKey)}${q}`);
   }
 };

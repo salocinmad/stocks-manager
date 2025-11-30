@@ -32,28 +32,6 @@ const ChartTypeToggle = ({ chartType, onChartTypeChange }) => {
             >
                 📈 Área
             </button>
-            <button
-                className={`toggle-button ${chartType === 'pointandfigure' ? 'active' : ''}`}
-                onClick={() => onChartTypeChange('pointandfigure')}
-                type="button"
-            >
-                ✖️ Puntos y Figura
-            </button>
-            <button
-                className={`toggle-button ${chartType === 'kagi' ? 'active' : ''}`}
-                onClick={() => onChartTypeChange('kagi')}
-                type="button"
-            >
-                〰️ Kagi
-            </button>
-            <button
-                className={`toggle-button ${chartType === 'renko' ? 'active' : ''}`}
-                onClick={() => onChartTypeChange('renko')}
-                type="button"
-            >
-                🧱 Renko
-            </button>
-
         </div>
     );
 };

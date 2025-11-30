@@ -60,19 +60,25 @@ router.put('/order', authenticate, async (req, res) => {
     }
 });
 
-// GET /api/positions/history/:positionKey - Get historical price data for a specific position (last 30 days)
+// GET /api/positions/history/:positionKey - Get historical price data for a specific position
+// Query params: ?days=30 (default 30, supports 7, 30, 90, 180, 365)
 router.get('/history/:positionKey', authenticate, async (req, res) => {
     try {
         const portfolioId = await resolvePortfolioId(req);
         const { positionKey } = req.params;
+        const { days } = req.query;
 
         // Decode positionKey (may contain special characters like |||)
         const decodedPositionKey = decodeURIComponent(positionKey);
 
-        // Calculate date 30 days ago
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const dateLimit = thirtyDaysAgo.toISOString().split('T')[0];
+        // Parse days parameter, default to 30, max 365
+        let daysToFetch = parseInt(days) || 30;
+        daysToFetch = Math.min(Math.max(daysToFetch, 1), 365); // Clamp between 1 and 365
+
+        // Calculate date limit
+        const dateLimit = new Date();
+        dateLimit.setDate(dateLimit.getDate() - daysToFetch);
+        const dateLimitStr = dateLimit.toISOString().split('T')[0];
 
         // Fetch historical data from DailyPrice
         const historicalData = await DailyPrice.findAll({
@@ -80,7 +86,7 @@ router.get('/history/:positionKey', authenticate, async (req, res) => {
                 userId: req.user.id,
                 portfolioId,
                 positionKey: decodedPositionKey,
-                date: { [Op.gte]: dateLimit }
+                date: { [Op.gte]: dateLimitStr }
             },
             attributes: ['date', 'open', 'high', 'low', 'close'],
             order: [['date', 'ASC']]
@@ -88,7 +94,9 @@ router.get('/history/:positionKey', authenticate, async (req, res) => {
 
         res.json({
             success: true,
-            data: historicalData
+            data: historicalData,
+            daysRequested: daysToFetch,
+            daysReturned: historicalData.length
         });
     } catch (error) {
         console.error('Error fetching historical data:', error);
@@ -100,6 +108,7 @@ router.get('/history/:positionKey', authenticate, async (req, res) => {
 });
 
 export default router;
+
 async function resolvePortfolioId(req) {
     const userId = req.user.id;
     const raw = req.query.portfolioId || req.body?.portfolioId;
