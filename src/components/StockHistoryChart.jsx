@@ -10,12 +10,13 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
     const [operations, setOperations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [timePeriod, setTimePeriod] = useState('1m'); // 7d, 1m, 3m, 6m
+    const [timePeriod, setTimePeriod] = useState('1m'); // 7d, 1m, 3m, 6m, 1y
 
     // Advanced features state
     const [showSMA, setShowSMA] = useState(false);
     const [showMarkers, setShowMarkers] = useState(true);
     const [compareSP500, setCompareSP500] = useState(false);
+    const [showVolume, setShowVolume] = useState(false);
     const [sp500Data, setSp500Data] = useState([]);
 
     const chartContainerRef = useRef(null);
@@ -51,7 +52,7 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                 sp500SeriesRef.current = null;
             }
         };
-    }, [historicalData, chartType, theme, showSMA, showMarkers, compareSP500, sp500Data, operations]);
+    }, [historicalData, chartType, theme, showSMA, showMarkers, compareSP500, showVolume, sp500Data, operations]);
 
     const fetchHistoricalData = async () => {
         try {
@@ -80,6 +81,7 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                     const open = parseFloat(item.open) || close;
                     const high = parseFloat(item.high) || close;
                     const low = parseFloat(item.low) || close;
+                    const volume = parseFloat(item.volume) || 0;
 
                     return {
                         time,
@@ -87,6 +89,7 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                         high,
                         low,
                         close,
+                        volume,
                         value: close // For line and area charts
                     };
                 });
@@ -253,7 +256,7 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                         color: op.type === 'purchase' ? '#10b981' : '#ef4444',
                         shape: op.type === 'purchase' ? 'arrowUp' : 'arrowDown',
                         text: op.type === 'purchase' ? 'Compra' : 'Venta',
-                        size: 1, // default size
+                        size: 1,
                     });
                 }
             });
@@ -264,7 +267,7 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
         if (showSMA) {
             const smaData = calculateSMA(historicalData, 20);
             const smaSeries = chart.addLineSeries({
-                color: '#f59e0b', // Amber/Orange
+                color: '#f59e0b',
                 lineWidth: 1,
                 lineStyle: LineStyle.Solid,
                 title: 'SMA 20',
@@ -276,13 +279,43 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
         // 4. Add S&P 500 Comparison
         if (compareSP500 && sp500Data.length > 0) {
             const spSeries = chart.addLineSeries({
-                color: '#a855f7', // Purple
+                color: '#a855f7',
                 lineWidth: 2,
                 lineStyle: LineStyle.Solid,
                 title: 'S&P 500',
             });
             spSeries.setData(sp500Data);
             sp500SeriesRef.current = spSeries;
+        }
+
+        // 5. Add Volume Histogram
+        if (showVolume) {
+            const volumeData = historicalData.map((d, index) => {
+                const prevClose = index > 0 ? historicalData[index - 1].close : d.open;
+                const color = d.close >= prevClose ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)';
+                return {
+                    time: d.time,
+                    value: d.volume || 0,
+                    color: color
+                };
+            }).filter(d => d.value > 0);
+
+            if (volumeData.length > 0) {
+                const volumeSeries = chart.addHistogramSeries({
+                    priceFormat: {
+                        type: 'volume',
+                    },
+                    priceScaleId: 'volume',
+                });
+                volumeSeries.setData(volumeData);
+
+                chart.priceScale('volume').applyOptions({
+                    scaleMargins: {
+                        top: 0.8,
+                        bottom: 0,
+                    },
+                });
+            }
         }
 
         chart.timeScale().fitContent();
@@ -334,6 +367,13 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                         title="Comparar con S&P 500"
                     >
                         🆚 SP500
+                    </button>
+                    <button
+                        className={`control-button ${showVolume ? 'active' : ''}`}
+                        onClick={() => setShowVolume(!showVolume)}
+                        title="Mostrar volumen de negociación"
+                    >
+                        📊 Volumen
                     </button>
                 </div>
             </div>

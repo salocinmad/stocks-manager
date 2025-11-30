@@ -198,6 +198,72 @@ export const overwriteHistoricalData = async (days = 30) => {
             results.details.push({ position: positionKey, daysUpdated: updatedCount, status: 'success' });
         }
 
+        // 6. Descargar datos del S&P 500 para comparaciones
+        console.log('📊 Descargando datos del S&P 500 para comparaciones...');
+        try {
+            const sp500Symbol = '^GSPC';
+            const queryOptions = {
+                period1: startDate,
+                period2: endDate,
+                interval: '1d'
+            };
+
+            const sp500Data = await yahooFinance.chart(sp500Symbol, queryOptions);
+
+            if (sp500Data && sp500Data.quotes && sp500Data.quotes.length > 0) {
+                let sp500UpdatedCount = 0;
+
+                for (const quote of sp500Data.quotes) {
+                    if (!quote.date || !quote.close) continue;
+
+                    const dateStr = quote.date.toISOString().split('T')[0];
+
+                    // Guardar en DailyPrice con userId=0, portfolioId=0 (datos globales de mercado)
+                    const existingPrice = await DailyPrice.findOne({
+                        where: {
+                            userId: 0,
+                            portfolioId: 0,
+                            positionKey: 'S&P 500|||^GSPC',
+                            date: dateStr
+                        }
+                    });
+
+                    const priceData = {
+                        userId: 0,
+                        portfolioId: 0,
+                        positionKey: 'S&P 500|||^GSPC',
+                        company: 'S&P 500',
+                        symbol: sp500Symbol,
+                        date: dateStr,
+                        close: quote.close,
+                        open: quote.open || quote.close,
+                        high: quote.high || quote.close,
+                        low: quote.low || quote.close,
+                        volume: quote.volume || null,
+                        currency: 'USD',
+                        exchangeRate: fxMap['USD'] || 1,
+                        source: 'yahoo_sp500_index',
+                        shares: 0,
+                        change: 0,
+                        changePercent: 0
+                    };
+
+                    if (existingPrice) {
+                        await existingPrice.update(priceData);
+                    } else {
+                        await DailyPrice.create(priceData);
+                    }
+                    sp500UpdatedCount++;
+                }
+
+                results.details.push({ position: 'S&P 500', daysUpdated: sp500UpdatedCount, status: 'success' });
+                console.log(`✅ S&P 500: ${sp500UpdatedCount} días actualizados`);
+            }
+        } catch (err) {
+            console.error('❌ Error descargando S&P 500:', err.message);
+            results.errors.push(`Error S&P 500: ${err.message}`);
+        }
+
         console.log(`✅ Sobrescritura completada. Posiciones actualizadas: ${results.updatedPositions}`);
         return results;
 

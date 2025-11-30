@@ -7,6 +7,7 @@ import ProfilePictureModal from './components/ProfilePictureModal.jsx';
 import ExternalButtonsModal from './components/ExternalButtonsModal.jsx';
 import Reports from './components/Reports.jsx';
 import StockHistoryChart from './components/StockHistoryChart.jsx';
+import PnLChart from './components/PnLChart.jsx';
 import { usePositionOrder } from './usePositionOrder.jsx';
 
 function App() {
@@ -2737,17 +2738,7 @@ function App() {
                 <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
                   Evolución diaria del PnL total (EUR)
                 </p>
-                <div style={{ width: '100%', height: '300px', marginTop: '10px' }}>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={pnlSeries} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                      <CartesianGrid stroke={theme === 'dark' ? '#1f2937' : '#e5e7eb'} strokeDasharray="3 3" />
-                      <XAxis dataKey="date" tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 12 }} />
-                      <YAxis tick={{ fill: theme === 'dark' ? '#9ca3af' : '#475569', fontSize: 12 }} />
-                      <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f8fafc', border: `1px solid ${theme === 'dark' ? '#404040' : '#cbd5e1'}`, borderRadius: '4px', color: theme === 'dark' ? '#ffffff' : '#1f2937', fontSize: '12px' }} itemStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }} labelStyle={{ color: theme === 'dark' ? '#ffffff' : '#1f2937' }} formatter={(value) => [`€${Number(value).toFixed(2)}`, 'PnL']} />
-                      <Line type="monotone" dataKey="pnlEUR" stroke="#60a5fa" dot={false} strokeWidth={2} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                                <PnLChart data={pnlSeries} theme={theme} />
               </div>
             )
           }

@@ -59,6 +59,10 @@ fi
 echo "👤 Verificando usuario administrador..."
 node scripts/initAdmin.js
 
+# Ejecutar migraciones de base de datos
+echo "🔧 Aplicando migraciones de base de datos..."
+node scripts/add_volume_column.js
+
 # Iniciar el servidor
 echo "🌐 Iniciando servidor..."
 exec node server.js
