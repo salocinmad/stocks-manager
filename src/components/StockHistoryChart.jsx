@@ -32,10 +32,10 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
 
     // Fetch SP500 data if enabled
     useEffect(() => {
-        if (compareSP500 && sp500Data.length === 0) {
+        if (compareSP500) {
             fetchSP500Data();
         }
-    }, [compareSP500]);
+    }, [compareSP500, timePeriod]);
 
     // Create/update chart whenever theme, chartType, data, or features change
     useEffect(() => {

@@ -23,17 +23,17 @@ console.log('🚀 routes/api/prices.js LOADED - endpoints: /bulk, /current/:symb
 router.use(authenticate);
 
 async function resolvePortfolioId(req) {
-  const userId = req.user.id
-  const raw = req.query.portfolioId || req.body?.portfolioId
-  const id = raw ? parseInt(raw, 10) : null
-  if (id) {
-    const exists = await Portfolio.count({ where: { id, userId } })
-    if (exists) return id
-  }
-  const u = await User.findByPk(userId)
-  if (u?.favoritePortfolioId) return u.favoritePortfolioId
-  const first = await Portfolio.findOne({ where: { userId }, order: [['id', 'ASC']] })
-  return first ? first.id : null
+    const userId = req.user.id
+    const raw = req.query.portfolioId || req.body?.portfolioId
+    const id = raw ? parseInt(raw, 10) : null
+    if (id) {
+        const exists = await Portfolio.count({ where: { id, userId } })
+        if (exists) return id
+    }
+    const u = await User.findByPk(userId)
+    if (u?.favoritePortfolioId) return u.favoritePortfolioId
+    const first = await Portfolio.findOne({ where: { userId }, order: [['id', 'ASC']] })
+    return first ? first.id : null
 }
 
 /**
@@ -139,6 +139,81 @@ router.post('/bulk', async (req, res) => {
 });
 
 /**
+ * GET /api/prices/market/:symbol?days=30
+ * Obtiene datos históricos de mercado (ej: ^GSPC para S&P 500)
+ * Primero busca en caché local (DailyPrice con userId=0), luego en Yahoo Finance
+ */
+router.get('/market/:symbol', async (req, res) => {
+    try {
+        const { symbol } = req.params;
+        const { days = 365 } = req.query;
+
+        const daysToFetch = parseInt(days);
+        const decodedSymbol = decodeURIComponent(symbol);
+
+        const { fetchHistorical } = await import('../../services/datasources/yahooService.js');
+        const DailyPrice = (await import('../../models/DailyPrice.js')).default;
+        const { Op } = await import('sequelize');
+
+        console.log(`📊 Fetching market data for ${decodedSymbol} (${daysToFetch} days)`);
+
+        // Buscar en caché local (DailyPrice con userId=0, portfolioId=0)
+        const dateLimit = new Date();
+        dateLimit.setDate(dateLimit.getDate() - daysToFetch);
+        const dateLimitStr = dateLimit.toISOString().split('T')[0];
+
+        console.log(`🔍 Date filter: >= ${dateLimitStr} (${daysToFetch} days ago)`);
+
+        const positionKey = decodedSymbol === '^GSPC' ? 'S&P 500|||^GSPC' : `${decodedSymbol}|||${decodedSymbol}`;
+
+        const cachedData = await DailyPrice.findAll({
+            where: {
+                userId: 0,
+                portfolioId: 0,
+                positionKey: positionKey,
+                date: { [Op.gte]: dateLimitStr }
+            },
+            attributes: ['date', 'open', 'high', 'low', 'close', 'volume'],
+            order: [['date', 'ASC']]
+        });
+
+        // Si hay caché, usarlo
+        if (cachedData && cachedData.length > 0) {
+            console.log(`✅ Using cached market data for ${decodedSymbol}: ${cachedData.length} records`);
+            return res.json({
+                success: true,
+                data: cachedData,
+                source: 'cache'
+            });
+        }
+
+        // Si no hay caché, descargar de Yahoo Finance
+        console.log(`📥 Downloading market data for ${decodedSymbol} from Yahoo Finance...`);
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - daysToFetch);
+
+        const yahooData = await fetchHistorical(decodedSymbol, startDate, endDate);
+
+        if (!yahooData || yahooData.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'No data available for this symbol'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: yahooData,
+            source: 'yahoo'
+        });
+    } catch (error) {
+        console.error('Error in /market/:symbol:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
  * GET /api/prices/historical/:symbol?days=30
  * Obtiene histórico de precios de un símbolo
  */
@@ -185,68 +260,68 @@ router.post('/update/:symbol', async (req, res) => {
 });
 
 router.put('/:positionKey', async (req, res) => {
-  try {
-    const { positionKey } = req.params
-    const { price, change = null, changePercent = null, source = null } = req.body || {}
-    if (typeof price !== 'number' || isNaN(price)) {
-      return res.status(400).json({ error: 'price numérico requerido' })
-    }
-
-    const portfolioId = await resolvePortfolioId(req)
-    const existing = await PriceCache.findOne({
-      where: { userId: req.user.id, portfolioId, positionKey }
-    })
-
-    if (existing) {
-      await existing.update({ lastPrice: price, change, changePercent, source, updatedAt: new Date() })
-    } else {
-      await PriceCache.create({
-        userId: req.user.id,
-        portfolioId,
-        positionKey,
-        lastPrice: price,
-        change,
-        changePercent,
-        source
-      })
-    }
-
-    // Check target price and notify
     try {
-      const [company, symbol] = positionKey.includes('|||') ? positionKey.split('|||') : [positionKey, '']
-      const where = symbol ? { userId: req.user.id, portfolioId, company, symbol } : { userId: req.user.id, portfolioId, company, symbol: '' }
-      const ops = await Operation.findAll({ where })
-      const purchases = ops.filter(o => o.type === 'purchase' && o.targetPrice && o.targetPrice > 0)
-      if (purchases.length > 0) {
-        // Use latest purchase's targetPrice
-        purchases.sort((a, b) => new Date(b.date) - new Date(a.date))
-        const target = purchases[0].targetPrice
-        if (typeof target === 'number' && price >= target) {
-          const cacheRow = await PriceCache.findOne({ where: { userId: req.user.id, portfolioId, positionKey } })
-          const already = cacheRow?.targetHitNotifiedAt
-          if (!already) {
-            const subjectCfg = await Config.findOne({ where: { key: 'smtp_subject' } })
-            const subjectBase = subjectCfg?.value || 'Alerta de precios'
-            const niceName = symbol ? `${company} (${symbol})` : company
-            const r = await sendNotification({
-              subject: `${subjectBase}: ${niceName} alcanzó objetivo`,
-              text: `${niceName} ha alcanzado el precio objetivo de ${target}. Precio actual: ${price}.`,
-              html: `<p><b>${niceName}</b> ha alcanzado el precio objetivo de <b>${target}</b>.<br/>Precio actual: <b>${price}</b>.</p>`
-            })
-            if (r.ok && cacheRow) {
-              await cacheRow.update({ targetHitNotifiedAt: new Date() })
-            }
-          }
+        const { positionKey } = req.params
+        const { price, change = null, changePercent = null, source = null } = req.body || {}
+        if (typeof price !== 'number' || isNaN(price)) {
+            return res.status(400).json({ error: 'price numérico requerido' })
         }
-      }
-    } catch (e) {
-      // swallow notification errors to not break price upsert
+
+        const portfolioId = await resolvePortfolioId(req)
+        const existing = await PriceCache.findOne({
+            where: { userId: req.user.id, portfolioId, positionKey }
+        })
+
+        if (existing) {
+            await existing.update({ lastPrice: price, change, changePercent, source, updatedAt: new Date() })
+        } else {
+            await PriceCache.create({
+                userId: req.user.id,
+                portfolioId,
+                positionKey,
+                lastPrice: price,
+                change,
+                changePercent,
+                source
+            })
+        }
+
+        // Check target price and notify
+        try {
+            const [company, symbol] = positionKey.includes('|||') ? positionKey.split('|||') : [positionKey, '']
+            const where = symbol ? { userId: req.user.id, portfolioId, company, symbol } : { userId: req.user.id, portfolioId, company, symbol: '' }
+            const ops = await Operation.findAll({ where })
+            const purchases = ops.filter(o => o.type === 'purchase' && o.targetPrice && o.targetPrice > 0)
+            if (purchases.length > 0) {
+                // Use latest purchase's targetPrice
+                purchases.sort((a, b) => new Date(b.date) - new Date(a.date))
+                const target = purchases[0].targetPrice
+                if (typeof target === 'number' && price >= target) {
+                    const cacheRow = await PriceCache.findOne({ where: { userId: req.user.id, portfolioId, positionKey } })
+                    const already = cacheRow?.targetHitNotifiedAt
+                    if (!already) {
+                        const subjectCfg = await Config.findOne({ where: { key: 'smtp_subject' } })
+                        const subjectBase = subjectCfg?.value || 'Alerta de precios'
+                        const niceName = symbol ? `${company} (${symbol})` : company
+                        const r = await sendNotification({
+                            subject: `${subjectBase}: ${niceName} alcanzó objetivo`,
+                            text: `${niceName} ha alcanzado el precio objetivo de ${target}. Precio actual: ${price}.`,
+                            html: `<p><b>${niceName}</b> ha alcanzado el precio objetivo de <b>${target}</b>.<br/>Precio actual: <b>${price}</b>.</p>`
+                        })
+                        if (r.ok && cacheRow) {
+                            await cacheRow.update({ targetHitNotifiedAt: new Date() })
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            // swallow notification errors to not break price upsert
+        }
+        res.json({ success: true })
+    } catch (error) {
+        console.error('Error upserting cached price:', error)
+        res.status(500).json({ error: 'Error al guardar precio' })
     }
-    res.json({ success: true })
-  } catch (error) {
-    console.error('Error upserting cached price:', error)
-    res.status(500).json({ error: 'Error al guardar precio' })
-  }
 })
 
 export default router;

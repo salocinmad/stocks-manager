@@ -257,6 +257,50 @@ export const runDailyOnce = async () => {
       }
     }
 
+
+    // 4. Update S&P 500 in the truth table (userId=0, portfolioId=0)
+    try {
+      console.log('📊 Actualizando S&P 500 en tabla de verdad absoluta...');
+      const sp500Symbol = '^GSPC';
+      const sp500PositionKey = 'S&P 500|||^GSPC';
+      
+      const existing = await DailyPrice.findOne({
+        where: { userId: 0, portfolioId: 0, positionKey: sp500PositionKey, date }
+      });
+      
+      if (!existing) {
+        const sp500Data = await fetchPreviousClose(sp500Symbol);
+        if (sp500Data) {
+          const { close, currency = 'USD', change, changePercent, source = 'yahoo' } = sp500Data;
+          const exchangeRate = fxMap[currency] ?? 1;
+          
+          await DailyPrice.create({
+            userId: 0,
+            portfolioId: 0,
+            positionKey: sp500PositionKey,
+            company: 'S&P 500',
+            symbol: sp500Symbol,
+            date,
+            close,
+            currency,
+            exchangeRate,
+            source,
+            change,
+            changePercent,
+            shares: 0
+          });
+          
+          console.log(`✅ S&P 500 actualizado: ${close} ${currency}`);
+        } else {
+          console.log('⚠️ No se pudo obtener datos del S&P 500');
+        }
+      } else {
+        console.log('✓ S&P 500 ya actualizado para hoy');
+      }
+    } catch (sp500Err) {
+      console.error('❌ Error actualizando S&P 500:', sp500Err.message);
+    }
+
     if (processed > 0) {
       await setLastRun(date);
 
