@@ -1,7 +1,15 @@
 import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
 dotenv.config();
+
+// Cargar credenciales de la base de datos desde /run/secrets/db_credentials si existen
+const dbCredentialsPath = '/run/secrets/db_credentials';
+if (fs.existsSync(dbCredentialsPath)) {
+  dotenv.config({ path: dbCredentialsPath });
+}
 
 const sequelize = new Sequelize(
   process.env.DB_NAME || 'portfolio_manager',

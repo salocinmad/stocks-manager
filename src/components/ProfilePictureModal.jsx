@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { profilePicturesAPI } from '../services/api.js';
 
 function ProfilePictureModal({ show, onClose, onUploadSuccess, onDeleteSuccess, currentProfilePictureUrl, fetchProfilePicture }) {
+  console.log('ProfilePictureModal: currentProfilePictureUrl prop:', currentProfilePictureUrl);
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -61,9 +62,10 @@ function ProfilePictureModal({ show, onClose, onUploadSuccess, onDeleteSuccess, 
     try {
       await profilePicturesAPI.upload(selectedFile);
       setMessage('Imagen de perfil subida/actualizada correctamente.');
-      await fetchProfilePicture();
-      onUploadSuccess();
-      resetState();
+            console.log('ProfilePictureModal: Upload success, calling onUploadSuccess');
+            onUploadSuccess();
+            resetState();
+            console.log('ProfilePictureModal: State reset after upload');
     } catch (err) {
       setError(err.message || 'Error al subir la imagen.');
     } finally {
@@ -79,7 +81,6 @@ function ProfilePictureModal({ show, onClose, onUploadSuccess, onDeleteSuccess, 
     try {
       await profilePicturesAPI.delete();
       setMessage('Imagen de perfil eliminada correctamente.');
-      await fetchProfilePicture();
       onDeleteSuccess();
       resetState();
     } catch (err) {
@@ -94,7 +95,7 @@ function ProfilePictureModal({ show, onClose, onUploadSuccess, onDeleteSuccess, 
       <div className="modal-content" style={{ maxWidth: '520px' }}>
         <h2 style={{ marginBottom: '16px', fontSize: '18px' }}>👤 Gestionar Imagen de Perfil</h2>
 
-        {currentProfilePictureUrl && (
+        {currentProfilePictureUrl && typeof currentProfilePictureUrl === 'string' && (
           <div style={{ marginBottom: '14px', textAlign: 'center' }}>
             <p style={{ fontSize: '12px', marginBottom: '6px' }}>Imagen actual</p>
             <img

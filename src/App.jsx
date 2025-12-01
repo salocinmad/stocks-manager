@@ -91,6 +91,8 @@ function App() {
     DEFAULT_PROFILE_PICTURE_URL
   } = useAuth();
 
+  console.log('App: profilePictureUrl from useAuth:', profilePictureUrl);
+
   // Hook para reordenamiento de posiciones
   const {
     sortPositions,
@@ -3426,11 +3428,14 @@ function App() {
           <ProfilePictureModal
             show={true}
             onClose={() => setShowProfilePictureModal(false)}
-            onUploadSuccess={() => {
+            onUploadSuccess={async () => {
               setShowProfilePictureModal(false);
+              await fetchProfilePicture(); // Asegurarse de que la URL se actualice antes de cerrar el modal
+             console.log('App: onUploadSuccess called. profilePictureUrl after fetch:', profilePictureUrl); // Re-fetch the profile picture after successful upload
             }}
-            onDeleteSuccess={() => {
+            onDeleteSuccess={async () => {
               setShowProfilePictureModal(false);
+              await fetchProfilePicture(); // Re-fetch the profile picture after successful deletion
             }}
             currentProfilePictureUrl={profilePictureUrl}
             fetchProfilePicture={fetchProfilePicture}

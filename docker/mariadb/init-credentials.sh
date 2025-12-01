@@ -4,7 +4,7 @@
 
 set -e
 
-CREDENTIALS_FILE="/docker-entrypoint-initdb.d/.credentials_generated"
+CREDENTIALS_FILE="/run/secrets/.credentials_generated"
 ENV_FILE="/run/secrets/db_credentials"
 
 # Función para generar contraseña aleatoria segura

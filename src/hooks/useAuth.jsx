@@ -27,22 +27,27 @@ export const useAuth = () => {
      * Cargar la imagen de perfil del usuario desde el servidor
      */
     const fetchProfilePicture = async () => {
+        console.log('useAuth: fetchProfilePicture called. Current profilePictureUrl (before fetch):', profilePictureUrl);
         if (!currentUser) {
             setProfilePictureUrl(null);
+            console.log('useAuth: No currentUser, setting profilePictureUrl to null.');
             return;
         }
         try {
             const response = await profilePicturesAPI.get();
             if (response.status === 404) {
                 setProfilePictureUrl(DEFAULT_PROFILE_PICTURE_URL);
+                console.log('useAuth: Profile picture not found (404), setting to default. New profilePictureUrl:', DEFAULT_PROFILE_PICTURE_URL);
                 return;
             }
             const blob = await response.blob();
             const imageUrl = URL.createObjectURL(blob);
             setProfilePictureUrl(imageUrl);
+            console.log('useAuth: Profile picture fetched successfully. New profilePictureUrl:', imageUrl);
         } catch (error) {
             console.error('Error al cargar la imagen de perfil:', error);
             setProfilePictureUrl(DEFAULT_PROFILE_PICTURE_URL);
+            console.log('useAuth: Error fetching profile picture, setting to default. New profilePictureUrl:', DEFAULT_PROFILE_PICTURE_URL);
         }
     };
 

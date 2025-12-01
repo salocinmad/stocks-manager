@@ -14,6 +14,15 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true
         }
       }
+    },
+    build: {
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: false,
+          drop_debugger: false,
+        },
+      },
     }
   }
 })
