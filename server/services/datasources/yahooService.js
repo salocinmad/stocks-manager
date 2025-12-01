@@ -5,6 +5,7 @@
  */
 
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
+import { getLogLevel } from '../configService.js';
 
 /**
  * Obtiene quote de Yahoo Finance usando fetch directo
@@ -12,13 +13,16 @@ import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
  * @returns {Promise<Object|null>} Datos de precio o null
  */
 export async function fetchQuote(symbol) {
+    const currentLogLevel = await getLogLevel();
     try {
         // CRITICAL: Yahoo usa punto (.) no dos puntos (:) para mercados internacionales
         // DB tiene: OHLA:MC, DIA:MC, AMP:MC
         // Yahoo requiere: OHLA.MC, DIA.MC, AMP.MC
         const yahooSymbol = symbol.replace(/:/g, '.');
 
-        console.log(`📞 Yahoo API (fetch directo) para '${symbol}' → '${yahooSymbol}'...`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`📞 Yahoo API (fetch directo) para '${symbol}' → '${yahooSymbol}'...`);
+        }
 
         const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?interval=1d&range=1d`;
 
@@ -29,14 +33,18 @@ export async function fetchQuote(symbol) {
         });
 
         if (!response.ok) {
-            console.log(`⚠️  Yahoo ${symbol}: HTTP ${response.status}`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`⚠️  Yahoo ${symbol}: HTTP ${response.status}`);
+            }
             return null;
         }
 
         const data = await response.json();
 
         if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
-            console.log(`⚠️  Yahoo ${symbol}: No data in chart`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`⚠️  Yahoo ${symbol}: No data in chart`);
+            }
             return null;
         }
 
@@ -45,24 +53,30 @@ export async function fetchQuote(symbol) {
         const quote = result.indicators?.quote?.[0];
 
         if (!meta || !meta.regularMarketPrice) {
-            console.log(`⚠️  Yahoo ${symbol}: No regularMarketPrice`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`⚠️  Yahoo ${symbol}: No regularMarketPrice`);
+            }
             return null;
         }
 
         const lastPrice = meta.regularMarketPrice;
 
         // DEBUG: Ver todos los campos disponibles de previousClose
-        console.log(`🔍 ${symbol} previousClose fields:`, {
-            chartPreviousClose: meta.chartPreviousClose,
-            previousClose: meta.previousClose,
-            regularMarketPreviousClose: meta.regularMarketPreviousClose
-        });
+        if (currentLogLevel === 'verbose') {
+            console.log(`🔍 ${symbol} previousClose fields:`, {
+                chartPreviousClose: meta.chartPreviousClose,
+                previousClose: meta.previousClose,
+                regularMarketPreviousClose: meta.regularMarketPreviousClose
+            });
+        }
 
         const previousClose = meta.regularMarketPreviousClose || meta.chartPreviousClose || meta.previousClose;
         const change = previousClose ? (lastPrice - previousClose) : 0;
         const changePercent = previousClose > 0 ? ((change / previousClose) * 100) : 0;
 
-        console.log(`💰 ${symbol}: price=${lastPrice}, prevClose=${previousClose}, change=${change}, change%=${changePercent.toFixed(2)}%`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`💰 ${symbol}: price=${lastPrice}, prevClose=${previousClose}, change=${change}, change%=${changePercent.toFixed(2)}%`);
+        }
 
         // Obtener OHLC del último dato disponible
         const lastIndex = quote?.close?.length - 1;
@@ -89,11 +103,15 @@ export async function fetchQuote(symbol) {
                 : new Date()
         };
 
-        console.log(`✅ Yahoo ${symbol}: ${resultData.lastPrice} (${resultData.currency})`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`✅ Yahoo ${symbol}: ${resultData.lastPrice} (${resultData.currency})`);
+        }
         return resultData;
 
     } catch (error) {
-        console.error(`❌ Yahoo ${symbol} EXCEPTION:`, error.message);
+        if (currentLogLevel === 'verbose') {
+            console.error(`❌ Yahoo ${symbol} EXCEPTION:`, error.message);
+        }
         return null;
     }
 }
@@ -105,27 +123,36 @@ export async function fetchQuote(symbol) {
  * @returns {Promise<Array>} Array de datos históricos
  */
 export async function fetchHistorical(symbol, days = 365) {
+    const currentLogLevel = await getLogLevel();
     try {
         const parts = symbol.split('|||');
         let yahooSymbol = parts[parts.length - 1]; // Obtener la última parte (el ticker)
         yahooSymbol = yahooSymbol.replace(/:/g, '.'); // Reemplazar ':' por '.' si existe
-        console.error(`ERROR_DEBUG: Símbolo de Yahoo convertido: ${yahooSymbol}`);
+        if (currentLogLevel === 'verbose') {
+            console.error(`ERROR_DEBUG: Símbolo de Yahoo convertido: ${yahooSymbol}`);
+        }
 
         const endDate = Math.floor(Date.now() / 1000);
         const startDate = endDate - (days * 24 * 60 * 60);
 
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?period1=${startDate}&period2=${endDate}&interval=1d`;
-        console.error(`ERROR_DEBUG: URL de la API de Yahoo Finance: ${url}`);
+        if (currentLogLevel === 'verbose') {
+            console.error(`ERROR_DEBUG: URL de la API de Yahoo Finance: ${url}`);
+        }
 
         const response = await fetch(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             },
         });
-        console.error(`ERROR_DEBUG: Respuesta de la API de Yahoo Finance - Estado: ${response.status}`);
+        if (currentLogLevel === 'verbose') {
+            console.error(`ERROR_DEBUG: Respuesta de la API de Yahoo Finance - Estado: ${response.status}`);
+        }
 
         if (!response.ok) {
-            console.log(`⚠️  Yahoo historical ${symbol}: HTTP ${response.status}`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`⚠️  Yahoo historical ${symbol}: HTTP ${response.status}`);
+            }
             return [];
         }
 
@@ -133,7 +160,9 @@ export async function fetchHistorical(symbol, days = 365) {
         const result = data.chart?.result?.[0];
 
         if (!result) {
-            console.log(`⚠️  Yahoo historical ${symbol}: No data in chart result`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`⚠️  Yahoo historical ${symbol}: No data in chart result`);
+            }
             return [];
         }
 
@@ -150,11 +179,15 @@ export async function fetchHistorical(symbol, days = 365) {
             adjClose: result.indicators?.adjclose?.[0]?.adjclose?.[i] || null
         })).filter(day => day.close !== null);
 
-        console.log(`✅ Yahoo historical ${symbol}: ${historicalData.length} registros obtenidos.`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`✅ Yahoo historical ${symbol}: ${historicalData.length} registros obtenidos.`);
+        }
         return historicalData;
 
     } catch (error) {
-        console.error(`❌ Yahoo historical ${symbol}:`, error.message);
+        if (currentLogLevel === 'verbose') {
+            console.error(`❌ Yahoo historical ${symbol}:`, error.message);
+        }
         return [];
     }
 }

@@ -23,9 +23,12 @@ RUN npm install
 COPY . .
 
 # Hacer ejecutable el script de entrada y corregir finales de línea (CRLF -> LF)
+# También corregimos otros scripts que puedan necesitarlo
 RUN apk add --no-cache dos2unix && \
     dos2unix entrypoint.sh && \
-    chmod +x entrypoint.sh
+    dos2unix scripts/sync-db-credentials.sh && \
+    chmod +x entrypoint.sh && \
+    chmod +x scripts/sync-db-credentials.sh
 
 # Exponer puerto
 EXPOSE 5000

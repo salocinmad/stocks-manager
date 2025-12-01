@@ -5,6 +5,19 @@ echo "🚀 Iniciando Stocks Manager Backend..."
 # Asegurarse de que el directorio /app/env existe
 mkdir -p /app/env
 
+# Sincronizar credenciales generadas por MariaDB
+echo "🔐 Sincronizando credenciales de MariaDB..."
+if [ -f /app/scripts/sync-db-credentials.sh ]; then
+    chmod +x /app/scripts/sync-db-credentials.sh
+    /app/scripts/sync-db-credentials.sh
+    # Cargar las credenciales generadas en el entorno actual del shell
+    . /app/env/.env
+    echo "DEBUG: .env cargado en entrypoint.sh"
+    echo "DEBUG: DB_USER en entrypoint: $DB_USER"
+    echo "DEBUG: DB_PASS en entrypoint: ${DB_PASS:0:4}..."
+    echo "DEBUG: DB_NAME en entrypoint: $DB_NAME"
+fi
+
 # Crear el archivo .env si no existe (almacenado en volumen nombrado)
 # El archivo se crea dentro del directorio /app/env para evitar problemas con volúmenes
 if [ -d /app/env/.env ]; then

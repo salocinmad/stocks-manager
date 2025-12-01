@@ -27,6 +27,7 @@ function Admin() {
   const [smtpPass, setSmtpPass] = useState('');
   const [smtpSubject, setSmtpSubject] = useState('Alerta de precios');
   const [smtpTo, setSmtpTo] = useState('');
+  const [logLevelEnabled, setLogLevelEnabled] = useState(false); // Nuevo estado para el nivel de log
 
   const [showPass, setShowPass] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -43,7 +44,29 @@ function Admin() {
     loadUsers();
     loadApiKey();
     loadSmtp();
+    loadLogLevel();
   }, []);
+
+  const loadLogLevel = async () => {
+    try {
+      const response = await configAPI.get('logLevel');
+      setLogLevelEnabled(response.value === 'verbose');
+    } catch (err) {
+      console.error('Error cargando nivel de log:', err);
+    }
+  };
+
+  const handleToggleLogLevel = async () => {
+    const newLevel = logLevelEnabled ? 'minimal' : 'verbose';
+    try {
+      await configAPI.set('logLevel', newLevel);
+      setLogLevelEnabled(!logLevelEnabled);
+      setSuccess(`Nivel de log cambiado a ${newLevel}`);
+    } catch (err) {
+      setError('Error al cambiar el nivel de log');
+      console.error('Error al cambiar el nivel de log:', err);
+    }
+  };
 
   const loadApiKey = async () => {
     try {
@@ -352,12 +375,19 @@ function Admin() {
             >
               ⚙️ Scheduler
             </button>
+
+            <button
+              className="button"
+              onClick={handleToggleLogLevel}
+              style={{ justifyContent: 'center' }}
+            >
+              {logLevelEnabled ? '✅ Logging Detallado' : '❌ Logging Minimal'}
+            </button>
           </div>
         </div>
 
-        {/* Panel de Mantenimiento */}
-        <div className="card">
-          <h3 style={{ borderBottom: '1px solid #404040', paddingBottom: '10px', marginBottom: '15px' }}>🛠️ Mantenimiento</h3>
+        <div className="admin-card">
+              <h3>Mantenimiento</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               className="button"

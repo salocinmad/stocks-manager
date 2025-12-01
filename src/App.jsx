@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI, profilePicturesAPI, externalButtonsAPI } from './services/api.js';
-import { logout, verifySession, changePassword, authenticatedFetch } from './services/auth.js';
+import { operationsAPI, configAPI, positionsAPI, pricesAPI, notesAPI, portfolioAPI, externalButtonsAPI } from './services/api.js';
+import { logout, authenticatedFetch } from './services/auth.js';
 import ProfilePictureModal from './components/ProfilePictureModal.jsx';
 import ExternalButtonsModal from './components/ExternalButtonsModal.jsx';
 import Reports from './components/Reports.jsx';
 import StockHistoryChart from './components/StockHistoryChart.jsx';
 import PnLChart from './components/PnLChart.jsx';
 import { usePositionOrder } from './usePositionOrder.jsx';
+import { useAuth } from './hooks/useAuth.jsx';
 
 function App() {
   const navigate = useNavigate();
@@ -41,8 +42,6 @@ function App() {
   const [currentEURUSD, setCurrentEURUSD] = useState(null);
   const [currentEURUSDSource, setCurrentEURUSDSource] = useState('');
   const [loadingData, setLoadingData] = useState(true); // Estado de carga de datos
-  const [currentUser, setCurrentUser] = useState(null); // Usuario actual logueado
-  const [profilePictureUrl, setProfilePictureUrl] = useState(null); // URL de la imagen de perfil del usuario
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null); // Última sincronización global
   const [portfolios, setPortfolios] = useState([]);
   const [currentPortfolioId, setCurrentPortfolioId] = useState(null);
@@ -79,7 +78,18 @@ function App() {
   const [showExternalButtonsModal, setShowExternalButtonsModal] = useState(false);
   const [expandedPositions, setExpandedPositions] = useState({}); // Track which positions are expanded
 
-  const DEFAULT_PROFILE_PICTURE_URL = '/defaultpic.jpg'; // Imagen de perfil por defecto servida desde el frontend
+  // Hook para autenticación
+  const {
+    currentUser,
+    setCurrentUser,
+    profilePictureUrl,
+    setProfilePictureUrl,
+    getUserInitial,
+    fetchProfilePicture,
+    handleChangePassword,
+    verifyPassword,
+    DEFAULT_PROFILE_PICTURE_URL
+  } = useAuth();
 
   // Hook para reordenamiento de posiciones
   const {
@@ -90,36 +100,6 @@ function App() {
     handleDrop,
     draggedPosition
   } = usePositionOrder(operations);
-
-  // Función para obtener la inicial del usuario
-  const getUserInitial = () => {
-    if (currentUser) {
-      if (currentUser.isAdmin) return 'A';
-      return currentUser.username ? currentUser.username.charAt(0).toUpperCase() : '';
-    }
-    return '';
-  };
-
-  // Función para cargar la imagen de perfil
-  const fetchProfilePicture = async () => {
-    if (!currentUser) {
-      setProfilePictureUrl(null);
-      return;
-    }
-    try {
-      const response = await profilePicturesAPI.get();
-      if (response.status === 404) { // No profile picture found
-        setProfilePictureUrl(DEFAULT_PROFILE_PICTURE_URL); // Set default Gravatar for 404
-        return;
-      }
-      const blob = await response.blob();
-      const imageUrl = URL.createObjectURL(blob);
-      setProfilePictureUrl(imageUrl);
-    } catch (error) {
-      console.error('Error al cargar la imagen de perfil:', error);
-      setProfilePictureUrl(DEFAULT_PROFILE_PICTURE_URL); // Usar imagen por defecto en caso de error o no encontrada
-    }
-  };
 
   // Cerrar menú de usuario al hacer clic fuera
   useEffect(() => {
@@ -134,11 +114,6 @@ function App() {
     };
   }, [showUserMenu]);
 
-  // Cargar imagen de perfil cuando el usuario cambia
-  useEffect(() => {
-    fetchProfilePicture();
-  }, [currentUser]); // Depende de currentUser
-
 
   // Cargar datos al iniciar
   useEffect(() => {
@@ -151,14 +126,8 @@ function App() {
         setTheme(savedTheme);
         document.body.className = savedTheme;
 
-        // Cargar usuario actual
-        const user = await verifySession();
-        if (user) {
-          setCurrentUser(user);
-          if (user.favoritePortfolioId) {
-            localStorage.setItem('currentUserFavorite', String(user.favoritePortfolioId));
-          }
-        }
+        // El usuario ya se carga automáticamente en el hook useAuth
+        const user = currentUser;
 
         // Cargar portafolios y resolver el activo
         try {
@@ -558,12 +527,7 @@ function App() {
     localStorage.setItem('portfolio-theme', newTheme);
   };
 
-  // Guardar operaciones (sincronizar con API)
-  const saveOperations = async (newOperations) => {
-    setOperations(newOperations);
-    // Nota: Las operaciones se guardan individualmente en handleSubmit/delete
-    // Esta función solo actualiza el estado local
-  };
+
 
   // Determinar número de decimales apropiado para un precio
   const getPriceDecimals = (price) => {
@@ -694,24 +658,16 @@ function App() {
     }
 
     try {
-      // Verificar contraseña intentando hacer login
-      const user = await verifySession();
-      if (!user) {
+      // Verificar contraseña usando el hook useAuth
+      if (!currentUser) {
         alert('❌ Sesión expirada. Por favor, inicia sesión de nuevo.');
         navigate('/login');
         return;
       }
 
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: user.username,
-          password: tempDeletePassword
-        }),
-      });
+      const isValid = await verifyPassword(currentUser.username, tempDeletePassword);
 
-      if (!response.ok) {
+      if (!isValid) {
         alert('❌ Contraseña incorrecta. No se han borrado las operaciones.');
         setTempDeletePassword('');
         return;
@@ -737,25 +693,10 @@ function App() {
 
 
   // Guardar contraseña de borrado
-  // Cambiar contraseña del usuario
-  const handleChangePassword = async () => {
-    if (!currentPassword || !newPassword || !confirmNewPassword) {
-      alert('❌ Por favor, completa todos los campos');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      alert('❌ La nueva contraseña debe tener al menos 6 caracteres');
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      alert('❌ Las contraseñas no coinciden');
-      return;
-    }
-
+  // Cambiar contraseña del usuario - Wrapper para usar el hook useAuth
+  const handleChangePasswordWrapper = async () => {
     try {
-      await changePassword(currentPassword, newPassword);
+      await handleChangePassword(currentPassword, newPassword, confirmNewPassword);
       alert('✅ Contraseña actualizada correctamente');
       setCurrentPassword('');
       setNewPassword('');
@@ -2738,7 +2679,7 @@ function App() {
                 <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
                   Evolución diaria del PnL total (EUR)
                 </p>
-                                <PnLChart data={pnlSeries} theme={theme} />
+                <PnLChart data={pnlSeries} theme={theme} />
               </div>
             )
           }
@@ -3606,7 +3547,7 @@ function App() {
                   <button
                     type="button"
                     className="button primary"
-                    onClick={handleChangePassword}
+                    onClick={handleChangePasswordWrapper}
                     style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
                   >
                     💾 Cambiar

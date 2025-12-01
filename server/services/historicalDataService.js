@@ -4,6 +4,7 @@ import Operation from '../models/Operation.js';
 import Portfolio from '../models/Portfolio.js';
 import Config from '../models/Config.js';
 import { Op } from 'sequelize';
+import { getLogLevel } from './configService.js';
 
 // Instancia de Yahoo Finance
 const yahooFinance = new YahooFinance({
@@ -53,6 +54,7 @@ const getFxMapToEUR = async () => {
  * @param {number} days Número de días hacia atrás a actualizar
  */
 export const overwriteHistoricalData = async (days = 30) => {
+    const currentLogLevel = await getLogLevel();
     const results = {
         updatedPositions: 0,
         errors: [],
@@ -60,7 +62,9 @@ export const overwriteHistoricalData = async (days = 30) => {
     };
 
     try {
-        console.log(`🔄 Iniciando sobrescritura de historial para los últimos ${days} días...`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`🔄 Iniciando sobrescritura de historial para los últimos ${days} días...`);
+        }
 
         // 1. Calcular rango de fechas
         const endDate = new Date();
@@ -103,7 +107,9 @@ export const overwriteHistoricalData = async (days = 30) => {
 
         // Filtrar solo posiciones activas (shares > 0)
         const activePositions = Array.from(positionsMap.values()).filter(p => p.shares > 0);
-        console.log(`📍 Encontradas ${activePositions.length} posiciones activas para actualizar.`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`📍 Encontradas ${activePositions.length} posiciones activas para actualizar.`);
+        }
 
         // 3. Identificar símbolos únicos para minimizar llamadas a API
         const uniqueSymbols = [...new Set(activePositions.map(p => p.symbol))];
@@ -129,7 +135,9 @@ export const overwriteHistoricalData = async (days = 30) => {
                     });
                 }
             } catch (err) {
-                console.error(`❌ Error obteniendo historial para ${symbol}:`, err.message);
+                if (currentLogLevel === 'verbose') {
+                    console.error(`❌ Error obteniendo historial para ${symbol}:`, err.message);
+                }
                 results.errors.push(`Error fetch ${symbol}: ${err.message}`);
             }
         }
@@ -199,7 +207,9 @@ export const overwriteHistoricalData = async (days = 30) => {
         }
 
         // 6. Descargar datos del S&P 500 para comparaciones
-        console.log('📊 Descargando datos del S&P 500 para comparaciones...');
+        if (currentLogLevel === 'verbose') {
+            console.log('📊 Descargando datos del S&P 500 para comparaciones...');
+        }
         try {
             const sp500Symbol = '^GSPC';
             const queryOptions = {
@@ -257,18 +267,26 @@ export const overwriteHistoricalData = async (days = 30) => {
                 }
 
                 results.details.push({ position: 'S&P 500', daysUpdated: sp500UpdatedCount, status: 'success' });
-                console.log(`✅ S&P 500: ${sp500UpdatedCount} días actualizados`);
+                if (currentLogLevel === 'verbose') {
+                    console.log(`✅ S&P 500: ${sp500UpdatedCount} días actualizados`);
+                }
             }
         } catch (err) {
-            console.error('❌ Error descargando S&P 500:', err.message);
+            if (currentLogLevel === 'verbose') {
+                console.error('❌ Error descargando S&P 500:', err.message);
+            }
             results.errors.push(`Error S&P 500: ${err.message}`);
         }
 
-        console.log(`✅ Sobrescritura completada. Posiciones actualizadas: ${results.updatedPositions}`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`✅ Sobrescritura completada. Posiciones actualizadas: ${results.updatedPositions}`);
+        }
         return results;
 
     } catch (error) {
-        console.error('❌ Error crítico en overwriteHistoricalData:', error);
+        if (currentLogLevel === 'verbose') {
+            console.error('❌ Error crítico en overwriteHistoricalData:', error);
+        }
         throw error;
     }
 };

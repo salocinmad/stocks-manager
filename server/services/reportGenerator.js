@@ -25,6 +25,7 @@ import {
 } from '../utils/dataAggregator.js';
 import { generateAlerts } from './alertsService.js';
 import { fetchHistorical } from './datasources/yahooService.js';
+import { getLogLevel } from '../services/configService.js';
 
 /**
  * Servicio para generar reportes completos del portafolio
@@ -40,6 +41,7 @@ import { fetchHistorical } from './datasources/yahooService.js';
  * @returns {Object} Reporte generado
  */
 export async function generateDailyReport(userId, portfolioId, date, currentEURUSD = null) {
+    const currentLogLevel = await getLogLevel();
     try {
         // 1. Obtener operaciones del portafolio
         const operations = await Operation.findAll({
@@ -48,7 +50,9 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
         });
 
         if (operations.length === 0) {
-            console.log(`No operations found for portfolio ${portfolioId}`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`No operations found for portfolio ${portfolioId}`);
+            }
             return null;
         }
 
@@ -62,7 +66,9 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
         const historicalPrices = {};
         const historicalChartData = {};
 
-        console.log('Active Positions:', activePositions);
+        if (currentLogLevel === 'verbose') {
+            console.log('Active Positions (count):', Object.keys(activePositions).length);
+        }
 
         for (const positionKey in activePositions) {
             const position = activePositions[positionKey];
@@ -81,19 +87,29 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
                 order: [['date', 'ASC']]
             });
 
-            console.log(`📊 existingDailyPrices.length for ${position.positionKey}: ${existingDailyPrices.length}`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`📊 existingDailyPrices.length for ${position.positionKey}: ${existingDailyPrices.length}`);
+            }
             // Si no hay suficientes datos (menos de 365 días), obtener de Yahoo Finance
             if (existingDailyPrices.length < 365) {
-                console.log(`✅ Entrando al bloque de obtención de datos históricos de Yahoo Finance para ${position.positionKey}.`);
-                console.log(`⏳ Obteniendo datos históricos de Yahoo Finance para ${position.positionKey}...`);
-                console.log(`DEBUG: existingDailyPrices.length es ${existingDailyPrices.length}, se intentará obtener de Yahoo Finance.`);
-                console.error(`ERROR_DEBUG: Entrando al bloque de obtención de datos históricos de Yahoo Finance para ${position.positionKey}.`);
+                if (currentLogLevel === 'verbose') {
+                    console.log(`✅ Entrando al bloque de obtención de datos históricos de Yahoo Finance para ${position.positionKey}.`);
+                    console.log(`⏳ Obteniendo datos históricos de Yahoo Finance para ${position.positionKey}...`);
+                    console.log(`DEBUG: existingDailyPrices.length es ${existingDailyPrices.length}, se intentará obtener de Yahoo Finance.`);
+                }
+                if (currentLogLevel === 'verbose') {
+                    console.error(`ERROR_DEBUG: Entrando al bloque de obtención de datos históricos de Yahoo Finance para ${position.positionKey}.`);
+                }
                 let yahooHistoricalData = [];
                 try {
                     yahooHistoricalData = await fetchHistorical(position.positionKey, 365);
-                    console.log(`🔍 Yahoo Historical Data length for ${position.positionKey}: ${yahooHistoricalData.length}`);
+                    if (currentLogLevel === 'verbose') {
+                        console.log(`🔍 Yahoo Historical Data length for ${position.positionKey}: ${yahooHistoricalData.length}`);
+                    }
                 } catch (error) {
-                    console.error(`❌ Error al obtener datos históricos de Yahoo Finance para ${position.positionKey}:`, error.message);
+                    if (currentLogLevel === 'verbose') {
+                        console.error(`❌ Error al obtener datos históricos de Yahoo Finance para ${position.positionKey}:`, error.message);
+                    }
                 }
 
                 if (yahooHistoricalData.length > 0) {
@@ -111,20 +127,30 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
                         volume: data.volume,
                         adjClose: data.adjClose,
                     }));
-                    console.log(`DEBUG: dailyPriceRecords para ${position.positionKey} tiene ${dailyPriceRecords.length} registros. Primer registro:`, dailyPriceRecords[0]);
+                    if (currentLogLevel === 'verbose') {
+                        console.log(`DEBUG: dailyPriceRecords para ${position.positionKey} tiene ${dailyPriceRecords.length} registros.`);
+                    }
 
                     // Usar bulkCreate con updateOnDuplicate para insertar/actualizar eficientemente
-                    console.log(`DEBUG: Intentando bulkCreate para ${position.positionKey} con ${dailyPriceRecords.length} registros.`);
+                    if (currentLogLevel === 'verbose') {
+                        console.log(`DEBUG: Intentando bulkCreate para ${position.positionKey} con ${dailyPriceRecords.length} registros.`);
+                    }
                     try {
                         const result = await DailyPrice.bulkCreate(dailyPriceRecords, {
                             updateOnDuplicate: ['open', 'high', 'low', 'close', 'volume', 'adjClose']
                         });
-                        console.log(`✅ bulkCreate exitoso para ${position.positionKey}. Se afectaron ${result.length} registros.`);
+                        if (currentLogLevel === 'verbose') {
+                            console.log(`✅ bulkCreate exitoso para ${position.positionKey}. Se afectaron ${result.length} registros.`);
+                        }
                     } catch (dbError) {
-                        console.error(`❌ Error al guardar/actualizar registros históricos para ${position.positionKey}:`, dbError);
+                        if (currentLogLevel === 'verbose') {
+                            console.error(`❌ Error al guardar/actualizar registros históricos para ${position.positionKey}:`, dbError);
+                        }
                     }
                 } else {
-                    console.log(`⚠️ No se obtuvieron datos históricos de Yahoo Finance para ${position.positionKey}.`);
+                    if (currentLogLevel === 'verbose') {
+                        console.log(`⚠️ No se obtuvieron datos históricos de Yahoo Finance para ${position.positionKey}.`);
+                    }
                 }
             }
 
@@ -145,8 +171,10 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
                 close: dp.close
             }));
             historicalChartData[position.positionKey] = transformHistoricalPricesToChartData(historicalPrices[position.positionKey]);
-            console.log(`Historical Prices for ${position.positionKey}:`, historicalPrices[position.positionKey].length);
-            console.log(`Historical Chart Data for ${position.positionKey}:`, historicalChartData[position.positionKey].length);
+            if (currentLogLevel === 'verbose') {
+                console.log(`Historical Prices for ${position.positionKey}:`, historicalPrices[position.positionKey].length);
+                console.log(`Historical Chart Data for ${position.positionKey}:`, historicalChartData[position.positionKey].length);
+            }
         }
 
         // 3. Obtener precios actuales
@@ -277,7 +305,9 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
             exchangeRate: currentEURUSD || 0.92
         };
 
-        console.log('Final Report Data before saving:', reportData);
+        if (currentLogLevel === 'verbose') {
+            console.log('Final Report Data before saving:', reportData);
+        }
 
           // 13. Guardar reporte en base de datos
         const [report, created] = await PortfolioReport.upsert({
@@ -290,10 +320,16 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
             conflictFields: ['userId', 'portfolioId', 'date', 'reportType']
         });
 
-        console.log('Upsert result - report:', report);
-        console.log('Upsert result - created:', created);
+        if (currentLogLevel === 'verbose') {
+            console.log('Upsert result - report:', report);
+        }
+        if (currentLogLevel === 'verbose') {
+            console.log('Upsert result - created:', created);
+        }
 
-        console.log(`✅ Daily report generated for portfolio ${portfolioId} on ${date}`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`✅ Daily report generated for portfolio ${portfolioId} on ${date}`);
+        }
 
         return reportData;
     } catch (error) {
@@ -310,6 +346,7 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
  * @returns {Object} Reporte mensual
  */
 export async function generateMonthlyReport(userId, portfolioId, month) {
+    const currentLogLevel = await getLogLevel();
     try {
         const [year, monthNum] = month.split('-');
         const startDate = `${year}-${monthNum}-01`;
@@ -331,7 +368,9 @@ export async function generateMonthlyReport(userId, portfolioId, month) {
         });
 
         if (dailyReports.length === 0) {
-            console.log(`No daily reports found for month ${month}`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`No daily reports found for month ${month}`);
+            }
             return null;
         }
 
@@ -364,7 +403,9 @@ export async function generateMonthlyReport(userId, portfolioId, month) {
             conflictFields: ['userId', 'portfolioId', 'date', 'reportType']
         });
 
-        console.log(`✅ Monthly report generated for ${month}`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`✅ Monthly report generated for ${month}`);
+        }
 
         return monthlyData;
     } catch (error) {
@@ -381,6 +422,7 @@ export async function generateMonthlyReport(userId, portfolioId, month) {
  * @returns {Object} Reporte anual
  */
 export async function generateYearlyReport(userId, portfolioId, year) {
+    const currentLogLevel = await getLogLevel();
     try {
         const startDate = `${year}-01-01`;
         const endDate = `${year}-12-31`;
@@ -400,7 +442,9 @@ export async function generateYearlyReport(userId, portfolioId, year) {
         });
 
         if (monthlyReports.length === 0) {
-            console.log(`No monthly reports found for year ${year}`);
+            if (currentLogLevel === 'verbose') {
+                console.log(`No monthly reports found for year ${year}`);
+            }
             return null;
         }
 
@@ -435,7 +479,9 @@ export async function generateYearlyReport(userId, portfolioId, year) {
             conflictFields: ['userId', 'portfolioId', 'date', 'reportType']
         });
 
-        console.log(`✅ Yearly report generated for ${year}`);
+        if (currentLogLevel === 'verbose') {
+            console.log(`✅ Yearly report generated for ${year}`);
+        }
 
         return yearlyData;
     } catch (error) {

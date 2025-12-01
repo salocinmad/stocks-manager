@@ -198,14 +198,14 @@ router.get('/backup/export', async (req, res) => {
   try {
     const format = req.query.format === 'sql' ? 'sql' : 'json'
     const models = [
-      User, Portfolio, PortfolioReport, Config, Operation,
-      // Nuevas tablas globales (PRIORITY)
-      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert,
-      // Tablas legacy (mantener para rollback)
-      PriceCache, DailyPrice,
-      // Resto de tablas
-      DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
-    ]
+  User, Portfolio, PortfolioReport, Config, Operation,
+  // Nuevas tablas globales (PRIORITY)
+  GlobalCurrentPrice, GlobalStockPrice, UserStockAlert,
+  // Tablas legacy (mantener para rollback)
+  PriceCache, DailyPrice,
+  // Resto de tablas
+  DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
+]
     const data = {}
 
     // Fetch all data

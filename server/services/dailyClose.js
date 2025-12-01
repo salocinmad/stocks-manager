@@ -3,6 +3,7 @@ import Operation from '../models/Operation.js'
 import Portfolio from '../models/Portfolio.js'
 import DailyPrice from '../models/DailyPrice.js'
 import YahooFinance from 'yahoo-finance2';
+import { getLogLevel } from './configService.js';
 
 let dailyTimer = null
 let dailyRunning = false
@@ -84,6 +85,7 @@ export const fetchPreviousClose = async (symbol) => {
 }
 
 export const runDailyOnce = async () => {
+  const currentLogLevel = await getLogLevel();
   if (dailyRunning) return { ok: false, reason: 'already_running' }
   dailyRunning = true
   try {
@@ -188,7 +190,9 @@ export const runDailyOnce = async () => {
                 })
               }
             } catch (snapshotErr) {
-              console.error('Error creando snapshot:', snapshotErr.message)
+              if (currentLogLevel === 'verbose') {
+                console.error('Error creando snapshot:', snapshotErr.message)
+              }
             }
           } catch (err) {
             const msg = String(err?.message || 'unknown')
@@ -260,7 +264,9 @@ export const runDailyOnce = async () => {
 
     // 4. Update S&P 500 in the truth table (userId=0, portfolioId=0)
     try {
-      console.log('📊 Actualizando S&P 500 en tabla de verdad absoluta...');
+      if (currentLogLevel === 'verbose') {
+        console.log('📊 Actualizando S&P 500 en tabla de verdad absoluta...');
+      }
       const sp500Symbol = '^GSPC';
       const sp500PositionKey = 'S&P 500|||^GSPC';
       
@@ -290,35 +296,49 @@ export const runDailyOnce = async () => {
             shares: 0
           });
           
-          console.log(`✅ S&P 500 actualizado: ${close} ${currency}`);
+          if (currentLogLevel === 'verbose') {
+            console.log(`✅ S&P 500 actualizado: ${close} ${currency}`);
+          }
         } else {
           console.log('⚠️ No se pudo obtener datos del S&P 500');
         }
       } else {
-        console.log('✓ S&P 500 ya actualizado para hoy');
-      }
+          if (currentLogLevel === 'verbose') {
+            console.log('✓ S&P 500 ya actualizado para hoy');
+          }
+        }
     } catch (sp500Err) {
-      console.error('❌ Error actualizando S&P 500:', sp500Err.message);
+      if (currentLogLevel === 'verbose') {
+        console.error('❌ Error actualizando S&P 500:', sp500Err.message);
+      }
     }
 
     if (processed > 0) {
       await setLastRun(date);
 
       // ✨ NUEVO: Generar reportes después del cierre diario exitoso
-      console.log('📊 Iniciando generación de reportes...');
+      if (currentLogLevel === 'verbose') {
+        console.log('📊 Iniciando generación de reportes...');
+      }
       try {
         // Importar dinámicamente para evitar ciclos de dependencia
         const { generateAllReports } = await import('../scripts/generateReports.js');
         const reportResult = await generateAllReports(date);
 
         if (reportResult.successfulReports > 0) {
-          console.log(`✅ Reportes generados: ${reportResult.successfulReports} portafolios`);
+          if (currentLogLevel === 'verbose') {
+            console.log(`✅ Reportes generados: ${reportResult.successfulReports} portafolios`);
+          }
         }
         if (reportResult.failedReports > 0) {
-          console.log(`⚠️ Algunos reportes fallaron: ${reportResult.failedReports}`);
+          if (currentLogLevel === 'verbose') {
+            console.log(`⚠️ Algunos reportes fallaron: ${reportResult.failedReports}`);
+          }
         }
       } catch (reportError) {
-        console.error('❌ Error generando reportes:', reportError.message);
+        if (currentLogLevel === 'verbose') {
+          console.error('❌ Error generando reportes:', reportError.message);
+        }
         // No fallar el cierre diario si falla la generación de reportes
       }
 

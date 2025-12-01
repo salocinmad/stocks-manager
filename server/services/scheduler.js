@@ -6,6 +6,7 @@
  */
 
 import { startPriceScheduler, stopPriceScheduler, runManualUpdate } from './scheduler/priceScheduler.js';
+import { getLogLevel } from './configService.js';
 
 // Delegación completa al nuevo servicio modular
 export async function start() {
@@ -19,8 +20,11 @@ export function stop() {
 
 // runOnce para compatibilidad con daily close
 export async function runOnce() {
-  console.log('🔄 Ejecutando actualización única (runOnce)...');
-  return await runManualUpdate();
+    const currentLogLevel = await getLogLevel();
+    if (currentLogLevel === 'verbose') {
+        console.log('🔄 Ejecutando actualización única (runOnce)...');
+    }
+    return await runManualUpdate();
 }
 
 export default {

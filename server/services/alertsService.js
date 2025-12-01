@@ -1,6 +1,7 @@
 import DailyPrice from '../models/DailyPrice.js';
 import PriceCache from '../models/PriceCache.js';
 import { calculateActivePositions, calculateContributionByCompany } from '../utils/dataAggregator.js';
+import { getLogLevel } from './configService.js';
 
 /**
  * Servicio modular para generar y gestionar alertas del portafolio
@@ -35,6 +36,7 @@ export const AlertSeverity = {
  * @returns {Object|null} Alerta o null si no aplica
  */
 export async function checkLossSustained(position, userId, portfolioId, days = 30, threshold = 15) {
+    const currentLogLevel = await getLogLevel();
     try {
         const currentPrice = await PriceCache.findOne({
             where: {
@@ -86,7 +88,9 @@ export async function checkLossSustained(position, userId, portfolioId, days = 3
 
         return null;
     } catch (error) {
-        console.error('Error checking loss sustained:', error);
+        if (currentLogLevel === 'verbose') {
+            console.error('Error checking loss sustained:', error);
+        }
         return null;
     }
 }
@@ -170,6 +174,7 @@ export function checkConcentrationRisk(position, positionValueEUR, totalPortfoli
  */
 export async function generateAlerts(userId, portfolioId, operations, currentPrices, currentEURUSD) {
     const alerts = [];
+    const currentLogLevel = await getLogLevel();
 
     try {
         // Calcular posiciones activas
@@ -227,7 +232,9 @@ export async function generateAlerts(userId, portfolioId, operations, currentPri
 
         return alerts;
     } catch (error) {
-        console.error('Error generating alerts:', error);
+        if (currentLogLevel === 'verbose') {
+            console.error('Error generating alerts:', error);
+        }
         return [];
     }
 }
