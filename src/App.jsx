@@ -3431,7 +3431,7 @@ function App() {
             onUploadSuccess={async () => {
               setShowProfilePictureModal(false);
               await fetchProfilePicture(); // Asegurarse de que la URL se actualice antes de cerrar el modal
-             console.log('App: onUploadSuccess called. profilePictureUrl after fetch:', profilePictureUrl); // Re-fetch the profile picture after successful upload
+              console.log('App: onUploadSuccess called. profilePictureUrl after fetch:', profilePictureUrl); // Re-fetch the profile picture after successful upload
             }}
             onDeleteSuccess={async () => {
               setShowProfilePictureModal(false);
@@ -3604,18 +3604,7 @@ function App() {
         setExternalButtons={setExternalButtons}
       />
 
-      <ProfilePictureModal
-        show={showProfilePictureModal}
-        onClose={() => setShowProfilePictureModal(false)}
-        currentUser={currentUser}
-        onUpdate={(url) => {
-          setProfilePictureUrl(url);
-          // Actualizar también el usuario actual para reflejar el cambio si es necesario
-          if (currentUser) {
-            setCurrentUser({ ...currentUser });
-          }
-        }}
-      />
+
     </div >
   );
 }
