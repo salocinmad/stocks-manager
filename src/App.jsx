@@ -38,7 +38,7 @@ function App() {
   const [editingOperation, setEditingOperation] = useState(null);
   // Estados de modales/menús gestionados por useModals
   const [finnhubApiKey, setFinnhubApiKey] = useState('');
-  
+
   const [tempDeletePassword, setTempDeletePassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -51,12 +51,12 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   // Estados de precios gestionados por useLivePrices
-  
+
   const { currentEURUSD, source: currentEURUSDSource, refresh: refreshEURUSD } = useEurUsdRate({ autoLoad: true });
   const [loadingData, setLoadingData] = useState(true); // Estado de carga de datos
   // Última sincronización gestionada por useLivePrices
   const { portfolios, currentPortfolioId, switchPortfolio, markFavorite } = usePortfolio();
-  
+
   const [formData, setFormData] = useState({
     company: '',
     shares: '',
@@ -70,7 +70,7 @@ function App() {
     externalSymbol3: ''
   });
 
-  
+
   const [notePositionKey, setNotePositionKey] = useState('');
   const [noteContent, setNoteContent] = useState('');
   const [noteOriginalContent, setNoteOriginalContent] = useState(''); // For cancel functionality
@@ -81,11 +81,11 @@ function App() {
   const [notesCache, setNotesCache] = useState({});
   const [contributionChartData, setContributionChartData] = useState([]);
   const [contributionDate, setContributionDate] = useState(null);
-  
+
   const [dailyCloseLastRun, setDailyCloseLastRun] = useState(null);
-  
+
   const [externalButtons, setExternalButtons] = useState([]); // Botones externos
-  
+
   const {
     showConfigModal, setShowConfigModal,
     showDeleteConfirm, setShowDeleteConfirm,
@@ -96,7 +96,7 @@ function App() {
     showUserMenu, setShowUserMenu,
     showPortfolioMenu, setShowPortfolioMenu
   } = useModals();
-  
+
 
   // Hook para autenticación
   const {
@@ -111,7 +111,7 @@ function App() {
     DEFAULT_PROFILE_PICTURE_URL
   } = useAuth();
 
-  
+
 
   // Hook para reordenamiento de posiciones
   const {
@@ -129,9 +129,9 @@ function App() {
     fetchPriceFromYahoo
   });
 
-  
 
-  
+
+
 
   // Cerrar menú de usuario al hacer clic fuera
   useEffect(() => {
@@ -326,7 +326,7 @@ function App() {
     reloadForPortfolio();
   }, [currentPortfolioId]);
 
-  
+
 
   // Recalcular contribución con valor actual (EUR) para que coincida con la tabla
   useEffect(() => {
@@ -356,12 +356,13 @@ function App() {
     } catch { }
   }, [operations, currentPrices, currentEURUSD]);
 
-  const { pnlSeries, setPnlSeries, refreshSeries } = usePnlSeries({ days: 30, computeCurrentNetPnL });
-  
+  const [pnlDays, setPnlDays] = useState(30);
+  const { pnlSeries, setPnlSeries, refreshSeries } = usePnlSeries({ days: pnlDays, computeCurrentNetPnL });
 
-  
 
-  
+
+
+
 
   // Re-fetch de la serie cuando cambia daily_close_last_run
   useEffect(() => {
@@ -390,7 +391,7 @@ function App() {
     return () => { if (timer) clearInterval(timer); };
   }, [dailyCloseLastRun]);
 
-  
+
 
   // Actualizaciones del scheduler gestionadas por useLivePrices
 
@@ -432,13 +433,13 @@ function App() {
 
 
 
-  
 
-  
 
-  
 
-  
+
+
+
+
 
   const contributionColorsMap = useMemo(() => {
     const items = contributionChartData || [];
@@ -453,7 +454,7 @@ function App() {
     return map;
   }, [contributionChartData, theme]);
 
-  
+
 
   // Borrar todas las operaciones (limpiar base de datos)
   const clearAllOperations = () => {
@@ -525,7 +526,7 @@ function App() {
     setShowConfigModal
   });
 
-  
+
 
   function fetchCurrentEURUSD() {
     return refreshEURUSD();
@@ -556,7 +557,7 @@ function App() {
         }
       }
 
-      
+
 
       // Usar el backend para evitar problemas de CORS
       const response = await authenticatedFetch(`/api/yahoo/quote/${yahooSymbol}`);
@@ -580,7 +581,7 @@ function App() {
     }
   }
 
-  
+
 
   // Consultar precio actual desde Finnhub (soporta formato SYMBOL:EXCHANGE)
   // Si falla, intenta con Yahoo Finance
@@ -1016,7 +1017,7 @@ function App() {
     }
   };
 
-  
+
 
   // Calcular datos para el gráfico de inversión vs ganancias
   const getInvestmentChartData = () => {
@@ -1559,11 +1560,11 @@ function App() {
           {
             pnlSeries.length > 0 && (
               <div className="card" style={{ marginTop: '16px' }}>
-                <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>📈 Ganancias/Pérdidas (últimos 30 días)</h2>
+                <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>📈 Ganancias/Pérdidas</h2>
                 <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>
                   Evolución diaria del PnL total (EUR)
                 </p>
-                <PnLChart data={pnlSeries} theme={theme} />
+                <PnLChart data={pnlSeries} theme={theme} onTimePeriodChange={setPnlDays} />
               </div>
             )
           }

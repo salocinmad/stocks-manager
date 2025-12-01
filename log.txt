@@ -1,0 +1,100 @@
+Executing (default): ALTER TABLE `PositionOrders` ADD INDEX `position_orders_user_id` (`userId`)
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'ProfilePictures' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): CREATE TABLE IF NOT EXISTS `ProfilePictures` (`id` INTEGER auto_increment , `userId` INTEGER NOT NULL UNIQUE, `filename` VARCHAR(255) NOT NULL, `createdAt` DATETIME NOT NULL, `updatedAt` DATETIME NOT NULL, PRIMARY KEY (`id`), FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON DELETE NO ACTION ON UPDATE CASCADE) ENGINE=InnoDB;
+Executing (default): SHOW INDEX FROM `ProfilePictures`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'GlobalCurrentPrices' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): CREATE TABLE IF NOT EXISTS `GlobalCurrentPrices` (`symbol` VARCHAR(255) NOT NULL  COMMENT 'Símbolo único (AAPL, AMP.MC, etc.)', `lastPrice` FLOAT NOT NULL COMMENT 'Precio actual del mercado', `change` FLOAT COMMENT 'Cambio absoluto vs previousClose', `changePercent` FLOAT COMMENT 'Cambio porcentual', `open` FLOAT, `high` FLOAT, `low` FLOAT, `previousClose` FLOAT COMMENT 'Precio de cierre del día anterior', `previousCloseDate` DATE COMMENT 'Fecha del cierre anterior (para PnL preciso)', `volume` BIGINT COMMENT 'Volumen del día (Yahoo)', `marketState` VARCHAR(255) COMMENT 'OPEN, CLOSED, PRE, POST (Yahoo)', `currency` VARCHAR(255) COMMENT 'USD, EUR, etc. (Yahoo)', `exchange` VARCHAR(255) COMMENT 'NASDAQ, BME, etc. (Yahoo)', `regularMarketTime` DATETIME COMMENT 'Timestamp último tick (Yahoo)', `source` VARCHAR(255) NOT NULL COMMENT 'finnhub, yahoo, o finnhub+yahoo', `updatedAt` DATETIME NOT NULL COMMENT 'Última actualización del scheduler', `createdAt` DATETIME NOT NULL, PRIMARY KEY (`symbol`)) ENGINE=InnoDB;
+Executing (default): SHOW INDEX FROM `GlobalCurrentPrices`
+Executing (default): ALTER TABLE `GlobalCurrentPrices` ADD UNIQUE INDEX `global_current_prices_symbol` (`symbol`)
+Executing (default): ALTER TABLE `GlobalCurrentPrices` ADD INDEX `global_current_prices_updated_at` (`updatedAt`)
+Executing (default): ALTER TABLE `GlobalCurrentPrices` ADD INDEX `global_current_prices_source` (`source`)
+Executing (default): ALTER TABLE `GlobalCurrentPrices` ADD INDEX `global_current_prices_currency` (`currency`)
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'GlobalStockPrices' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): CREATE TABLE IF NOT EXISTS `GlobalStockPrices` (`id` INTEGER auto_increment , `symbol` VARCHAR(255) NOT NULL, `date` DATE NOT NULL, `open` FLOAT, `high` FLOAT, `low` FLOAT, `close` FLOAT NOT NULL COMMENT 'Precio de cierre', `volume` BIGINT, `change` FLOAT COMMENT 'close - previousClose (del día anterior en DB)', `changePercent` FLOAT COMMENT '(change / previousClose) * 100', `adjClose` FLOAT COMMENT 'Precio ajustado por splits/dividendos', `source` VARCHAR(255) DEFAULT 'yahoo' COMMENT 'Siempre yahoo para históricos', `createdAt` DATETIME NOT NULL, `updatedAt` DATETIME NOT NULL, PRIMARY KEY (`id`)) ENGINE=InnoDB;
+Executing (default): SHOW INDEX FROM `GlobalStockPrices`
+Executing (default): ALTER TABLE `GlobalStockPrices` ADD UNIQUE INDEX `global_stock_prices_symbol_date` (`symbol`, `date`)
+Executing (default): ALTER TABLE `GlobalStockPrices` ADD INDEX `global_stock_prices_symbol` (`symbol`)
+Executing (default): ALTER TABLE `GlobalStockPrices` ADD INDEX `global_stock_prices_date` (`date`)
+Executing (default): ALTER TABLE `GlobalStockPrices` ADD INDEX `global_stock_prices_created_at` (`createdAt`)
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'UserStockAlerts' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): CREATE TABLE IF NOT EXISTS `UserStockAlerts` (`id` INTEGER auto_increment , `userId` INTEGER NOT NULL, `portfolioId` INTEGER, `symbol` VARCHAR(255) NOT NULL COMMENT 'Símbolo para esta alerta', `targetPrice` FLOAT COMMENT 'Precio objetivo para notificación', `targetHitNotifiedAt` DATETIME, `createdAt` DATETIME NOT NULL, `updatedAt` DATETIME NOT NULL, PRIMARY KEY (`id`), FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY (`portfolioId`) REFERENCES `Portfolios` (`id`) ON DELETE CASCADE ON UPDATE CASCADE) ENGINE=InnoDB;
+Executing (default): SHOW INDEX FROM `UserStockAlerts`
+Executing (default): ALTER TABLE `UserStockAlerts` ADD UNIQUE INDEX `user_stock_alerts_user_id_portfolio_id_symbol` (`userId`, `portfolioId`, `symbol`)
+Executing (default): ALTER TABLE `UserStockAlerts` ADD INDEX `user_stock_alerts_user_id` (`userId`)
+Executing (default): ALTER TABLE `UserStockAlerts` ADD INDEX `user_stock_alerts_symbol` (`symbol`)
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'Configs' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): CREATE TABLE IF NOT EXISTS `Configs` (`id` INTEGER auto_increment , `key` VARCHAR(255) NOT NULL UNIQUE, `value` VARCHAR(255) NOT NULL, `createdAt` DATETIME NOT NULL, `updatedAt` DATETIME NOT NULL, PRIMARY KEY (`id`)) ENGINE=InnoDB;
+Executing (default): SHOW INDEX FROM `Configs`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'ExternalLinkButtons' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): CREATE TABLE IF NOT EXISTS `ExternalLinkButtons` (`id` INTEGER auto_increment , `userId` INTEGER NOT NULL, `name` VARCHAR(20) NOT NULL COMMENT 'Nombre identificativo del botón (ej: \"inest\", \"yahoo\")', `baseUrl` VARCHAR(500) NOT NULL COMMENT 'URL base que se concatenará con el símbolo (ej: \"https://nicolas.es/\")', `imageUrl` VARCHAR(500) NOT NULL COMMENT 'Ruta relativa o absoluta a la imagen del botón (ej: \"/investing.webp\")', `displayOrder` INTEGER NOT NULL COMMENT 'Orden de visualización (1, 2, 3)', `createdAt` DATETIME NOT NULL, `updatedAt` DATETIME NOT NULL, PRIMARY KEY (`id`), FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE) ENGINE=InnoDB;
+Executing (default): SHOW INDEX FROM `ExternalLinkButtons`
+Executing (default): ALTER TABLE `ExternalLinkButtons` ADD UNIQUE INDEX `unique_user_display_order` (`userId`, `displayOrder`)
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'PortfolioReports' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): CREATE TABLE IF NOT EXISTS `PortfolioReports` (`id` INTEGER auto_increment , `userId` INTEGER NOT NULL, `portfolioId` INTEGER NOT NULL, `date` DATE NOT NULL COMMENT 'Fecha del reporte', `reportType` ENUM('daily', 'monthly', 'yearly') NOT NULL DEFAULT 'daily' COMMENT 'Tipo de reporte generado', `data` JSON NOT NULL COMMENT 'Datos del reporte en formato JSON', `createdAt` DATETIME NOT NULL, `updatedAt` DATETIME NOT NULL, PRIMARY KEY (`id`), FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE, FOREIGN KEY (`portfolioId`) REFERENCES `Portfolios` (`id`) ON DELETE CASCADE ON UPDATE CASCADE) ENGINE=InnoDB;
+Executing (default): SHOW INDEX FROM `PortfolioReports`
+Executing (default): ALTER TABLE `PortfolioReports` ADD UNIQUE INDEX `unique_portfolio_report` (`userId`, `portfolioId`, `date`, `reportType`)
+Executing (default): ALTER TABLE `PortfolioReports` ADD INDEX `idx_report_user` (`userId`)
+Executing (default): ALTER TABLE `PortfolioReports` ADD INDEX `idx_report_portfolio` (`portfolioId`)
+Executing (default): ALTER TABLE `PortfolioReports` ADD INDEX `idx_report_date` (`date`)
+Executing (default): ALTER TABLE `PortfolioReports` ADD INDEX `idx_report_type` (`reportType`)
+✅ Modelos sincronizados
+Executing (default): SHOW INDEX FROM `DailyPrices`
+Executing (default): ALTER TABLE `DailyPrices` ADD UNIQUE INDEX `dp_user_portfolio_pos_date` (`userId`,`portfolioId`,`positionKey`,`date`)
+Executing (default): SHOW INDEX FROM `Users`
+Executing (default): SELECT `id`, `username`, `password`, `isAdmin`, `favoritePortfolioId`, `createdAt`, `updatedAt` FROM `Users` AS `User` WHERE `User`.`username` = 'admin';
+Executing (default): INSERT INTO `Users` (`id`,`username`,`password`,`isAdmin`,`createdAt`,`updatedAt`) VALUES (DEFAULT,?,?,?,?,?);
+✅ Usuario admin creado correctamente
+🔧 Aplicando migraciones de base de datos...
+Checking if column 'volume' exists in table 'DailyPrices'...
+Executing (default): SHOW FULL COLUMNS FROM `DailyPrices`;
+Column 'volume' already exists. Skipping.
+🌐 Iniciando servidor...
+🚀 routes/api/prices.js LOADED - endpoints: /bulk, /current/:symbol, /historical/:symbol, /update/:symbol
+Server running on port 5000
+Executing (default): SELECT 1+1 AS result
+✅ Conectado a MariaDB correctamente
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'Users' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `Users`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'Portfolios' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `Portfolios`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'Operations' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `Operations`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'PortfolioReports' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `PortfolioReports`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'DailyPortfolioStats' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `DailyPortfolioStats`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'DailyPrices' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `DailyPrices`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'DailyPositionSnapshots' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `DailyPositionSnapshots`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'Notes' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `Notes`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'PositionOrders' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `PositionOrders`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'ProfilePictures' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `ProfilePictures`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'ExternalLinkButtons' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `ExternalLinkButtons`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'PriceCaches' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `PriceCaches`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'Configs' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `Configs`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'GlobalCurrentPrices' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `GlobalCurrentPrices`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'GlobalStockPrices' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `GlobalStockPrices`
+Executing (default): SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME = 'UserStockAlerts' AND TABLE_SCHEMA = 'portfolio_manager'
+Executing (default): SHOW INDEX FROM `UserStockAlerts`
+✅ Modelos sincronizados
+Executing (default): SHOW INDEX FROM `DailyPrices`
+Executing (default): ALTER TABLE `DailyPrices` ADD UNIQUE INDEX `dp_user_portfolio_pos_date` (`userId`,`portfolioId`,`positionKey`,`date`)
+Executing (default): SHOW INDEX FROM `Users`
+Executing (default): SELECT `id`, `key`, `value`, `createdAt`, `updatedAt` FROM `Configs` AS `Config` WHERE `Config`.`key` = 'logLevel';
+Executing (default): SELECT `id`, `key`, `value`, `createdAt`, `updatedAt` FROM `Configs` AS `Config` WHERE `Config`.`key` = 'scheduler_interval_minutes';
+Executing (default): SELECT `id`, `key`, `value`, `createdAt`, `updatedAt` FROM `Configs` AS `Config` WHERE `Config`.`key` = 'logLevel';
+Executing (default): SELECT `symbol` FROM `Operations` AS `Operation` WHERE `Operation`.`symbol` != '';
+🕒 Scheduler iniciado cada 15 min
+Executing (default): SELECT `id`, `key`, `value`, `createdAt`, `updatedAt` FROM `Configs` AS `Config` WHERE `Config`.`key` = 'daily_close_enabled';
+Executing (default): SELECT `id`, `key`, `value`, `createdAt`, `updatedAt` FROM `Configs` AS `Config` WHERE `Config`.`key` = 'daily_close_time';
+Executing (default): INSERT INTO `Configs` (`id`,`key`,`value`,`createdAt`,`updatedAt`) VALUES (DEFAULT,?,?,?,?);
+📅 Snapshot diario programado a las 01:00

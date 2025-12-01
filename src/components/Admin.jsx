@@ -387,7 +387,7 @@ function Admin() {
         </div>
 
         <div className="admin-card">
-              <h3>Mantenimiento</h3>
+          <h3>Mantenimiento</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               className="button"
@@ -426,12 +426,12 @@ function Admin() {
             <button
               className="button warning"
               onClick={async () => {
-                if (!window.confirm('¿Forzar recálculo del PnL del último día con valores actuales?')) return
+                if (!window.confirm('¿Recalcular todo el historial de PnL para todos los portafolios usando precios históricos?')) return
                 try {
                   const r = await authenticatedFetch('/api/admin/daily-close/recompute-last', { method: 'POST' })
                   const d = await r.json().catch(() => ({}))
                   if (r.ok) {
-                    setSuccess(`Recalculado PnL del último día (${d.date || '—'})`)
+                    setSuccess(d.message || `Recalculado: ${d.portfolios || 0} portafolios, ${d.dates || 0} fechas`)
                   } else {
                     setError(d?.error || 'Error forzando recálculo')
                   }
@@ -441,7 +441,7 @@ function Admin() {
               }}
               style={{ justifyContent: 'center' }}
             >
-              ♻️ Forzar PnL último día
+              ♻️ Recalcular Historial PnL
             </button>
             <button
               className="button warning"

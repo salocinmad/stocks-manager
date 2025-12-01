@@ -353,27 +353,7 @@ function Reports({
                 </div>
             )}
 
-            {/* Gráficos de Precios Históricos */}
-            {reportData.historicalChartData && Object.keys(reportData.historicalChartData).length > 0 && (
-                <div className="historical-charts-section">
-                    <h3>📈 Evolución del Precio (Últimos 30 días)</h3>
-                    {Object.entries(reportData.historicalChartData).map(([key, data]) => (
-                        <div key={key} className="stock-chart-container">
-                            <h4>{key.split('|||')[0]} ({key.split('|||')[1]})</h4>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <LineChart data={data}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="date" tickFormatter={formatDate} />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Line type="monotone" dataKey="value" stroke="#8884d8" activeDot={{ r: 8 }} />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    ))}
-                </div>
-            )}
+
 
             {/* Tabla de Precios Históricos (Último Año) - Eliminada por petición del usuario */}
 

@@ -32,45 +32,31 @@ const Icons = {
     )
 };
 
-const ChartTypeToggle = ({ chartType, onChartTypeChange }) => {
+const ChartTypeToggle = ({ chartType, onChartTypeChange, allowedTypes = ['line', 'candlestick', 'bar', 'area'] }) => {
+    const chartTypes = [
+        { key: 'line', Icon: Icons.Line, label: 'Lineal', title: 'Gráfico de Línea' },
+        { key: 'candlestick', Icon: Icons.Candlestick, label: 'Velas', title: 'Gráfico de Velas' },
+        { key: 'bar', Icon: Icons.Bar, label: 'Barras', title: 'Gráfico de Barras' },
+        { key: 'area', Icon: Icons.Area, label: 'Área', title: 'Gráfico de Área' }
+    ];
+
     return (
         <div className="chart-type-toggle">
-            <button
-                className={`toggle-button ${chartType === 'line' ? 'active' : ''}`}
-                onClick={() => onChartTypeChange('line')}
-                type="button"
-                title="Gráfico de Línea"
-            >
-                <Icons.Line />
-                <span>Lineal</span>
-            </button>
-            <button
-                className={`toggle-button ${chartType === 'candlestick' ? 'active' : ''}`}
-                onClick={() => onChartTypeChange('candlestick')}
-                type="button"
-                title="Gráfico de Velas"
-            >
-                <Icons.Candlestick />
-                <span>Velas</span>
-            </button>
-            <button
-                className={`toggle-button ${chartType === 'bar' ? 'active' : ''}`}
-                onClick={() => onChartTypeChange('bar')}
-                type="button"
-                title="Gráfico de Barras"
-            >
-                <Icons.Bar />
-                <span>Barras</span>
-            </button>
-            <button
-                className={`toggle-button ${chartType === 'area' ? 'active' : ''}`}
-                onClick={() => onChartTypeChange('area')}
-                type="button"
-                title="Gráfico de Área"
-            >
-                <Icons.Area />
-                <span>Área</span>
-            </button>
+            {chartTypes
+                .filter(type => allowedTypes.includes(type.key))
+                .map(({ key, Icon, label, title }) => (
+                    <button
+                        key={key}
+                        className={`toggle-button ${chartType === key ? 'active' : ''}`}
+                        onClick={() => onChartTypeChange(key)}
+                        type="button"
+                        title={title}
+                    >
+                        <Icon />
+                        <span>{label}</span>
+                    </button>
+                ))
+            }
         </div>
     );
 };

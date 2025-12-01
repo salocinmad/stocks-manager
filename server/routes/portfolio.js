@@ -63,14 +63,12 @@ router.get('/timeseries', async (req, res) => {
     since.setDate(since.getDate() - days)
     const sinceDate = since.toISOString().slice(0, 10)
 
-    // Read from DailyPortfolioStats (persisted snapshots)
-    const rows = await DailyPortfolioStats.findAll({
-      where: { userId, portfolioId, date: { [Op.gte]: sinceDate } },
-      order: [['date', 'ASC']]
-    })
+    // Use dynamic calculation service
+    const { calculatePortfolioHistory } = await import('../services/pnlService.js')
+    const history = await calculatePortfolioHistory(userId, portfolioId, days)
 
-    // Return pnlEUR as totalValueEUR to maintain frontend contract
-    const result = rows.map(r => ({ date: r.date, totalValueEUR: r.pnlEUR }))
+    // Map to frontend contract: totalValueEUR is actually pnlEUR
+    const result = history.map(h => ({ date: h.date, totalValueEUR: h.pnlEUR }))
 
     res.json({ days, items: result })
   } catch (error) {
