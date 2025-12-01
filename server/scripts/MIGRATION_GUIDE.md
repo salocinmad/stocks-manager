@@ -29,6 +29,39 @@ docker compose exec server node scripts/migration/migrateAlerts.js
 
 ---
 
+## Resetear Contraseña de Administrador
+
+Si olvidaste la contraseña del administrador, puedes resetearla con este script:
+
+```bash
+# Desde Windows PowerShell (host)
+docker compose exec server node scripts/resetAdminPassword.js <nueva-contraseña> [username]
+
+# Ejemplos:
+docker compose exec server node scripts/resetAdminPassword.js MiNuevaClave123
+docker compose exec server node scripts/resetAdminPassword.js MiNuevaClave123 admin
+```
+
+**Requisitos**:
+- La contraseña debe tener al menos 6 caracteres
+- El usuario debe existir en la base de datos
+- Por defecto se usa el usuario `admin` si no se especifica
+
+**Salida esperada**:
+```
+🔗 Conectando a MariaDB...
+✅ Conectado a MariaDB correctamente
+
+✅ Contraseña actualizada correctamente
+   Usuario: admin
+   Es administrador: Sí
+   Nueva contraseña: MiNuevaClave123
+
+⚠️  IMPORTANTE: Guarda esta contraseña en un lugar seguro
+```
+
+---
+
 ## Verificación Post-Migración
 
 ### 1. Conectar a MariaDB

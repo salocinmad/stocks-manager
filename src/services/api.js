@@ -135,6 +135,8 @@ export const notesAPI = {
   }
 };
 
+let _timeseriesCache = { ts: 0, key: '', pending: null }
+
 export const portfolioAPI = {
   contribution: ({ date } = {}) => {
     const pid = getCurrentPortfolioId();
@@ -150,7 +152,14 @@ export const portfolioAPI = {
     if (pid) qp.push(`portfolioId=${pid}`);
     if (days) qp.push(`days=${encodeURIComponent(days)}`);
     const q = qp.length ? `?${qp.join('&')}` : '';
-    return fetchAPI(`/portfolio/timeseries${q}`);
+    const key = `${pid || 'none'}-${days || 'all'}`;
+    const now = Date.now();
+    if (_timeseriesCache.pending && _timeseriesCache.key === key && (now - _timeseriesCache.ts) < 1000) {
+      return _timeseriesCache.pending;
+    }
+    const p = fetchAPI(`/portfolio/timeseries${q}`);
+    _timeseriesCache = { ts: now, key, pending: p };
+    return p;
   },
   list: () => fetchAPI('/portfolio'),
   create: (name) => fetchAPI('/portfolio', { method: 'POST', body: JSON.stringify({ name }) }),

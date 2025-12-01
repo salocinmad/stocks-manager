@@ -1,19 +1,11 @@
-import { useState } from 'react';
-
-export default function DeleteConfirmModal({ isOpen, onConfirm, onCancel, theme }) {
-    const [password, setPassword] = useState('');
-
+export default function DeleteConfirmModal({
+    isOpen,
+    tempPassword,
+    setTempPassword,
+    onConfirm,
+    onCancel
+}) {
     if (!isOpen) return null;
-
-    const handleConfirm = () => {
-        onConfirm(password);
-        setPassword('');
-    };
-
-    const handleCancel = () => {
-        onCancel();
-        setPassword('');
-    };
 
     return (
         <div className="modal">
@@ -26,14 +18,14 @@ export default function DeleteConfirmModal({ isOpen, onConfirm, onCancel, theme 
                     <label>Ingresa la contraseña para confirmar el borrado:</label>
                     <input
                         type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        value={tempPassword}
+                        onChange={(e) => setTempPassword(e.target.value)}
                         className="input"
                         placeholder="Escribe tu contraseña para confirmar"
                         autoFocus
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
-                                handleConfirm();
+                                onConfirm();
                             }
                         }}
                     />
@@ -42,12 +34,12 @@ export default function DeleteConfirmModal({ isOpen, onConfirm, onCancel, theme 
                     <button
                         type="button"
                         className="button danger"
-                        onClick={handleConfirm}
-                        disabled={!password}
+                        onClick={onConfirm}
+                        disabled={!tempPassword}
                     >
                         🗑️ Confirmar Borrado
                     </button>
-                    <button type="button" className="button" onClick={handleCancel}>
+                    <button type="button" className="button" onClick={onCancel}>
                         Cancelar
                     </button>
                 </div>

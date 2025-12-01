@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
+import { PortfolioProvider } from './context/PortfolioContext.jsx'
 import Login from './components/Login.jsx'
 import Admin from './components/Admin.jsx'
 import ResetAdmin from './components/ResetAdmin.jsx'
@@ -31,7 +32,9 @@ createRoot(document.getElementById('root')).render(
           path="/" 
           element={
             <ProtectedRoute>
-              <App />
+              <PortfolioProvider>
+                <App />
+              </PortfolioProvider>
             </ProtectedRoute>
           } 
         />

@@ -1,38 +1,7 @@
 
-// Determinar número de decimales apropiado para un precio
-export const getPriceDecimals = (price) => {
-    if (!price || price === 0) return 2;
+import { getPriceDecimals, formatPrice, formatCurrency } from './formatters.js';
 
-    // Si el precio es menor a 1, usar 4 decimales
-    if (price < 1) {
-        return 4;
-    }
-    // Si el precio es menor a 10, usar 3 decimales
-    if (price < 10) {
-        return 3;
-    }
-    // Si el precio es menor a 100, usar 2 decimales
-    if (price < 100) {
-        return 2;
-    }
-    // Para precios mayores, usar 2 decimales
-    return 2;
-};
-
-// Formatear precio con decimales apropiados
-export const formatPrice = (price) => {
-    if (price === null || price === undefined) return '-';
-    const decimals = getPriceDecimals(price);
-    return price.toFixed(decimals);
-};
-
-// Formatear moneda con símbolo correcto
-export const formatCurrency = (value, currencyCode) => {
-    if (value === null || value === undefined || isNaN(value)) return '-';
-    const formatted = parseFloat(value).toFixed(2);
-    const symbol = currencyCode === 'USD' ? '$' : (currencyCode === 'GBP' ? '£' : '€');
-    return `${symbol}${formatted}`;
-};
+export { getPriceDecimals, formatPrice, formatCurrency };
 
 // Mapear exchanges para Yahoo Finance
 export const mapExchangeToYahoo = (exchange) => {

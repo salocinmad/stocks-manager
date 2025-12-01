@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { notesAPI } from '../services/api.js';
+import { markdownToHtml as defaultMarkdownToHtml } from '../utils/formatters.js';
 
 export default function NoteModal({
     isOpen,
@@ -7,7 +8,8 @@ export default function NoteModal({
     positionKey,
     theme,
     notesCache,
-    setNotesCache
+    setNotesCache,
+    markdownRenderer
 }) {
     const [noteContent, setNoteContent] = useState('');
     const [noteOriginalContent, setNoteOriginalContent] = useState('');
@@ -38,37 +40,7 @@ export default function NoteModal({
         }
     }, [isOpen, positionKey]);
 
-    const escapeHtml = (str) => {
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    };
-
-    const markdownToHtml = (md) => {
-        const text = escapeHtml(md);
-        let html = text;
-        html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code}</code></pre>`);
-        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-        html = html.replace(/^######\s*(.*)$/gm, '<h6 style="font-size: 14px; font-weight: 600; margin: 12px 0 8px 0;">$1</h6>');
-        html = html.replace(/^#####\s*(.*)$/gm, '<h5 style="font-size: 16px; font-weight: 600; margin: 14px 0 8px 0;">$1</h5>');
-        html = html.replace(/^####\s*(.*)$/gm, '<h4 style="font-size: 18px; font-weight: 600; margin: 16px 0 10px 0;">$1</h4>');
-        html = html.replace(/^###\s*(.*)$/gm, '<h3 style="font-size: 20px; font-weight: 700; margin: 18px 0 10px 0;">$1</h3>');
-        html = html.replace(/^##\s*(.*)$/gm, '<h2 style="font-size: 24px; font-weight: 700; margin: 20px 0 12px 0;">$1</h2>');
-        html = html.replace(/^#\s*(.*)$/gm, '<h1 style="font-size: 28px; font-weight: 700; margin: 22px 0 14px 0;">$1</h1>');
-        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-        html = html.replace(/\n-{3,}\n/g, '<hr/>');
-        html = html.replace(/\n\n/g, '<br/><br/>');
-        html = html.replace(/\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-        html = html.replace(/^(?:-\s+.*\n?)+/gm, (block) => {
-            const items = block.trim().split(/\n/).map(li => li.replace(/^-\s+/, ''));
-            return '<ul>' + items.map(i => `<li>${i}</li>`).join('') + '</ul>';
-        });
-        return html;
-    };
+    const renderMarkdown = (md) => (markdownRenderer || defaultMarkdownToHtml)(md);
 
     const handleSave = async () => {
         try {
@@ -115,7 +87,7 @@ export default function NoteModal({
                         </div>
                     ) : (
                         <div className="card" style={{ width: '100%' }}>
-                            <div dangerouslySetInnerHTML={{ __html: markdownToHtml(noteContent || '') }} />
+                            <div dangerouslySetInnerHTML={{ __html: renderMarkdown(noteContent || '') }} />
                         </div>
                     )}
 

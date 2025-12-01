@@ -484,3 +484,6 @@ exit
 ---
 
 **¿Más dudas?** Consulta la [Guía de Instalación](./INSTALACION.md) o abre un issue en GitHub.
+
+
+I:\dev\stocks-manager>docker compose exec server node scripts/resetAdminPassword.js
