@@ -1693,7 +1693,6 @@ function App() {
                         const query = e.target.value;
                         setSearchQuery(query);
                         if (query.length >= 2) {
-                          setShowSuggestions(true);
                           searchCompanies(query);
                         } else {
                           setSearchResults([]);
