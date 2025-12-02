@@ -1,21 +1,144 @@
-MIT License
+# Licencia MIT / MIT License
 
-Copyright (c) 2024 Stocks Manager
+---
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## 📄 Versión en Español
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+**Licencia MIT**
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Copyright (c) 2025 Stocks Manager
+
+Por la presente se concede permiso, de forma gratuita, a cualquier persona que obtenga una copia de este software y de los archivos de documentación asociados (el "Software"), para tratar el Software sin restricción, incluyendo sin limitación los derechos de:
+
+✅ **Usar** el Software para cualquier propósito  
+✅ **Copiar** el Software  
+✅ **Modificar** el Software  
+✅ **Fusionar** el Software con otros proyectos  
+✅ **Publicar** el Software  
+✅ **Distribuir** el Software  
+✅ **Sublicenciar** el Software  
+✅ **Vender** copias del Software  
+✅ **Uso comercial** - Generar negocio con el Software  
+✅ **Desplegar** el Software en producción  
+
+Todo lo anterior está permitido, sujeto a las siguientes condiciones:
+
+### Condiciones Obligatorias:
+
+1. **Atribución Requerida**: El aviso de copyright anterior y este aviso de permiso se incluirán en todas las copias o partes sustanciales del Software.
+
+2. **Reconocimiento**: Se debe dar el crédito apropiado al autor original (Stocks Manager) en cualquier distribución o trabajo derivado.
+
+### Descargo de Responsabilidad:
+
+EL SOFTWARE SE PROPORCIONA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA O IMPLÍCITA, INCLUYENDO PERO NO LIMITADO A GARANTÍAS DE COMERCIABILIDAD, IDONEIDAD PARA UN PROPÓSITO PARTICULAR Y NO INFRACCIÓN. 
+
+EN NINGÚN CASO LOS AUTORES O TITULARES DEL COPYRIGHT SERÁN RESPONSABLES DE NINGUNA RECLAMACIÓN, DAÑO U OTRA RESPONSABILIDAD, YA SEA EN UNA ACCIÓN DE CONTRATO, AGRAVIO O DE OTRO MODO, DERIVADA DE, O EN CONEXIÓN CON EL SOFTWARE O EL USO U OTROS TRATOS EN EL SOFTWARE.
+
+### Resumen de Permisos:
+
+| Permiso | Permitido |
+|---------|-----------|
+| Uso comercial | ✅ SÍ |
+| Modificación | ✅ SÍ |
+| Distribución | ✅ SÍ |
+| Sublicenciar | ✅ SÍ |
+| Uso privado | ✅ SÍ |
+| Generar negocio | ✅ SÍ |
+| Despliegue en producción | ✅ SÍ |
+
+### Obligaciones:
+
+| Obligación | Requerido |
+|------------|-----------|
+| Incluir licencia | ✅ SÍ |
+| Incluir copyright | ✅ SÍ |
+| Dar crédito al autor | ✅ SÍ |
+| Garantía | ❌ NO (sin garantía) |
+| Responsabilidad | ❌ NO (sin responsabilidad del autor) |
+
+---
+
+## 📄 English Version
+
+**MIT License**
+
+Copyright (c) 2025 Stocks Manager
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to:
+
+✅ **Use** the Software for any purpose  
+✅ **Copy** the Software  
+✅ **Modify** the Software  
+✅ **Merge** the Software with other projects  
+✅ **Publish** the Software  
+✅ **Distribute** the Software  
+✅ **Sublicense** the Software  
+✅ **Sell** copies of the Software  
+✅ **Commercial use** - Generate business with the Software  
+✅ **Deploy** the Software in production  
+
+All of the above is permitted, subject to the following conditions:
+
+### Mandatory Conditions:
+
+1. **Attribution Required**: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+2. **Credit**: Appropriate credit must be given to the original author (Stocks Manager) in any distribution or derivative work.
+
+### Disclaimer:
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+### Summary of Permissions:
+
+| Permission | Allowed |
+|-----------|---------|
+| Commercial use | ✅ YES |
+| Modification | ✅ YES |
+| Distribution | ✅ YES |
+| Sublicensing | ✅ YES |
+| Private use | ✅ YES |
+| Generate business | ✅ YES |
+| Production deployment | ✅ YES |
+
+### Obligations:
+
+| Obligation | Required |
+|------------|----------|
+| Include license | ✅ YES |
+| Include copyright | ✅ YES |
+| Credit the author | ✅ YES |
+| Warranty | ❌ NO (no warranty) |
+| Liability | ❌ NO (no author liability) |
+
+---
+
+## 📝 How to Give Attribution / Cómo Dar Atribución
+
+### English:
+When using this software, include the following notice in your documentation, about page, or credits:
+
+```
+This project uses Stocks Manager
+Copyright (c) 2025 Stocks Manager
+Licensed under MIT License
+https://github.com/yourusername/stocks-manager
+```
+
+### Español:
+Al usar este software, incluye el siguiente aviso en tu documentación, página "acerca de", o créditos:
+
+```
+Este proyecto usa Stocks Manager
+Copyright (c) 2025 Stocks Manager
+Bajo Licencia MIT
+https://github.com/yourusername/stocks-manager
+```
+
+---
+
+**For full legal text, see**: https://opensource.org/licenses/MIT  
+**Para el texto legal completo, ver**: https://opensource.org/licenses/MIT
