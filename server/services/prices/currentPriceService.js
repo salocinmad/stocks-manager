@@ -214,6 +214,6 @@ export async function ensureAssetProfile(symbol, logLevel = 'info') {
             }
         }
     } catch (profileError) {
-        // Silently handle profile update errors
+        // Manejar silenciosamente errores de actualización de perfil
     }
 }

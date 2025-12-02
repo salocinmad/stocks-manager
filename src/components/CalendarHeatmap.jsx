@@ -2,8 +2,8 @@ import React from 'react';
 import './CalendarHeatmap.css';
 
 /**
- * Calendar Heatmap Component
- * Visualizes daily PnL performance in a GitHub-style contribution graph
+ * Componente de Mapa de Calor de Calendario
+ * Visualiza el rendimiento diario de PnL en un gráfico de contribución estilo GitHub
  */
 function CalendarHeatmap({ data = [], theme = 'dark' }) {
     if (!data || data.length === 0) {
@@ -14,7 +14,7 @@ function CalendarHeatmap({ data = [], theme = 'dark' }) {
         );
     }
 
-    // Group data by month and week
+    // Agrupar datos por mes y semana
     const monthsData = {};
     data.forEach(item => {
         const date = new Date(item.date);
@@ -32,7 +32,7 @@ function CalendarHeatmap({ data = [], theme = 'dark' }) {
         });
     });
 
-    // Calculate color intensity based on PnL
+    // Calcular intensidad de color basada en PnL
     const getColor = (value) => {
         if (value === null || value === undefined) return 'var(--heatmap-empty)';
 
@@ -40,13 +40,13 @@ function CalendarHeatmap({ data = [], theme = 'dark' }) {
         const intensity = Math.abs(value) / maxValue;
 
         if (value > 0) {
-            // Green gradient for profits
+            // Gradiente verde para ganancias
             if (intensity > 0.75) return '#22c55e';
             if (intensity > 0.5) return '#4ade80';
             if (intensity > 0.25) return '#86efac';
             return '#bbf7d0';
         } else if (value < 0) {
-            // Red gradient for losses
+            // Gradiente rojo para pérdidas
             if (intensity > 0.75) return '#ef4444';
             if (intensity > 0.5) return '#f87171';
             if (intensity > 0.25) return '#fca5a5';

@@ -9,7 +9,7 @@ import { Op } from 'sequelize';
 
 const router = express.Router();
 
-// GET /api/positions/order - Get user's custom position order
+// GET /api/positions/order - Obtener orden de posiciones personalizado del usuario
 router.get('/order', authenticate, async (req, res) => {
     try {
         const portfolioId = await resolvePortfolioId(req);
@@ -18,7 +18,7 @@ router.get('/order', authenticate, async (req, res) => {
             order: [['displayOrder', 'ASC']]
         });
 
-        // Return array of positionKeys in order
+        // Devolver array de positionKeys en orden
         const orderedKeys = orders.map(o => o.positionKey);
         res.json({ order: orderedKeys });
     } catch (error) {
@@ -27,7 +27,7 @@ router.get('/order', authenticate, async (req, res) => {
     }
 });
 
-// PUT /api/positions/order - Update user's custom position order
+// PUT /api/positions/order - Actualizar orden de posiciones personalizado del usuario
 router.put('/order', authenticate, async (req, res) => {
     try {
         const { order } = req.body;
@@ -36,13 +36,13 @@ router.put('/order', authenticate, async (req, res) => {
             return res.status(400).json({ error: 'El orden debe ser un array de positionKeys' });
         }
 
-        // Delete existing order for this user
+        // Eliminar orden existente para este usuario
         const portfolioId = await resolvePortfolioId(req);
         await PositionOrder.destroy({
             where: { userId: req.user.id, portfolioId }
         });
 
-        // Create new order entries
+        // Crear nuevas entradas de orden
         const orderEntries = order.map((positionKey, index) => ({
             userId: req.user.id,
             portfolioId,
@@ -61,27 +61,27 @@ router.put('/order', authenticate, async (req, res) => {
     }
 });
 
-// GET /api/positions/history/:positionKey - Get historical price data for a specific position
-// Query params: ?days=30 (default 30, supports 7, 30, 90, 180, 365)
+// GET /api/positions/history/:positionKey - Obtener datos históricos de precios para una posición específica
+// Parámetros de consulta: ?days=30 (por defecto 30, soporta 7, 30, 90, 180, 365)
 router.get('/history/:positionKey', authenticate, async (req, res) => {
     try {
         const portfolioId = await resolvePortfolioId(req);
         const { positionKey } = req.params;
         const { days } = req.query;
 
-        // Decode positionKey (may contain special characters like |||)
+        // Decodificar positionKey (puede contener caracteres especiales como |||)
         const decodedPositionKey = decodeURIComponent(positionKey);
 
-        // Parse days parameter, default to 30, max 365
+        // Analizar parámetro days, por defecto 30, máx 365
         let daysToFetch = parseInt(days) || 30;
-        daysToFetch = Math.min(Math.max(daysToFetch, 1), 365); // Clamp between 1 and 365
+        daysToFetch = Math.min(Math.max(daysToFetch, 1), 365); // Limitar entre 1 y 365
 
-        // Calculate date limit
+        // Calcular límite de fecha
         const dateLimit = new Date();
         dateLimit.setDate(dateLimit.getDate() - daysToFetch);
         const dateLimitStr = dateLimit.toISOString().split('T')[0];
 
-        // Fetch historical data from DailyPrice
+        // Obtener datos históricos de DailyPrice
         const historicalData = await DailyPrice.findAll({
             where: {
                 userId: req.user.id,
@@ -93,8 +93,8 @@ router.get('/history/:positionKey', authenticate, async (req, res) => {
             order: [['date', 'ASC']]
         });
 
-        // Fetch operations for markers
-        // Extract pure symbol if it has format "EXCHANGE:SYMBOL"
+        // Obtener operaciones para marcadores
+        // Extraer símbolo puro si tiene formato "EXCHANGE:SYMBOL"
         let searchSymbol = decodedPositionKey;
         if (decodedPositionKey.includes(':')) {
             searchSymbol = decodedPositionKey.split(':')[1];

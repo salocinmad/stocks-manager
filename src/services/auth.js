@@ -15,7 +15,7 @@ export const removeToken = () => {
   localStorage.removeItem('authToken');
 };
 
-// Login
+// Iniciar sesión
 export const login = async (username, password) => {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
@@ -35,11 +35,11 @@ export const login = async (username, password) => {
       localStorage.setItem('currentPortfolioId', String(data.user.favoritePortfolioId));
       localStorage.setItem('currentUserFavorite', String(data.user.favoritePortfolioId));
     }
-  } catch {}
+  } catch { }
   return data.user;
 };
 
-// Logout
+// Cerrar sesión
 export const logout = () => {
   removeToken();
 };

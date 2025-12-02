@@ -1,6 +1,6 @@
 ARG VITE_API_URL
 
-# Build stage
+# Etapa de construcción
 FROM node:22-alpine AS build
 
 # Configurar timezone española
@@ -28,7 +28,7 @@ ENV VITE_API_URL=${VITE_API_URL:-}
 # Build de la aplicación
 RUN npm run build
 
-# Production stage
+# Etapa de producción
 FROM nginx:alpine
 
 # Configurar timezone española

@@ -181,7 +181,7 @@ export const configAPI = {
   })
 };
 
-// Health check
+// Comprobación de estado
 export const healthCheck = () => fetchAPI('/health');
 
 // Helper para hacer requests autenticados que devuelven una imagen (Blob)
@@ -216,7 +216,7 @@ export const profilePicturesAPI = {
     return authenticatedFetch(`${API_BASE_URL}/profile-pictures`, {
       method: 'POST',
       body: formData,
-      // No Content-Type header needed for FormData, browser sets it
+      // No se necesita header Content-Type para FormData, el navegador lo establece
     }).then(response => {
       if (!response.ok) {
         return response.json().then(error => { throw new Error(error.message || `Error ${response.status}`); });

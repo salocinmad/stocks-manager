@@ -347,7 +347,7 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
             for (const day of pnlHistory) {
                 const pnl = day.pnlEUR;
 
-                // Drawdown calculation
+                // Cálculo de Drawdown
                 if (pnl > peak) peak = pnl;
                 const drawdown = peak > 0 ? ((pnl - peak) / peak) * 100 : 0;
 
@@ -362,7 +362,7 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
                     pnl: pnl
                 });
 
-                // Heatmap data: daily PnL change
+                // Datos de mapa de calor: cambio diario de PnL
                 heatmapData.push({
                     date: day.date,
                     value: pnl

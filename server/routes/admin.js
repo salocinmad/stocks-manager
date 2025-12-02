@@ -200,28 +200,28 @@ router.get('/backup/export', async (req, res) => {
     const format = req.query.format === 'sql' ? 'sql' : 'json'
     const models = [
       User, Portfolio, PortfolioReport, Config, Operation,
-      // Nuevas tablas globales (PRIORITY)
+      // Nuevas tablas globales (PRIORIDAD)
       GlobalCurrentPrice, GlobalStockPrice, UserStockAlert, AssetProfile,
-      // Tablas legacy (mantener para rollback)
+      // Tablas heredadas (mantener para reversión)
       PriceCache, DailyPrice,
       // Resto de tablas
       DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
     ]
     const data = {}
 
-    // Fetch all data
+    // Obtener todos los datos
     for (const model of models) {
       data[model.name] = await model.findAll()
     }
 
     if (format === 'json') {
-      console.log('Attempting to export JSON. Data keys:', Object.keys(data));
+      console.log('Intentando exportar JSON. Claves de datos:', Object.keys(data));
       res.setHeader('Content-Type', 'application/json')
       res.setHeader('Content-Disposition', `attachment; filename=backup_${new Date().toISOString().split('T')[0]}.json`)
       return res.send(JSON.stringify(data, null, 2))
     }
 
-    // SQL Format
+    // Formato SQL
     let sql = 'SET FOREIGN_KEY_CHECKS = 0;\n\n'
     for (const model of models) {
       const rows = data[model.name]
@@ -233,7 +233,7 @@ router.get('/backup/export', async (req, res) => {
             if (typeof v === 'boolean') return v ? 1 : 0
             if (typeof v === 'number') return v
             if (v instanceof Date) return `'${v.toISOString().slice(0, 19).replace('T', ' ')}'`
-            // Escape single quotes for SQL
+            // Escapar comillas simples para SQL
             return `'${String(v).replace(/'/g, "''").replace(/\\/g, '\\\\')}'`
           })
           sql += `INSERT INTO \`${model.tableName}\` VALUES (${values.join(', ')});\n`
@@ -248,7 +248,7 @@ router.get('/backup/export', async (req, res) => {
     res.send(sql)
 
   } catch (error) {
-    console.error('Backup export error:', error);
+    console.error('Error de exportación de respaldo:', error);
     res.status(500).json({ error: error.message });
   }
 })
@@ -270,7 +270,7 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
       DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
     ]
 
-    // Truncate all tables first
+    // Truncar todas las tablas primero
     for (const model of models) {
       await model.destroy({ where: {}, truncate: true, transaction: t })
     }
@@ -285,10 +285,10 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
         }
       }
     } else {
-      // SQL Import
+      // Importación SQL
       const statements = content.split(';').map(s => s.trim()).filter(s => s.length > 0)
       for (const stmt of statements) {
-        // Skip SET FOREIGN_KEY_CHECKS as we handle it manually
+        // Omitir SET FOREIGN_KEY_CHECKS ya que lo manejamos manualmente
         if (stmt.toUpperCase().includes('FOREIGN_KEY_CHECKS')) continue
         await sequelize.query(stmt, { transaction: t })
       }
@@ -299,20 +299,20 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
 
     res.json({ success: true, message: 'Restauración completada' })
 
-    // Reload scheduler config after successful import and response sent
+    // Recargar configuración del programador después de importación exitosa y respuesta enviada
     try {
       await scheduler.reload()
-      console.log('Scheduler reloaded successfully after import.');
+      console.log('Programador recargado correctamente después de la importación.');
     } catch (schedulerError) {
-      console.error('Error reloading scheduler after import:', schedulerError);
+      console.error('Error al recargar el programador después de la importación:', schedulerError);
     }
 
   } catch (error) {
-    // Only rollback if the transaction hasn't been committed yet
-    if (t.finished !== 'commit') { // Check if transaction is not committed
+    // Solo revertir si la transacción aún no se ha confirmado
+    if (t.finished !== 'commit') { // Verificar si la transacción no está confirmada
       await t.rollback()
     }
-    console.error('Backup import error:', error)
+    console.error('Error de importación de respaldo:', error)
 
     // Instancia de Yahoo Finance v3
     const yahooFinance = new YahooFinance({
@@ -374,7 +374,7 @@ router.post('/overwrite-history', async (req, res) => {
 export default router
 
 
-// Scheduler config routes
+// Rutas de configuración del programador
 router.get('/scheduler', async (req, res) => {
   try {
     const enabledRow = await Config.findOne({ where: { key: 'scheduler_enabled' } })
@@ -442,10 +442,10 @@ router.post('/daily-close/run', async (req, res) => {
 
 router.post('/daily-close/recompute-last', async (req, res) => {
   try {
-    // Import the PnL service
+    // Importar el servicio PnL
     const { calculatePnLForDate } = await import('../services/pnlService.js')
 
-    // Get all portfolios
+    // Obtener todos los portafolios
     const portfolios = await Portfolio.findAll({ attributes: ['id', 'userId'] })
 
     let totalProcessed = 0
@@ -455,7 +455,7 @@ router.post('/daily-close/recompute-last', async (req, res) => {
       const userId = pf.userId
       const portfolioId = pf.id
 
-      // Find all unique dates in DailyPrice for this portfolio
+      // Encontrar todas las fechas únicas en DailyPrice para este portafolio
       const dates = await DailyPrice.findAll({
         where: { userId, portfolioId },
         attributes: [[sequelize.fn('DISTINCT', sequelize.col('date')), 'date']],
@@ -463,7 +463,7 @@ router.post('/daily-close/recompute-last', async (req, res) => {
         raw: true
       })
 
-      // Recalculate PnL for each date
+      // Recalcular PnL para cada fecha
       for (const { date } of dates) {
         await calculatePnLForDate(userId, portfolioId, date)
         totalDatesProcessed++

@@ -47,7 +47,7 @@ function App() {
   const [priceError, setPriceError] = useState('');
   const [currentPrice, setCurrentPrice] = useState(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [missingApiKeyWarning, setMissingApiKeyWarning] = useState(false); // Warning for missing API key in ConfigModal
+  const [missingApiKeyWarning, setMissingApiKeyWarning] = useState(false); // Advertencia por falta de API key en ConfigModal
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   // Estados de precios gestionados por useLivePrices
@@ -73,9 +73,9 @@ function App() {
 
   const [notePositionKey, setNotePositionKey] = useState('');
   const [noteContent, setNoteContent] = useState('');
-  const [noteOriginalContent, setNoteOriginalContent] = useState(''); // For cancel functionality
-  const [noteEditMode, setNoteEditMode] = useState(false); // false = read mode, true = edit mode
-  const [showMarkdownHelp, setShowMarkdownHelp] = useState(false); // Markdown help guide
+  const [noteOriginalContent, setNoteOriginalContent] = useState(''); // Para funcionalidad de cancelar
+  const [noteEditMode, setNoteEditMode] = useState(false); // false = modo lectura, true = modo edición
+  const [showMarkdownHelp, setShowMarkdownHelp] = useState(false); // Guía de ayuda Markdown
   const [noteLoading, setNoteLoading] = useState(false);
   const [noteSaving, setNoteSaving] = useState(false);
   const [notesCache, setNotesCache] = useState({});
@@ -278,8 +278,8 @@ function App() {
           const ts = await portfolioAPI.timeseries({ days: 30 });
           // El backend ahora retorna pnlEUR directamente como totalValueEUR
           let series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }));
-          // Don't compute real-time PnL here during initial load - the useEffect 
-          // at line 398 will update it once currentPrices are loaded
+          // No calcular PnL en tiempo real aquí durante la carga inicial - el useEffect 
+          // en la línea 398 lo actualizará una vez que se carguen los precios actuales
           setPnlSeries(series);
         } catch (e) {
           console.log('No se pudo cargar la serie de PnL');
@@ -316,8 +316,8 @@ function App() {
         }
         const ts = await portfolioAPI.timeseries({ days: 30 });
         let series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }));
-        // Don't override with real-time PnL here - let the useEffect at line 398 handle it
-        // after operations state has been updated
+        // No sobrescribir con PnL en tiempo real aquí - dejar que el useEffect en la línea 398 lo maneje 
+        // después de que se actualice el estado de las operaciones
         setPnlSeries(series);
       } catch (e) {
         console.log('Error recargando datos por cambio de portafolio');
@@ -2038,7 +2038,7 @@ function App() {
         )
       }
 
-      {/* Markdown Help Modal */}
+      {/* Modal de Ayuda Markdown */}
       {
         showMarkdownHelp && (
           <div className="modal" style={{ zIndex: 10001 }}>
@@ -2110,11 +2110,11 @@ function App() {
             onUploadSuccess={async () => {
               setShowProfilePictureModal(false);
               await fetchProfilePicture(); // Asegurarse de que la URL se actualice antes de cerrar el modal
-              console.log('App: onUploadSuccess called. profilePictureUrl after fetch:', profilePictureUrl); // Re-fetch the profile picture after successful upload
+              console.log('App: onUploadSuccess called. profilePictureUrl after fetch:', profilePictureUrl); // Volver a cargar la imagen de perfil después de una subida exitosa
             }}
             onDeleteSuccess={async () => {
               setShowProfilePictureModal(false);
-              await fetchProfilePicture(); // Re-fetch the profile picture after successful deletion
+              await fetchProfilePicture(); // Volver a cargar la imagen de perfil después de un borrado exitoso
             }}
             currentProfilePictureUrl={profilePictureUrl}
             fetchProfilePicture={fetchProfilePicture}

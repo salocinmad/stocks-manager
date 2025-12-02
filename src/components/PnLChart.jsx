@@ -4,12 +4,12 @@ import ChartTypeToggle from './ChartTypeToggle';
 import './StockHistoryChart.css';
 
 const PnLChart = ({ data, theme, onTimePeriodChange }) => {
-    const [chartType, setChartType] = useState('area'); // Default: area
+    const [chartType, setChartType] = useState('area'); // Por defecto: área
     const [timePeriod, setTimePeriod] = useState('1m'); // 7d, 1m, 3m, 6m
     const chartContainerRef = useRef(null);
     const chartRef = useRef(null);
 
-    // Notify parent when time period changes
+    // Notificar al padre cuando cambia el periodo de tiempo
     useEffect(() => {
         if (onTimePeriodChange) {
             const daysMap = {
@@ -25,13 +25,13 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
     useEffect(() => {
         if (!data || data.length === 0 || !chartContainerRef.current) return;
 
-        // Remove existing chart
+        // Eliminar gráfico existente
         if (chartRef.current) {
             chartRef.current.remove();
             chartRef.current = null;
         }
 
-        // Create chart
+        // Crear gráfico
         const chart = createChart(chartContainerRef.current, {
             width: chartContainerRef.current.clientWidth,
             height: 300,
@@ -48,7 +48,7 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
             },
             timeScale: {
                 borderColor: theme === 'dark' ? '#404040' : '#cbd5e1',
-                timeVisible: false, // Hide time, show only date
+                timeVisible: false, // Ocultar hora, mostrar solo fecha
             },
             rightPriceScale: {
                 borderColor: theme === 'dark' ? '#404040' : '#cbd5e1',
@@ -70,15 +70,15 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
 
         chartRef.current = chart;
 
-        // Convert data to lightweight-charts format
+        // Convertir datos al formato lightweight-charts
         const formattedData = data.map(item => {
-            // Use date string directly (YYYY-MM-DD) to avoid time display issues
+            // Usar cadena de fecha directamente (YYYY-MM-DD) para evitar problemas de visualización de hora
             const time = item.date;
             const value = item.pnlEUR || 0;
             return {
                 time,
                 value,
-                // For candlestick and bar: simulate OHLC based on PnL
+                // Para velas y barras: simular OHLC basado en PnL
                 open: value,
                 high: value,
                 low: value,
@@ -86,7 +86,7 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
             };
         }).sort((a, b) => (new Date(a.time) - new Date(b.time)));
 
-        // Add series based on chart type
+        // Agregar series basadas en el tipo de gráfico
         let series;
         switch (chartType) {
             case 'bar':
@@ -120,7 +120,7 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
 
         chart.timeScale().fitContent();
 
-        // Create custom tooltip
+        // Crear tooltip personalizado
         const tooltipDiv = document.createElement('div');
         tooltipDiv.style.position = 'absolute';
         tooltipDiv.style.display = 'none';
@@ -151,7 +151,7 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
             const value = data.value !== undefined ? data.value : data.close;
             const dateStr = typeof param.time === 'string' ? param.time : new Date(param.time * 1000).toISOString().split('T')[0];
 
-            // Format date nicely (e.g., "28 oct '25")
+            // Formatear fecha amigablemente (ej., "28 oct '25")
             const date = new Date(dateStr);
             const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
             const formattedDate = `${date.getDate()} ${months[date.getMonth()]} '${date.getFullYear().toString().slice(-2)}`;
@@ -172,7 +172,7 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
             tooltipDiv.style.top = coordinate.y - 50 + 'px';
         });
 
-        // Handle resize
+        // Manejar redimensionamiento
         const handleResize = () => {
             if (chartContainerRef.current && chartRef.current) {
                 chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });

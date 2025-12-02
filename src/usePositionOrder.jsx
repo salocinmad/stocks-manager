@@ -35,11 +35,11 @@ export const usePositionOrder = (operations) => {
         }
     };
 
-    // Ensure a position key exists in the order array; if missing, append it
+    // Asegurar que una clave de posición exista en el array de orden; si falta, agregarla
     const ensurePositionInOrder = (positionKey) => {
         if (!positionOrder.includes(positionKey)) {
             const newOrder = [...positionOrder, positionKey];
-            // Save the updated order (persist to backend)
+            // Guardar el orden actualizado (persistir en backend)
             savePositionOrder(newOrder);
         }
     };

@@ -82,7 +82,7 @@ export default function OperationsHistory({
         );
     }
 
-    // Recent operations (when not showing history)
+    // Operaciones recientes (cuando no se muestra el historial)
     return (
         <div className="card">
             <h2>Operaciones Recientes</h2>

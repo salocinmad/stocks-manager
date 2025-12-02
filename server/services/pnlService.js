@@ -4,11 +4,11 @@ import DailyPrice from '../models/DailyPrice.js'
 import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
 
 /**
- * Calculates the portfolio history (PnL, Total Value, Total Invested) for a range of days.
+ * Calcula el historial del portafolio (PnL, Valor Total, Total Invertido) para un rango de días.
  * @param {number} userId
  * @param {number} portfolioId
  * @param {number} days
- * @returns {Promise<Array>} Array of daily stats
+ * @returns {Promise<Array>} Array de estadísticas diarias
  */
 export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) => {
     const endDate = new Date()
@@ -18,13 +18,13 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
     const startIso = startDate.toISOString().slice(0, 10)
     const endIso = endDate.toISOString().slice(0, 10)
 
-    // 1. Fetch all operations (we need full history to know positions at any point)
+    // 1. Obtener todas las operaciones (necesitamos el historial completo para conocer las posiciones en cualquier punto)
     const operations = await Operation.findAll({
         where: { userId, portfolioId },
         order: [['date', 'ASC']]
     })
 
-    // 2. Fetch all daily prices within the range
+    // 2. Obtener todos los precios diarios dentro del rango
     const prices = await DailyPrice.findAll({
         where: {
             userId,
@@ -33,7 +33,7 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
         }
     })
 
-    // Group prices by date and positionKey for fast lookup
+    // Agrupar precios por fecha y positionKey para búsqueda rápida
     // Map<date, Map<positionKey, priceObj>>
     const pricesByDate = new Map()
     for (const p of prices) {
@@ -45,28 +45,28 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
 
     const result = []
 
-    // Track last known prices for each position (for holidays when markets are closed)
+    // Rastrear últimos precios conocidos para cada posición (para festivos cuando los mercados están cerrados)
     const lastKnownPrices = new Map() // key -> { close, exchangeRate }
 
-    // Iterate day by day
+    // Iterar día a día
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
         const dateIso = d.toISOString().slice(0, 10)
 
-        // Skip weekends (0 = Sunday, 6 = Saturday)
+        // Saltar fines de semana (0 = Domingo, 6 = Sábado)
         const dayOfWeek = d.getDay()
         if (dayOfWeek === 0 || dayOfWeek === 6) {
             continue
         }
 
-        // Calculate positions held on this date
+        // Calcular posiciones mantenidas en esta fecha
         const dayOps = operations.filter(o => {
             const opDate = new Date(o.date).toISOString().slice(0, 10)
             return opDate <= dateIso
         })
 
-        // Calculate positions with proper cost basis logic
+        // Calcular posiciones con lógica de base de coste adecuada
         const finalPositions = new Map() // key -> { shares, costBasis }
-        let cumulativeRealizedPnL = 0 // Track realized PnL up to this date
+        let cumulativeRealizedPnL = 0 // Rastrear PnL realizado hasta esta fecha
 
         for (const o of dayOps) {
             const key = `${o.company}|||${o.symbol || ''}`
@@ -83,9 +83,9 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
                     const avgCost = pos.costBasis / pos.shares
                     const costRemoved = o.shares * avgCost
 
-                    // Calculate realized PnL for this sale
-                    // Sale Value in EUR = price * shares * exchangeRate
-                    // Cost Removed in EUR = costRemoved
+                    // Calcular PnL realizado para esta venta
+                    // Valor de Venta en EUR = price * shares * exchangeRate
+                    // Coste Eliminado en EUR = costRemoved
                     const saleValueEUR = o.price * o.shares * o.exchangeRate
                     const realizedPnL = saleValueEUR - costRemoved
                     cumulativeRealizedPnL += realizedPnL
@@ -96,14 +96,14 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
             }
         }
 
-        // Calculate Total Value for this day
+        // Calcular Valor Total para este día
         let dailyTotalValue = 0
         let dailyTotalInvested = 0
 
         const dayPrices = pricesByDate.get(dateIso) || new Map()
 
         for (const [key, pos] of finalPositions) {
-            if (pos.shares <= 0.000001) continue // Skip closed positions
+            if (pos.shares <= 0.000001) continue // Saltar posiciones cerradas
 
             dailyTotalInvested += pos.costBasis
 
@@ -112,14 +112,14 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
             let exchangeRate = null
 
             if (priceObj && priceObj.close > 0) {
-                // Use the closing price and exchange rate from that day
+                // Usar el precio de cierre y tipo de cambio de ese día
                 close = priceObj.close
                 exchangeRate = priceObj.exchangeRate
-                // Update last known price for this position
+                // Actualizar último precio conocido para esta posición
                 lastKnownPrices.set(key, { close, exchangeRate })
             } else {
-                // No price or price is 0 (market closed, e.g., Thanksgiving)
-                // Use last known price from previous business day
+                // Sin precio o precio es 0 (mercado cerrado, ej: Acción de Gracias)
+                // Usar último precio conocido del día hábil anterior
                 const lastKnown = lastKnownPrices.get(key)
                 if (lastKnown) {
                     close = lastKnown.close
@@ -137,7 +137,7 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
             date: dateIso,
             totalValueEUR: dailyTotalValue,
             totalInvestedEUR: dailyTotalInvested,
-            pnlEUR: (dailyTotalValue - dailyTotalInvested) + cumulativeRealizedPnL // Add realized PnL
+            pnlEUR: (dailyTotalValue - dailyTotalInvested) + cumulativeRealizedPnL // Añadir PnL realizado
         })
     }
 
@@ -145,25 +145,25 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
 }
 
 /**
- * Calculates and updates PnL for a specific date.
+ * Calcula y actualiza el PnL para una fecha específica.
  * @param {number} userId
  * @param {number} portfolioId
  * @param {string} dateIso YYYY-MM-DD
  */
 export const calculatePnLForDate = async (userId, portfolioId, dateIso) => {
-    // 1.  Get all operations
+    // 1. Obtener todas las operaciones
     const operations = await Operation.findAll({
         where: { userId, portfolioId },
         order: [['date', 'ASC']]
     })
 
-    // 2. Filter ops up to date
+    // 2. Filtrar operaciones hasta la fecha
     const dayOps = operations.filter(o => {
         const opDate = new Date(o.date).toISOString().slice(0, 10)
         return opDate <= dateIso
     })
 
-    // 3. Calculate Positions with average cost basis
+    // 3. Calcular Posiciones con base de coste promedio
     const finalPositions = new Map()
     for (const o of dayOps) {
         const key = `${o.company}|||${o.symbol || ''}`
@@ -185,7 +185,7 @@ export const calculatePnLForDate = async (userId, portfolioId, dateIso) => {
         }
     }
 
-    // 4. Get Prices for that date
+    // 4. Obtener Precios para esa fecha
     const prices = await DailyPrice.findAll({
         where: { userId, portfolioId, date: dateIso }
     })
@@ -209,7 +209,7 @@ export const calculatePnLForDate = async (userId, portfolioId, dateIso) => {
 
     const pnlEUR = totalValueEUR - totalInvestedEUR
 
-    // 5. Update/Create DailyPortfolioStats
+    // 5. Actualizar/Crear DailyPortfolioStats
     const existing = await DailyPortfolioStats.findOne({ where: { userId, portfolioId, date: dateIso } })
     if (existing) {
         await existing.update({ totalInvestedEUR, totalValueEUR, pnlEUR })
@@ -221,120 +221,120 @@ export const calculatePnLForDate = async (userId, portfolioId, dateIso) => {
 }
 
 /**
- * Calculates monthly PnL analysis for the last 12 completed months.
- * Excludes the current month.
+ * Calcula el análisis mensual de PnL para los últimos 12 meses completados.
+ * Excluye el mes actual.
  * @param {number} userId
  * @param {number} portfolioId
- * @returns {Promise<Array>} Array of { month: 'YYYY-MM', gain: number, growthRate: number }
+ * @returns {Promise<Array>} Array de { month: 'YYYY-MM', gain: number, growthRate: number }
  */
 export const calculateMonthlyAnalysis = async (userId, portfolioId) => {
     const monthsToAnalyze = 12
     const results = []
 
-    // Start from last month
+    // Comenzar desde el mes pasado
     const date = new Date()
-    date.setDate(1) // Go to first day of current month
+    date.setDate(1) // Ir al primer día del mes actual
     date.setHours(0, 0, 0, 0)
 
     for (let i = 0; i < monthsToAnalyze; i++) {
-        // Go back one month
+        // Retroceder un mes
         date.setMonth(date.getMonth() - 1)
 
-        // Get last day of that month
+        // Obtener último día de ese mes
         const year = date.getFullYear()
         const month = date.getMonth()
         const lastDay = new Date(year, month + 1, 0)
         const lastDayIso = lastDay.toISOString().slice(0, 10)
         const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`
 
-        // Calculate PnL for that date
-        // We use calculatePnLForDate which handles "last known price" if the market was closed
-        // However, calculatePnLForDate uses DailyPrice.findAll({ where: { date: dateIso } })
-        // If the last day of the month was a Sunday, we might not have a price for that exact date
-        // But calculatePnLForDate logic (as currently implemented) might need a small tweak or we rely on it finding prices?
-        // Wait, calculatePnLForDate fetches prices for *that specific date*. 
-        // If that date is a Sunday, it returns empty prices, and then logic says:
-        // "if (priceObj && priceObj.close > 0) ... else { // No price ... }"
-        // But calculatePnLForDate DOES NOT implement the "last known price" lookback logic that calculatePortfolioHistory does.
-        // calculatePortfolioHistory iterates day by day and keeps state. calculatePnLForDate is stateless for a single day.
+        // Calcular PnL para esa fecha
+        // Usamos calculatePnLForDate que maneja "último precio conocido" si el mercado estaba cerrado
+        // Sin embargo, calculatePnLForDate usa DailyPrice.findAll({ where: { date: dateIso } })
+        // Si el último día del mes fue un domingo, podríamos no tener un precio para esa fecha exacta
+        // Pero la lógica de calculatePnLForDate (tal como está implementada actualmente) podría necesitar un pequeño ajuste o confiamos en que encuentre precios?
+        // Espera, calculatePnLForDate obtiene precios para *esa fecha específica*. 
+        // Si esa fecha es un domingo, devuelve precios vacíos, y luego la lógica dice:
+        // "if (priceObj && priceObj.close > 0) ... else { // Sin precio ... }"
+        // Pero calculatePnLForDate NO implementa la lógica de búsqueda hacia atrás de "último precio conocido" que hace calculatePortfolioHistory.
+        // calculatePortfolioHistory itera día a día y mantiene estado. calculatePnLForDate no tiene estado para un solo día.
 
-        // So we should actually use calculatePortfolioHistory logic but just for the specific dates we need?
-        // Or better: Use calculatePortfolioHistory for the whole year range and then pick the month-end dates.
-        // That's much more efficient and robust because it naturally handles the "last known price" continuity.
+        // Así que deberíamos usar la lógica de calculatePortfolioHistory pero solo para las fechas específicas que necesitamos?
+        // O mejor: Usar calculatePortfolioHistory para todo el rango del año y luego elegir las fechas de fin de mes.
+        // Eso es mucho más eficiente y robusto porque maneja naturalmente la continuidad del "último precio conocido".
 
-        // Let's change strategy: Fetch history for the last 13 months (to get start of first month)
-        // and then sample the month-end dates.
+        // Vamos a cambiar la estrategia: Obtener historial para los últimos 13 meses (para obtener el inicio del primer mes)
+        // y luego muestrear las fechas de fin de mes.
     }
 
-    // New Strategy:
+    // Nueva Estrategia:
     const today = new Date()
     const endDate = new Date()
-    endDate.setDate(0) // Last day of previous month
+    endDate.setDate(0) // Último día del mes anterior
 
     const startDate = new Date(endDate)
-    startDate.setFullYear(startDate.getFullYear() - 1) // 1 year ago
-    startDate.setDate(1) // 1st of that month
+    startDate.setFullYear(startDate.getFullYear() - 1) // 1 año atrás
+    startDate.setDate(1) // 1ro de ese mes
 
-    // Calculate days from TODAY back to startDate to ensure we cover the whole period
+    // Calcular días desde HOY hasta startDate para asegurar que cubrimos todo el periodo
     const diffTime = Math.abs(today - startDate)
     const daysToFetch = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 5 // Buffer
 
-    // calculatePortfolioHistory returns business days only (skips weekends)
-    // It also handles holidays by carrying forward the last known price.
+    // calculatePortfolioHistory devuelve solo días hábiles (salta fines de semana)
+    // También maneja festivos arrastrando el último precio conocido.
     const history = await calculatePortfolioHistory(userId, portfolioId, daysToFetch)
 
-    // Now group by month and pick the last entry for each month
+    // Ahora agrupar por mes y elegir la última entrada para cada mes
     const monthlyMap = new Map()
 
     history.forEach(dayStat => {
         const d = new Date(dayStat.date)
-        // Filter out current month if it somehow got in (though we set endDate to last month)
-        // Actually calculatePortfolioHistory uses "days" from today. 
-        // So it includes today. We need to filter.
+        // Filtrar el mes actual si se coló de alguna manera (aunque establecimos endDate al mes pasado)
+        // En realidad calculatePortfolioHistory usa "días" desde hoy. 
+        // Así que incluye hoy. Necesitamos filtrar.
 
         const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
-        // We want the last available data point for each month
-        // Since history is ordered by date, we can just overwrite
+        // Queremos el último punto de datos disponible para cada mes
+        // Como el historial está ordenado por fecha, podemos simplemente sobrescribir
         monthlyMap.set(monthKey, dayStat)
     })
 
-    // Filter out current month just in case
+    // Filtrar mes actual por si acaso
     const currentMonthKey = new Date().toISOString().slice(0, 7)
     if (monthlyMap.has(currentMonthKey)) {
         monthlyMap.delete(currentMonthKey)
     }
 
-    // Convert to array
+    // Convertir a array
     const monthlyStats = Array.from(monthlyMap.entries())
         .map(([month, stat]) => ({
             month,
-            gain: stat.pnlEUR, // Absolute PnL at end of month
+            gain: stat.pnlEUR, // PnL absoluto al final del mes
             totalValue: stat.totalValueEUR,
             date: stat.date
         }))
         .sort((a, b) => a.month.localeCompare(b.month))
 
-    // Calculate growth rate (month over month)
-    // Wait, user wants "Monthly Analysis".
-    // If I show "Gain: +103", is that the PnL of that month? Or total PnL?
-    // User said: "se debera tener el PnL del ultimo dia del mes".
-    // If I show bars of Total PnL, it shows the trend of wealth.
-    // If I show bars of Monthly Gain (Delta), it shows performance per month.
-    // The screenshot shows "Mejor Mes". You can't have a "Best Month" of Total PnL (that's just "All Time High").
-    // "Best Month" implies the month where you made the most money.
-    // So I should calculate the DELTA.
-    // Gain = PnL(End of Month) - PnL(End of Previous Month).
+    // Calcular tasa de crecimiento (mes sobre mes)
+    // Espera, el usuario quiere "Análisis Mensual".
+    // Si muestro "Ganancia: +103", ¿es el PnL de ese mes? ¿O el PnL total?
+    // El usuario dijo: "se debera tener el PnL del ultimo dia del mes".
+    // Si muestro barras de PnL Total, muestra la tendencia de riqueza.
+    // Si muestro barras de Ganancia Mensual (Delta), muestra el rendimiento por mes.
+    // La captura de pantalla muestra "Mejor Mes". No puedes tener un "Mejor Mes" de PnL Total (eso es solo "Máximo Histórico").
+    // "Mejor Mes" implica el mes donde ganaste más dinero.
+    // Así que calcularé el DELTA.
+    // Ganancia = PnL(Fin de Mes) - PnL(Fin de Mes Anterior).
 
     const finalResults = []
     for (let i = 0; i < monthlyStats.length; i++) {
         const current = monthlyStats[i]
         const prev = i > 0 ? monthlyStats[i - 1] : null
 
-        // If no previous month, gain is just the current PnL (assuming started at 0? or just show N/A?)
-        // Or we can try to fetch one more month back to get the start.
-        // For now, let's use the PnL as is for the first one, or 0 if we want strict delta.
-        // Actually, if we want "Best Month", we need deltas.
+        // Si no hay mes anterior, la ganancia es solo el PnL actual (¿asumiendo que empezó en 0? ¿o solo mostrar N/A?)
+        // O podemos intentar obtener un mes más atrás para obtener el inicio.
+        // Por ahora, usemos el PnL tal cual para el primero, o 0 si queremos delta estricto.
+        // En realidad, si queremos "Mejor Mes", necesitamos deltas.
 
         let monthlyGain = current.gain
         let growthRate = 0
@@ -342,36 +342,36 @@ export const calculateMonthlyAnalysis = async (userId, portfolioId) => {
         if (prev) {
             monthlyGain = current.gain - prev.gain
             if (prev.totalValue > 0) {
-                // Growth based on Total Value? Or PnL change?
-                // Usually (EndValue - StartValue) / StartValue - NetFlows...
-                // But simplified: (CurrentPnL - PrevPnL) / PrevTotalValue?
-                // Let's stick to simple PnL delta.
-                // Growth rate: (CurrentTotalValue - PrevTotalValue) / PrevTotalValue * 100
-                // But this includes deposits.
-                // We want performance.
-                // Let's just use PnL Delta for "Gain".
-                // And for growth rate... maybe just (PnL Delta) / Invested?
-                // Let's stick to what reportGenerator did:
+                // ¿Crecimiento basado en Valor Total? ¿O cambio de PnL?
+                // Usualmente (ValorFinal - ValorInicial) / ValorInicial - FlujosNetos...
+                // Pero simplificado: (PnLActual - PnLPrevio) / ValorTotalPrevio?
+                // Quedémonos con delta de PnL simple.
+                // Tasa de crecimiento: (ValorTotalActual - ValorTotalPrevio) / ValorTotalPrevio * 100
+                // Pero esto incluye depósitos.
+                // Queremos rendimiento.
+                // Usemos solo Delta de PnL para "Ganancia".
+                // Y para tasa de crecimiento... ¿quizás solo (Delta PnL) / Invertido?
+                // Quedémonos con lo que hizo reportGenerator:
                 // growthRate: ((lastReport.totalValueEUR - firstReport.totalValueEUR) / firstReport.totalValueEUR) * 100
-                // This is flawed if there are deposits.
+                // Esto es defectuoso si hay depósitos.
 
-                // Let's just return the PnL Delta as "gain".
-                // And maybe omit growth rate or calculate it as Gain / TotalInvested?
+                // Devolvamos el Delta de PnL como "ganancia".
+                // Y quizás omitir tasa de crecimiento o calcularla como Ganancia / TotalInvertido?
             }
         }
 
-        // Wait, the user said "se debera tener el PnL del ultimo dia del mes".
-        // Maybe they DO want the absolute PnL?
+        // Espera, el usuario dijo "se debera tener el PnL del ultimo dia del mes".
+        // ¿Quizás SÍ quieren el PnL absoluto?
         // "Mejor Mes: 2025-11 +103".
-        // If I have PnL 100 in Oct and 203 in Nov. Gain is 103.
-        // If I have PnL 100 in Oct and 100 in Nov. Gain is 0.
-        // This makes sense for "Best Month".
-        // So I WILL calculate the delta.
+        // Si tengo PnL 100 en Oct y 203 en Nov. Ganancia es 103.
+        // Si tengo PnL 100 en Oct y 100 en Nov. Ganancia es 0.
+        // Esto tiene sentido para "Mejor Mes".
+        // Así que calcularé el delta.
 
         finalResults.push({
             month: current.month,
             gain: monthlyGain,
-            growthRate: 0, // Placeholder or calculate if needed
+            growthRate: 0, // Placeholder o calcular si es necesario
             totalValue: current.totalValue
         })
     }

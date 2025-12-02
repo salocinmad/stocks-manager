@@ -25,10 +25,10 @@ const getConfig = async () => {
   const enabledRow = await Config.findOne({ where: { key: 'daily_close_enabled' } })
   const timeRow = await Config.findOne({ where: { key: 'daily_close_time' } })
   const enabled = enabledRow ? enabledRow.value === 'true' : true
-  // Default to 01:00 if not set
+  // Por defecto a las 01:00 si no está configurado
   const timeStr = timeRow?.value || '01:00'
 
-  // If time config doesn't exist, create it with default 01:00
+  // Si la configuración de hora no existe, crearla con el valor por defecto 01:00
   if (!timeRow) {
     await Config.create({ key: 'daily_close_time', value: '01:00' })
   }
@@ -102,7 +102,7 @@ export const runDailyOnce = async () => {
       for (const pf of portfolios) {
         const portfolioId = pf.id
 
-        // 1. Calculate Active Positions and Total Cost (Invested Capital)
+        // 1. Calcular Posiciones Activas y Coste Total (Capital Invertido)
         const ops = await Operation.findAll({ where: { userId, portfolioId } })
         const positionsMap = new Map()
 
@@ -129,13 +129,13 @@ export const runDailyOnce = async () => {
         const activePositions = Array.from(positionsMap.values()).filter(p => p.shares > 0)
         const totalInvestedEUR = activePositions.reduce((sum, p) => sum + p.totalCost, 0)
 
-        // 2. Fetch/Update Daily Prices and Calculate Total Market Value
+        // 2. Obtener/Actualizar Precios Diarios y Calcular Valor Total de Mercado
         let totalValueEUR = 0
 
         for (const p of activePositions) {
           const pk = `${p.company}|||${p.symbol}`
           try {
-            // Try to find existing daily price first to avoid re-fetching if already run today
+            // Intentar encontrar precio diario existente primero para evitar re-fetch si ya se ejecutó hoy
             let dailyPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date } })
 
             if (!dailyPrice) {
@@ -201,7 +201,7 @@ export const runDailyOnce = async () => {
           }
         }
 
-        // 3. Calculate PnL and Save Snapshot (only if not exists - immutable historical data)
+        // 3. Calcular PnL y Guardar Snapshot (solo si no existe - datos históricos inmutables)
         const pnlEUR = totalValueEUR - totalInvestedEUR
 
         try {
@@ -262,24 +262,24 @@ export const runDailyOnce = async () => {
     }
 
 
-    // 4. Update S&P 500 in the truth table (userId=0, portfolioId=0)
+    // 4. Actualizar S&P 500 en la tabla de verdad absoluta (userId=0, portfolioId=0)
     try {
       if (currentLogLevel === 'verbose') {
         console.log('📊 Actualizando S&P 500 en tabla de verdad absoluta...');
       }
       const sp500Symbol = '^GSPC';
       const sp500PositionKey = 'S&P 500|||^GSPC';
-      
+
       const existing = await DailyPrice.findOne({
         where: { userId: 0, portfolioId: 0, positionKey: sp500PositionKey, date }
       });
-      
+
       if (!existing) {
         const sp500Data = await fetchPreviousClose(sp500Symbol);
         if (sp500Data) {
           const { close, currency = 'USD', change, changePercent, source = 'yahoo' } = sp500Data;
           const exchangeRate = fxMap[currency] ?? 1;
-          
+
           await DailyPrice.create({
             userId: 0,
             portfolioId: 0,
@@ -295,7 +295,7 @@ export const runDailyOnce = async () => {
             changePercent,
             shares: 0
           });
-          
+
           if (currentLogLevel === 'verbose') {
             console.log(`✅ S&P 500 actualizado: ${close} ${currency}`);
           }
@@ -303,10 +303,10 @@ export const runDailyOnce = async () => {
           console.log('⚠️ No se pudo obtener datos del S&P 500');
         }
       } else {
-          if (currentLogLevel === 'verbose') {
-            console.log('✓ S&P 500 ya actualizado para hoy');
-          }
+        if (currentLogLevel === 'verbose') {
+          console.log('✓ S&P 500 ya actualizado para hoy');
         }
+      }
     } catch (sp500Err) {
       if (currentLogLevel === 'verbose') {
         console.error('❌ Error actualizando S&P 500:', sp500Err.message);

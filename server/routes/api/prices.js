@@ -291,17 +291,17 @@ router.put('/:positionKey', async (req, res) => {
             })
         }
 
-        // Trigger async profile update (non-blocking)
+        // Activar actualización de perfil asíncrona (no bloqueante)
         ensureAssetProfile(positionKey).catch(err => console.error(`Error updating profile for ${positionKey}:`, err.message));
 
-        // Check target price and notify
+        // Verificar precio objetivo y notificar
         try {
             const [company, symbol] = positionKey.includes('|||') ? positionKey.split('|||') : [positionKey, '']
             const where = symbol ? { userId: req.user.id, portfolioId, company, symbol } : { userId: req.user.id, portfolioId, company, symbol: '' }
             const ops = await Operation.findAll({ where })
             const purchases = ops.filter(o => o.type === 'purchase' && o.targetPrice && o.targetPrice > 0)
             if (purchases.length > 0) {
-                // Use latest purchase's targetPrice
+                // Usar precio objetivo de la última compra
                 purchases.sort((a, b) => new Date(b.date) - new Date(a.date))
                 const target = purchases[0].targetPrice
                 if (typeof target === 'number' && price >= target) {
@@ -323,7 +323,7 @@ router.put('/:positionKey', async (req, res) => {
                 }
             }
         } catch (e) {
-            // swallow notification errors to not break price upsert
+            // ignorar errores de notificación para no interrumpir la actualización de precios
         }
         res.json({ success: true })
     } catch (error) {

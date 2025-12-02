@@ -60,7 +60,7 @@ app.use(express.json());
 // Servir imágenes de perfil estáticas
 app.use('/images/profile-pictures', express.static(PROFILE_PICTURES_DIR));
 
-// Global Request Logger
+// Registro global de solicitudes
 app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.url}`);
   next();
@@ -75,7 +75,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/yahoo', yahooRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/positions', positionRoutes);
-// app.use('/api/prices', pricesRoutes);  // ← DEPRECATED: usar API modular abajo
+// app.use('/api/prices', pricesRoutes);  // ← OBSOLETO: usar API modular abajo
 app.use('/api/notes', notesRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile-pictures', profilePicturesRoutes);
@@ -90,7 +90,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// Start scheduler after DB sync
+// Iniciar programador después de sincronizar BD
 connectDB().then(async () => {
   try {
     const r = await scheduler.start();

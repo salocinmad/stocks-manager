@@ -4,7 +4,7 @@ const LOG_LEVEL_KEY = 'logLevel';
 
 export async function getLogLevel() {
     const config = await Config.findOne({ where: { key: LOG_LEVEL_KEY } });
-    return config ? config.value : 'minimal'; // Default to minimal logging
+    return config ? config.value : 'minimal'; // Por defecto log mínimo
 }
 
 export async function setLogLevel(level) {

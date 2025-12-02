@@ -131,7 +131,7 @@ export default function NoteModal({
                 </div>
             </div>
 
-            {/* Markdown Help Modal */}
+            {/* Modal de Ayuda Markdown */}
             {showMarkdownHelp && (
                 <div className="modal" style={{ zIndex: 10001 }}>
                     <div className="modal-content" style={{ maxWidth: '700px', width: '100%' }}>

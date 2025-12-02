@@ -63,11 +63,11 @@ router.get('/timeseries', async (req, res) => {
     since.setDate(since.getDate() - days)
     const sinceDate = since.toISOString().slice(0, 10)
 
-    // Use dynamic calculation service
+    // Usar servicio de cálculo dinámico
     const { calculatePortfolioHistory } = await import('../services/pnlService.js')
     const history = await calculatePortfolioHistory(userId, portfolioId, days)
 
-    // Map to frontend contract: totalValueEUR is actually pnlEUR
+    // Mapear al contrato del frontend: totalValueEUR es en realidad pnlEUR
     const result = history.map(h => ({ date: h.date, totalValueEUR: h.pnlEUR }))
 
     res.json({ days, items: result })
