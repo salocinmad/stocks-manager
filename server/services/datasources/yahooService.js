@@ -6,6 +6,9 @@
 
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
 import { getLogLevel } from '../configService.js';
+import YahooFinance from 'yahoo-finance2';
+
+const yahooFinance = new YahooFinance();
 
 /**
  * Obtiene quote de Yahoo Finance usando fetch directo
@@ -204,51 +207,34 @@ export async function fetchAssetProfile(symbol) {
         let yahooSymbol = parts[parts.length - 1];
         yahooSymbol = yahooSymbol.replace(/:/g, '.');
 
-        const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${yahooSymbol}?modules=assetProfile,summaryDetail,defaultKeyStatistics`;
-
-        if (currentLogLevel === 'verbose') {
-            console.log(`🔍 Yahoo Profile API: ${url}`);
-        }
-
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
+        const result = await yahooFinance.quoteSummary(yahooSymbol, {
+            modules: ['assetProfile', 'summaryDetail', 'defaultKeyStatistics']
         });
 
-        if (!response.ok) {
-            if (currentLogLevel === 'verbose') {
-                console.log(`⚠️  Yahoo Profile ${symbol}: HTTP ${response.status}`);
-            }
+        if (!result) {
             return null;
         }
-
-        const data = await response.json();
-        const result = data.quoteSummary?.result?.[0];
-
-        if (!result) return null;
 
         const profile = result.assetProfile || {};
         const stats = result.defaultKeyStatistics || {};
         const summary = result.summaryDetail || {};
 
-        return {
+        const profileData = {
             symbol: symbol,
             sector: profile.sector || 'Unknown',
             industry: profile.industry || 'Unknown',
-            beta: stats.beta?.raw || null,
-            dividendYield: summary.dividendYield?.raw ? (summary.dividendYield.raw * 100) : null,
-            marketCap: summary.marketCap?.raw || null,
+            beta: stats.beta || null,
+            dividendYield: summary.dividendYield ? (summary.dividendYield * 100) : null,
+            marketCap: summary.marketCap || null,
             currency: summary.currency || null,
             description: profile.longBusinessSummary || null,
             website: profile.website || null,
             updatedAt: new Date()
         };
 
+        return profileData;
+
     } catch (error) {
-        if (currentLogLevel === 'verbose') {
-            console.error(`❌ Yahoo Profile ${symbol}:`, error.message);
-        }
         return null;
     }
 }

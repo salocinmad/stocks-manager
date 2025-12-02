@@ -79,31 +79,9 @@ export async function updateAllActivePrices() {
             }
             updated++;
 
-            // 3. Actualizar Perfil del Activo (Sector, Industria, etc.)
-            // Solo si no existe o es muy viejo (> 30 días)
-            try {
-                const profile = await AssetProfile.findByPk(symbol);
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            // 3. Actualizar Perfil del Activo
+            await ensureAssetProfile(symbol, currentLogLevel);
 
-                if (!profile || profile.updatedAt < thirtyDaysAgo) {
-                    if (currentLogLevel === 'verbose') {
-                        console.log(`ℹ️  Actualizando perfil para ${symbol}...`);
-                    }
-                    const profileData = await fetchAssetProfile(symbol);
-                    if (profileData) {
-                        await AssetProfile.upsert(profileData);
-                        if (currentLogLevel === 'verbose') {
-                            console.log(`✅ Perfil actualizado para ${symbol}`);
-                        }
-                    }
-                }
-            } catch (profileError) {
-                // No fallar todo el proceso si falla el perfil
-                if (currentLogLevel === 'verbose') {
-                    console.error(`⚠️ Error actualizando perfil ${symbol}:`, profileError.message);
-                }
-            }
         } catch (error) {
             if (currentLogLevel === 'verbose') {
                 console.error(`❌ ${symbol}:`, error.message);
@@ -217,3 +195,25 @@ export default {
     getCurrentPrice,
     getCurrentBatch
 };
+
+/**
+ * Asegura que exista un perfil de activo actualizado
+ * @param {string} symbol - Símbolo del activo
+ * @param {string} logLevel - Nivel de log actual
+ */
+export async function ensureAssetProfile(symbol, logLevel = 'info') {
+    try {
+        const profile = await AssetProfile.findByPk(symbol);
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        if (!profile || profile.updatedAt < thirtyDaysAgo) {
+            const profileData = await fetchAssetProfile(symbol);
+            if (profileData) {
+                await AssetProfile.upsert(profileData);
+            }
+        }
+    } catch (profileError) {
+        // Silently handle profile update errors
+    }
+}

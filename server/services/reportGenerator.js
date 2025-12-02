@@ -271,7 +271,13 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
         };
 
         try {
-            const symbols = Object.keys(activePositions).map(k => k.split('|||')[1] || k.split('|||')[0]); // Extract symbol
+            // Extraer símbolos únicos de positionKey (format: "Company|||SYMBOL")
+            const symbolsSet = new Set();
+            Object.keys(activePositions).forEach(positionKey => {
+                symbolsSet.add(positionKey); // El positionKey completo es lo que usamos como symbol
+            });
+            const symbols = Array.from(symbolsSet);
+
             const profiles = await AssetProfile.findAll({
                 where: { symbol: { [Op.in]: symbols } }
             });
@@ -283,7 +289,8 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
             let totalDivWeight = 0;
 
             Object.values(activePositions).forEach(pos => {
-                const symbol = pos.symbol || pos.company; // Fallback
+                // Usar positionKey como símbolo (es el mismo que guardamos en AssetProfile)
+                const symbol = pos.positionKey;
                 const profile = profileMap[symbol];
                 const priceData = currentPrices[pos.positionKey];
 

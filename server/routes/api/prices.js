@@ -5,6 +5,7 @@
 import express from 'express';
 import { authenticate } from '../../middleware/auth.js';
 import * as currentPriceService from '../../services/prices/currentPriceService.js';
+import { ensureAssetProfile } from '../../services/prices/currentPriceService.js';
 import * as historicalPriceService from '../../services/prices/historicalPriceService.js';
 import GlobalCurrentPrice from '../../models/GlobalCurrentPrice.js';
 import PriceCache from '../../models/PriceCache.js';
@@ -289,6 +290,9 @@ router.put('/:positionKey', async (req, res) => {
                 source
             })
         }
+
+        // Trigger async profile update (non-blocking)
+        ensureAssetProfile(positionKey).catch(err => console.error(`Error updating profile for ${positionKey}:`, err.message));
 
         // Check target price and notify
         try {
