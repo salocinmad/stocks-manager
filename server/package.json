@@ -7,7 +7,6 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "init-admin": "node scripts/initAdmin.js",
-    "migrate-operations": "node scripts/migrateOperationsToUsers.js",
     "reset-admin-password": "node scripts/resetAdminPassword.js",
     "check-indexes": "node scripts/normalize-indexes.js",
     "normalize-indexes": "node scripts/normalize-indexes.js --apply"
