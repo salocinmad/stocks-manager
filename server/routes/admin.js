@@ -16,6 +16,7 @@ import Config from '../models/Config.js'
 import GlobalCurrentPrice from '../models/GlobalCurrentPrice.js'
 import GlobalStockPrice from '../models/GlobalStockPrice.js'
 import UserStockAlert from '../models/UserStockAlert.js'
+import AssetProfile from '../models/AssetProfile.js'
 import { authenticate, isAdmin } from '../middleware/auth.js'
 import { encrypt, decrypt } from '../utils/crypto.js'
 import { sendNotification } from '../services/notify.js'
@@ -200,7 +201,7 @@ router.get('/backup/export', async (req, res) => {
     const models = [
       User, Portfolio, PortfolioReport, Config, Operation,
       // Nuevas tablas globales (PRIORITY)
-      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert,
+      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert, AssetProfile,
       // Tablas legacy (mantener para rollback)
       PriceCache, DailyPrice,
       // Resto de tablas
@@ -264,7 +265,7 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
 
     const models = [
       User, Portfolio, PortfolioReport, Config, Operation,
-      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert,
+      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert, AssetProfile,
       PriceCache, DailyPrice,
       DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
     ]

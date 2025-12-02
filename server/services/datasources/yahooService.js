@@ -192,4 +192,65 @@ export async function fetchHistorical(symbol, days = 365) {
     }
 }
 
-export default { fetchQuote, fetchHistorical };
+/**
+ * Obtiene perfil del activo (Sector, Industria, Beta, Dividendos)
+ * @param {string} symbol - Símbolo bursátil
+ * @returns {Promise<Object|null>} Datos del perfil
+ */
+export async function fetchAssetProfile(symbol) {
+    const currentLogLevel = await getLogLevel();
+    try {
+        const parts = symbol.split('|||');
+        let yahooSymbol = parts[parts.length - 1];
+        yahooSymbol = yahooSymbol.replace(/:/g, '.');
+
+        const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${yahooSymbol}?modules=assetProfile,summaryDetail,defaultKeyStatistics`;
+
+        if (currentLogLevel === 'verbose') {
+            console.log(`🔍 Yahoo Profile API: ${url}`);
+        }
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+        });
+
+        if (!response.ok) {
+            if (currentLogLevel === 'verbose') {
+                console.log(`⚠️  Yahoo Profile ${symbol}: HTTP ${response.status}`);
+            }
+            return null;
+        }
+
+        const data = await response.json();
+        const result = data.quoteSummary?.result?.[0];
+
+        if (!result) return null;
+
+        const profile = result.assetProfile || {};
+        const stats = result.defaultKeyStatistics || {};
+        const summary = result.summaryDetail || {};
+
+        return {
+            symbol: symbol,
+            sector: profile.sector || 'Unknown',
+            industry: profile.industry || 'Unknown',
+            beta: stats.beta?.raw || null,
+            dividendYield: summary.dividendYield?.raw ? (summary.dividendYield.raw * 100) : null,
+            marketCap: summary.marketCap?.raw || null,
+            currency: summary.currency || null,
+            description: profile.longBusinessSummary || null,
+            website: profile.website || null,
+            updatedAt: new Date()
+        };
+
+    } catch (error) {
+        if (currentLogLevel === 'verbose') {
+            console.error(`❌ Yahoo Profile ${symbol}:`, error.message);
+        }
+        return null;
+    }
+}
+
+export default { fetchQuote, fetchHistorical, fetchAssetProfile };

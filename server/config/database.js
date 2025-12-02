@@ -52,6 +52,7 @@ export const connectDB = async () => {
       import('../models/Config.js'),
       import('../models/ExternalLinkButton.js'),
       import('../models/PortfolioReport.js'),
+      import('../models/AssetProfile.js'),
     ])
 
     const alter = process.env.DB_SYNC_ALTER === 'true' || process.env.NODE_ENV === 'development'

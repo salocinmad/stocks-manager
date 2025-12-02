@@ -495,8 +495,184 @@ body.light .metric-card {
 body.light .metric-card:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
+
 /* PDF Export Button */
-.header-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.download-pdf-button { padding: 0.6rem 1.2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 600; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); }
-.download-pdf-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4); }
-.download-pdf-button:disabled { opacity: 0.6; cursor: not-allowed; }
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.download-pdf-button {
+    padding: 0.6rem 1.2rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.download-pdf-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.download-pdf-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Advanced Analysis Section */
+.advanced-analysis-section {
+    background: var(--card-bg, #1f1f1f);
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border-color, #333);
+}
+
+.advanced-analysis-section h3 {
+    margin: 0 0 20px 0;
+    font-size: 20px;
+}
+
+.analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+}
+
+.analysis-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.analysis-card h4 {
+    margin: 0 0 15px 0;
+    font-size: 16px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.risk-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.risk-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+}
+
+.risk-label {
+    font-size: 13px;
+    color: #94a3b8;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.risk-value {
+    font-size: 32px;
+    font-weight: 700;
+}
+
+.risk-value.high-risk {
+    color: #ef4444;
+}
+
+.risk-value.low-risk {
+    color: #22c55e;
+}
+
+.risk-value.positive {
+    color: #22c55e;
+}
+
+.risk-desc {
+    font-size: 12px;
+    color: #64748b;
+}
+
+@media (max-width: 768px) {
+    .analysis-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Drawdown Section */
+.drawdown-section {
+    background: var(--card-bg, #1f1f1f);
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border-color, #333);
+}
+
+.drawdown-section h3 {
+    margin: 0 0 20px 0;
+    font-size: 20px;
+}
+
+.drawdown-stats {
+    margin-bottom: 15px;
+}
+
+.drawdown-highlight {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 8px;
+    border-left: 4px solid #ef4444;
+}
+
+.drawdown-highlight .highlight-label {
+    font-weight: 500;
+    color: #94a3b8;
+}
+
+.drawdown-highlight .highlight-value {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.drawdown-highlight .highlight-date {
+    font-size: 13px;
+    color: #64748b;
+    margin-left: auto;
+}
+
+/* Heatmap Section */
+.heatmap-section {
+    background: var(--card-bg, #1f1f1f);
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border-color, #333);
+}
+
+.heatmap-section h3 {
+    margin: 0 0 10px 0;
+    font-size: 20px;
+}
+
+.section-description {
+    color: #94a3b8;
+    font-size: 14px;
+    margin-bottom: 20px;
+}

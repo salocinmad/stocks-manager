@@ -3,6 +3,7 @@ import Operation from '../models/Operation.js';
 import DailyPortfolioStats from '../models/DailyPortfolioStats.js';
 import PriceCache from '../models/PriceCache.js';
 import Portfolio from '../models/Portfolio.js';
+import AssetProfile from '../models/AssetProfile.js';
 import PortfolioReport from '../models/PortfolioReport.js';
 import DailyPrice from '../models/DailyPrice.js';
 import {
@@ -259,7 +260,112 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
         // 11. Generar alertas
         const alerts = await generateAlerts(userId, portfolioId, operations, currentPrices, currentEURUSD);
 
-        // 12. Construir datos del reporte
+        // 12. Análisis Avanzado (Sector, Industria, Riesgo)
+        const analysis = {
+            sectorAllocation: {},
+            industryAllocation: {},
+            riskMetrics: {
+                weightedBeta: 0,
+                weightedDividendYield: 0
+            }
+        };
+
+        try {
+            const symbols = Object.keys(activePositions).map(k => k.split('|||')[1] || k.split('|||')[0]); // Extract symbol
+            const profiles = await AssetProfile.findAll({
+                where: { symbol: { [Op.in]: symbols } }
+            });
+
+            const profileMap = {};
+            profiles.forEach(p => profileMap[p.symbol] = p);
+
+            let totalBetaWeight = 0;
+            let totalDivWeight = 0;
+
+            Object.values(activePositions).forEach(pos => {
+                const symbol = pos.symbol || pos.company; // Fallback
+                const profile = profileMap[symbol];
+                const priceData = currentPrices[pos.positionKey];
+
+                if (priceData) {
+                    let valueEUR = 0;
+                    if (pos.currency === 'EUR') {
+                        valueEUR = pos.shares * priceData.price;
+                    } else if (pos.currency === 'USD' && currentEURUSD) {
+                        valueEUR = pos.shares * priceData.price * currentEURUSD;
+                    }
+
+                    if (valueEUR > 0) {
+                        // Sector
+                        const sector = profile?.sector || 'Desconocido';
+                        analysis.sectorAllocation[sector] = (analysis.sectorAllocation[sector] || 0) + valueEUR;
+
+                        // Industry
+                        const industry = profile?.industry || 'Desconocido';
+                        analysis.industryAllocation[industry] = (analysis.industryAllocation[industry] || 0) + valueEUR;
+
+                        // Risk Metrics (Weighted)
+                        if (profile?.beta !== null && profile?.beta !== undefined) {
+                            analysis.riskMetrics.weightedBeta += profile.beta * valueEUR;
+                            totalBetaWeight += valueEUR;
+                        }
+                        if (profile?.dividendYield !== null && profile?.dividendYield !== undefined) {
+                            analysis.riskMetrics.weightedDividendYield += profile.dividendYield * valueEUR;
+                            totalDivWeight += valueEUR;
+                        }
+                    }
+                }
+            });
+
+            // Normalize Weighted Metrics
+            if (totalBetaWeight > 0) analysis.riskMetrics.weightedBeta /= totalBetaWeight;
+            if (totalDivWeight > 0) analysis.riskMetrics.weightedDividendYield /= totalDivWeight;
+
+        } catch (err) {
+            console.error('Error calculating advanced analysis:', err);
+        }
+
+        // 13. Análisis de Drawdown y Mapa de Calor
+        const drawdownData = [];
+        const heatmapData = [];
+        let peak = 0;
+        let maxDrawdown = 0;
+        let maxDrawdownDate = null;
+
+        // Obtener historial de PnL para calcular drawdown
+        try {
+            const { calculatePortfolioHistory } = await import('./pnlService.js');
+            const pnlHistory = await calculatePortfolioHistory(userId, portfolioId, 365);
+
+            for (const day of pnlHistory) {
+                const pnl = day.pnlEUR;
+
+                // Drawdown calculation
+                if (pnl > peak) peak = pnl;
+                const drawdown = peak > 0 ? ((pnl - peak) / peak) * 100 : 0;
+
+                if (drawdown < maxDrawdown) {
+                    maxDrawdown = drawdown;
+                    maxDrawdownDate = day.date;
+                }
+
+                drawdownData.push({
+                    date: day.date,
+                    drawdown: drawdown,
+                    pnl: pnl
+                });
+
+                // Heatmap data: daily PnL change
+                heatmapData.push({
+                    date: day.date,
+                    value: pnl
+                });
+            }
+        } catch (err) {
+            console.error('Error calculating drawdown:', err);
+        }
+
+        // 14. Construir datos del reporte
         const reportData = {
             // Estadísticas básicas
             totalInvestedEUR,
@@ -285,6 +391,15 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
             topPositions,
             contributionByCompany,
             concentrationIndex,
+
+            // Análisis Avanzado
+            analysis,
+
+            // Drawdown & Heatmap
+            drawdownData,
+            heatmapData,
+            maxDrawdown,
+            maxDrawdownDate,
 
             // Alertas
             alerts,

@@ -5,8 +5,10 @@
 
 import { Op } from 'sequelize';
 import GlobalCurrentPrice from '../../models/GlobalCurrentPrice.js';
+import AssetProfile from '../../models/AssetProfile.js';
 import Operation from '../../models/Operation.js';
 import { fetchCombinedPrice } from '../datasources/priceCombinaService.js';
+import { fetchAssetProfile } from '../datasources/yahooService.js';
 import { getUniqueSymbols } from '../../utils/symbolHelpers.js';
 import { getLogLevel } from '../configService.js';
 
@@ -76,6 +78,32 @@ export async function updateAllActivePrices() {
                 console.log(`✅ ${symbol}: ${combined.lastPrice} (${combined.source})`);
             }
             updated++;
+
+            // 3. Actualizar Perfil del Activo (Sector, Industria, etc.)
+            // Solo si no existe o es muy viejo (> 30 días)
+            try {
+                const profile = await AssetProfile.findByPk(symbol);
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+                if (!profile || profile.updatedAt < thirtyDaysAgo) {
+                    if (currentLogLevel === 'verbose') {
+                        console.log(`ℹ️  Actualizando perfil para ${symbol}...`);
+                    }
+                    const profileData = await fetchAssetProfile(symbol);
+                    if (profileData) {
+                        await AssetProfile.upsert(profileData);
+                        if (currentLogLevel === 'verbose') {
+                            console.log(`✅ Perfil actualizado para ${symbol}`);
+                        }
+                    }
+                }
+            } catch (profileError) {
+                // No fallar todo el proceso si falla el perfil
+                if (currentLogLevel === 'verbose') {
+                    console.error(`⚠️ Error actualizando perfil ${symbol}:`, profileError.message);
+                }
+            }
         } catch (error) {
             if (currentLogLevel === 'verbose') {
                 console.error(`❌ ${symbol}:`, error.message);
@@ -121,6 +149,23 @@ export async function updateSinglePrice(symbol) {
         if (currentLogLevel === 'verbose') {
             console.log(`✅ ${symbol}: ${priceData.lastPrice} actualizado`);
         }
+
+        // Actualizar perfil también en actualización manual
+        try {
+            const profile = await AssetProfile.findByPk(symbol);
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+            if (!profile || profile.updatedAt < thirtyDaysAgo) {
+                const profileData = await fetchAssetProfile(symbol);
+                if (profileData) {
+                    await AssetProfile.upsert(profileData);
+                }
+            }
+        } catch (e) {
+            console.error(`⚠️ Error actualizando perfil ${symbol} (manual):`, e.message);
+        }
+
         return priceData;
     } catch (error) {
         if (currentLogLevel === 'verbose') {

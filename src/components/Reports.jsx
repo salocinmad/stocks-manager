@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { authenticatedFetch } from '../services/auth.js';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import CalendarHeatmap from './CalendarHeatmap.jsx';
 import './Reports.css';
 
 /**
@@ -104,7 +105,7 @@ function Reports({
 
     // Loading state
     if (loading) {
-    return (
+        return (
             <div className="reports-container">
                 <div className="loading-container">
                     <div className="loading-spinner"></div>
@@ -319,6 +320,132 @@ function Reports({
                 </div>
             )}
 
+            {/* Análisis Avanzado */}
+            {reportData.analysis && (
+                <div className="advanced-analysis-section">
+                    <h3>🧠 Análisis Avanzado</h3>
+
+                    <div className="analysis-grid">
+                        {/* Gráfico de Sectores */}
+                        <div className="analysis-card sector-chart">
+                            <h4>Distribución por Sector</h4>
+                            <div className="chart-container" style={{ height: '300px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={Object.entries(reportData.analysis.sectorAllocation).map(([name, value]) => ({ name, value }))}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                        >
+                                            {Object.entries(reportData.analysis.sectorAllocation).map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'][index % 6]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip
+                                            formatter={(value) => `€${value.toFixed(2)}`}
+                                            contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                                        />
+                                        <Legend />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Métricas de Riesgo */}
+                        <div className="analysis-card risk-metrics">
+                            <h4>Métricas de Riesgo</h4>
+                            <div className="risk-grid">
+                                <div className="risk-item">
+                                    <span className="risk-label">Beta Ponderada</span>
+                                    <span className={`risk-value ${reportData.analysis.riskMetrics.weightedBeta > 1.2 ? 'high-risk' : 'low-risk'}`}>
+                                        {reportData.analysis.riskMetrics.weightedBeta.toFixed(2)}
+                                    </span>
+                                    <span className="risk-desc">
+                                        {reportData.analysis.riskMetrics.weightedBeta > 1 ? 'Más volátil que el mercado' : 'Menos volátil que el mercado'}
+                                    </span>
+                                </div>
+                                <div className="risk-item">
+                                    <span className="risk-label">Yield Promedio</span>
+                                    <span className="risk-value positive">
+                                        {reportData.analysis.riskMetrics.weightedDividendYield.toFixed(2)}%
+                                    </span>
+                                    <span className="risk-desc">Rentabilidad por dividendo estimada</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Análisis de Drawdown */}
+            {reportData.drawdownData && reportData.drawdownData.length > 0 && (
+                <div className="drawdown-section">
+                    <h3>📉 Análisis de Drawdown</h3>
+                    <div className="drawdown-stats">
+                        <div className="drawdown-highlight">
+                            <span className="highlight-label">Caída Máxima:</span>
+                            <span className="highlight-value negative">
+                                {reportData.maxDrawdown?.toFixed(2)}%
+                            </span>
+                            {reportData.maxDrawdownDate && (
+                                <span className="highlight-date">
+                                    {new Date(reportData.maxDrawdownDate).toLocaleDateString('es-ES')}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="chart-container" style={{ height: '250px', marginTop: '20px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={reportData.drawdownData}>
+                                <defs>
+                                    <linearGradient id="drawdownGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                <XAxis
+                                    dataKey="date"
+                                    tick={{ fill: '#64748b', fontSize: 12 }}
+                                    tickFormatter={(value) => new Date(value).toLocaleDateString('es-ES', { month: 'short' })}
+                                />
+                                <YAxis
+                                    tick={{ fill: '#64748b', fontSize: 12 }}
+                                    tickFormatter={(value) => `${value.toFixed(0)}%`}
+                                />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                                    formatter={(value) => [`${value.toFixed(2)}%`, 'Drawdown']}
+                                    labelFormatter={(label) => new Date(label).toLocaleDateString('es-ES')}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="drawdown"
+                                    stroke="#ef4444"
+                                    fill="url(#drawdownGradient)"
+                                    strokeWidth={2}
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Mapa de Calor de Rendimiento */}
+            {reportData.heatmapData && reportData.heatmapData.length > 0 && (
+                <div className="heatmap-section">
+                    <h3>🔥 Mapa de Calor de Rendimiento</h3>
+                    <p className="section-description">
+                        Visualización de rendimiento diario. Verde = Ganancia, Rojo = Pérdida
+                    </p>
+                    <CalendarHeatmap data={reportData.heatmapData} theme={theme} />
+                </div>
+            )}
+
             {/* Top Posiciones */}
             {reportData.topPositions && reportData.topPositions.length > 0 && (
                 <div className="top-positions">
@@ -366,7 +493,7 @@ function Reports({
                     </small>
                 </p>
             </div>
-        </div>
+        </div >
     );
 }
 
