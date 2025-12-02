@@ -120,6 +120,58 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
 
         chart.timeScale().fitContent();
 
+        // Create custom tooltip
+        const tooltipDiv = document.createElement('div');
+        tooltipDiv.style.position = 'absolute';
+        tooltipDiv.style.display = 'none';
+        tooltipDiv.style.padding = '8px 12px';
+        tooltipDiv.style.background = theme === 'dark' ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+        tooltipDiv.style.color = theme === 'dark' ? '#e5e7eb' : '#1f2937';
+        tooltipDiv.style.borderRadius = '6px';
+        tooltipDiv.style.fontSize = '12px';
+        tooltipDiv.style.fontWeight = '500';
+        tooltipDiv.style.pointerEvents = 'none';
+        tooltipDiv.style.zIndex = '1000';
+        tooltipDiv.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+        tooltipDiv.style.border = theme === 'dark' ? '1px solid #374151' : '1px solid #e5e7eb';
+        chartContainerRef.current.appendChild(tooltipDiv);
+
+        chart.subscribeCrosshairMove((param) => {
+            if (!param.time || !param.seriesData || param.seriesData.size === 0) {
+                tooltipDiv.style.display = 'none';
+                return;
+            }
+
+            const data = param.seriesData.get(series);
+            if (!data) {
+                tooltipDiv.style.display = 'none';
+                return;
+            }
+
+            const value = data.value !== undefined ? data.value : data.close;
+            const dateStr = typeof param.time === 'string' ? param.time : new Date(param.time * 1000).toISOString().split('T')[0];
+
+            // Format date nicely (e.g., "28 oct '25")
+            const date = new Date(dateStr);
+            const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+            const formattedDate = `${date.getDate()} ${months[date.getMonth()]} '${date.getFullYear().toString().slice(-2)}`;
+
+            tooltipDiv.innerHTML = `
+                <div style="margin-bottom: 4px; color: ${theme === 'dark' ? '#9ca3af' : '#6b7280'};">${formattedDate}</div>
+                <div style="font-size: 14px; font-weight: 600;">PnL: ${value.toFixed(2)} €</div>
+            `;
+
+            const coordinate = param.point;
+            if (!coordinate) {
+                tooltipDiv.style.display = 'none';
+                return;
+            }
+
+            tooltipDiv.style.display = 'block';
+            tooltipDiv.style.left = coordinate.x + 15 + 'px';
+            tooltipDiv.style.top = coordinate.y - 50 + 'px';
+        });
+
         // Handle resize
         const handleResize = () => {
             if (chartContainerRef.current && chartRef.current) {
@@ -131,6 +183,9 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            if (tooltipDiv.parentNode) {
+                tooltipDiv.parentNode.removeChild(tooltipDiv);
+            }
             if (chartRef.current) {
                 chartRef.current.remove();
                 chartRef.current = null;
