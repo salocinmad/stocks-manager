@@ -158,7 +158,7 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
 
             tooltipDiv.innerHTML = `
                 <div style="margin-bottom: 4px; color: ${theme === 'dark' ? '#9ca3af' : '#6b7280'};">${formattedDate}</div>
-                <div style="font-size: 14px; font-weight: 600;">PnL: ${value.toFixed(2)} €</div>
+                <div style="font-size: 14px; font-weight: 600;">${value.toFixed(2)} €</div>
             `;
 
             const coordinate = param.point;
