@@ -46,7 +46,6 @@ function Reports({
                 }
 
                 const data = await response.json();
-                console.log('DEBUG: Datos del reporte recibidos:', data.data);
                 setReportData(data.data);
             } catch (err) {
                 console.error('Error fetching report:', err);

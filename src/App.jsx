@@ -971,7 +971,6 @@ function App() {
     }
 
     try {
-      // Convertir la fecha a formato Date para MongoDB
       const operationDate = formData.date ? new Date(formData.date) : new Date();
 
       // Si la moneda es EUR, el exchangeRate debe ser 1
