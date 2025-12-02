@@ -1,217 +1,222 @@
-# 📈 Stocks Manager
+# 📊 Stocks Manager
 
-**Stocks Manager** es un gestor de carteras de inversión personal, diseñado para ofrecer un seguimiento detallado de posiciones, cálculo preciso de PnL (Ganancias/Pérdidas) en EUR, y análisis avanzado de inversiones.
+**Sistema Profesional de Gestión de Carteras con Análisis Financiero Avanzado**
 
-Soporta **múltiples portafolios**, actualizaciones de precios en tiempo real desde múltiples fuentes, snapshots diarios para construir un histórico fiable, y herramientas avanzadas de análisis y reportes.
-
----
-
-## 🚀 Funcionalidades Principales
-
-### 💼 Sistema Multi-Portafolio
-- **Múltiples Carteras**: Organiza tus inversiones en portafolios independientes (ej: "Largo Plazo", "Trading", "Dividendos").
-- **Portafolio Favorito**: Marca tu cartera principal para acceso rápido al iniciar sesión.
-- **Aislamiento Completo**: Cada portafolio mantiene sus propias operaciones, historial, estadísticas y configuración.
-- **Navegación Rápida**: Cambia entre portafolios sin perder el contexto.
-
-### 📊 Dashboard y Análisis
-- **Métricas en Tiempo Real**: ROI, Win Rate, Tiempo Medio de Tenencia, Total Invertido, Valor Actual.
-- **Gráficos Interactivos**: 
-  - Evolución del PnL histórico
-  - Distribución de cartera por activo (Pie Chart)
-  - Análisis mensual de rendimiento
-  - Gráficos de velas OHLC por acción
-- **Alertas Inteligentes**: Avisos automáticos sobre:
-  - Pérdidas significativas
-  - Objetivos de precio alcanzados
-  - Riesgos de concentración
-- **Reportes Automáticos**: Generación diaria, mensual y anual de estadísticas consolidadas.
-
-### 🔄 Gestión de Operaciones
-- **Compra y Venta**: Registro completo de operaciones con fecha, precio, comisiones.
-- **Búsqueda de Empresas**: Integración con Finnhub para buscar empresas por nombre.
-- **Multi-Divisa**: Soporte para EUR, USD y otras divisas con conversión automática.
-- **Símbolos Externos**: Introduce manualmente símbolos no listados en Finnhub.
-- **Historial Completo**: Visualiza todas tus operaciones pasadas con filtros y búsqueda.
-
-### 💰 Precios y Datos
-- **Multi-Fuente**: Integración con Finnhub (tiempo real) y Yahoo Finance (histórico + divisas).
-- **Cache Inteligente**: Sistema de caché para minimizar llamadas API y mejorar rendimiento.
-- **Conversión Automática**: Todos los valores se convierten a EUR para cálculo unificado de PnL.
-- **Datos Históricos**: Velas OHLC (Open, High, Low, Close) para análisis técnico.
-- **Cierre Diario Automático**: Snapshot de todas las posiciones cada madrugada (01:00 AM) para construir histórico.
-
-### 🎨 Personalización
-- **Temas**: Modo claro y oscuro con transiciones suaves.
-- **Foto de Perfil**: Sube tu avatar personalizado.
-- **Botones Externos**: Enlaces rápidos a tus plataformas favoritas (Yahoo Finance, Google Finance, etc.).
-- **Notas por Posición**: Añade recordatorios y análisis a cada acción.
-- **Ordenamiento**: Organiza tus posiciones según tus preferencias.
-
-### 🛡️ Administración y Seguridad
-- **Gestión de Usuarios**: Panel completo para administradores.
-- **Autenticación JWT**: Sistema seguro de sesiones con tokens.
-- **Panel Admin**: Configuración del sistema, mantenimiento, backup/restore.
-- **Scheduler Configurable**: Actualización automática de precios configurable.
-- **Backup Completo**: Exporta e importa la base de datos completa (JSON o SQL).
+![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)
+![License](https://img.shields.io/badge/license-Custom-green.svg)
+![Docker](https://img.shields.io/badge/docker-✓-brightgreen.svg)
+![React](https://img.shields.io/badge/react-18.2.0-61DAFB.svg)
+![Node](https://img.shields.io/badge/node-22-339933.svg)
 
 ---
 
-## 🛠️ Instalación Rápida
+## 🎯 ¿Qué es Stocks Manager?
 
-### Requisitos Previos
-- Docker y Docker Compose instalados
-- Al menos 1GB de RAM disponible
-- Puerto 80 libre (configurable)
+**Stocks Manager** es una aplicación completa y auto-hospedada de gestión de carteras diseñada para inversores individuales que desean control total sobre el seguimiento y análisis de sus inversiones. Construida con tecnologías modernas y ejecutándose completamente en Docker, proporciona características de nivel profesional sin depender de servicios de terceros para tus datos financieros sensibles.
 
-### Instalación Automática en 2 Pasos
+### Características Principales
 
-1. **Clonar el repositorio**:
-   ```bash
-   git clone https://github.com/salocinmad/stocks-manager.git
-   cd stocks-manager
-   ```
-
-2. **Iniciar la aplicación**:
-   ```bash
-   docker compose up -d
-   ```
-
-**¡Eso es todo!** 🎉
-
-En el primer arranque, Stocks Manager:
-- ✅ Genera automáticamente credenciales seguras para MariaDB
-- ✅ Configura la base de datos con hardening de seguridad
-- ✅ Crea JWT_SECRET y MASTER_PASSWORD aleatorios
-- ✅ Muestra las credenciales generadas en los logs (¡guárdalas!)
-
-3. **Ver credenciales generadas**:
-   ```bash
-   # Todas las credenciales se muestran juntas en los logs del servidor
-   docker compose logs server | grep -A 30 "CREDENCIALES DEL SISTEMA"
-   ```
-   
-   Verás un bloque completo con:
-   - Usuario y contraseña de MariaDB
-   - JWT_SECRET
-   - MASTER_PASSWORD
-
-4. **Acceder a la aplicación**:
-   - Abre tu navegador en `http://localhost`
-   - Crea tu primer usuario desde la pantalla de login
-   - ¡Comienza a gestionar tus inversiones!
-
-> **⚠️ IMPORTANTE**: Guarda la **MASTER_PASSWORD** que aparece en los logs. La necesitarás para recuperar acceso si olvidas la contraseña del admin.
-
-Para instrucciones detalladas de instalación, consulta **[INSTALACION.md](./INSTALACION.md)**.
+- 📈 **Sistema Multi-Cartera** - Gestiona múltiples carteras de inversión de forma independiente
+- 🔒 **Auto-hospedado y Privado** - Tus datos permanecen en tu infraestructura
+- 📊 **Análisis Avanzado** - Análisis de drawdown, asignación por sector, métricas de riesgo, calendarios de calor
+- 💰 **Precios en Tiempo Real** - Actualizaciones automáticas desde Yahoo Finance y Finnhub
+- 🎨 **Interfaz Moderna** - Diseño limpio y responsivo con temas oscuro/claro
+- 🐳 **Listo para Docker** - Despliegue con un solo comando y generación automática de credenciales
+- 🌍 **Multi-Divisa** - Soporte para EUR, USD y tasas de cambio automáticas
 
 ---
 
-## 📚 Documentación Completa
+## 🚀 Inicio Rápido
 
-Esta documentación está organizada en guías especializadas para diferentes usuarios:
+```bash
+# 1. Clonar el repositorio
+git clone https://github.com/yourusername/stocks-manager.git
+cd stocks-manager
 
-- **[📖 Guía de Usuario](./GUIA_USUARIO.md)**: Aprende a usar todas las funcionalidades de Stocks Manager (portafolios, operaciones, análisis, personalización).
-- **[🛡️ Guía de Administración](./ADMINISTRACION.md)**: Gestión de usuarios, configuración del sistema, mantenimiento, backup y restauración.
-- **[🐳 Guía de Instalación](./INSTALACION.md)**: Instalación detallada, configuración de Docker, variables de entorno y solución de problemas.
+# 2. Iniciar con Docker Compose
+docker compose up -d
+
+# 3. Acceder a la aplicación
+# Frontend: http://localhost:3000
+# API Backend: http://localhost:5000
+
+# 4. Iniciar sesión con las credenciales por defecto
+# Usuario: admin
+# Contraseña: admin123
+```
+
+**¡La configuración inicial es completamente automática!** La aplicación:
+- Genera credenciales seguras de base de datos
+- Crea el esquema de base de datos
+- Inicializa un usuario administrador
+- Inicia todos los servicios
+
+📚 **Para instrucciones detalladas de instalación, ver [INSTALACION.md](INSTALACION.md)**
 
 ---
 
-## 🔧 Stack Tecnológico
+## 📖 Documentación
+
+| Documento | Descripción |
+|----------|-------------|
+| **[INSTALACION.md](INSTALACION.md)** | Guía completa de configuración, requisitos y despliegue |
+| **[GUIA_USUARIO.md](GUIA_USUARIO.md)** | Cómo usar las características de la aplicación |
+| **[DOCUMENTACION_TECNICA.md](DOCUMENTACION_TECNICA.md)** | Arquitectura, referencia API, esquema de base de datos |
+| **[SOLUCION_PROBLEMAS.md](SOLUCION_PROBLEMAS.md)** | Reseteo de contraseña admin, problemas comunes, soluciones |
+
+---
+
+## ✨ Características Principales
+
+### Gestión de Carteras
+- Crear y gestionar múltiples carteras independientes
+- Seguimiento de operaciones de compra/venta con historial detallado
+- Cálculo automático de coste base (FIFO)
+- Soporte para PnL realizado y no realizado
+
+### Análisis Financiero
+- **Seguimiento de Rendimiento**
+  - Cálculos diarios de PnL con datos históricos
+  - Análisis de drawdown (pérdida máxima desde el pico)
+  - Visualización de calendario de calor de rentabilidades diarias
+  - Métricas de rendimiento mensual/anual
+
+- **Análisis de Activos**
+  - Gráficos de asignación por sector e industria
+  - Datos de perfil de activos (beta, rendimiento de dividendos, capitalización de mercado)
+  - Gráficos de precios históricos con velas OHLC
+  - Seguimiento de rendimiento de acciones individuales
+
+- **Métricas de Riesgo**
+  - Cálculo de beta del portafolio
+  - Análisis de concentración por sector
+  - Seguimiento de volatilidad
+  - Ratio de Sharpe y rentabilidades ajustadas por riesgo
+
+### Datos y Automatización
+- **Actualización de Precios**
+  - Actualizaciones programadas automáticas cada 15 minutos
+  - Integración con Yahoo Finance
+  - Soporte para API de Finnhub
+  - Mecanismos de respaldo para fiabilidad
+
+- **Informes y Exportación**
+  - Generar informes PDF completos
+  - Exportar instantáneas de cartera
+  - Archivo de estadísticas diarias de cartera
+  - Seguimiento de datos históricos
+
+### Experiencia de Usuario
+- **Soporte Multi-Usuario**
+  - Autenticación de usuario con JWT
+  - Acceso basado en roles (admin/usuario)
+  - Fotos de perfil
+  - Carteras personales por usuario
+
+- **Personalización**
+  - Toggle de tema Oscuro/Claro
+  - Enlaces externos personalizables (TradingView, Yahoo Finance, etc.)
+  - Ordenamiento de posiciones (arrastrar y soltar)
+  - Notas personales por posición
+
+- **Alertas y Notificaciones**
+  - Alertas de precio objetivo
+  - Notificaciones por correo (configuración SMTP)
+  - Seguimiento de cambios de precio en tiempo real
+
+---
+
+## 🏗️ Stack Tecnológico
 
 ### Frontend
-- **React 18** con Hooks
-- **Vite** para build ultrarrápido
-- **Recharts** para gráficos interactivos
-- **Lightweight Charts** para velas OHLC avanzadas
-- **React Router** para navegación
+- **React 18.2** - Biblioteca de UI moderna
+- **Vite 5.2** - Herramienta de construcción ultra-rápida
+- **Recharts** - Gráficos responsivos y hermosos
+- **Lightweight Charts** - Gráficos de velas profesionales
+- **React Router** - Enrutamiento del lado del cliente
 
 ### Backend
-- **Node.js** + **Express**
-- **Sequelize ORM** para MySQL/MariaDB
-- **bcryptjs** para encriptación de contraseñas
-- **JWT** para autenticación
-- **Nodemailer** para notificaciones SMTP
+- **Node.js 22** - Runtime de JavaScript
+- **Express 4.18** - Framework web
+- **Sequelize 6.35** - ORM para MariaDB
+- **JWT** - Autenticación
+- **Yahoo Finance 2** - Datos de mercado
+- **Nodemailer** - Notificaciones por correo
 
-### Base de Datos
-- **MariaDB 10.11** (compatible con MySQL)
-- Sistema de migraciones automáticas
-- Backups en JSON y SQL
-
-### APIs Externas
-- **Finnhub** para búsqueda de empresas y precios en tiempo real
-- **Yahoo Finance v2** para datos históricos y divisas
-
-### Infraestructura
-- **Docker Compose** para orquestación
-- **Nginx** como proxy inverso
-- **Entrypoint scripts** para inicialización automática
+### Base de Datos e Infraestructura
+- **MariaDB 11.4** - Base de datos relacional
+- **Docker & Docker Compose** - Containerización
+- **Nginx** - Servidor web frontend
+- **Volúmenes Nombrados** - Persistencia de datos
 
 ---
 
-## 💡 Características Avanzadas
+## 🔐 Características de Seguridad
 
-### Sistema de Alertas
-- Define precios objetivo para tus acciones
-- Recibe notificaciones por email cuando se alcanzan
-- Alertas de riesgo de concentración (>30% en un activo)
-- Avisos de pérdidas significativas
-
-### Snapshots Diarios
-- Captura automática del estado de tu cartera cada noche
-- Permite construir gráficos de evolución histórica precisos
-- Datos persistentes incluso si borras operaciones
-
-### Reportes Automáticos
-- Generación automática tras el cierre diario
-- Métricas consolidadas: ROI, Win Rate, Drawdown
-- Análisis de contribución por activo
-- Exportables a PDF (próximamente)
-
-### Multi-Usuario
-- Cada usuario tiene sus propios portafolios
-- Los datos están completamente aislados
-- Administradores pueden gestionar todos los usuarios
+- **Generación Automática de Credenciales** - Contraseñas seguras creadas en la primera ejecución
+- **Autenticación JWT** - Sesiones basadas en tokens
+- **Hash de Contraseñas** - bcrypt con salt rounds
+- **Protección contra Inyección SQL** - Vinculación de parámetros con Sequelize ORM
+- **Configuración CORS** - Acceso controlado a la API
+- **Docker Secrets** - Aislamiento de datos sensibles
+- **Contraseña Maestra** - Recuperación de acceso admin de emergencia
 
 ---
 
-## 🤝 Contribuciones
+## 🌍 Mercados Soportados
 
-Las contribuciones son bienvenidas. Por favor:
-1. Haz fork del repositorio
-2. Crea una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit tus cambios (`git commit -am 'Añade nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Abre un Pull Request
+- **Acciones de EE.UU.** - NYSE, NASDAQ
+- **Acciones Europeas** - Madrid (MC), Frankfurt, París, etc.
+- **Divisas** - EUR, USD (conversión automática)
+- **Internacional** - Cualquier acción soportada por Yahoo Finance
+
+Ejemplos de formato de símbolos:
+- `AAPL` (Apple en NASDAQ)
+- `MSFT` (Microsoft en NASDAQ)
+- `SAN.MC` (Santander en Bolsa de Madrid)
+- `BMW.DE` (BMW en Bolsa de Frankfurt)
 
 ---
 
 ## 📝 Licencia
 
-Este proyecto está licenciado bajo la **Licencia MIT**. Consulta el archivo [LICENSE](./LICENSE) para más detalles.
+Este proyecto está licenciado bajo MIT. Ver [LICENSE](LICENSE) para detalles.
 
 ---
 
-## 🙋 Soporte
+## 🤝 Contribuir
 
-¿Problemas? ¿Preguntas? ¿Sugerencias?
+¡Las contribuciones son bienvenidas! Por favor, no dudes en enviar issues y pull requests.
 
-- **Issues**: [GitHub Issues](https://github.com/salocinmad/stocks-manager/issues)
-- **Documentación**: Revisa las guías en este repositorio
-- **Email**: Contacta con el equipo de desarrollo
+### Configuración de Desarrollo
 
----
+```bash
+# Clonar el repositorio
+git clone https://github.com/yourusername/stocks-manager.git
 
-## 🎯 Roadmap
+# Iniciar entorno de desarrollo
+npm run dev:all  # Inicia frontend y backend en modo watch
+```
 
-Próximas características planificadas:
-- [ ] Exportación de reportes a PDF
-- [ ] Integración con más proveedores de datos (Alpha Vantage, IEX Cloud)
-- [ ] App móvil (React Native)
-- [ ] Sincronización automática con brokers
-- [ ] Análisis de dividendos
-- [ ] Calculadora fiscal
+Ver [DOCUMENTACION_TECNICA.md](DOCUMENTACION_TECNICA.md) para información detallada sobre arquitectura.
 
 ---
 
-**¡Gracias por usar Stocks Manager!** 🚀📈
+## 💬 Soporte
+
+- **Issues**: [GitHub Issues](https://github.com/yourusername/stocks-manager/issues)
+- **Documentación**: Ver docs en este repositorio
+- **Solución de Problemas**: Revisar [SOLUCION_PROBLEMAS.md](SOLUCION_PROBLEMAS.md)
+
+---
+
+## 🙏 Agradecimientos
+
+- **Yahoo Finance** - Proveedor de datos de mercado
+- **Finnhub** - Fuente alternativa de datos de mercado
+- **Comunidad React** - Ecosistema asombroso de frontend
+- **Docker** - Despliegue simplificado
+
+---
+
+**Construido con ❤️ para inversores que valoran la privacidad y el control**

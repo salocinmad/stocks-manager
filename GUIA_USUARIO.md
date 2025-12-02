@@ -1,437 +1,386 @@
-# 📖 Guía de Usuario - Stocks Manager
+# 📖 Guía de Usuario
 
-Esta guía completa te enseñará a usar todas las funcionalidades de Stocks Manager para gestionar tus inversiones de forma profesional.
+Guía completa para usar las características de Stocks Manager.
 
 ---
 
-## 📑 Índice
+## 📋 Tabla de Contenidos
 
-1. [Primeros Pasos](#-primeros-pasos)
-2. [Gestión de Portafolios](#-gestión-de-portafolios)
-3. [Operaciones de Compra y Venta](#-operaciones-de-compra-y-venta)
-4. [Dashboard y Análisis](#-dashboard-y-análisis)
-5. [Gráficos y Visualizaciones](#-gráficos-y-visualizaciones)
-6. [Alertas y Notificaciones](#-alertas-y-notificaciones)
-7. [Personalización](#-personalización)
-8. [Notas y Organización](#-notas-y-organización)
+- [Primeros Pasos](#primeros-pasos)
+- [Gestión de Carteras](#gestión-de-carteras)
+- [Gestión de Posiciones](#gestión-de-posiciones)
+- [Informes y Análisis](#informes-y-análisis)
+- [Configuración](#configuración)
+- [Características Avanzadas](#características-avanzadas)
 
 ---
 
 ## 🚀 Primeros Pasos
 
-### Crear tu Cuenta
-
-1. Accede a la aplicación en tu navegador (`http://localhost` o tu dominio configurado)
-2. En la pantalla de login, haz clic en **"Registrarse"**
-3. Introduce tu usuario y contraseña (mínimo 6 caracteres)
-4. ¡Listo! Ya puedes empezar a usar Stocks Manager
-
 ### Primer Inicio de Sesión
 
-Al iniciar sesión por primera vez:
-- Se creará automáticamente tu **Portafolio Principal**
-- Verás el dashboard vacío (sin operaciones aún)
-- Puedes empezar a añadir operaciones inmediatamente
+1. Navega a http://localhost:3000
+2. Introduce tus credenciales:
+   - **Usuario**: `admin`
+   - **Contraseña**: `admin123`
+3. Haz clic en **Iniciar Sesión**
+
+> **💡 Consejo**: Cambia tu contraseña después del primer inicio en **Panel Admin** → **Cambiar Contraseña**
+
+### Comprender la Interfaz
+
+**Componentes Principales:**
+- **Navegación Superior**
+  - Toggle de tema (🌙/☀️)
+  - Toggle de vista histórica
+  - Panel admin (icono engranaje ⚙️)
+  - Botones Comprar/Vender
+  - Menú de usuario
+
+- **Selector de Cartera**
+  - Desplegable para cambiar entre carteras
+  - Menú de cartera (📁) para gestión
+
+- **Panel Principal**
+  - Resumen de cartera (valor total, PnL de hoy)
+  - Lista de posiciones activas
+  - Actualizaciones rápidas de precios
 
 ---
 
-## 💼 Gestión de Portafolios
+## 📊 Gestión de Carteras
 
-### ¿Qué es un Portafolio?
+### Crear una Cartera
 
-Un portafolio es una cartera de inversión independiente. Puedes crear varios portafolios para:
-- Separar inversiones a largo plazo de trading
-- Organizar inversiones por estrategia
-- Diferenciar inversiones en diferentes brokers
-- Cualquier otra clasificación que prefieras
+1. Haz clic en el **desplegable de Cartera** (junto a tu nombre de usuario)
+2. Selecciona **Menú de Cartera** (icono 📁)
+3. Haz clic en **Crear Nueva Cartera**
+4. Introduce:
+   - **Nombre**: Nombre descriptivo (ej: "Jubilación", "Trading")
+5. Haz clic en **Crear**
 
-### Crear un Nuevo Portafolio
+### Cambiar de Cartera
 
-1. Haz clic en el **menú de portafolio** (junto al nombre del portafolio actual)
-2. Selecciona **"Crear Portafolio"**
-3. Introduce el nombre (ej: "Trading", "Dividendos", "Acciones USA")
-4. El nuevo portafolio se crea vacío y listo para usar
+1. Haz clic en el **desplegable de Cartera**
+2. Selecciona la cartera que quieres ver
+3. La página se recarga con los datos de la cartera seleccionada
 
-### Cambiar entre Portafolios
+### Establecer Cartera Favorita
 
-1. Haz clic en el **selector de portafolio** en la parte superior
-2. Selecciona el portafolio que deseas ver
-3. El dashboard se actualiza automáticamente con los datos de ese portafolio
+1. Abre **Menú de Cartera** (📁)
+2. Haz clic en el **icono de estrella** (⭐) junto a una cartera
+3. Esta cartera se cargará automáticamente al iniciar sesión
 
-### Marcar Portafolio como Favorito
+### Renombrar una Cartera
 
-1. Abre el **menú de portafolio**
-2. Haz clic en la ⭐ junto al portafolio que quieres marcar como favorito
-3. Este portafolio se cargará automáticamente al iniciar sesión
-
-### Renombrar un Portafolio
-
-1. Abre el **menú de portafolio**
-2. Haz clic en **"Renombrar"** junto al portafolio
+1. Abre **Menú de Cartera** (📁)
+2. Haz clic en el **icono de editar** (✏️) junto a la cartera
 3. Introduce el nuevo nombre
-4. Confirma el cambio
+4. Haz clic en **Guardar**
 
-### Eliminar un Portafolio
+### Eliminar una Cartera
 
-1. Abre el **menú de portafolio**
-2. Haz clic en **"Eliminar"** (⚠️ solo disponible si el portafolio está vacío)
-3. Confirma la eliminación
+1. Abre **Menú de Cartera** (📁)
+2. Haz clic en el **icono de eliminar** (🗑️) junto a la cartera
+3. **Confirma** la eliminación
 
-> **Nota**: No puedes eliminar un portafolio que tenga operaciones. Debes borrar todas las operaciones primero.
+> **⚠️ ADVERTENCIA**: Eliminar una cartera borra TODAS las operaciones, posiciones y datos históricos. ¡Esta acción no se puede deshacer!
 
 ---
 
-## 📈 Operaciones de Compra y Venta
+## 💼 Gestión de Posiciones
 
-### Registrar una Compra
+### Comprar una Acción
 
-1. Haz clic en el botón **"Comprar"** en la barra superior
-2. **Buscar la empresa**:
-   - Escribe el nombre de la empresa (ej: "Apple", "Microsoft")
-   - Selecciona de los resultados
-   - O introduce manualmente el símbolo (ej: "AAPL")
-3. **Rellenar datos**:
-   - **Fecha**: Fecha de la operación
+1. Haz clic en el botón **Comprar** en el encabezado
+2. **Buscar Empresa**:
+   - Escribe el nombre de la empresa o símbolo (ej: "Apple" o "AAPL")
+   - Selecciona de los resultados del desplegable
+3. **O Introducir Símbolo Externo**:
+   - Haz clic en la pestaña **Símbolo Externo**
+   - Introduce el símbolo de Yahoo Finance manualmente (ej: "AAPL", "SAN.MC")
+4. Completa los detalles de la operación:
    - **Acciones**: Número de acciones compradas
-   - **Precio**: Precio por acción
-   - **Comisión**: Comisión del broker (opcional)
-   - **Divisa**: USD o EUR (se detecta automáticamente)
-4. Haz clic en **"Guardar"**
+   - **Precio**: Precio de compra por acción
+   - **Divisa**: EUR o USD
+   - **Fecha**: Fecha de compra (por defecto hoy)
+   - **Tipo de Cambio**: Auto-completado si usas USD (puedes ajustar manualmente)
+5. Haz clic en **Guardar**
 
-### Registrar una Venta
+### Vender una Acción
 
-1. Haz clic en el botón **"Vender"** en la barra superior
-2. **Seleccionar posición**:
-   - Elige la acción que quieres vender de tu lista de posiciones activas
-   - O busca manualmente si ya no la tienes en cartera
-3. **Rellenar datos**:
-   - **Fecha**: Fecha de la operación
-   - **Acciones**: Número de acciones vendidas
+1. Haz clic en el botón **Vender** en el encabezado
+2. **Seleccionar Posición**: Elige de qué posición vender
+3. Completa los detalles de la operación:
+   - **Acciones**: Número de acciones a vender
    - **Precio**: Precio de venta por acción
-   - **Comisión**: Comisión del broker (opcional)
-4. Haz clic en **"Guardar"**
+   - **Divisa**: Igual que la divisa de compra o convertir
+   - **Fecha**: Fecha de venta
+4. Haz clic en **Guardar**
 
-### Búsqueda de Empresas
+> **💡 Nota**: La venta usa el método FIFO (First In, First Out) para el cálculo de la base de coste.
 
-La búsqueda utiliza **Finnhub** para encontrar empresas:
-- Escribe al menos 2 letras del nombre
-- Aparecen resultados con:
-  - Nombre de empresa
-  - Símbolo (ticker)
-  - Exchange (mercado)
-- Selecciona la empresa correcta
+### Ver Detalles de Posición
 
-#### Símbolos Externos
+Haz clic en cualquier posición en la lista para **expandirla** y ver:
+- **Historial de Operaciones**: Todas las transacciones de compra/venta
+- **Gráfico Histórico**: Evolución del precio con velas OHLC
+- **Resumen de Rendimiento**: Total invertido, valor actual, PnL
+- **Notas**: Anotaciones personales (haz clic en el icono de lápiz para editar)
 
-Si la empresa no aparece en Finnhub:
-1. Marca **"Símbolo Externo"**
-2. Introduce manualmente:
-   - Símbolo (ej: "SAN.MC" para Santander Madrid)
-   - Exchange (ej: "BME", "MC")
-3. Stocks Manager intentará obtener precios desde Yahoo Finance
+### Actualizar Precios
 
-### Editar una Operación
+**Actualización Manual:**
+1. Haz clic en el botón **🔄 Actualizar Precios**
+2. Espera hasta completar (muestra estado "Actualizando...")
+3. Los precios se refrescan automáticamente
 
-1. En el historial de operaciones, haz clic en **"Editar"** junto a la operación
-2. Modifica los campos necesarios
-3. Guarda los cambios
+**Actualizaciones Automáticas:**
+- Se ejecuta cada 15 minutos por defecto
+- Configurable en **Panel Admin** → **Configuración**
 
-### Eliminar una Operación
+### Establecer Precio Objetivo
 
-1. En el historial de operaciones, haz clic en **"Eliminar"**
-2. Confirma la eliminación
-3. Las estadísticas se recalculan automáticamente
+1. Expande una posición
+2. Haz clic en el botón **Establecer Objetivo**
+3. Introduce tu precio objetivo
+4. Guardar
+
+> **📧 Nota**: Las notificaciones por correo requieren configuración SMTP en el Panel Admin.
 
 ---
 
-## 📊 Dashboard y Análisis
+## 📈 Informes y Análisis
 
-### Tarjeta de Resumen del Portafolio
+Accede a informes haciendo clic en **Informes** en el menú de navegación.
 
-La tarjeta principal muestra:
+### Resumen de Cartera
 
-#### Métricas Principales
-- **Total Invertido**: Suma de todas las compras en EUR
-- **Valor Actual**: Valor de mercado de tus posiciones
-- **PnL (Profit and Loss)**: Ganancia o pérdida total (color verde/rojo)
-- **PnL %**: Porcentaje de rendimiento
+**Sección Actual:**
+- Valor total de cartera
+- PnL de hoy (absoluto y porcentaje)
+- Recuento de posiciones activas
+- Monto total invertido
 
-#### Métricas Avanzadas
-- **ROI Realizado**: Return on Investment de operaciones cerradas
-- **Win Rate**: % de operaciones cerradas en beneficio
-- **Tiempo Medio**: Días promedio de tenencia de posiciones cerradas
-- **Best Trade**: Mayor ganancia en una operación
-- **Worst Trade**: Mayor pérdida en una operación
+### Análisis de Rendimiento
 
-### Posiciones Activas
+**Gráfico PnL:**
+- Evolución histórica de ganancias/pérdidas
+- Vistas diaria, semanal, mensual
+- Funcionalidad de zoom y paneo
 
-Lista de todas tus acciones actuales con:
-- **Empresa y Símbolo**
-- **Acciones**: Cantidad que posees
-- **Precio Medio**: Precio promedio de compra
-- **Precio Actual**: Último precio conocido (con badge de fuente: Cache/Finnhub/Yahoo)
-- **Valor**: Valor actual de la posición
-- **PnL**: Ganancia/pérdida de esta posición
+**Calendario de Calor:**
+- Rentabilidades diarias visualizadas como mapa de calor
+- Verde = día positivo, Rojo = día negativo
+- Pasa por encima para porcentajes exactos
 
-#### Expansión de Posición
+**Gráfico de Drawdown:**
+- Visualización de pérdida máxima desde el pico
+- Identifica los peores períodos
+- Muestra patrones de recuperación
 
-Haz clic en una posición para ver:
-- **Historial de Operaciones**: Todas las compras/ventas de este activo
-- **Gráfico Histórico**: Evolución del precio (velas OHLC)
-- **Alertas**: Configura precios objetivo
-- **Notas**: Añade recordatorios o análisis
+### Análisis de Asignación
+
+**Por Sector:**
+- Gráfico circular mostrando distribución por sector
+- Basado en clasificación de sector de Yahoo Finance
+- Ayuda a identificar riesgo de concentración
+
+**Por Industria:**
+- Más granular que sectores
+- Porcentajes de asignación por industria
+
+**Por Posición:**
+- Pesos de acciones individuales en la cartera
+- Ordenado por valor
+
+### Métricas de Riesgo
+
+**Beta de Cartera:**
+- Mide volatilidad vs mercado
+- Beta > 1 = Más volátil que el mercado
+- Beta < 1 = Menos volátil que el mercado
+
+**Ratio de Sharpe:**
+- Medida de rentabilidades ajustadas por riesgo
+- Cuanto más alto, mejor
+
+**Drawdown Máximo:**
+- Mayor caída de pico a valle
+- Importante para gestión de riesgo
+
+### Análisis Mensual
+
+- Desglose de rendimiento mes a mes
+- PnL Realizado vs No Realizado
+- Excluye mes actual (datos incompletos)
+
+### Exportar a PDF
+
+1. Desplázate a la parte superior de la página de Informes
+2. Haz clic en el botón **📄 Exportar PDF**
+3. Espera la generación
+4. El PDF se descarga automáticamente con la fecha actual
+
+---
+
+## ⚙️ Configuración
+
+### Configuración de Usuario
+
+**Foto de Perfil:**
+1. Haz clic en tu **nombre de usuario** en el encabezado
+2. Selecciona **Cambiar Foto de Perfil**
+3. Sube una imagen (JPG, PNG, GIF)
+4. Recorta si lo deseas
+5. Guardar
+
+**Cambiar Contraseña:**
+1. Abre **Panel Admin** (icono engranaje)
+2. Haz clic en **Cambiar Contraseña**
+3. Introduce contraseña actualIntroduce nueva contraseña (mínimo 6 caracteres)
+5. Confirma nueva contraseña
+6. Guardar
+
+### Panel de Administración (Solo Usuarios Admin)
+
+**Acceso**: Icono engranaje (⚙️) → **Panel de Administración**
+
+#### Pestaña Configuración
+
+**Clave API Finnhub:**
+- Clave gratuita de https://finnhub.io/
+- Mejora la fiabilidad de los datos de precios
+- Opcional (Yahoo Finance funciona sin ella)
+
+**Nivel de Log:**
+- **Info**: Logging normal (recomendado)
+- **Verbose**: Logging detallado (para depuración)
+
+**Configuración de Programación:**
+- Configurar frecuencia de actualización de precios
+- Hora del snapshot diario
+
+#### Gestión de Precios
+
+**Sobrescribir Datos Históricos:**
+- Redescarga todos los datos históricos de precios
+- Útil si los datos están corruptos o incompletos
+- **Usar con precaución**: Lleva tiempo y peticiones API
+
+**Recalcular Todos los Cierres Diarios:**
+- Recalcula estadísticas diarias de cartera
+- Corrige problemas de cálculo de PnL
+- Seguro ejecutar en cualquier momento
+
+#### Configuración SMTP
+
+Configurar notificaciones por correo:
+1. Introduce **Host SMTP** (ej: smtp.gmail.com)
+2. Introduce **Puerto SMTP** (587 para TLS, 465 para SSL)
+3. Introduce **Usuario SMTP** (tu correo)
+4. Introduce **Contraseña SMTP** (contraseña de aplicación, no contraseña regular)
+5. Selecciona opción **Segura** (TLS recomendado)
+6. Guardar
+
+> **Usuarios de Gmail**: Genera una **Contraseña de Aplicación** en https://myaccount.google.com/apppasswords
+
+---
+
+## 🎯 Características Avanzadas
+
+### Botones de Enlaces Externos
+
+Personaliza enlaces rápidos a herramientas externas:
+
+1. Haz clic en tu **nombre de usuario** → **Enlaces Externos**
+2. Añade botones para:
+   - Gráficos de TradingView
+   - Páginas de Yahoo Finance
+   - Sitios web de brokers
+   - etc.
+3. Usa marcadores de posición:
+   - `{symbol}` - Reemplazado con símbolo de acción
+   - `{company}` - Reemplazado con nombre de empresa
+
+Ejemplo:
+```
+Texto del Botón: Ver en TradingView
+URL: https://www.tradingview.com/symbols/{symbol}
+```
+
+### Ordenamiento de Posiciones
+
+Personaliza el orden de posiciones en tu lista:
+
+1. Pasa el ratón sobre una posición
+2. Haz clic y mantén presionado el **icono de arrastre** (⋮⋮)
+3. Arrastra a la posición deseada
+4. Suelta
+
+El orden se guarda automáticamente y persiste entre sesiones.
+
+### Notas
+
+Añade notas personales a cualquier posición:
+
+1. Expande una posición
+2. Haz clic en el **icono de lápiz** (✏️) junto a "Notas"
+3. Escribe tu nota (soporta texto multi-línea)
+4. Haz clic en **Guardar**
+
+Casos de uso:
+- Tesis para comprar
+- Recordatorios para revisar
+- Noticias importantes
+- Estrategia de salida
 
 ### Vista Histórica
 
-Activa el botón **"Vista Histórica"** para ver:
-- Estado de tu cartera en fechas pasadas
-- Evolución del PnL en el tiempo
-- Comparativa de rendimiento mensual
+Toggle de gráficos históricos de acciones:
+
+1. Haz clic en el botón **Vista Histórica** en el encabezado
+2. Los gráficos aparecen bajo cada posición expandida
+3. Características:
+   - Datos de velas OHLC
+   - Barras de volumen
+   - Zoom y paneo
+   - Rango de fechas personalizable
 
 ---
 
-## 📉 Gráficos y Visualizaciones
+## 💡 Consejos y Mejores Prácticas
 
-### Gráfico de Distribución (Pie Chart)
+### Actualizaciones de Precios
 
-Muestra la distribución de tu cartera por activo:
-- **% de cartera** de cada acción
-- **Valor en EUR** de cada posición
-- Colores distintivos para cada activo
-- Hover para ver detalles
+- **No actualizar en exceso**: La programación por defecto de 15 minutos suele ser suficiente
+- **Horario de mercado**: Las actualizaciones son más útiles durante horario de mercado
+- **Límites API**: Finnhub tiene límites de tasa (60 llamadas/minuto en plan gratuito)
 
-> **Alerta**: Si un activo representa >30% de tu cartera, verás un aviso de concentración.
+### Organización de Carteras
 
-### Gráfico de Evolución del PnL
+- **Usa nombres descriptivos**: "Crecimiento Tech", "Ingresos por Dividendos", etc.
+- **Separa estrategias**: Crea diferentes carteras para trading vs largo plazo
+- **Favorita tu cartera principal**: Se carga automáticamente al iniciar sesión
 
-Visualiza la evolución histórica de tu cartera:
-- **Eje X**: Fechas (últimos 30-90 días)
-- **Eje Y**: PnL en EUR
-- **Línea**: Evolución del beneficio/pérdida
-- **Colores**: Verde (ganancia) / Rojo (pérdida)
+### Precisión de Datos
 
-### Gráfico de Velas (OHLC) por Acción
+- **Verifica símbolos**: Asegúrate de usar el símbolo correcto de Yahoo Finance
+- **Verifica precios**: Compara con tu broker para asegurar precisión
+- **Actualiza tipos de cambio**: Ajusta manualmente si la tasa automática es incorrecta
 
-Al expandir una posición, verás:
-- **Velas japonesas** con Open, High, Low, Close
-- **Zoom**: Acerca/aleja con la rueda del ratón
-- **Tipos de gráfico**: Velas o línea
-- **Períodos**: 1 mes, 3 meses, 6 meses, 1 año
+### Seguimiento de Rendimiento
 
----
+- **Usa precios objetivo**: Establece objetivos realistas según tu estrategia
+- **Revisa mensualmente**: Verifica la sección de Análisis Mensual regularmente
+- **Monitorea drawdowns**: Ten conciencia de escenarios de peor caso
 
-## 🔔 Alertas y Notificaciones
+### Seguridad
 
-### Configurar Alerta de Precio Objetivo
-
-1. Expande una posición activa
-2. Haz clic en **"Configurar Alerta"**
-3. Introduce el **precio objetivo**
-4. Guarda la alerta
-
-Cuando el precio alcance el objetivo:
-- Recibirás un **email** (si SMTP está configurado)
-- Verás un **aviso** en el dashboard
-- La alerta se marca como disparada (puedes reactivarla desde Admin)
-
-### Alertas Automáticas
-
-Stocks Manager genera alertas automáticas para:
-
-#### Pérdida Significativa
-- Se dispara si una posición pierde >15%
-- Aparece en el dashboard con icono ⚠️
-
-#### Riesgo de Concentración
-- Se activa si un activo representa >30% de tu cartera
-- Recomendación de diversificación
-
-#### Objetivo Alcanzado
-- Cuando un precio objetivo se alcanza
-- Email automático (requiere configuración SMTP en Admin)
+- **Cambia contraseña por defecto**: Después del primer inicio de sesión
+- **Usa contraseñas fuertes**: Mínimo 12 caracteres recomendado
+- **Backups regulares**: Exporta tus datos periódicamente
 
 ---
 
-## 🎨 Personalización
-
-### Cambiar Tema (Claro/Oscuro)
-
-1. Haz clic en el icono de **tema** (☀️/🌙) en la barra superior
-2. El tema cambia inmediatamente
-3. La preferencia se guarda automáticamente
-
-### Foto de Perfil
-
-1. Haz clic en tu **inicial** (círculo en la esquina superior derecha)
-2. Selecciona **"Cambiar foto de perfil"**
-3. Sube una imagen (JPG, PNG, max 2MB)
-4. La foto se muestra en lugar de la inicial
-
-### Botones Externos
-
-Añade enlaces rápidos a tus plataformas favoritas:
-
-1. Haz clic en tu **inicial** → **"Botones Externos"**
-2. Haz clic en **"Añadir Botón"**
-3. Rellena:
-   - **Nombre**: Ej: "Yahoo Finance"
-   - **URL**: Ej: `https://finance.yahoo.com/quote/{SYMBOL}`
-   - **Icono**: Emoji o texto corto
-4. Usa `{SYMBOL}` en la URL para que se reemplace automáticamente
-
-Ejemplo:
-- Nombre: `Yahoo Finance`
-- URL: `https://finance.yahoo.com/quote/{SYMBOL}`
-- Icono: `📈`
-
-Al hacer clic, se abrirá Yahoo Finance con el símbolo de la posición seleccionada.
-
-### Cambiar Contraseña
-
-1. Haz clic en tu **inicial** → **"Cambiar contraseña"**
-2. Introduce tu contraseña actual
-3. Introduce la nueva contraseña (mínimo 6 caracteres)
-4. Confirma y guarda
-
----
-
-## 📝 Notas y Organización
-
-### Añadir Notas a Posiciones
-
-1. Expande una posición activa
-2. Haz clic en **"Añadir Nota"** o en el icono 📝
-3. Escribe tu nota (soporta Markdown básico):
-   - `**negrita**` para **negrita**
-   - `*cursiva*` para *cursiva*
-   - `[enlace](URL)` para enlaces
-4. Guarda la nota
-
-Las notas son útiles para:
-- Recordar por qué compraste una acción
-- Anotar objetivos de precio
-- Guardar análisis o noticias relevantes
-- Cualquier información que quieras recordar
-
-### Ordenar Posiciones
-
-1. Arrastra y suelta las posiciones en el orden que prefieras
-2. El orden se guarda automáticamente
-3. Se mantiene entre sesiones
-
----
-
-## 📄 Reportes
-
-### Visualizar Reportes
-
-1. Haz clic en **"Reportes"** en la barra superior
-2. Verás 3 tipos de reportes:
-
-#### Reporte Diario
-- Generado automáticamente cada noche
-- Snapshot del estado de tu cartera
-- Métricas del día
-
-#### Reporte Mensual
-- Generado al final de cada mes
-- Resumen de operaciones del mes
-- Comparativa con meses anteriores
-
-#### Reporte Anual
-- Generado al final del año
-- Consolidación anual completa
-- Análisis de rendimiento anual
-
-### Exportar Reportes
-
-> **Próximamente**: Exportación a PDF
-
----
-
-## 🔧 Consejos y Mejores Prácticas
-
-### Registro de Operaciones
-
-✅ **Hazlo**: Registra las operaciones lo antes posible
-❌ **Evita**: Esperar semanas para registrar operaciones antiguas
-
-### Diversificación
-
-✅ **Hazlo**: Mantén una cartera diversificada (<30% por activo)
-❌ **Evita**: Concentrar >50% en una sola empresa
-
-### Revisión Periódica
-
-✅ **Hazlo**: Revisa tus posiciones semanalmente
-✅ **Hazlo**: Actualiza tus alertas de precio objetivo
-✅ **Hazlo**: Lee los reportes mensuales
-
-### Backup
-
-✅ **Hazlo**: Si eres administrador, haz backups mensuales
-✅ **Hazlo**: Guarda los backups en un lugar seguro
-
----
-
-## ❓ Preguntas Frecuentes
-
-### ¿Puedo usar Stocks Manager en mi móvil?
-
-Sí, la interfaz es responsive. Funciona en tablets y móviles, aunque la experiencia es mejor en desktop.
-
-### ¿Stocks Manager compra o vende acciones por mí?
-
-No. Stocks Manager es solo una herramienta de **seguimiento y análisis**. No ejecuta operaciones reales.
-
-### ¿Qué APIs usa para obtener precios?
-
-- **Finnhub**: Búsqueda de empresas y precios en tiempo real
-- **Yahoo Finance**: Datos históricos, divisas y cierre de mercado
-
-### ¿Los precios son en tiempo real?
-
-- En mercado abierto: Sí (con Finnhub, delay de ~1 minuto según plan)
-- En mercado cerrado: Se usa el último precio conocido
-
-### ¿Puedo gestionar acciones de diferentes países?
-
-Sí. Stocks Manager soporta:
-- Mercados USA (NASDAQ, NYSE)
-- Mercados europeos (BME Madrid, XETRA Frankfurt, LSE Londres)
-- Conversión automática de USD a EUR
-
-### ¿Cómo se calcula el PnL?
-
-**PnL = Valor Actual - Total Invertido**
-
-- **Valor Actual**: Precio actual × Número de acciones (convertido a EUR)
-- **Total Invertido**: Suma de todas las compras (incluidas comisiones)
-
----
-
-## 🆘 Problemas Comunes
-
-### No aparecen los precios actuales
-
-1. Verifica que tienes conexión a internet
-2. Comprueba que la API Key de Finnhub está configurada (Panel Admin)
-3. Revisa que el símbolo es correcto
-
-### Mi empresa no aparece en la búsqueda
-
-1. Usa **"Símbolo Externo"**
-2. Introduce el símbolo de Yahoo Finance (ej: `SAN.MC` para Santander)
-3. Stocks Manager obtendrá precios desde Yahoo
-
-### El gráfico histórico no carga
-
-1. Asegúrate de que hay datos históricos (al menos 7 días desde la compra)
-2. Comprueba que Yahoo Finance tiene datos para ese símbolo
-3. Si el símbolo es incorrecto, edita la operación y corrige el símbolo
-
----
-
-**¿Más dudas?** Consulta la [Guía de Administración](./ADMINISTRACION.md) o abre un issue en GitHub.
-
-**¡Feliz inversión!** 🚀📈
+**¿Necesitas Ayuda?** Ver [SOLUCION_PROBLEMAS.md](SOLUCION_PROBLEMAS.md) para problemas comunes y soluciones.
