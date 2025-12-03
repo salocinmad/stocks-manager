@@ -1,4 +1,4 @@
-import { formatPrice } from './formatters.js';
+import { formatPrice, formatNumberForCSV, formatExchangeRate } from './formatters.js';
 
 export const generateFullCSV = (operations) => {
   const sales = operations.filter(op => op.type === 'sale');
@@ -24,12 +24,12 @@ export const generateFullCSV = (operations) => {
     'Comision ven',
     'Precio en € ven',
     'Ganancias',
-    'Precio $ ve',
+    'Precio $ ven',
     'Ganancia en €',
     'Porcentaje',
     'Rentenciones',
     'Retencion',
-    '% Retencio',
+    '% Retencion',
     'Ganancia real'
   ]);
 
@@ -40,7 +40,8 @@ export const generateFullCSV = (operations) => {
       .sort((a, b) => new Date(a.date) - new Date(b.date));
 
     let remainingShares = sale.shares;
-    let totalPurchaseCost = 0;
+    let totalPurchaseCost = 0; // Acumula el costo total de las compras en EUR.
+    let totalPurchaseCostOriginalCurrency = 0; // Acumula el costo total de las compras en la moneda original.
     let totalPurchaseShares = 0;
     let totalPurchaseCommission = 0;
     let avgPurchasePrice = 0;
@@ -52,7 +53,8 @@ export const generateFullCSV = (operations) => {
       if (remainingShares <= 0) return;
       const sharesToUse = Math.min(remainingShares, purchase.shares);
       const costPerShare = purchase.totalCost / purchase.shares;
-      totalPurchaseCost += sharesToUse * costPerShare;
+      totalPurchaseCost += sharesToUse * costPerShare; // Acumula el costo en EUR.
+      totalPurchaseCostOriginalCurrency += sharesToUse * purchase.price; // Acumula el costo en la moneda original.
       totalPurchaseShares += sharesToUse;
       totalPurchaseCommission += (purchase.commission / purchase.shares) * sharesToUse;
 
@@ -101,43 +103,56 @@ export const generateFullCSV = (operations) => {
 
     const saleExchangeRate = sale.currency === 'EUR' ? 1 : (sale.exchangeRate || 1);
 
-    const saleRevenue = sale.shares * sale.price * saleExchangeRate;
-    const saleCommission = sale.commission * saleExchangeRate;
-    const netSaleRevenue = saleRevenue - saleCommission;
+    const precioVenOriginalCurrency = sale.shares * sale.price;
 
-    const grossProfit = netSaleRevenue - totalPurchaseCost;
-    const profitPercentage = totalPurchaseCost > 0 ? (grossProfit / totalPurchaseCost) * 100 : 0;
+    const precioEnEuroVen = (precioVenOriginalCurrency - sale.commission) * saleExchangeRate;
 
-    const retentionRate = 0.19;
-    const retention = grossProfit > 0 ? grossProfit * retentionRate : 0;
-    const netProfit = grossProfit - retention;
+    const gananciasOriginalCurrency = precioVenOriginalCurrency - totalPurchaseCostOriginalCurrency;
+
+    const gananciaEnEuro = precioEnEuroVen - totalPurchaseCost;
+    const porcentajeGanancia = totalPurchaseCostOriginalCurrency > 0 ? (gananciasOriginalCurrency / totalPurchaseCostOriginalCurrency) * 100 : 0;
+
+    const retencionPorcentaje = gananciaEnEuro > 0 ? 0.19 : 0;
+    const retencionCalculada = gananciaEnEuro * retencionPorcentaje;
+    const gananciaReal = gananciaEnEuro - retencionCalculada;
 
     const saleDate = new Date(sale.date);
     const formattedDate = `${saleDate.getDate().toString().padStart(2, '0')}/${(saleDate.getMonth() + 1).toString().padStart(2, '0')}/${saleDate.getFullYear()}`;
 
-    const formatExchangeRate = (rate) => rate === 1 ? '1' : rate.toFixed(8);
+
 
     csvRows.push([
-      company,
-      avgPurchaseDate,
-      formattedDate,
-      sale.shares.toString(),
-      `${formatPrice(avgPurchasePrice)} ${purchaseCurrency}`,
-      formatExchangeRate(purchaseExchangeRate),
-      `${totalPurchaseCommission.toFixed(2)} ${purchaseCurrency}`,
-      `${totalPurchaseCost.toFixed(2)} EUR`,
-      `${formatPrice(sale.price)} ${sale.currency}`,
-      `${(sale.shares * sale.price).toFixed(2)} ${sale.currency}`,
-      `${sale.commission.toFixed(2)} ${sale.currency}`,
-      `${netSaleRevenue.toFixed(2)} EUR`,
-      `${(sale.shares * sale.price - sale.commission - (totalPurchaseCost / purchaseExchangeRate)).toFixed(2)} ${sale.currency}`,
-      formatExchangeRate(saleExchangeRate),
-      `${grossProfit.toFixed(2)} EUR`,
-      `${profitPercentage.toFixed(2)}%`,
-      'NO',
-      `${retention.toFixed(2)} EUR`,
-      '19%',
-      `${netProfit.toFixed(2)} €`
+      company, // Campo: Empresa
+      avgPurchaseDate, // Campo: Fecha de compra promedio
+      formattedDate, // Campo: Fecha de venta formateada
+      sale.shares.toString(), // Campo: Títulos vendidos
+      // `${formatNumberForCSV(totalPurchaseCostOriginalCurrency + totalPurchaseCommission)} ${purchaseCurrency}`, // Fórmula: (Títulos comprados * Precio de compra) + Comision com y Moneda de compra - precio con moneda
+      formatNumberForCSV(totalPurchaseCostOriginalCurrency + totalPurchaseCommission), // Fórmula: (Títulos comprados * Precio de compra) + Comision com
+      formatExchangeRate(purchaseExchangeRate), // Campo: Tipo de cambio de compra formateado
+      // `${formatNumberForCSV(totalPurchaseCommission)} ${purchaseCurrency}`, // Campo: Comisión de compra total y Moneda de compra - precio con moneda
+      formatNumberForCSV(totalPurchaseCommission), // Campo: Comisión de compra total
+      // `${formatNumberForCSV(totalPurchaseCostOriginalCurrency * purchaseExchangeRate)} EUR`, // Fórmula: Precio com * Precio $ com - precio con moneda
+      formatNumberForCSV(totalPurchaseCostOriginalCurrency * purchaseExchangeRate), // Fórmula: Precio com * Precio $ com
+      // `${formatNumberForCSV(sale.price)} ${sale.currency}`, // Campo: Precio por acción de venta y Moneda de venta - precio con moneda
+      formatNumberForCSV(sale.price), // Campo: Precio por acción de venta
+      // `${formatNumberForCSV(precioVenOriginalCurrency)} ${sale.currency}`, // Fórmula: (Títulos vendidos * Precio por acción de venta) + Comision ven - precio con moneda
+      formatNumberForCSV(precioVenOriginalCurrency), // Fórmula: (Títulos vendidos * Precio por acción de venta) + Comision ven
+      // `${formatNumberForCSV(sale.commission)} ${sale.currency}`, // Campo: Comisión de venta y Moneda de venta - precio con moneda
+      formatNumberForCSV(sale.commission), // Campo: Comisión de venta
+      // `${formatNumberForCSV(precioEnEuroVen)} EUR`, // Fórmula: (Precio Ven - Comision ven) * Precio $ ven - precio con moneda
+      formatNumberForCSV(precioEnEuroVen), // Fórmula: (Precio Ven - Comision ven) * Precio $ ven
+      // `${formatNumberForCSV(gananciasOriginalCurrency)} ${sale.currency}`, // Fórmula: Precio Ven - Precio com - precio con moneda
+      formatNumberForCSV(gananciasOriginalCurrency), // Fórmula: Precio Ven - Precio com
+      formatExchangeRate(saleExchangeRate), // Campo: Tipo de cambio de venta formateado
+      // `${formatNumberForCSV(gananciaEnEuro)} EUR`, // Fórmula: Precio en € ven - Precio en € com - precio con moneda
+      formatNumberForCSV(gananciaEnEuro), // Fórmula: Precio en € ven - Precio en € com
+      `${formatNumberForCSV(porcentajeGanancia)}%`, // Fórmula: ((Precio Ven - Precio com) / Precio com) * 100 y símbolo %
+      'NO', // Campo: Retenciones (indicador)
+      // `${formatNumberForCSV(retencionCalculada)} EUR`, // Fórmula: Ganancia en € * % Retencion - precio con moneda
+      formatNumberForCSV(retencionCalculada), // Fórmula: Ganancia en € * % Retencion
+      `${formatNumberForCSV(retencionPorcentaje * 100)}%`, // Fórmula: 19% si Ganancia en € es positivo o 0% si es negativo
+      // `${formatNumberForCSV(gananciaReal)} EUR` // Fórmula: Ganancia en € * 100% - % Retencion - precio con moneda
+      formatNumberForCSV(gananciaReal) // Fórmula: Ganancia en € * 100% - % Retencion
     ]);
   });
 

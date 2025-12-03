@@ -18,6 +18,11 @@ export const formatPrice = (price) => {
   return price.toFixed(decimals);
 };
 
+export const formatNumberForCSV = (number) => {
+  if (number === null || number === undefined || isNaN(number)) return '0,00';
+  return number.toFixed(2).replace('.', ',');
+};
+
 export const formatCurrency = (value, currencyCode) => {
   if (value === null || value === undefined || isNaN(value)) return '-';
   const formatted = parseFloat(value).toFixed(2);
@@ -55,5 +60,10 @@ export const markdownToHtml = (md) => {
     return '<ul>' + items.map(i => `<li>${i}</li>`).join('') + '</ul>';
   });
   return html;
+};
+
+export const formatExchangeRate = (rate) => {
+  if (rate === 1) return '1';
+  return rate.toFixed(8).replace('.', ',');
 };
 
