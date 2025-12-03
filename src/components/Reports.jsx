@@ -309,8 +309,8 @@ function Reports({
                                         >
                                         </div>
                                     </div>
-                                    <div className="month-value">
-                                        {month.gain >= 0 ? '+' : ''}€{Math.abs(month.gain).toFixed(0)}
+                                    <div className={`month-value ${month.gain >= 0 ? 'positive' : 'negative'}`}>
+                                        {month.gain >= 0 ? '+' : '-'}€{Math.abs(month.gain).toFixed(0)}
                                     </div>
                                 </div>
                             );

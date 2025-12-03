@@ -379,6 +379,14 @@
     text-align: center;
 }
 
+.month-value.positive {
+    color: #22c55e;
+}
+
+.month-value.negative {
+    color: #ef4444;
+}
+
 /* Top Positions */
 .top-positions {
     background: var(--card-bg, #1f1f1f);
