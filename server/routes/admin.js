@@ -228,15 +228,28 @@ router.get('/backup/export', async (req, res) => {
       if (rows.length > 0) {
         sql += `TRUNCATE TABLE \`${model.tableName}\`;\n`
         rows.forEach(row => {
-          const values = Object.values(row.dataValues).map(v => {
+          // Obtener columnas del registro actual
+          const columns = Object.keys(row.dataValues)
+          const columnNames = columns.map(c => `\`${c}\``).join(', ')
+
+          const values = columns.map(col => {
+            const v = row.dataValues[col]
             if (v === null) return 'NULL'
             if (typeof v === 'boolean') return v ? 1 : 0
             if (typeof v === 'number') return v
             if (v instanceof Date) return `'${v.toISOString().slice(0, 19).replace('T', ' ')}'`
-            // Escapar comillas simples para SQL
-            return `'${String(v).replace(/'/g, "''").replace(/\\/g, '\\\\')}'`
+            // Escapar todos los caracteres especiales para SQL usando backslash
+            const escaped = String(v)
+              .replace(/\\/g, '\\\\')      // Escapar backslashes primero
+              .replace(/'/g, "\\'")        // Escapar comillas simples con backslash
+              .replace(/"/g, '\\"')        // Escapar comillas dobles
+              .replace(/\n/g, '\\n')       // Escapar saltos de línea
+              .replace(/\r/g, '\\r')       // Escapar retornos de carro
+              .replace(/\t/g, '\\t')       // Escapar tabulaciones
+              .replace(/\x00/g, '\\0')     // Escapar null bytes
+            return `'${escaped}'`
           })
-          sql += `INSERT INTO \`${model.tableName}\` VALUES (${values.join(', ')});\n`
+          sql += `INSERT INTO \`${model.tableName}\` (${columnNames}) VALUES (${values.join(', ')});\n`
         })
         sql += '\n'
       }
@@ -285,8 +298,50 @@ router.post('/backup/import', upload.single('file'), async (req, res) => {
         }
       }
     } else {
-      // Importación SQL
-      const statements = content.split(';').map(s => s.trim()).filter(s => s.length > 0)
+      // Importación SQL - dividir statements respetando strings
+      const statements = []
+      let current = ''
+      let inString = false
+      let escapeNext = false
+
+      for (let i = 0; i < content.length; i++) {
+        const char = content[i]
+
+        if (escapeNext) {
+          current += char
+          escapeNext = false
+          continue
+        }
+
+        if (char === '\\') {
+          current += char
+          escapeNext = true
+          continue
+        }
+
+        if (char === "'") {
+          inString = !inString
+          current += char
+          continue
+        }
+
+        if (char === ';' && !inString) {
+          const stmt = current.trim()
+          if (stmt.length > 0) {
+            statements.push(stmt)
+          }
+          current = ''
+          continue
+        }
+
+        current += char
+      }
+
+      // Agregar último statement si existe
+      if (current.trim().length > 0) {
+        statements.push(current.trim())
+      }
+
       for (const stmt of statements) {
         // Omitir SET FOREIGN_KEY_CHECKS ya que lo manejamos manualmente
         if (stmt.toUpperCase().includes('FOREIGN_KEY_CHECKS')) continue
