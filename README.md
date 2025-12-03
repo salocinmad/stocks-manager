@@ -2,11 +2,12 @@
 
 **Sistema Profesional de Gestión de Carteras con Análisis Financiero Avanzado**
 
-![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)
-![License](https://img.shields.io/badge/license-Custom-green.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Docker](https://img.shields.io/badge/docker-✓-brightgreen.svg)
 ![React](https://img.shields.io/badge/react-18.2.0-61DAFB.svg)
 ![Node](https://img.shields.io/badge/node-22-339933.svg)
+![MariaDB](https://img.shields.io/badge/mariadb-11.4-003545.svg)
 
 ---
 

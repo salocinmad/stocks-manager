@@ -11,22 +11,24 @@ if (fs.existsSync(dbCredentialsPath)) {
   dotenv.config({ path: dbCredentialsPath });
 }
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME || 'portfolio_manager',
-  process.env.DB_USER || 'user',
-  process.env.DB_PASS || 'password',
-  {
-    host: process.env.DB_HOST || 'mariadb',
-    dialect: 'mysql',
-    logging: false,
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    }
+const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || 'portfolio_manager';
+const dbUser = process.env.DB_USER || process.env.MYSQL_USER || 'user';
+const dbPass = process.env.DB_PASS || process.env.MYSQL_PASSWORD || 'password';
+const dbHost = process.env.DB_HOST || 'mariadb';
+const dbPort = Number(process.env.DB_PORT || 3306);
+
+const sequelize = new Sequelize(dbName, dbUser, dbPass, {
+  host: dbHost,
+  port: dbPort,
+  dialect: 'mysql',
+  logging: false,
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
   }
-);
+});
 
 export const connectDB = async () => {
   try {
