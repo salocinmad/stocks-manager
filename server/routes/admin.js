@@ -200,189 +200,87 @@ router.post('/reset-alerts', async (req, res) => {
 // BACKUP Y RESTAURACIÓN (Solo Administradores)
 // ============================================================================
 
+/**
+ * GET /admin/backup/export
+ * Exporta un backup completo de la base de datos en formato JSON o SQL
+ * Query params: format=json|sql (default: json)
+ * Solo accesible por administradores
+ */
 router.get('/backup/export', isAdmin, async (req, res) => {
   try {
     const format = req.query.format === 'sql' ? 'sql' : 'json'
-    const models = [
-      User, Portfolio, PortfolioReport, Config, Operation,
-      // Nuevas tablas globales (PRIORIDAD)
-      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert, AssetProfile,
-      // Tablas heredadas (mantener para reversión)
-      PriceCache, DailyPrice,
-      // Resto de tablas
-      DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
-    ]
-    const data = {}
+    const timestamp = new Date().toISOString().split('T')[0]
 
-    // Obtener todos los datos
-    for (const model of models) {
-      data[model.name] = await model.findAll()
-    }
+    console.log(`[Backup] Usuario ${req.user.username} (ID: ${req.user.id}) iniciando exportación en formato ${format.toUpperCase()}`)
 
     if (format === 'json') {
-      console.log('Intentando exportar JSON. Claves de datos:', Object.keys(data));
+      const data = await exportToJSON()
       res.setHeader('Content-Type', 'application/json')
-      res.setHeader('Content-Disposition', `attachment; filename=backup_${new Date().toISOString().split('T')[0]}.json`)
+      res.setHeader('Content-Disposition', `attachment; filename=backup_${timestamp}.json`)
+      console.log(`[Backup] Exportación JSON completada exitosamente`)
       return res.send(JSON.stringify(data, null, 2))
+    } else {
+      const sql = await exportToSQL()
+      res.setHeader('Content-Type', 'application/sql')
+      res.setHeader('Content-Disposition', `attachment; filename=backup_${timestamp}.sql`)
+      console.log(`[Backup] Exportación SQL completada exitosamente`)
+      return res.send(sql)
     }
-
-    // Formato SQL
-    let sql = 'SET FOREIGN_KEY_CHECKS = 0;\n\n'
-    for (const model of models) {
-      const rows = data[model.name]
-      if (rows.length > 0) {
-        sql += `TRUNCATE TABLE \`${model.tableName}\`;\n`
-        rows.forEach(row => {
-          // Obtener columnas del registro actual
-          const columns = Object.keys(row.dataValues)
-          const columnNames = columns.map(c => `\`${c}\``).join(', ')
-
-          const values = columns.map(col => {
-            const v = row.dataValues[col]
-            if (v === null) return 'NULL'
-            if (typeof v === 'boolean') return v ? 1 : 0
-            if (typeof v === 'number') return v
-            if (v instanceof Date) return `'${v.toISOString().slice(0, 19).replace('T', ' ')}'`
-            // Escapar todos los caracteres especiales para SQL usando backslash
-            const escaped = String(v)
-              .replace(/\\/g, '\\\\')      // Escapar backslashes primero
-              .replace(/'/g, "\\'")        // Escapar comillas simples con backslash
-              .replace(/"/g, '\\"')        // Escapar comillas dobles
-              .replace(/\n/g, '\\n')       // Escapar saltos de línea
-              .replace(/\r/g, '\\r')       // Escapar retornos de carro
-              .replace(/\t/g, '\\t')       // Escapar tabulaciones
-              .replace(/\x00/g, '\\0')     // Escapar null bytes
-            return `'${escaped}'`
-          })
-          sql += `INSERT INTO \`${model.tableName}\` (${columnNames}) VALUES (${values.join(', ')});\n`
-        })
-        sql += '\n'
-      }
-    }
-    sql += 'SET FOREIGN_KEY_CHECKS = 1;\n'
-
-    res.setHeader('Content-Type', 'application/sql')
-    res.setHeader('Content-Disposition', `attachment; filename=backup_${new Date().toISOString().split('T')[0]}.sql`)
-    res.send(sql)
-
   } catch (error) {
-    console.error('Error de exportación de respaldo:', error);
-    res.status(500).json({ error: error.message });
+    console.error('[Backup] Error en exportación:', error)
+    res.status(500).json({
+      error: 'Error al exportar el backup',
+      details: error.message
+    })
   }
 })
 
+/**
+ * POST /admin/backup/import
+ * Importa un backup completo desde un archivo JSON o SQL
+ * ADVERTENCIA: Esto eliminará todos los datos existentes
+ * Solo accesible por administradores
+ */
 router.post('/backup/import', isAdmin, upload.single('file'), async (req, res) => {
-  const t = await sequelize.transaction()
   try {
-    if (!req.file) return res.status(400).json({ error: 'Archivo requerido' })
-
-    const content = req.file.buffer.toString('utf8')
-    const isJson = req.file.originalname.endsWith('.json') || content.trim().startsWith('{')
-
-    await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction: t })
-
-    const models = [
-      User, Portfolio, PortfolioReport, Config, Operation,
-      GlobalCurrentPrice, GlobalStockPrice, UserStockAlert, AssetProfile,
-      PriceCache, DailyPrice,
-      DailyPortfolioStats, DailyPositionSnapshot, Note, PositionOrder, ProfilePicture, ExternalLinkButton
-    ]
-
-    // Truncar todas las tablas primero
-    for (const model of models) {
-      await model.destroy({ where: {}, truncate: true, transaction: t })
+    if (!req.file) {
+      return res.status(400).json({ error: 'Archivo requerido' })
     }
 
-    if (isJson) {
-      const data = JSON.parse(content)
-      for (const model of models) {
-        if (data[model.name] && Array.isArray(data[model.name])) {
-          if (data[model.name].length > 0) {
-            await model.bulkCreate(data[model.name], { transaction: t })
-          }
-        }
-      }
-    } else {
-      // Importación SQL - dividir statements respetando strings
-      const statements = []
-      let current = ''
-      let inString = false
-      let escapeNext = false
+    const filename = req.file.originalname
+    const fileSize = (req.file.size / 1024 / 1024).toFixed(2) // MB
 
-      for (let i = 0; i < content.length; i++) {
-        const char = content[i]
+    console.log(`[Backup] Usuario ${req.user.username} (ID: ${req.user.id}) iniciando importación`)
+    console.log(`[Backup] Archivo: ${filename} (${fileSize} MB)`)
+    console.warn(`[Backup] ADVERTENCIA: Se eliminarán todos los datos existentes`)
 
-        if (escapeNext) {
-          current += char
-          escapeNext = false
-          continue
-        }
+    const result = await importBackup(req.file.buffer, filename)
 
-        if (char === '\\') {
-          current += char
-          escapeNext = true
-          continue
-        }
+    console.log(`[Backup] Importación completada exitosamente (formato: ${result.format})`)
+    res.json(result)
 
-        if (char === "'") {
-          inString = !inString
-          current += char
-          continue
-        }
-
-        if (char === ';' && !inString) {
-          const stmt = current.trim()
-          if (stmt.length > 0) {
-            statements.push(stmt)
-          }
-          current = ''
-          continue
-        }
-
-        current += char
-      }
-
-      // Agregar último statement si existe
-      if (current.trim().length > 0) {
-        statements.push(current.trim())
-      }
-
-      for (const stmt of statements) {
-        // Omitir SET FOREIGN_KEY_CHECKS ya que lo manejamos manualmente
-        if (stmt.toUpperCase().includes('FOREIGN_KEY_CHECKS')) continue
-        await sequelize.query(stmt, { transaction: t })
-      }
-    }
-
-    await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { transaction: t })
-    await t.commit()
-
-    res.json({ success: true, message: 'Restauración completada' })
-
-    // Recargar configuración del programador después de importación exitosa y respuesta enviada
+    // Recargar configuración del programador después de importación exitosa
     try {
       await scheduler.reload()
-      console.log('Programador recargado correctamente después de la importación.');
+      console.log('[Backup] Programador recargado correctamente después de la importación')
     } catch (schedulerError) {
-      console.error('Error al recargar el programador después de la importación:', schedulerError);
+      console.error('[Backup] Error al recargar el programador:', schedulerError)
     }
-
   } catch (error) {
-    // Solo revertir si la transacción aún no se ha confirmado
-    if (t.finished !== 'commit') { // Verificar si la transacción no está confirmada
-      await t.rollback()
-    }
-    console.error('Error de importación de respaldo:', error)
+    console.error('[Backup] Error en importación:', error)
 
-    // Instancia de Yahoo Finance v3
-    const yahooFinance = new YahooFinance({
-      suppressNotices: ['yahooSurvey'],
-      queue: {
-        concurrency: 1,
-        timeout: 300
-      }
-    });
-    res.status(500).json({ error: 'Error en restauración: ' + error.message })
+    // Proporcionar mensajes de error más específicos
+    let errorMessage = 'Error al importar el backup'
+    if (error.name === 'SyntaxError') {
+      errorMessage = 'El archivo no tiene un formato válido (JSON o SQL corrupto)'
+    } else if (error.message.includes('SQL syntax')) {
+      errorMessage = 'Error de sintaxis SQL en el archivo'
+    }
+
+    res.status(500).json({
+      error: errorMessage,
+      details: error.message
+    })
   }
 })
 
