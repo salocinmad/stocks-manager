@@ -2,13 +2,13 @@ import { authenticatedFetch } from './auth.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
-// Helper para obtener el portfolioId actual
+// Función auxiliar para obtener el portfolioId actual
 const getCurrentPortfolioId = () => {
   const v = localStorage.getItem('currentPortfolioId');
   return v ? parseInt(v, 10) : null;
 };
 
-// Helper para hacer requests autenticados
+// Función auxiliar para hacer requests autenticados
 const fetchAPI = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
 
@@ -184,7 +184,7 @@ export const configAPI = {
 // Comprobación de estado
 export const healthCheck = () => fetchAPI('/health');
 
-// Helper para hacer requests autenticados que devuelven una imagen (Blob)
+// Función auxiliar para hacer requests autenticados que devuelven una imagen (Blob)
 const fetchImageAPI = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   try {

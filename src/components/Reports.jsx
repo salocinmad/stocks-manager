@@ -65,7 +65,7 @@ function Reports({
         try {
             setGeneratingPDF(true);
 
-            // Capture the report container as canvas
+            // Capturar el contenedor del reporte como canvas
             const canvas = await html2canvas(reportRef.current, {
                 scale: 2,
                 useCORS: true,
@@ -96,7 +96,7 @@ function Reports({
         }
     };
 
-    // Helper para formatear fechas
+    // Función auxiliar para formatear fechas
     const formatDate = (dateString) => {
         const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
         return new Date(dateString).toLocaleDateString('es-ES', options);

@@ -49,13 +49,13 @@ export async function fetchQuote(symbol) {
         }
 
         return {
-            lastPrice: data.c,           // current
-            change: data.d,              // change
-            changePercent: data.dp,      // percent change
-            open: data.o,                // open
-            high: data.h,                // high
-            low: data.l,                 // low
-            previousClose: data.pc,      // previous close
+            lastPrice: data.c,           // actual
+            change: data.d,              // cambio
+            changePercent: data.dp,      // cambio porcentual
+            open: data.o,                // apertura
+            high: data.h,                // máximo
+            low: data.l,                 // mínimo
+            previousClose: data.pc,      // cierre anterior
             previousCloseDate: getPreviousMarketDay(),
             // Finnhub no proporciona: volume, marketState, currency, exchange
         };

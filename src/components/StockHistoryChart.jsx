@@ -25,19 +25,19 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
     const smaSeriesRef = useRef(null);
     const sp500SeriesRef = useRef(null);
 
-    // Fetch data whenever positionKey, portfolioId, or timePeriod changes
+    // Obtener datos cuando cambie positionKey, portfolioId o timePeriod
     useEffect(() => {
         fetchHistoricalData();
     }, [positionKey, portfolioId, timePeriod]);
 
-    // Fetch SP500 data if enabled
+    // Obtener datos del SP500 si está habilitado
     useEffect(() => {
         if (compareSP500) {
             fetchSP500Data();
         }
     }, [compareSP500, timePeriod]);
 
-    // Create/update chart whenever theme, chartType, data, or features change
+    // Crear/actualizar gráfico cuando cambie theme, chartType, data o features
     useEffect(() => {
         if (historicalData.length > 0 && chartContainerRef.current) {
             createOrUpdateChart();
@@ -72,7 +72,7 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
             const result = await positionsAPI.getHistory(positionKey, days);
 
             if (result.success && result.data) {
-                // Format data for Lightweight Charts
+                // Formatear datos para Lightweight Charts
                 const formattedData = result.data.map(item => {
                     const date = new Date(item.date);
                     const time = Math.floor(date.getTime() / 1000);
@@ -90,15 +90,15 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
                         low,
                         close,
                         volume,
-                        value: close // For line and area charts
+                        value: close // Para gráficos de línea y área
                     };
                 });
 
-                // Sort by time ascending
+                // Ordenar por tiempo ascendente
                 formattedData.sort((a, b) => a.time - b.time);
                 setHistoricalData(formattedData);
 
-                // Set operations for markers
+                // Configurar operaciones para marcadores
                 if (result.operations) {
                     setOperations(result.operations);
                 }
@@ -159,7 +159,7 @@ const StockHistoryChart = ({ positionKey, userId, portfolioId, theme }) => {
     const createOrUpdateChart = () => {
         if (!chartContainerRef.current) return;
 
-        // Remove existing chart if any
+        // Eliminar gráfico existente si lo hay
         if (chartRef.current) {
             chartRef.current.remove();
             chartRef.current = null;

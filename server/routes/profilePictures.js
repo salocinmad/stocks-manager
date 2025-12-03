@@ -75,7 +75,7 @@ router.post('/', (req, res, next) => {
 
     if (profilePicture) {
       // Si existe, actualizarla (borrar la antigua y guardar la nueva referencia)
-      // TODO: Considerar borrar el archivo antiguo del disco si existe
+      // POR HACER: Considerar borrar el archivo antiguo del disco si existe
       profilePicture.filename = filename;
       await profilePicture.save();
       res.status(200).json({ message: 'Imagen de perfil actualizada correctamente.', filename });

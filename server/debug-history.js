@@ -11,9 +11,9 @@ async function test() {
         await sequelize.authenticate();
         console.log('Connection has been established successfully.');
 
-        // Mock parameters
-        const userId = 1; // Assuming user ID 1 exists
-        const positionKey = 'AMD'; // Based on screenshot
+        // Parámetros de prueba
+        const userId = 1; // Asumiendo que existe el usuario ID 1
+        const positionKey = 'AMD'; // Basado en captura de pantalla
         const decodedPositionKey = positionKey;
         const searchSymbol = 'AMD';
 

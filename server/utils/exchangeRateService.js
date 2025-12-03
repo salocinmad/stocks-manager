@@ -21,7 +21,7 @@ export async function getExchangeRate(currency) {
     // EUR siempre es 1
     if (normalized === 'EUR') return 1;
 
-    // TODO: Implementar llamada a API real
+    // POR HACER: Implementar llamada a API real
     // Por ahora, retornar valores por defecto
     return DEFAULT_EXCHANGE_RATES[normalized] || 1;
 }
