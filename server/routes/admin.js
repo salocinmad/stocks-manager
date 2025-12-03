@@ -27,6 +27,7 @@ import sequelize from '../config/database.js'
 import YahooFinance from 'yahoo-finance2'
 // Nuevo servicio modular
 import { runManualUpdate } from '../services/scheduler/priceScheduler.js'
+import { exportToJSON, exportToSQL, importBackup } from '../services/backupService.js'
 
 const upload = multer({ storage: multer.memoryStorage() })
 const router = express.Router()
@@ -195,7 +196,11 @@ router.post('/reset-alerts', async (req, res) => {
   }
 })
 
-router.get('/backup/export', async (req, res) => {
+// ============================================================================
+// BACKUP Y RESTAURACIÓN (Solo Administradores)
+// ============================================================================
+
+router.get('/backup/export', isAdmin, async (req, res) => {
   try {
     const format = req.query.format === 'sql' ? 'sql' : 'json'
     const models = [
@@ -266,7 +271,7 @@ router.get('/backup/export', async (req, res) => {
   }
 })
 
-router.post('/backup/import', upload.single('file'), async (req, res) => {
+router.post('/backup/import', isAdmin, upload.single('file'), async (req, res) => {
   const t = await sequelize.transaction()
   try {
     if (!req.file) return res.status(400).json({ error: 'Archivo requerido' })
