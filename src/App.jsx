@@ -1692,7 +1692,7 @@ function App() {
                       onChange={(e) => {
                         const query = e.target.value;
                         setSearchQuery(query);
-                        if (query.length >= 2) {
+                        if (query.length >= 3) {
                           searchCompanies(query);
                         } else {
                           setSearchResults([]);
@@ -2164,7 +2164,6 @@ function App() {
 }
 
 export default App;
-
 
 
 

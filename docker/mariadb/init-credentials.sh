@@ -6,6 +6,7 @@ set -e
 
 CREDENTIALS_FILE="/run/secrets/.credentials_generated"
 ENV_FILE="/run/secrets/db_credentials"
+DATA_FILE="/var/lib/mysql/.generated_credentials"
 
 # Función para generar contraseña aleatoria segura
 generate_password() {
@@ -19,45 +20,78 @@ generate_username() {
     tr -dc 'a-z0-9' < /dev/urandom | head -c 10
 }
 
-# Solo generar credenciales en el primer arranque
-if [ ! -f "$CREDENTIALS_FILE" ]; then
+mkdir -p /run/secrets
+
+# Determinar fuente de credenciales persistentes
+if [ -f "$DATA_FILE" ]; then
+    echo "✅ Credenciales ya generadas anteriormente (persistentes), usando las existentes..."
+    # Reconstruir archivo de secretos si falta
+    if [ ! -f "$ENV_FILE" ]; then
+        . "$DATA_FILE" 2>/dev/null || true
+        cat > "$ENV_FILE" << EOF
+MYSQL_USER="$MYSQL_USER"
+MYSQL_PASSWORD="$MYSQL_PASSWORD"
+MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD"
+MYSQL_DATABASE="$MYSQL_DATABASE"
+EOF
+        chmod 600 "$ENV_FILE"
+    fi
+    # Exportar al entorno para el entrypoint oficial
+    . "$ENV_FILE"
+    export MYSQL_USER MYSQL_PASSWORD MYSQL_ROOT_PASSWORD MYSQL_DATABASE
+elif [ -f "$ENV_FILE" ]; then
+    echo "✅ Credenciales encontradas en /run/secrets, usando las existentes..."
+    . "$ENV_FILE"
+    export MYSQL_USER MYSQL_PASSWORD MYSQL_ROOT_PASSWORD MYSQL_DATABASE
+    # Crear marcador persistente para impedir regeneración futura
+    cat > "$DATA_FILE" << EOF
+# Credenciales generadas/restauradas
+# Fecha: $(date)
+MYSQL_USER=$MYSQL_USER
+MYSQL_PASSWORD=$MYSQL_PASSWORD
+MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
+MYSQL_DATABASE=$MYSQL_DATABASE
+EOF
+    chmod 600 "$DATA_FILE"
+else
     echo "🔐 Primera instalación detectada - Generando credenciales seguras..."
-    
-    # Generar credenciales si no están definidas
+    # Generar únicamente si no hay credenciales previas
     if [ -z "$MYSQL_USER" ] || [ "$MYSQL_USER" = "user" ]; then
         MYSQL_USER=$(generate_username)
-        export MYSQL_USER
     fi
-    
     if [ -z "$MYSQL_PASSWORD" ] || [ "$MYSQL_PASSWORD" = "password" ]; then
         MYSQL_PASSWORD=$(generate_password)
-        export MYSQL_PASSWORD
     fi
-    
     if [ -z "$MYSQL_ROOT_PASSWORD" ] || [ "$MYSQL_ROOT_PASSWORD" = "rootpassword" ]; then
         MYSQL_ROOT_PASSWORD=$(generate_password)
-        export MYSQL_ROOT_PASSWORD
     fi
-    
-    # Guardar credenciales generadas en un archivo para que el backend pueda acceder
-    mkdir -p /run/secrets
+    export MYSQL_USER MYSQL_PASSWORD MYSQL_ROOT_PASSWORD MYSQL_DATABASE
+
     echo "DEBUG: MYSQL_USER generado: $MYSQL_USER"
     echo "DEBUG: MYSQL_PASSWORD generado: $(echo "$MYSQL_PASSWORD" | cut -c 1-4)..."
     echo "DEBUG: MYSQL_ROOT_PASSWORD generado: $(echo "$MYSQL_ROOT_PASSWORD" | cut -c 1-4)..."
     echo "DEBUG: MYSQL_DATABASE: $MYSQL_DATABASE"
+
+    # Guardar en secretos (para backend) y en volumen de datos (persistente)
     cat > "$ENV_FILE" << EOF
 MYSQL_USER="$MYSQL_USER"
 MYSQL_PASSWORD="$MYSQL_PASSWORD"
 MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD"
 MYSQL_DATABASE="$MYSQL_DATABASE"
 EOF
-    
     chmod 600 "$ENV_FILE"
-    
-    # Marcar que ya se generaron las credenciales
+
+    cat > "$DATA_FILE" << EOF
+# Credenciales generadas automáticamente
+# Fecha: $(date)
+MYSQL_USER=$MYSQL_USER
+MYSQL_PASSWORD=$MYSQL_PASSWORD
+MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
+MYSQL_DATABASE=$MYSQL_DATABASE
+EOF
+    chmod 600 "$DATA_FILE"
     touch "$CREDENTIALS_FILE"
-    
-    # Mostrar credenciales generadas (solo esta vez)
+
     echo ""
     echo "╔════════════════════════════════════════════════════════════════╗"
     echo "║  🔐 CREDENCIALES DE BASE DE DATOS GENERADAS AUTOMÁTICAMENTE   ║"
@@ -70,31 +104,10 @@ EOF
     echo "║  Contraseña Root:      $MYSQL_ROOT_PASSWORD"
     echo "║  Base de Datos:        $MYSQL_DATABASE"
     echo "║                                                                ║"
-    echo "║  📄 También guardadas en: /run/secrets/db_credentials         ║"
+    echo "║  📄 Guardadas en: /run/secrets/db_credentials y volumen de datos ║"
     echo "║                                                                ║"
     echo "╚════════════════════════════════════════════════════════════════╝"
     echo ""
-    
-    # Guardar también en un archivo persistente accesible desde el host
-    if [ -d "/var/lib/mysql" ]; then
-        cat > "/var/lib/mysql/.generated_credentials" << EOF
-# Credenciales generadas automáticamente
-# Fecha: $(date)
-MYSQL_USER=$MYSQL_USER
-MYSQL_PASSWORD=$MYSQL_PASSWORD
-MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
-MYSQL_DATABASE=$MYSQL_DATABASE
-EOF
-        chmod 600 "/var/lib/mysql/.generated_credentials"
-        echo "✅ Credenciales guardadas en el volumen: /var/lib/mysql/.generated_credentials"
-    fi
-else
-    echo "✅ Credenciales ya generadas anteriormente, usando las existentes..."
-    
-    # Cargar credenciales existentes si existen
-    if [ -f "$ENV_FILE" ]; then
-        . "$ENV_FILE"
-    fi
 fi
 
 # Continuar con el entrypoint original de MariaDB
