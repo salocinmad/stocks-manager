@@ -18,21 +18,13 @@ export function usePnlSeries({ days = 30, computeCurrentNetPnL }) {
     loadingRef.current = true
     try {
       const ts = await portfolioAPI.timeseries({ days })
-      let series = (ts.items || []).map(d => ({ date: d.date, pnlEUR: parseFloat(d.totalValueEUR || 0) }))
-
-      if (typeof computeRef.current === 'function') {
-        const { net, count } = computeRef.current()
-        const today = new Date().toISOString().slice(0, 10)
-        if (count > 0) {
-          const lastPoint = series[series.length - 1]
-          if (lastPoint && lastPoint.date === today) {
-            series = [...series]
-            series[series.length - 1] = { ...series[series.length - 1], pnlEUR: net }
-          } else {
-            series = [...series, { date: today, pnlEUR: net }]
-          }
-        }
-      }
+      const today = new Date().toISOString().slice(0, 10)
+      let series = (ts.items || [])
+        .filter(d => d.date !== today)
+        .map(d => {
+          const value = (typeof d.pnlEUR !== 'undefined') ? d.pnlEUR : d.totalValueEUR
+          return { date: d.date, pnlEUR: parseFloat(value || 0) }
+        })
 
       setPnlSeries(series)
     } catch (e) {

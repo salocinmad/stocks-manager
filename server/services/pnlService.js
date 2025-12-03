@@ -64,9 +64,8 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
             return opDate <= dateIso
         })
 
-        // Calcular posiciones con lógica de base de coste adecuada
-        const finalPositions = new Map() // key -> { shares, costBasis }
-        let cumulativeRealizedPnL = 0 // Rastrear PnL realizado hasta esta fecha
+    // Calcular posiciones con lógica de base de coste adecuada
+    const finalPositions = new Map() // key -> { shares, costBasis }
 
         for (const o of dayOps) {
             const key = `${o.company}|||${o.symbol || ''}`
@@ -82,14 +81,6 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
                 if (pos.shares > 0) {
                     const avgCost = pos.costBasis / pos.shares
                     const costRemoved = o.shares * avgCost
-
-                    // Calcular PnL realizado para esta venta
-                    // Valor de Venta en EUR = price * shares * exchangeRate
-                    // Coste Eliminado en EUR = costRemoved
-                    const saleValueEUR = o.price * o.shares * o.exchangeRate
-                    const realizedPnL = saleValueEUR - costRemoved
-                    cumulativeRealizedPnL += realizedPnL
-
                     pos.shares -= o.shares
                     pos.costBasis -= costRemoved
                 }
@@ -137,7 +128,7 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
             date: dateIso,
             totalValueEUR: dailyTotalValue,
             totalInvestedEUR: dailyTotalInvested,
-            pnlEUR: (dailyTotalValue - dailyTotalInvested) + cumulativeRealizedPnL // Añadir PnL realizado
+            pnlEUR: (dailyTotalValue - dailyTotalInvested)
         })
     }
 

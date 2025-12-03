@@ -67,8 +67,12 @@ router.get('/timeseries', async (req, res) => {
     const { calculatePortfolioHistory } = await import('../services/pnlService.js')
     const history = await calculatePortfolioHistory(userId, portfolioId, days)
 
-    // Mapear al contrato del frontend: totalValueEUR es en realidad pnlEUR
-    const result = history.map(h => ({ date: h.date, totalValueEUR: h.pnlEUR }))
+    // Mapear al contrato del frontend: totalValueEUR representa pnlEUR para el gráfico
+    let result = history.map(h => ({ date: h.date, totalValueEUR: h.pnlEUR }))
+
+    // Excluir el día actual
+    const today = new Date().toISOString().slice(0, 10)
+    result = result.filter(item => item.date !== today)
 
     res.json({ days, items: result })
   } catch (error) {
