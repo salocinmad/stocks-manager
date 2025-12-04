@@ -667,7 +667,7 @@ function App() {
       // Usar el exchange correcto para Yahoo (F para Frankfurt, MC para Madrid)
       if (!priceData) {
         try {
-          priceData = await fetchPriceFromYahoo(symbolPart, yahooExchange);
+          priceData = await fetchPriceFromYahoo(symbol, yahooExchange);
           usedYahoo = true;
         } catch (yahooError) {
           throw new Error('No se encontraron datos en Finnhub ni en Yahoo Finance. Verifica el símbolo y exchange.');
