@@ -66,7 +66,7 @@ export default function PositionsList({
         })()
 
         const avgCostPerShare = position.shares > 0
-          ? (position.totalCost / position.shares)
+          ? (position.totalOriginalCost / position.shares)
           : 0
 
         const currentPriceData = currentPrices[positionKey]

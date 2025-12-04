@@ -2,7 +2,11 @@
 
 export const getPositions = (operations) => {
   const positions = {};
-  operations.forEach(op => {
+
+  // CRÍTICO: Ordenar operaciones por fecha cronológicamente
+  const sortedOperations = [...operations].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  sortedOperations.forEach(op => {
     const positionKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
     if (!positions[positionKey]) {
       positions[positionKey] = {
@@ -20,14 +24,17 @@ export const getPositions = (operations) => {
     if (op.type === 'purchase') {
       positions[positionKey].shares += parseInt(op.shares);
       positions[positionKey].totalCost += parseFloat(op.totalCost);
-      positions[positionKey].totalOriginalCost += parseFloat(op.price) * parseInt(op.shares);
+      // totalOriginalCost incluye comisión en moneda original
+      const commissionInOriginalCurrency = parseFloat(op.commission || 0) / (parseFloat(op.exchangeRate) || 1);
+      positions[positionKey].totalOriginalCost += parseFloat(op.price) * parseInt(op.shares) + commissionInOriginalCurrency;
     } else if (op.type === 'sale') {
       const sharesSold = parseInt(op.shares);
       const currentShares = positions[positionKey].shares;
-      const avgCost = currentShares > 0 ? positions[positionKey].totalOriginalCost / currentShares : 0;
+      const avgCost = currentShares > 0 ? positions[positionKey].totalCost / currentShares : 0;
       positions[positionKey].shares -= sharesSold;
-      positions[positionKey].totalCost -= parseFloat(op.totalCost);
-      positions[positionKey].totalOriginalCost -= avgCost * sharesSold;
+      positions[positionKey].totalCost -= avgCost * sharesSold;
+      const avgOriginalCost = currentShares > 0 ? positions[positionKey].totalOriginalCost / currentShares : 0;
+      positions[positionKey].totalOriginalCost -= avgOriginalCost * sharesSold;
     }
   });
   return positions;

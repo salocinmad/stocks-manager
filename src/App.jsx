@@ -939,10 +939,11 @@ function App() {
     const currency = formData.currency;
 
     let totalCost;
+    const commission = parseFloat(formData.commission) || 0;
     if (currency === 'EUR') {
-      totalCost = shares * price;
+      totalCost = (shares * price) + commission;
     } else {
-      totalCost = shares * price * exchangeRate;
+      totalCost = (shares * price * exchangeRate) + commission;
     }
 
     const tickerSymbol = document.getElementById('ticker-symbol')?.value || '';
