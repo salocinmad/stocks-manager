@@ -7,12 +7,13 @@ export function useCompanySearch({ finnhubApiKey, setMissingApiKeyWarning, setSh
   const [showSuggestions, setShowSuggestions] = useState(false);
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
+  const cacheRef = useRef(new Map());
 
   const searchCompanies = async (query) => {
     const q = query?.trim() || '';
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (abortRef.current) abortRef.current.abort();
-    if (q.length < 3) {
+    if (q.length < 2) {
       setSearchResults([]);
       setShowSuggestions(false);
       return;
@@ -28,6 +29,10 @@ export function useCompanySearch({ finnhubApiKey, setMissingApiKeyWarning, setSh
         const arr = Array.isArray(data.result) ? data.result.slice(0, 30) : [];
         setSearchResults(arr);
       } catch (error) {
+        if (error.name === 'AbortError') {
+          // Ignorar errores de aborto, son esperados cuando se cancela una petición
+          return;
+        }
         setSearchResults([]);
       } finally {
         setLoadingSearch(false);

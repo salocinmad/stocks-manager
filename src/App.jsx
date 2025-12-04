@@ -49,7 +49,6 @@ function App() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [missingApiKeyWarning, setMissingApiKeyWarning] = useState(false); // Advertencia por falta de API key en ConfigModal
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
   // Estados de precios gestionados por useLivePrices
 
   const { currentEURUSD, source: currentEURUSDSource, refresh: refreshEURUSD } = useEurUsdRate({ autoLoad: true });
@@ -407,21 +406,7 @@ function App() {
     return () => clearInterval(timer);
   }, [lastUpdatedAt]);
 
-  // Cerrar sugerencias al hacer clic fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showSuggestions && !event.target.closest('.search-container')) {
-        setShowSuggestions(false);
-      }
-    };
 
-    if (showSuggestions) {
-      document.addEventListener('click', handleClickOutside);
-      return () => {
-        document.removeEventListener('click', handleClickOutside);
-      };
-    }
-  }, [showSuggestions]);
 
   // Cambiar tema
   const toggleTheme = () => {
@@ -520,7 +505,7 @@ function App() {
     }
   };
 
-  const { searchResults, setSearchResults, loadingSearch, searchCompanies } = useCompanySearch({
+  const { searchResults, setSearchResults, loadingSearch, showSuggestions, setShowSuggestions, searchCompanies } = useCompanySearch({
     finnhubApiKey,
     setMissingApiKeyWarning,
     setShowConfigModal
@@ -1693,17 +1678,22 @@ function App() {
                       onChange={(e) => {
                         const query = e.target.value;
                         setSearchQuery(query);
-                        if (query.length >= 3) {
+                        if (query.length >= 2) {
                           searchCompanies(query);
+                          setShowSuggestions(true); // Mostrar sugerencias al escribir
                         } else {
                           setSearchResults([]);
                           setShowSuggestions(false);
                         }
                       }}
                       onFocus={() => {
-                        if (searchResults.length > 0) {
-                          setShowSuggestions(true);
+                        if (searchQuery.length >= 2) {
+                          setShowSuggestions(true); // Mostrar sugerencias al enfocar si la consulta es válida
                         }
+                      }}
+                      onBlur={() => {
+                        // Retrasar el ocultamiento para permitir clics en las sugerencias
+                        setTimeout(() => setShowSuggestions(false), 100);
                       }}
                     />
                     {loadingSearch && (
@@ -1711,7 +1701,7 @@ function App() {
                     )}
 
                     {/* Dropdown de sugerencias */}
-                    {showSuggestions && searchResults.length > 0 && (
+                    {showSuggestions && (
                       <div style={{
                         position: 'absolute',
                         top: '100%',
@@ -1726,7 +1716,9 @@ function App() {
                         zIndex: 1000,
                         boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                       }}>
-                        {searchResults.map((company, index) => (
+                        {loadingSearch && <div style={{ padding: '10px', textAlign: 'center' }}>Cargando...</div>}
+                        {!loadingSearch && searchResults.length === 0 && searchQuery.length >= 2 && <div style={{ padding: '10px', textAlign: 'center' }}>No se encontraron resultados.</div>}
+                        {!loadingSearch && searchResults.length > 0 && searchResults.map((company, index) => (
                           <div
                             key={index}
                             onClick={() => selectCompany(company)}
