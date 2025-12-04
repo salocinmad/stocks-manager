@@ -41,7 +41,7 @@ const Operation = sequelize.define('Operation', {
     defaultValue: 'EUR'
   },
   exchangeRate: {
-    type: DataTypes.FLOAT,
+    type: DataTypes.DECIMAL(18, 12), // 18 dígitos totales, 12 decimales
     allowNull: false,
     defaultValue: 1
   },

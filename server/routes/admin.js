@@ -329,7 +329,167 @@ router.post('/overwrite-history', async (req, res) => {
   }
 });
 
+// ============================================================================
+// EDITOR DE OPERACIONES (Solo Administradores)
+// ============================================================================
+
+/**
+ * GET /api/admin/users-portfolios
+ * Lista todos los usuarios con sus portfolios
+ */
+router.get('/users-portfolios', async (req, res) => {
+  try {
+    const users = await User.findAll({
+      attributes: ['id', 'username'],
+      include: [{
+        model: Portfolio,
+        attributes: ['id', 'name']
+      }],
+      order: [['username', 'ASC']]
+    });
+
+    const usersWithPortfolios = users.map(user => ({
+      userId: user.id,
+      username: user.username,
+      portfolios: user.Portfolios || []
+    }));
+
+    res.json(usersWithPortfolios);
+  } catch (error) {
+    console.error('Error obteniendo usuarios y portfolios:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/operations/:portfolioId
+ * Obtiene todas las operaciones de un portfolio específico
+ */
+router.get('/operations/:portfolioId', async (req, res) => {
+  try {
+    const portfolioId = parseInt(req.params.portfolioId);
+
+    // Verificar que el portfolio existe
+    const portfolio = await Portfolio.findByPk(portfolioId);
+    if (!portfolio) {
+      return res.status(404).json({ error: 'Portfolio no encontrado' });
+    }
+
+    const operations = await Operation.findAll({
+      where: { portfolioId },
+      order: [['date', 'DESC']]
+    });
+
+    res.json(operations);
+  } catch (error) {
+    console.error('Error obteniendo operaciones:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/admin/operations/:operationId
+ * Actualiza una operación específica con validaciones
+ */
+router.put('/operations/:operationId', async (req, res) => {
+  try {
+    const operationId = parseInt(req.params.operationId);
+    const operation = await Operation.findByPk(operationId);
+
+    if (!operation) {
+      return res.status(404).json({ error: 'Operación no encontrada' });
+    }
+
+    const updateData = { ...req.body };
+
+    // Validaciones básicas
+    if (updateData.shares !== undefined && updateData.shares <= 0) {
+      return res.status(400).json({ error: 'El número de acciones debe ser mayor que 0' });
+    }
+
+    if (updateData.price !== undefined && updateData.price < 0) {
+      return res.status(400).json({ error: 'El precio no puede ser negativo' });
+    }
+
+    if (updateData.commission !== undefined && updateData.commission < 0) {
+      return res.status(400).json({ error: 'La comisión no puede ser negativa' });
+    }
+
+    // Convertir fecha si viene en el body
+    if (updateData.date) {
+      updateData.date = new Date(updateData.date);
+    }
+
+    // Actualizar la operación
+    await operation.update(updateData);
+
+    res.json({
+      success: true,
+      operation: operation
+    });
+  } catch (error) {
+    console.error('Error actualizando operación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/admin/validate-symbol
+ * Valida un símbolo y retorna precio actual
+ */
+router.post('/validate-symbol', async (req, res) => {
+  try {
+    const { symbol } = req.body;
+
+    if (!symbol || symbol.trim() === '') {
+      return res.json({
+        valid: false,
+        error: 'Símbolo vacío'
+      });
+    }
+
+    // Importar servicios de precios
+    const finnhubService = await import('../services/datasources/finnhubService.js');
+    const yahooService = await import('../services/datasources/yahooService.js');
+
+    // Intentar con Finnhub primero
+    let priceData = await finnhubService.fetchQuote(symbol);
+    let source = 'Finnhub';
+
+    // Si Finnhub falla, intentar con Yahoo
+    if (!priceData) {
+      priceData = await yahooService.fetchQuote(symbol);
+      source = 'Yahoo';
+    }
+
+    if (!priceData || !priceData.lastPrice) {
+      return res.json({
+        valid: false,
+        error: 'Símbolo no encontrado',
+        source: null
+      });
+    }
+
+    res.json({
+      valid: true,
+      price: priceData.lastPrice,
+      currency: priceData.currency || 'USD',
+      source: source,
+      change: priceData.change || 0,
+      changePercent: priceData.changePercent || 0
+    });
+  } catch (error) {
+    console.error('Error validando símbolo:', error);
+    res.json({
+      valid: false,
+      error: 'Error al validar símbolo',
+      source: null
+    });
+  }
+});
+
 export default router
+
 
 
 // Rutas de configuración del programador

@@ -153,7 +153,7 @@ export default function PurchaseSaleModal({
             {formData.currency !== 'EUR' && (
               <div className="form-group">
                 <label>Tipo de Cambio (EUR/{formData.currency}):</label>
-                <input type="number" name="exchangeRate" value={formData.exchangeRate} onChange={handleInputChange} className="input" step="0.00000001" min="0" required />
+                <input type="number" name="exchangeRate" value={formData.exchangeRate} onChange={handleInputChange} className="input" step="0.000000000001" min="0" required />
               </div>
             )}
           </div>

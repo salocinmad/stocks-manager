@@ -1913,7 +1913,7 @@ function App() {
                         value={formData.exchangeRate}
                         onChange={handleInputChange}
                         className="input"
-                        step="0.00000001"
+                        step="0.000000000001"
                         min="0"
                         required
                       />
