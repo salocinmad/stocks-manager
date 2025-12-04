@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function OperationsEditor({
     isOpen,
@@ -136,6 +136,12 @@ export default function OperationsEditor({
         const commission = getEditedValue(operation, 'commission') || 0;
         return (shares * price * exchangeRate) + commission;
     };
+
+    useEffect(() => {
+        if (isOpen) {
+            loadUsersPortfolios();
+        }
+    }, [isOpen]);
 
     const handleOpen = () => {
         loadUsersPortfolios();
