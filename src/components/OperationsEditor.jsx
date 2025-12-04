@@ -14,6 +14,7 @@ export default function OperationsEditor({
     const [validatingSymbols, setValidatingSymbols] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [filterText, setFilterText] = useState('');
 
     const loadUsersPortfolios = async () => {
         try {
@@ -209,6 +210,30 @@ export default function OperationsEditor({
                     </div>
                 </div>
 
+                {/* Filtro de búsqueda */}
+                {operations.length > 0 && (
+                    <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label>🔍 Filtrar por Compañía o Símbolo:</label>
+                        <input
+                            type="text"
+                            className="input"
+                            placeholder="Escribe para filtrar..."
+                            value={filterText}
+                            onChange={(e) => setFilterText(e.target.value)}
+                            style={{ fontSize: '14px' }}
+                        />
+                        {filterText && (
+                            <div style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
+                                Mostrando {operations.filter(op => {
+                                    const searchLower = filterText.toLowerCase();
+                                    return op.company.toLowerCase().includes(searchLower) ||
+                                        (op.symbol && op.symbol.toLowerCase().includes(searchLower));
+                                }).length} de {operations.length} operaciones
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Tabla de Operaciones */}
                 {operations.length > 0 && (
                     <div style={{ overflowX: 'auto' }}>
@@ -228,7 +253,12 @@ export default function OperationsEditor({
                                 </tr>
                             </thead>
                             <tbody>
-                                {operations.map(op => {
+                                {operations.filter(op => {
+                                    if (!filterText) return true;
+                                    const searchLower = filterText.toLowerCase();
+                                    return op.company.toLowerCase().includes(searchLower) ||
+                                        (op.symbol && op.symbol.toLowerCase().includes(searchLower));
+                                }).map(op => {
                                     const validation = symbolValidations[op.id];
                                     const isValidating = validatingSymbols[op.id];
                                     const hasEdits = editingOperations[op.id] && Object.keys(editingOperations[op.id]).length > 0;
@@ -373,6 +403,7 @@ export default function OperationsEditor({
                             setEditingOperations({});
                             setSymbolValidations({});
                             setError('');
+                            setFilterText('');
                         }}
                     >
                         Cerrar
