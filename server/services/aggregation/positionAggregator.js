@@ -45,7 +45,10 @@ export function groupOperationsByPosition(operations) {
 export function calculateActivePositions(operations) {
     const positions = {};
 
-    operations.forEach(op => {
+    // CRÍTICO: Ordenar operaciones por fecha cronológicamente
+    const sortedOperations = [...operations].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    sortedOperations.forEach(op => {
         const key = createPositionKey(op.company, op.symbol);
 
         if (!positions[key]) {
@@ -66,12 +69,15 @@ export function calculateActivePositions(operations) {
 
         if (op.type === 'purchase') {
             positions[key].totalCost += op.totalCost;
-            positions[key].totalOriginalCost += op.shares * op.price;
+            const commissionInOriginalCurrency = (op.commission || 0) / (op.exchangeRate || 1);
+            positions[key].totalOriginalCost += op.shares * op.price + commissionInOriginalCurrency;
         } else {
-            // En ventas, reducir el coste proporcionalmente
-            const proportion = op.shares / (positions[key].shares + op.shares);
-            positions[key].totalCost -= positions[key].totalCost * proportion;
-            positions[key].totalOriginalCost -= positions[key].totalOriginalCost * proportion;
+            // En ventas, reducir el coste basándose en el promedio de las acciones vendidas
+            const currentShares = positions[key].shares + op.shares; // shares antes de la venta
+            const avgCost = currentShares > 0 ? positions[key].totalCost / currentShares : 0;
+            const avgOriginalCost = currentShares > 0 ? positions[key].totalOriginalCost / currentShares : 0;
+            positions[key].totalCost -= avgCost * op.shares;
+            positions[key].totalOriginalCost -= avgOriginalCost * op.shares;
         }
 
         positions[key].operations.push(op);

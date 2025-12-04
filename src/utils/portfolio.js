@@ -3,8 +3,13 @@
 export const getPositions = (operations) => {
   const positions = {};
 
-  // CRÍTICO: Ordenar operaciones por fecha cronológicamente
-  const sortedOperations = [...operations].sort((a, b) => new Date(a.date) - new Date(b.date));
+  // CRÍTICO: Ordenar operaciones por fecha cronológicamente, luego por ID
+  const sortedOperations = [...operations].sort((a, b) => {
+    const dateCompare = new Date(a.date) - new Date(b.date);
+    if (dateCompare !== 0) return dateCompare;
+    // Si las fechas son iguales, ordenar por ID (menor ID = más antiguo)
+    return (a.id || 0) - (b.id || 0);
+  });
 
   sortedOperations.forEach(op => {
     const positionKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company;
