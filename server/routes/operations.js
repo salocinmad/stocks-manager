@@ -135,5 +135,144 @@ router.delete('/', async (req, res) => {
   }
 });
 
+
+/**
+ * @desc    Identify symbols for a list of items (Pre-import check)
+ * @route   POST /api/operations/identify-symbols
+ * @access  Private
+ */
+router.post('/identify-symbols', async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'Invalid items array' });
+    }
+
+    // Dynamic import to ensure service is available
+    const { resolveSymbol } = await import('../services/securitySymbolService.js');
+
+    const results = [];
+    // Process in parallel or batches? Parallel is fine for reasonable size
+    // Using simple loop for now to avoid hammering APIs if rate limited, 
+    // but Promise.all is better for speed if we mostly hit cache/DB.
+    // Let's use Promise.all with simple throttle if needed, but for now direct.
+
+    // We'll process sequentially to be safe with Yahoo/OpenFIGI rate limits if they apply per connection
+    for (const item of items) {
+      let result = { symbol: '', currency: '', name: '' };
+      if (item.isin || item.companyName) {
+        try {
+          const res = await resolveSymbol(item.isin, item.companyName);
+          if (res && res.symbol) {
+            result = {
+              symbol: res.symbol,
+              currency: res.currency,
+              name: res.name
+            };
+          }
+        } catch (e) {
+          console.warn('Error resolving symbol pre-import:', e.message);
+        }
+      }
+      results.push({ ...item, ...result });
+    }
+
+    res.json({ results });
+
+  } catch (error) {
+    console.error('Error identifying symbols:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @desc    Import operations batch
+ * @route   POST /api/operations/import
+ * @access  Private
+ */
+router.post('/import', async (req, res) => {
+  try {
+    const { operations } = req.body;
+    if (!Array.isArray(operations) || operations.length === 0) {
+      return res.status(400).json({ error: 'No se enviaron operaciones' });
+    }
+
+    const stats = {
+      imported: 0,
+      failed: 0,
+      ratesFetched: 0
+    };
+
+    const results = [];
+
+    // Import services dynamically if not top-level
+    const { getHistoricalExchangeRate } = await import('../services/historicalExchangeRateService.js');
+    const { resolveSymbol } = await import('../services/securitySymbolService.js');
+
+    for (const op of operations) {
+      try {
+        // 1. Resolve Symbol if missing but ISIN present
+        if (!op.symbol && op.isin) {
+          const resolved = await resolveSymbol(op.isin, op.companyName);
+          op.symbol = resolved?.symbol;
+        }
+
+        if (!op.symbol) {
+          throw new Error(`No se pudo identificar el Ticker para ISIN: ${op.isin} / Nombre: ${op.companyName}`);
+        }
+
+        // 2. Fetch Exchange Rate if missing and not EUR
+        if (!op.exchangeRate && op.currency !== 'EUR') {
+          const rate = await getHistoricalExchangeRate(op.currency, op.date);
+          if (rate) {
+            op.exchangeRate = rate;
+            stats.ratesFetched++;
+          } else {
+            op.exchangeRate = 1;
+          }
+        } else if (op.currency === 'EUR') {
+          op.exchangeRate = 1;
+        }
+
+        // 3. Create Operation
+        const newOp = await Operation.create({
+          userId: req.user.id,
+          portfolioId: op.portfolioId || req.user.favoritePortfolioId,
+          date: op.date,
+          type: op.type,
+          company: op.companyName || op.symbol,
+          symbol: op.symbol,
+          shares: parseFloat(op.shares),
+          price: parseFloat(op.price),
+          currency: op.currency,
+          exchangeRate: parseFloat(op.exchangeRate || 1),
+          commission: parseFloat(op.commission || 0),
+          totalCost: (parseFloat(op.shares) * parseFloat(op.price)) + parseFloat(op.commission || 0),
+          notes: `Importado CSV (ISIN: ${op.isin || 'N/A'})`
+        });
+
+        // Update AssetProfile linkage asynchronously
+        if (op.isin && op.symbol) {
+          resolveSymbol(op.isin, op.companyName).catch(() => { });
+        }
+
+        stats.imported++;
+        results.push({ status: 'ok', id: newOp.id });
+
+      } catch (err) {
+        console.error('Error importing row:', err.message);
+        stats.failed++;
+        results.push({ status: 'error', error: err.message, row: op });
+      }
+    }
+
+    res.json({ message: 'Importación completada', stats, results });
+
+  } catch (error) {
+    console.error('Error en importación masiva:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
 

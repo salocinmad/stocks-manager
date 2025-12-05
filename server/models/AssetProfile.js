@@ -8,6 +8,12 @@ const AssetProfile = sequelize.define('AssetProfile', {
         allowNull: false,
         comment: 'Símbolo bursátil (ej: AAPL, SAN.MC)'
     },
+    isin: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true,
+        comment: 'ISIN del activo (ej: US0378331005)'
+    },
     sector: {
         type: DataTypes.STRING,
         allowNull: true

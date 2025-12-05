@@ -12,6 +12,7 @@ import SelectPositionModal from './components/SelectPositionModal.jsx';
 import Reports from './components/Reports.jsx';
 import StockHistoryChart from './components/StockHistoryChart.jsx';
 import PnLChart from './components/PnLChart.jsx';
+import CsvImportModal from './components/CsvImportModal.jsx';
 import PositionsList from './components/PositionsList.jsx';
 import { usePositionOrder } from './usePositionOrder.jsx';
 import { useAuth } from './hooks/useAuth.jsx';
@@ -32,6 +33,7 @@ function App() {
   const [theme, setTheme] = useState('dark');
   const [operations, setOperations] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [showCsvModal, setShowCsvModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [showReports, setShowReports] = useState(false); // Estado para mostrar reportes
@@ -131,6 +133,22 @@ function App() {
 
 
 
+
+
+  // Función para recargar operaciones tras añadir/importar
+  const handleOperationAdded = async () => {
+    try {
+      const ops = await operationsAPI.getAll();
+      const formatted = ops.map(op => ({
+        ...op,
+        id: op.id || op.id,
+        date: op.date ? (typeof op.date === 'string' ? op.date : new Date(op.date).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]
+      }));
+      setOperations(formatted);
+    } catch (e) {
+      console.error('Error reloading operations:', e);
+    }
+  };
 
   // Cerrar menú de usuario al hacer clic fuera
   useEffect(() => {
@@ -1302,6 +1320,7 @@ function App() {
             <button className="button success" onClick={() => openModal('purchase')}>
               ➕ Comprar
             </button>
+
             <button className="button danger" onClick={() => {
               const activePositions = getActivePositions();
               if (Object.keys(activePositions).length === 0) {
@@ -1337,6 +1356,10 @@ function App() {
               </button>
               {showUserMenu && (
                 <div className="user-dropdown-menu">
+                  <button onClick={() => {
+                    setShowCsvModal(true);
+                    setShowUserMenu(false);
+                  }} className="dropdown-item">📥 Importar MyInvestor</button>
                   <button onClick={() => generateFullCSV(operations)} className="dropdown-item">📊 Exportar CSV</button>
                   <button onClick={() => {
                     setShowConfigModal(true);
@@ -1372,6 +1395,14 @@ function App() {
         />
       ) : !showHistory ? (
         <>
+          <CsvImportModal
+            isOpen={showCsvModal}
+            onClose={() => setShowCsvModal(false)}
+            onSuccess={handleOperationAdded}
+            theme={theme}
+            portfolioId={currentPortfolioId}
+          />
+
           {/* Estadísticas */}
           <div className="stats">
             <div className="stat-item">
