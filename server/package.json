@@ -1,6 +1,6 @@
 {
-  "name": "portfolio-manager-server",
-  "version": "1.0.0",
+  "name": "stocks-manager",
+  "version": "0.9.0",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -12,18 +12,18 @@
     "normalize-indexes": "node scripts/normalize-indexes.js --apply"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^7.0.11",
-    "mysql2": "^3.6.5",
-    "sequelize": "^6.35.2",
-    "yahoo-finance2": "^3.0.0",
-    "multer": "^1.4.5-lts.1"
+    "bcryptjs": "2.4.3",
+    "cors": "2.8.5",
+    "dotenv": "16.3.1",
+    "express": "4.18.2",
+    "jsonwebtoken": "9.0.2",
+    "nodemailer": "7.0.11",
+    "mysql2": "3.6.5",
+    "sequelize": "6.35.2",
+    "yahoo-finance2": "3.0.0",
+    "multer": "1.4.5-lts.1"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "9.2.1"
   }
 }
