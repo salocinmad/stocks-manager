@@ -214,30 +214,84 @@ function Reports({
             </div>
 
             {/* Resumen Financiero */}
-            <div className="financial-summary">
-                <div className="summary-item">
-                    <span className="summary-label">Total Invertido:</span>
-                    <span className="summary-value">€{reportData.totalInvestedEUR.toFixed(2)}</span>
+            <div className="metrics-grid">
+                <div className="metric-card">
+                    <div className="metric-icon">💰</div>
+                    <div className="metric-content">
+                        <h3>Total Invertido</h3>
+                        <div className="metric-value">€{reportData.totalInvestedEUR.toFixed(2)}</div>
+                    </div>
                 </div>
-                <div className="summary-item">
-                    <span className="summary-label">Valor Actual:</span>
-                    <span className="summary-value">€{reportData.totalValueEUR.toFixed(2)}</span>
+                <div className="metric-card">
+                    <div className="metric-icon">🏦</div>
+                    <div className="metric-content">
+                        <h3>Valor Actual</h3>
+                        <div className="metric-value">€{reportData.totalValueEUR.toFixed(2)}</div>
+                    </div>
                 </div>
-                <div className="summary-item">
-                    <span className="summary-label">PnL Total:</span>
-                    <span className={`summary-value ${reportData.pnlEUR >= 0 ? 'positive' : 'negative'}`}>
-                        {reportData.pnlEUR >= 0 ? '+' : ''}€{reportData.pnlEUR.toFixed(2)}
-                    </span>
+                <div className={`metric-card ${reportData.pnlEUR >= 0 ? 'positive' : 'negative'}`}>
+                    <div className="metric-icon">⚖️</div>
+                    <div className="metric-content">
+                        <h3>PnL Total</h3>
+                        <div className="metric-value">
+                            {reportData.pnlEUR >= 0 ? '+' : ''}€{reportData.pnlEUR.toFixed(2)}
+                        </div>
+                    </div>
                 </div>
                 {reportData.dailyChangeEUR !== undefined && (
-                    <div className="summary-item">
-                        <span className="summary-label">Cambio Hoy:</span>
-                        <span className={`summary-value ${reportData.dailyChangeEUR >= 0 ? 'positive' : 'negative'}`}>
-                            {reportData.dailyChangeEUR >= 0 ? '+' : ''}€{reportData.dailyChangeEUR.toFixed(2)}
-                        </span>
+                    <div className={`metric-card ${reportData.dailyChangeEUR >= 0 ? 'positive' : 'negative'}`}>
+                        <div className="metric-icon">💸</div>
+                        <div className="metric-content">
+                            <h3>Cambio Hoy</h3>
+                            <div className="metric-value">
+                                {reportData.dailyChangeEUR >= 0 ? '+' : ''}€{reportData.dailyChangeEUR.toFixed(2)}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
+
+            {/* Ganancias Realizadas por Período */}
+            {reportData.fixedPeriodPnLMetrics && (
+                <div className="metrics-grid">
+                    <div className={`metric-card ${reportData.fixedPeriodPnLMetrics.lastMonth >= 0 ? 'positive' : 'negative'}`}>
+                        <div className="metric-icon">🗓️</div>
+                        <div className="metric-content">
+                            <h3>Ganancias Último Mes</h3>
+                            <div className="metric-value">
+                                {reportData.fixedPeriodPnLMetrics.lastMonth >= 0 ? '+' : ''}€{reportData.fixedPeriodPnLMetrics.lastMonth.toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
+                    <div className={`metric-card ${reportData.fixedPeriodPnLMetrics.last3Months >= 0 ? 'positive' : 'negative'}`}>
+                        <div className="metric-icon">📅</div>
+                        <div className="metric-content">
+                            <h3>Ganancias 3 Meses</h3>
+                            <div className="metric-value">
+                                {reportData.fixedPeriodPnLMetrics.last3Months >= 0 ? '+' : ''}€{reportData.fixedPeriodPnLMetrics.last3Months.toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
+                    <div className={`metric-card ${reportData.fixedPeriodPnLMetrics.lastYear >= 0 ? 'positive' : 'negative'}`}>
+                        <div className="metric-icon">📈</div>
+                        <div className="metric-content">
+                            <h3>Ganancias Último Año</h3>
+                            <div className="metric-value">
+                                {reportData.fixedPeriodPnLMetrics.lastYear >= 0 ? '+' : ''}€{reportData.fixedPeriodPnLMetrics.lastYear.toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
+                    <div className={`metric-card ${reportData.fixedPeriodPnLMetrics.sinceInception >= 0 ? 'positive' : 'negative'}`}>
+                        <div className="metric-icon">🚀</div>
+                        <div className="metric-content">
+                            <h3>Gancias Desde Inicio</h3>
+                            <div className="metric-value">
+                                {reportData.fixedPeriodPnLMetrics.sinceInception >= 0 ? '+' : ''}€{reportData.fixedPeriodPnLMetrics.sinceInception.toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Alertas */}
             {reportData.alerts && reportData.alerts.length > 0 && (
