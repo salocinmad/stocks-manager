@@ -54,7 +54,7 @@ function App() {
   const { currentEURUSD, source: currentEURUSDSource, refresh: refreshEURUSD } = useEurUsdRate({ autoLoad: true });
   const [loadingData, setLoadingData] = useState(true); // Estado de carga de datos
   // Última sincronización gestionada por useLivePrices
-  const { portfolios, currentPortfolioId, switchPortfolio, markFavorite } = usePortfolio();
+  const { portfolios, currentPortfolioId, switchPortfolio, markFavorite, reloadPortfolios } = usePortfolio();
 
   const [formData, setFormData] = useState({
     company: '',
@@ -1222,42 +1222,46 @@ function App() {
                   <button
                     className="dropdown-item"
                     onClick={async () => {
+                      setShowPortfolioMenu(false);
                       const name = window.prompt('Nombre del nuevo portafolio:');
                       if (name && name.trim()) {
                         const r = await portfolioAPI.create(name.trim());
                         if (r?.item) {
-                          setPortfolios(prev => [...prev, r.item]);
+                          await reloadPortfolios();
                           switchPortfolio(r.item.id);
                         }
                       }
-                      setShowPortfolioMenu(false);
                     }}
                   >➕ Crear</button>
                   <button
                     className="dropdown-item"
                     onClick={async () => {
                       if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                      setShowPortfolioMenu(false);
                       const cur = portfolios.find(p => p.id === currentPortfolioId);
                       const name = window.prompt('Nuevo nombre del portafolio:', cur?.name || '');
                       if (name && name.trim()) {
                         await portfolioAPI.rename(currentPortfolioId, name.trim());
-                        setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, name: name.trim() } : p));
+                        await reloadPortfolios();
                       }
-                      setShowPortfolioMenu(false);
                     }}
                   >✏️ Renombrar</button>
                   <button
                     className="dropdown-item"
                     onClick={async () => {
                       if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                      setShowPortfolioMenu(false);
                       if (window.confirm('¿Eliminar portafolio actual? Se eliminarán también sus operaciones y datos asociados.')) {
                         await portfolioAPI.remove(currentPortfolioId);
-                        const rem = portfolios.filter(p => p.id !== currentPortfolioId);
-                        setPortfolios(rem);
-                        const next = rem[0]?.id || null;
-                        switchPortfolio(next);
+                        await reloadPortfolios();
+                        // Al recargar, si el actual ya no existe, el contexto o el usuario debería manejarlo,
+                        // pero por seguridad cambiamos al primero disponible o null
+                        // reloadPortfolios actualiza el estado, pero necesitamos saber a cuál cambiar.
+                        // Mejor dejar que el usuario seleccione o recargar la página si es crítico,
+                        // pero reloadPortfolios actualiza la lista.
+                        // switchPortfolio(null) podría ser necesario si el contexto no lo maneja.
+                        window.location.reload(); // La forma más segura de resetear el estado tras borrar el activo
                       }
-                      setShowPortfolioMenu(false);
                     }}
                   >🗑️ Eliminar</button>
                   <button

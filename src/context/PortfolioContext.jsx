@@ -28,7 +28,7 @@ export function PortfolioProvider({ children }) {
           localStorage.setItem('currentPortfolioId', String(pid))
           setCurrentPortfolioId(pid)
         }
-      } catch {}
+      } catch { }
     }
     init()
   }, [])
@@ -45,11 +45,19 @@ export function PortfolioProvider({ children }) {
     try {
       await portfolioAPI.setFavorite(id)
       localStorage.setItem('currentUserFavorite', String(id))
-    } catch {}
+    } catch { }
+  }
+
+  const reloadPortfolios = async () => {
+    try {
+      const list = await portfolioAPI.list()
+      const items = Array.isArray(list?.items) ? list.items : []
+      setPortfolios(items)
+    } catch { }
   }
 
   return (
-    <PortfolioContext.Provider value={{ portfolios, currentPortfolioId, switchPortfolio, markFavorite }}>
+    <PortfolioContext.Provider value={{ portfolios, currentPortfolioId, switchPortfolio, markFavorite, reloadPortfolios }}>
       {children}
     </PortfolioContext.Provider>
   )
