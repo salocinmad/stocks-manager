@@ -105,14 +105,14 @@ export const overwriteHistoricalData = async (days = 30) => {
             }
         }
 
-        // Filtrar solo posiciones activas (shares > 0)
-        const activePositions = Array.from(positionsMap.values()).filter(p => p.shares > 0);
+        // Incluir TODAS las posiciones (abiertas y cerradas)
+        const allPositions = Array.from(positionsMap.values());
         if (currentLogLevel === 'verbose') {
-            console.log(`📍 Encontradas ${activePositions.length} posiciones activas para actualizar.`);
+            console.log(`📍 Encontradas ${allPositions.length} posiciones (activas y cerradas) para actualizar.`);
         }
 
         // 3. Identificar símbolos únicos para minimizar llamadas a API
-        const uniqueSymbols = [...new Set(activePositions.map(p => p.symbol))];
+        const uniqueSymbols = [...new Set(allPositions.map(p => p.symbol))];
         const symbolDataCache = new Map();
         const fxMap = await getFxMapToEUR();
 
@@ -142,8 +142,8 @@ export const overwriteHistoricalData = async (days = 30) => {
             }
         }
 
-        // 5. Actualizar DailyPrice para cada posición activa
-        for (const pos of activePositions) {
+        // 5. Actualizar DailyPrice para cada posición (activa o cerrada)
+        for (const pos of allPositions) {
             const { userId, portfolioId, company, symbol, shares } = pos;
             const positionKey = `${company}|||${symbol}`;
             const cachedData = symbolDataCache.get(symbol);

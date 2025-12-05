@@ -103,7 +103,7 @@ export const runDailyOnce = async () => {
         const portfolioId = pf.id
 
         // 1. Calcular Posiciones Activas y Coste Total (Capital Invertido)
-        const ops = await Operation.findAll({ where: { userId, portfolioId } })
+        const ops = await Operation.findAll({ where: { userId, portfolioId }, order: [['date', 'ASC'], ['id', 'ASC']] })
         const positionsMap = new Map()
 
         for (const o of ops) {
@@ -119,8 +119,9 @@ export const runDailyOnce = async () => {
             prev.shares += o.shares
             prev.totalCost += parseFloat(o.totalCost)
           } else if (o.type === 'sale') {
+            const avgCost = prev.shares > 0 ? prev.totalCost / prev.shares : 0
             prev.shares -= o.shares
-            prev.totalCost -= parseFloat(o.totalCost)
+            prev.totalCost -= avgCost * o.shares
           }
 
           positionsMap.set(key, prev)

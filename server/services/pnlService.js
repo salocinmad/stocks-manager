@@ -64,8 +64,8 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
             return opDate <= dateIso
         })
 
-    // Calcular posiciones con lógica de base de coste adecuada
-    const finalPositions = new Map() // key -> { shares, costBasis }
+        // Calcular posiciones con lógica de base de coste adecuada
+        const finalPositions = new Map() // key -> { shares, costBasis }
 
         for (const o of dayOps) {
             const key = `${o.company}|||${o.symbol || ''}`
@@ -142,10 +142,10 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
  * @param {string} dateIso YYYY-MM-DD
  */
 export const calculatePnLForDate = async (userId, portfolioId, dateIso) => {
-    // 1. Obtener todas las operaciones
+    // 1. Obtener todas las operaciones (ordenadas por fecha e ID)
     const operations = await Operation.findAll({
         where: { userId, portfolioId },
-        order: [['date', 'ASC']]
+        order: [['date', 'ASC'], ['id', 'ASC']]
     })
 
     // 2. Filtrar operaciones hasta la fecha
@@ -317,52 +317,35 @@ export const calculateMonthlyAnalysis = async (userId, portfolioId) => {
     // Así que calcularé el DELTA.
     // Ganancia = PnL(Fin de Mes) - PnL(Fin de Mes Anterior).
 
+    // Calcular DELTA (cambio mensual) para cada mes
     const finalResults = []
     for (let i = 0; i < monthlyStats.length; i++) {
         const current = monthlyStats[i]
         const prev = i > 0 ? monthlyStats[i - 1] : null
 
-        // Si no hay mes anterior, la ganancia es solo el PnL actual (¿asumiendo que empezó en 0? ¿o solo mostrar N/A?)
-        // O podemos intentar obtener un mes más atrás para obtener el inicio.
-        // Por ahora, usemos el PnL tal cual para el primero, o 0 si queremos delta estricto.
-        // En realidad, si queremos "Mejor Mes", necesitamos deltas.
-
-        let monthlyGain = current.gain
+        // Ganancia mensual = Delta del PnL (no el PnL absoluto)
+        let monthlyGain = 0
         let growthRate = 0
 
         if (prev) {
             monthlyGain = current.gain - prev.gain
+            // Tasa de crecimiento basada en el valor total del mes anterior
             if (prev.totalValue > 0) {
-                // ¿Crecimiento basado en Valor Total? ¿O cambio de PnL?
-                // Usualmente (ValorFinal - ValorInicial) / ValorInicial - FlujosNetos...
-                // Pero simplificado: (PnLActual - PnLPrevio) / ValorTotalPrevio?
-                // Quedémonos con delta de PnL simple.
-                // Tasa de crecimiento: (ValorTotalActual - ValorTotalPrevio) / ValorTotalPrevio * 100
-                // Pero esto incluye depósitos.
-                // Queremos rendimiento.
-                // Usemos solo Delta de PnL para "Ganancia".
-                // Y para tasa de crecimiento... ¿quizás solo (Delta PnL) / Invertido?
-                // Quedémonos con lo que hizo reportGenerator:
-                // growthRate: ((lastReport.totalValueEUR - firstReport.totalValueEUR) / firstReport.totalValueEUR) * 100
-                // Esto es defectuoso si hay depósitos.
-
-                // Devolvamos el Delta de PnL como "ganancia".
-                // Y quizás omitir tasa de crecimiento o calcularla como Ganancia / TotalInvertido?
+                growthRate = (monthlyGain / prev.totalValue) * 100
+            }
+        } else {
+            // Primer mes: la ganancia es simplemente el PnL total de ese mes
+            // (asumiendo que comenzó desde 0)
+            monthlyGain = current.gain
+            if (current.totalValue > 0) {
+                growthRate = (monthlyGain / current.totalValue) * 100
             }
         }
 
-        // Espera, el usuario dijo "se debera tener el PnL del ultimo dia del mes".
-        // ¿Quizás SÍ quieren el PnL absoluto?
-        // "Mejor Mes: 2025-11 +103".
-        // Si tengo PnL 100 en Oct y 203 en Nov. Ganancia es 103.
-        // Si tengo PnL 100 en Oct y 100 en Nov. Ganancia es 0.
-        // Esto tiene sentido para "Mejor Mes".
-        // Así que calcularé el delta.
-
         finalResults.push({
             month: current.month,
-            gain: monthlyGain,
-            growthRate: 0, // Placeholder o calcular si es necesario
+            gain: monthlyGain,  // ✅ Ahora es DELTA mensual, no PnL absoluto
+            growthRate,
             totalValue: current.totalValue
         })
     }

@@ -38,7 +38,7 @@ function Reports({
                 setError(null);
 
                 const response = await authenticatedFetch(
-                    `/api/reports/current?portfolioId=${portfolioId}&eurUsd=${currentEURUSD}`
+                    `/api/reports/current?portfolioId=${portfolioId}&eurUsd=${currentEURUSD}&period=${selectedPeriod}`
                 );
 
                 if (!response.ok) {
@@ -56,7 +56,7 @@ function Reports({
         };
 
         fetchReport();
-    }, [portfolioId, currentEURUSD]);
+    }, [portfolioId, currentEURUSD, selectedPeriod]);
 
     // Handle PDF download
     const handleDownloadPDF = async () => {
