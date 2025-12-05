@@ -9,10 +9,12 @@ function getMasterPassword() {
   return process.env.MASTER_PASSWORD || 'Freedom2-Mud9-Garnish7-Tattle4-Vivacious4-Germinate3-Removal9-Harmonics5-Heave6';
 }
 
+import speakeasy from 'speakeasy';
+
 // Login
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, twoFactorToken } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Usuario y contraseña son requeridos' });
@@ -28,6 +30,25 @@ router.post('/login', async (req, res) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    }
+
+    // Verificar 2FA si está habilitado
+    if (user.isTwoFactorEnabled) {
+      if (!twoFactorToken) {
+        // Indicar al frontend que se requiere 2FA
+        return res.json({ requiresTwoFactor: true });
+      }
+
+      // Verificar token 2FA
+      const verified = speakeasy.totp.verify({
+        secret: user.twoFactorSecret,
+        encoding: 'base32',
+        token: twoFactorToken
+      });
+
+      if (!verified) {
+        return res.status(401).json({ error: 'Código 2FA incorrecto' });
+      }
     }
 
     // Generar token

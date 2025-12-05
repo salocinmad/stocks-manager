@@ -16,11 +16,11 @@ export const removeToken = () => {
 };
 
 // Iniciar sesión
-export const login = async (username, password) => {
+export const login = async (username, password, twoFactorToken = null) => {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, twoFactorToken }),
   });
 
   if (!response.ok) {
@@ -29,6 +29,11 @@ export const login = async (username, password) => {
   }
 
   const data = await response.json();
+
+  if (data.requiresTwoFactor) {
+    return { requiresTwoFactor: true };
+  }
+
   setToken(data.token);
   try {
     if (data?.user?.favoritePortfolioId) {

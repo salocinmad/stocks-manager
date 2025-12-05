@@ -133,6 +133,23 @@ router.put('/users/:id/password', async (req, res) => {
   }
 })
 
+router.post('/users/:id/disable-2fa', async (req, res) => {
+  try {
+    const userId = req.params.id
+    const user = await User.findByPk(userId)
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
+
+    user.isTwoFactorEnabled = false
+    user.twoFactorSecret = null
+    user.twoFactorTempSecret = null
+    await user.save()
+
+    res.json({ message: '2FA desactivado correctamente para el usuario' })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
 router.post('/finnhub-api-key', async (req, res) => {
   try {
     const { value } = req.body

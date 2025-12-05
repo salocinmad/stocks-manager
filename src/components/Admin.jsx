@@ -183,6 +183,26 @@ function Admin() {
     }
   };
 
+  const handleDisableUser2FA = async (userId) => {
+    if (!window.confirm('¿Estás seguro de que quieres desactivar el 2FA para este usuario?')) {
+      return;
+    }
+
+    try {
+      const response = await authenticatedFetch(`/api/admin/users/${userId}/disable-2fa`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) throw new Error('Error al desactivar 2FA');
+
+      const data = await response.json();
+      setSuccess(data.message);
+      loadUsers();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const handleChangeUserPassword = async (userId, newPassword) => {
     if (!newPassword || newPassword.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres');
@@ -844,6 +864,7 @@ function Admin() {
             <tr>
               <th>Usuario</th>
               <th>Administrador</th>
+              <th>2FA</th>
               <th>Fecha Creación</th>
               <th>Acciones</th>
             </tr>
@@ -853,6 +874,7 @@ function Admin() {
               <tr key={user._id || user.id}>
                 <td>{user.username}</td>
                 <td>{user.isAdmin ? '✅' : '❌'}</td>
+                <td>{user.isTwoFactorEnabled ? '✅ Activado' : '❌ Desactivado'}</td>
                 <td>{new Date(user.createdAt).toLocaleDateString()}</td>
                 <td>
                   <button
@@ -864,7 +886,7 @@ function Admin() {
                   </button>
                   <button
                     className="button"
-                    style={{ padding: '4px 8px', fontSize: '12px' }}
+                    style={{ marginRight: '8px', padding: '4px 8px', fontSize: '12px' }}
                     onClick={() => {
                       const newPassword = prompt('Nueva contraseña (mínimo 6 caracteres):');
                       if (newPassword) {
@@ -872,8 +894,17 @@ function Admin() {
                       }
                     }}
                   >
-                    Cambiar Contraseña
+                    Cambiar Password
                   </button>
+                  {user.isTwoFactorEnabled && (
+                    <button
+                      className="button warning"
+                      style={{ padding: '4px 8px', fontSize: '12px' }}
+                      onClick={() => handleDisableUser2FA(user._id || user.id)}
+                    >
+                      Desactivar 2FA
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

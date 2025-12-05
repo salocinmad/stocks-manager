@@ -243,4 +243,19 @@ export const externalButtonsAPI = {
   delete: (id) => fetchAPI(`/external-buttons/${id}`, {
     method: 'DELETE'
   })
+
+};
+
+// Autenticación de Dos Factores (2FA)
+export const twoFactorAPI = {
+  setup: () => fetchAPI('/2fa/setup', { method: 'POST' }),
+  verify: (token) => fetchAPI('/2fa/verify', {
+    method: 'POST',
+    body: JSON.stringify({ token })
+  }),
+  disable: (password, token) => fetchAPI('/2fa/disable', {
+    method: 'POST',
+    body: JSON.stringify({ password, token })
+  }),
+  getStatus: () => fetchAPI('/2fa/status')
 };
