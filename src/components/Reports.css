@@ -125,12 +125,13 @@
 }
 
 .metric-content h3 {
-    margin: 0 0 8px 0;
-    font-size: 14px;
+    margin: 0 0 4px 0;
+    font-size: 12px;
     font-weight: 500;
     color: #94a3b8;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    line-height: 1.2;
 }
 
 .metric-value {

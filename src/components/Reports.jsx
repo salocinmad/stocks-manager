@@ -266,7 +266,7 @@ function Reports({
                     <div className={`metric-card ${reportData.fixedPeriodPnLMetrics.last3Months >= 0 ? 'positive' : 'negative'}`}>
                         <div className="metric-icon">📅</div>
                         <div className="metric-content">
-                            <h3>Ganancias Últimos 3 Meses</h3>
+                            <h3>Ganancias 3 Meses</h3>
                             <div className="metric-value">
                                 {reportData.fixedPeriodPnLMetrics.last3Months >= 0 ? '+' : ''}€{reportData.fixedPeriodPnLMetrics.last3Months.toFixed(2)}
                             </div>
@@ -284,7 +284,7 @@ function Reports({
                     <div className={`metric-card ${reportData.fixedPeriodPnLMetrics.sinceInception >= 0 ? 'positive' : 'negative'}`}>
                         <div className="metric-icon">🚀</div>
                         <div className="metric-content">
-                            <h3>Ganancias Desde Inicio</h3>
+                            <h3>Gancias Desde Inicio</h3>
                             <div className="metric-value">
                                 {reportData.fixedPeriodPnLMetrics.sinceInception >= 0 ? '+' : ''}€{reportData.fixedPeriodPnLMetrics.sinceInception.toFixed(2)}
                             </div>
