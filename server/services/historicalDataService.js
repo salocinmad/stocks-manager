@@ -19,7 +19,9 @@ const yahooFinance = new YahooFinance({
  * Obtiene el mapa de tipos de cambio a EUR
  */
 const getFxMapToEUR = async () => {
-    const map = { USD: 1, EUR: 1, GBP: 1 };
+    // Defaults razonables en caso de que todas las APIs fallen
+    const map = { USD: 0.92, EUR: 1.0, GBP: 0.86 };
+
     try {
         let key = process.env.FINNHUB_API_KEY || '';
         if (!key) {
@@ -39,11 +41,18 @@ const getFxMapToEUR = async () => {
         }
     } catch { }
 
-    // Fallback Yahoo
+    // Fallback Yahoo para USD
     try {
         const eurusd = await yahooFinance.quote('EURUSD=X');
         const r = eurusd?.regularMarketPrice || eurusd?.regularMarketPreviousClose;
         if (r && r > 0) map.USD = 1 / r;
+    } catch { }
+
+    // Fallback Yahoo para GBP
+    try {
+        const eurgbp = await yahooFinance.quote('EURGBP=X');
+        const rateGBP = eurgbp?.regularMarketPrice || eurgbp?.regularMarketPreviousClose;
+        if (rateGBP && rateGBP > 0) map.GBP = 1 / rateGBP;
     } catch { }
 
     return map;
@@ -154,7 +163,15 @@ export const overwriteHistoricalData = async (days = 30) => {
             }
 
             const { quotes, currency } = cachedData;
-            const exchangeRate = fxMap[currency] || 1;
+            let exchangeRate = fxMap[currency] || fxMap['GBP'] || 1;
+
+            // Detectar y manejar acciones británicas en pence (.L)
+            // Las acciones .L cotizan en peniques (GBp), no libras (GBP)
+            // 1 GBP = 100 pence, así que exchangeRate debe dividirse por 100
+            // Yahoo puede devolver currency como "GBP" o "GBp"
+            if (symbol && symbol.endsWith('.L') && (currency === 'GBP' || currency === 'GBp')) {
+                exchangeRate = (fxMap['GBP'] || 0.86) * 0.01;
+            }
 
             let updatedCount = 0;
 

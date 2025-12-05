@@ -317,38 +317,67 @@ export const calculateMonthlyAnalysis = async (userId, portfolioId) => {
     // Así que calcularé el DELTA.
     // Ganancia = PnL(Fin de Mes) - PnL(Fin de Mes Anterior).
 
-    // Calcular DELTA (cambio mensual) para cada mes
+    // Calcular PnL ABSOLUTO al final de cada mes (no delta)
     const finalResults = []
     for (let i = 0; i < monthlyStats.length; i++) {
         const current = monthlyStats[i]
-        const prev = i > 0 ? monthlyStats[i - 1] : null
-
-        // Ganancia mensual = Delta del PnL (no el PnL absoluto)
-        let monthlyGain = 0
-        let growthRate = 0
-
-        if (prev) {
-            monthlyGain = current.gain - prev.gain
-            // Tasa de crecimiento basada en el valor total del mes anterior
-            if (prev.totalValue > 0) {
-                growthRate = (monthlyGain / prev.totalValue) * 100
-            }
-        } else {
-            // Primer mes: la ganancia es simplemente el PnL total de ese mes
-            // (asumiendo que comenzó desde 0)
-            monthlyGain = current.gain
-            if (current.totalValue > 0) {
-                growthRate = (monthlyGain / current.totalValue) * 100
-            }
-        }
 
         finalResults.push({
             month: current.month,
-            gain: monthlyGain,  // ✅ Ahora es DELTA mensual, no PnL absoluto
-            growthRate,
+            gain: current.gain,  // PnL absoluto (total) al final del mes
+            growthRate: 0,
             totalValue: current.totalValue
         })
     }
 
     return finalResults
+}
+
+/**
+ * Calcula el PnL realizado (cerrado) mensual a partir de ventas.
+ * @param {number} userId
+ * @param {number} portfolioId
+ * @returns {Promise<Array>} Array de { month: 'YYYY-MM', realizedGain: number }
+ */
+export const calculateRealizedPnLByMonth = async (userId, portfolioId) => {
+    const operations = await Operation.findAll({
+        where: { userId, portfolioId },
+        order: [['date', 'ASC'], ['id', 'ASC']]
+    })
+
+    const positions = new Map() // key -> { shares, costBasis }
+    const monthlyRealized = new Map() // 'YYYY-MM' -> gain
+
+    for (const op of operations) {
+        const key = `${op.company}|||${op.symbol || ''}`
+        const monthKey = new Date(op.date).toISOString().slice(0, 7)
+
+        if (!positions.has(key)) {
+            positions.set(key, { shares: 0, costBasis: 0 })
+        }
+        const pos = positions.get(key)
+
+        if (op.type === 'purchase') {
+            pos.shares += op.shares
+            pos.costBasis += op.totalCost
+        } else if (op.type === 'sale') {
+            if (pos.shares > 0) {
+                const avgCost = pos.costBasis / pos.shares
+                const soldCost = avgCost * op.shares
+                const saleRevenue = op.totalCost  // totalCost de venta = ingreso
+                const realizedGain = saleRevenue - soldCost
+
+                // Sumar al mes
+                monthlyRealized.set(monthKey, (monthlyRealized.get(monthKey) || 0) + realizedGain)
+
+                // Actualizar posición
+                pos.shares -= op.shares
+                pos.costBasis -= soldCost
+            }
+        }
+    }
+
+    return Array.from(monthlyRealized.entries())
+        .map(([month, realizedGain]) => ({ month, realizedGain }))
+        .sort((a, b) => a.month.localeCompare(b.month))
 }

@@ -434,6 +434,44 @@ router.put('/operations/:operationId', async (req, res) => {
 });
 
 /**
+ * DELETE /api/admin/operations/:operationId
+ * Elimina una operación
+ */
+router.delete('/operations/:operationId', async (req, res) => {
+  try {
+    const operationId = parseInt(req.params.operationId);
+    const operation = await Operation.findByPk(operationId);
+
+    if (!operation) {
+      return res.status(404).json({ error: 'Operación no encontrada' });
+    }
+
+    // Guardar info para el log
+    const operationInfo = {
+      id: operation.id,
+      company: operation.company,
+      type: operation.type,
+      shares: operation.shares,
+      date: operation.date
+    };
+
+    // Eliminar la operación
+    await operation.destroy();
+
+    console.log('Operación eliminada:', operationInfo);
+
+    res.json({
+      success: true,
+      message: 'Operación eliminada correctamente',
+      operation: operationInfo
+    });
+  } catch (error) {
+    console.error('Error eliminando operación:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/admin/validate-symbol
  * Valida un símbolo y retorna precio actual
  */
