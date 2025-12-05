@@ -26,6 +26,7 @@ import dailyClose from './services/dailyClose.js';
 // Nuevas rutas API modulares
 import pricesApiRoutes from './routes/api/prices.js';
 import searchRoutes from './routes/search.js';
+import twoFactorRoutes from './routes/twoFactor.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -86,6 +87,7 @@ app.use('/api/reports', reportsRoutes);
 // Nuevas rutas API modulares
 app.use('/api/prices', pricesApiRoutes);  // ← NUEVO: API modular
 app.use('/api/search', searchRoutes);
+app.use('/api/2fa', twoFactorRoutes);
 
 // Ruta de estado (Health Check)
 app.get('/api/health', (req, res) => {

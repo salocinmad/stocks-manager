@@ -25,7 +25,20 @@ const User = sequelize.define('User', {
   favoritePortfolioId: {
     type: DataTypes.INTEGER,
     allowNull: true
-  }
+  },
+  twoFactorSecret: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  twoFactorTempSecret: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  isTwoFactorEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+
 }, {
   hooks: {
     beforeValidate: async (user) => {

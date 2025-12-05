@@ -68,6 +68,10 @@ if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
   echo "   Continuando de todas formas..."
 fi
 
+# Ejecutar migración de base de datos
+echo "🔄 Verificando esquema de base de datos..."
+node scripts/db-migration.js
+
 # Inicializar usuario administrador (si no existe)
 echo "👤 Verificando usuario administrador..."
 node scripts/initAdmin.js

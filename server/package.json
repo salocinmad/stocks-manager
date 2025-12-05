@@ -21,7 +21,9 @@
     "mysql2": "3.15.3",
     "sequelize": "6.37.7",
     "yahoo-finance2": "3.10.2",
-    "multer": "1.4.5-lts.2"
+    "multer": "1.4.5-lts.2",
+    "speakeasy": "^2.0.0",
+    "qrcode": "^1.5.0"
   },
   "devDependencies": {
     "concurrently": "9.2.1"
