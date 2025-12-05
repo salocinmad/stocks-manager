@@ -23,7 +23,9 @@ export default function PurchaseSaleModal({
   fetchCurrentPrice,
   getPositions,
   selectCompany,
-  externalButtons
+  externalButtons,
+  showSuggestions,
+  setShowSuggestions
 }) {
 
 
