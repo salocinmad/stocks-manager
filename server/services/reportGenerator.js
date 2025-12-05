@@ -340,10 +340,57 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
         let maxDrawdown = 0;
         let maxDrawdownDate = null;
 
-        // Obtener historial de PnL para calcular drawdown
+        // Helper function to get PnL at or before a specific date
+        const getPnlAtDate = (history, targetDateString) => {
+            const entry = history.findLast(h => h.date <= targetDateString);
+            return entry ? entry.pnlEUR : 0; // If no entry found, assume 0 PnL before history starts
+        };
+
+        // Helper function to calculate realized gains for specific periods from closed operations
+        const calculateRealizedGainsForPeriods = (closedOps, reportDate) => {
+            const today = new Date(reportDate);
+            const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const firstDayOf3MonthsAgo = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+            const firstDayOfCurrentYear = new Date(today.getFullYear(), 0, 1);
+
+            let realizedLastMonth = 0;
+            let realizedLast3Months = 0;
+            let realizedLastYear = 0;
+            let realizedSinceInception = 0;
+
+            for (const op of closedOps) {
+                const exitDate = op.saleDate;
+                const pnl = op.profitLoss || 0;
+
+                realizedSinceInception += pnl;
+
+                if (exitDate >= firstDayOfCurrentMonth) {
+                    realizedLastMonth += pnl;
+                }
+                if (exitDate >= firstDayOf3MonthsAgo) {
+                    realizedLast3Months += pnl;
+                }
+                if (exitDate >= firstDayOfCurrentYear) {
+                    realizedLastYear += pnl;
+                }
+            }
+
+            return {
+                lastMonth: realizedLastMonth,
+                last3Months: realizedLast3Months,
+                lastYear: realizedLastYear,
+                sinceInception: realizedSinceInception
+            };
+        };
+
+        // Obtener historial de PnL para calcular drawdown y nuevas métricas
+        let pnlHistory = [];
         try {
             const { calculatePortfolioHistory } = await import('./pnlService.js');
-            const pnlHistory = await calculatePortfolioHistory(userId, portfolioId, 365);
+            // Fetch history for a sufficiently long period to cover "since inception" and "last year"
+            // Let's assume 5 years (365 * 5 days) is enough for "since inception" for now.
+            // A more robust solution would be to find the actual start date of the portfolio.
+            pnlHistory = await calculatePortfolioHistory(userId, portfolioId, 365 * 5); // Fetch 5 years of history
 
             for (const day of pnlHistory) {
                 const pnl = day.pnlEUR;
@@ -370,8 +417,11 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
                 });
             }
         } catch (err) {
-            console.error('Error calculating drawdown:', err);
+            console.error('Error calculating drawdown or PnL history:', err);
         }
+
+        // Calculate fixed period realized gains
+        const fixedPeriodPnLMetrics = calculateRealizedGainsForPeriods(closedOperations, date);
 
         // 14. Construir datos del reporte
         const reportData = {
@@ -380,6 +430,9 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
             totalValueEUR,
             pnlEUR,
             dailyChangeEUR,
+
+            // New fixed period PnL metrics
+            fixedPeriodPnLMetrics,
 
             // Métricas principales
             roi,
