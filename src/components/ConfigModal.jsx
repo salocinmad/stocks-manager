@@ -25,6 +25,7 @@ export default function ConfigModal({
     const [manualSecret, setManualSecret] = useState('');
     const [setupToken, setSetupToken] = useState('');
     const [disablePassword, setDisablePassword] = useState('');
+    const [disableToken, setDisableToken] = useState('');
     const [showDisableConfirm, setShowDisableConfirm] = useState(false);
 
     useEffect(() => {
@@ -36,7 +37,9 @@ export default function ConfigModal({
             setQrCodeUrl('');
             setManualSecret('');
             setSetupToken('');
+            setSetupToken('');
             setDisablePassword('');
+            setDisableToken('');
             setShowDisableConfirm(false);
         }
     }, [isOpen]);
@@ -76,11 +79,12 @@ export default function ConfigModal({
 
     const handleDisable2FA = async () => {
         try {
-            await twoFactorAPI.disable(disablePassword);
+            await twoFactorAPI.disable(disablePassword, disableToken);
             alert('✅ 2FA Desactivado');
             setIs2FAEnabled(false);
             setShowDisableConfirm(false);
             setDisablePassword('');
+            setDisableToken('');
         } catch (e) {
             alert(e.message || 'Error al desactivar 2FA');
         }
@@ -127,19 +131,37 @@ export default function ConfigModal({
                                     Desactivar 2FA
                                 </button>
                             ) : (
-                                <div style={{ marginTop: '10px', backgroundColor: 'rgba(255,0,0,0.1)', padding: '10px', borderRadius: '4px' }}>
-                                    <p style={{ fontSize: '13px', marginBottom: '8px' }}>Ingresa tu contraseña para desactivar:</p>
+                                <div style={{ backgroundColor: theme === 'dark' ? '#2d2d2d' : '#f5f5f5', padding: '15px', borderRadius: '8px' }}>
+                                    <p style={{ fontSize: '13px', marginBottom: '10px' }}>
+                                        Para desactivar, ingresa tu contraseña y el código de tu app autenticadora.
+                                    </p>
                                     <input
                                         type="password"
                                         placeholder="Contraseña actual"
                                         className="input"
                                         value={disablePassword}
                                         onChange={e => setDisablePassword(e.target.value)}
-                                        style={{ marginBottom: '8px', width: '100%' }}
+                                        style={{ marginBottom: '10px', width: '100%' }}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Código 2FA (000000)"
+                                        className="input"
+                                        value={disableToken}
+                                        onChange={e => setDisableToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                        style={{ marginBottom: '10px', width: '100%', letterSpacing: '2px', textAlign: 'center' }}
                                     />
                                     <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button className="button danger" onClick={handleDisable2FA}>Confirmar Desactivar</button>
-                                        <button className="button" onClick={() => { setShowDisableConfirm(false); setDisablePassword(''); }}>Cancelar</button>
+                                        <button
+                                            className="button warning"
+                                            onClick={handleDisable2FA}
+                                            disabled={!disablePassword || disableToken.length !== 6}
+                                        >
+                                            Confirmar Desactivar
+                                        </button>
+                                        <button className="button" onClick={() => { setShowDisableConfirm(false); setDisablePassword(''); setDisableToken(''); }}>
+                                            Cancelar
+                                        </button>
                                     </div>
                                 </div>
                             )}

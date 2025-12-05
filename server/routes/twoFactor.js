@@ -84,30 +84,6 @@ router.post('/verify', authenticate, async (req, res) => {
  * @desc    Disable 2FA
  * @route   POST /api/2fa/disable
  * @access  Private
- */
-router.post('/disable', authenticate, async (req, res) => {
-    try {
-        const { password } = req.body;
-        if (!password) {
-            return res.status(400).json({ error: 'Contraseña es requerida' });
-        }
-
-        const user = await User.findByPk(req.user.id);
-        if (!user) {
-            return res.status(404).json({ error: 'Usuario no encontrado' });
-        }
-
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(403).json({ error: 'Contraseña incorrecta' });
-        }
-
-        user.isTwoFactorEnabled = false;
-        user.twoFactorSecret = null;
-        user.twoFactorTempSecret = null;
-        await user.save();
-
-        res.json({ message: '2FA desactivado correctamente' });
     } catch (error) {
         console.error('Error en disable 2FA:', error);
         res.status(500).json({ error: 'Error al desactivar 2FA' });

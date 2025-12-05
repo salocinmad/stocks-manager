@@ -253,9 +253,9 @@ export const twoFactorAPI = {
     method: 'POST',
     body: JSON.stringify({ token })
   }),
-  disable: (password) => fetchAPI('/2fa/disable', {
+  disable: (password, token) => fetchAPI('/2fa/disable', {
     method: 'POST',
-    body: JSON.stringify({ password })
+    body: JSON.stringify({ password, token })
   }),
   getStatus: () => fetchAPI('/2fa/status')
 };
