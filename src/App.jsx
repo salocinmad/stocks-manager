@@ -1563,29 +1563,38 @@ function App() {
               <p>No hay operaciones registradas</p>
             ) : (
               <div>
-                {operations.slice(-5).reverse().map((operation) => (
-                  <div key={operation.id} style={{
-                    padding: '10px',
-                    margin: '5px 0',
-                    border: '1px solid #404040',
-                    borderRadius: '4px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <div>
-                      <strong>{operation.type === 'purchase' ? 'Compra' : 'Venta'} - {operation.company}</strong>
-                      <br />
-                      {operation.shares} acciones a {formatPrice(operation.price)} {operation.currency}
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div>€{operation.totalCost.toFixed(2)}</div>
-                      <div style={{ fontSize: '12px', color: '#888' }}>
-                        {new Date(operation.date).toLocaleDateString('es-ES')}
+                {[...operations]
+                  .sort((a, b) => {
+                    const dateA = new Date(a.date);
+                    const dateB = new Date(b.date);
+                    if (dateA > dateB) return -1;
+                    if (dateA < dateB) return 1;
+                    return b.id - a.id;
+                  })
+                  .slice(0, 5)
+                  .map((operation) => (
+                    <div key={operation.id} style={{
+                      padding: '10px',
+                      margin: '5px 0',
+                      border: '1px solid #404040',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <strong>{operation.type === 'purchase' ? 'Compra' : 'Venta'} - {operation.company}</strong>
+                        <br />
+                        {operation.shares} acciones a {formatPrice(operation.price)} {operation.currency}
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div>€{operation.totalCost.toFixed(2)}</div>
+                        <div style={{ fontSize: '12px', color: '#888' }}>
+                          {new Date(operation.date).toLocaleDateString('es-ES')}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
