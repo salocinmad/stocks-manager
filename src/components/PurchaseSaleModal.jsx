@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 
 export default function PurchaseSaleModal({
   isOpen,
@@ -16,8 +16,6 @@ export default function PurchaseSaleModal({
   setSearchResults,
   loadingSearch,
   searchCompanies,
-  showSuggestions,
-  setShowSuggestions,
   formatPrice,
   currentPrice,
   loadingPrice,
@@ -27,6 +25,8 @@ export default function PurchaseSaleModal({
   selectCompany,
   externalButtons
 }) {
+
+
   if (!isOpen) return null
 
   return (
@@ -49,21 +49,18 @@ export default function PurchaseSaleModal({
                     searchCompanies(query)
                   } else {
                     setSearchResults([])
-                    setShowSuggestions(false)
                   }
                 }}
-                onFocus={() => {
-                  if (searchResults.length > 0) {
-                    setShowSuggestions(true)
-                  }
-                }}
+
               />
               {loadingSearch && (
                 <span style={{ position: 'absolute', right: '10px', top: '10px' }}>⏳</span>
               )}
-              {showSuggestions && searchResults.length > 0 && (
+              {showSuggestions && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: theme === 'dark' ? '#2d2d2d' : '#ffffff', border: `1px solid ${theme === 'dark' ? '#404040' : '#d0d0d0'}`, borderRadius: '4px', marginTop: '5px', maxHeight: '300px', overflowY: 'auto', zIndex: 1000, boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                  {searchResults.map((company, index) => (
+                  {loadingSearch && <div style={{ padding: '10px', textAlign: 'center' }}>Cargando...</div>}
+                  {!loadingSearch && searchResults.length === 0 && searchQuery.length >= 2 && <div style={{ padding: '10px', textAlign: 'center' }}>No se encontraron resultados.</div>}
+                  {!loadingSearch && searchResults.length > 0 && searchResults.map((company, index) => (
                     <div
                       key={index}
                       onClick={() => selectCompany(company)}

@@ -49,13 +49,12 @@ function App() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [missingApiKeyWarning, setMissingApiKeyWarning] = useState(false); // Advertencia por falta de API key en ConfigModal
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
   // Estados de precios gestionados por useLivePrices
 
   const { currentEURUSD, source: currentEURUSDSource, refresh: refreshEURUSD } = useEurUsdRate({ autoLoad: true });
   const [loadingData, setLoadingData] = useState(true); // Estado de carga de datos
   // Última sincronización gestionada por useLivePrices
-  const { portfolios, currentPortfolioId, switchPortfolio, markFavorite } = usePortfolio();
+  const { portfolios, currentPortfolioId, switchPortfolio, markFavorite, reloadPortfolios } = usePortfolio();
 
   const [formData, setFormData] = useState({
     company: '',
@@ -407,21 +406,7 @@ function App() {
     return () => clearInterval(timer);
   }, [lastUpdatedAt]);
 
-  // Cerrar sugerencias al hacer clic fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showSuggestions && !event.target.closest('.search-container')) {
-        setShowSuggestions(false);
-      }
-    };
 
-    if (showSuggestions) {
-      document.addEventListener('click', handleClickOutside);
-      return () => {
-        document.removeEventListener('click', handleClickOutside);
-      };
-    }
-  }, [showSuggestions]);
 
   // Cambiar tema
   const toggleTheme = () => {
@@ -520,7 +505,7 @@ function App() {
     }
   };
 
-  const { searchResults, setSearchResults, loadingSearch, searchCompanies } = useCompanySearch({
+  const { searchResults, setSearchResults, loadingSearch, showSuggestions, setShowSuggestions, searchCompanies } = useCompanySearch({
     finnhubApiKey,
     setMissingApiKeyWarning,
     setShowConfigModal
@@ -1237,42 +1222,46 @@ function App() {
                   <button
                     className="dropdown-item"
                     onClick={async () => {
+                      setShowPortfolioMenu(false);
                       const name = window.prompt('Nombre del nuevo portafolio:');
                       if (name && name.trim()) {
                         const r = await portfolioAPI.create(name.trim());
                         if (r?.item) {
-                          setPortfolios(prev => [...prev, r.item]);
+                          await reloadPortfolios();
                           switchPortfolio(r.item.id);
                         }
                       }
-                      setShowPortfolioMenu(false);
                     }}
                   >➕ Crear</button>
                   <button
                     className="dropdown-item"
                     onClick={async () => {
                       if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                      setShowPortfolioMenu(false);
                       const cur = portfolios.find(p => p.id === currentPortfolioId);
                       const name = window.prompt('Nuevo nombre del portafolio:', cur?.name || '');
                       if (name && name.trim()) {
                         await portfolioAPI.rename(currentPortfolioId, name.trim());
-                        setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, name: name.trim() } : p));
+                        await reloadPortfolios();
                       }
-                      setShowPortfolioMenu(false);
                     }}
                   >✏️ Renombrar</button>
                   <button
                     className="dropdown-item"
                     onClick={async () => {
                       if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                      setShowPortfolioMenu(false);
                       if (window.confirm('¿Eliminar portafolio actual? Se eliminarán también sus operaciones y datos asociados.')) {
                         await portfolioAPI.remove(currentPortfolioId);
-                        const rem = portfolios.filter(p => p.id !== currentPortfolioId);
-                        setPortfolios(rem);
-                        const next = rem[0]?.id || null;
-                        switchPortfolio(next);
+                        await reloadPortfolios();
+                        // Al recargar, si el actual ya no existe, el contexto o el usuario debería manejarlo,
+                        // pero por seguridad cambiamos al primero disponible o null
+                        // reloadPortfolios actualiza el estado, pero necesitamos saber a cuál cambiar.
+                        // Mejor dejar que el usuario seleccione o recargar la página si es crítico,
+                        // pero reloadPortfolios actualiza la lista.
+                        // switchPortfolio(null) podría ser necesario si el contexto no lo maneja.
+                        window.location.reload(); // La forma más segura de resetear el estado tras borrar el activo
                       }
-                      setShowPortfolioMenu(false);
                     }}
                   >🗑️ Eliminar</button>
                   <button
@@ -1693,17 +1682,22 @@ function App() {
                       onChange={(e) => {
                         const query = e.target.value;
                         setSearchQuery(query);
-                        if (query.length >= 3) {
+                        if (query.length >= 2) {
                           searchCompanies(query);
+                          setShowSuggestions(true); // Mostrar sugerencias al escribir
                         } else {
                           setSearchResults([]);
                           setShowSuggestions(false);
                         }
                       }}
                       onFocus={() => {
-                        if (searchResults.length > 0) {
-                          setShowSuggestions(true);
+                        if (searchQuery.length >= 2) {
+                          setShowSuggestions(true); // Mostrar sugerencias al enfocar si la consulta es válida
                         }
+                      }}
+                      onBlur={() => {
+                        // Retrasar el ocultamiento para permitir clics en las sugerencias
+                        setTimeout(() => setShowSuggestions(false), 100);
                       }}
                     />
                     {loadingSearch && (
@@ -1711,7 +1705,7 @@ function App() {
                     )}
 
                     {/* Dropdown de sugerencias */}
-                    {showSuggestions && searchResults.length > 0 && (
+                    {showSuggestions && (
                       <div style={{
                         position: 'absolute',
                         top: '100%',
@@ -1726,7 +1720,9 @@ function App() {
                         zIndex: 1000,
                         boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                       }}>
-                        {searchResults.map((company, index) => (
+                        {loadingSearch && <div style={{ padding: '10px', textAlign: 'center' }}>Cargando...</div>}
+                        {!loadingSearch && searchResults.length === 0 && searchQuery.length >= 2 && <div style={{ padding: '10px', textAlign: 'center' }}>No se encontraron resultados.</div>}
+                        {!loadingSearch && searchResults.length > 0 && searchResults.map((company, index) => (
                           <div
                             key={index}
                             onClick={() => selectCompany(company)}

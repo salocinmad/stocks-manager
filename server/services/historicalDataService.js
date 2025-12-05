@@ -19,7 +19,9 @@ const yahooFinance = new YahooFinance({
  * Obtiene el mapa de tipos de cambio a EUR
  */
 const getFxMapToEUR = async () => {
-    const map = { USD: 1, EUR: 1, GBP: 1 };
+    // Defaults razonables en caso de que todas las APIs fallen
+    const map = { USD: 0.92, EUR: 1.0, GBP: 0.86 };
+
     try {
         let key = process.env.FINNHUB_API_KEY || '';
         if (!key) {
@@ -39,11 +41,18 @@ const getFxMapToEUR = async () => {
         }
     } catch { }
 
-    // Fallback Yahoo
+    // Fallback Yahoo para USD
     try {
         const eurusd = await yahooFinance.quote('EURUSD=X');
         const r = eurusd?.regularMarketPrice || eurusd?.regularMarketPreviousClose;
         if (r && r > 0) map.USD = 1 / r;
+    } catch { }
+
+    // Fallback Yahoo para GBP
+    try {
+        const eurgbp = await yahooFinance.quote('EURGBP=X');
+        const rateGBP = eurgbp?.regularMarketPrice || eurgbp?.regularMarketPreviousClose;
+        if (rateGBP && rateGBP > 0) map.GBP = 1 / rateGBP;
     } catch { }
 
     return map;
@@ -105,14 +114,14 @@ export const overwriteHistoricalData = async (days = 30) => {
             }
         }
 
-        // Filtrar solo posiciones activas (shares > 0)
-        const activePositions = Array.from(positionsMap.values()).filter(p => p.shares > 0);
+        // Incluir TODAS las posiciones (abiertas y cerradas)
+        const allPositions = Array.from(positionsMap.values());
         if (currentLogLevel === 'verbose') {
-            console.log(`📍 Encontradas ${activePositions.length} posiciones activas para actualizar.`);
+            console.log(`📍 Encontradas ${allPositions.length} posiciones (activas y cerradas) para actualizar.`);
         }
 
         // 3. Identificar símbolos únicos para minimizar llamadas a API
-        const uniqueSymbols = [...new Set(activePositions.map(p => p.symbol))];
+        const uniqueSymbols = [...new Set(allPositions.map(p => p.symbol))];
         const symbolDataCache = new Map();
         const fxMap = await getFxMapToEUR();
 
@@ -142,8 +151,8 @@ export const overwriteHistoricalData = async (days = 30) => {
             }
         }
 
-        // 5. Actualizar DailyPrice para cada posición activa
-        for (const pos of activePositions) {
+        // 5. Actualizar DailyPrice para cada posición (activa o cerrada)
+        for (const pos of allPositions) {
             const { userId, portfolioId, company, symbol, shares } = pos;
             const positionKey = `${company}|||${symbol}`;
             const cachedData = symbolDataCache.get(symbol);
@@ -154,7 +163,15 @@ export const overwriteHistoricalData = async (days = 30) => {
             }
 
             const { quotes, currency } = cachedData;
-            const exchangeRate = fxMap[currency] || 1;
+            let exchangeRate = fxMap[currency] || fxMap['GBP'] || 1;
+
+            // Detectar y manejar acciones británicas en pence (.L)
+            // Las acciones .L cotizan en peniques (GBp), no libras (GBP)
+            // 1 GBP = 100 pence, así que exchangeRate debe dividirse por 100
+            // Yahoo puede devolver currency como "GBP" o "GBp"
+            if (symbol && symbol.endsWith('.L') && (currency === 'GBP' || currency === 'GBp')) {
+                exchangeRate = (fxMap['GBP'] || 0.86) * 0.01;
+            }
 
             let updatedCount = 0;
 

@@ -15,6 +15,7 @@ export default function OperationsEditor({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [filterText, setFilterText] = useState('');
+    const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
     const loadUsersPortfolios = async () => {
         try {
@@ -114,6 +115,31 @@ export default function OperationsEditor({
             }
 
             setError('');
+
+            if (selectedPortfolioId) {
+                await loadOperations(selectedPortfolioId);
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const deleteOperation = async (operationId) => {
+        try {
+            setLoading(true);
+            const response = await authenticatedFetch(`/api/admin/operations/${operationId}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al eliminar operación');
+            }
+
+            setError('');
+            setDeleteConfirmation(null);
 
             if (selectedPortfolioId) {
                 await loadOperations(selectedPortfolioId);
@@ -362,7 +388,7 @@ export default function OperationsEditor({
                                             <td style={{ padding: '4px', fontWeight: 'bold' }}>
                                                 {calculateTotal(op).toFixed(2)}€
                                             </td>
-                                            <td style={{ padding: '4px' }}>
+                                            <td style={{ padding: '4px', display: 'flex', gap: '4px' }}>
                                                 <button
                                                     className="button primary"
                                                     style={{ fontSize: '11px', padding: '4px 12px' }}
@@ -370,6 +396,13 @@ export default function OperationsEditor({
                                                     onClick={() => saveOperation(op.id)}
                                                 >
                                                     💾 Guardar
+                                                </button>
+                                                <button
+                                                    className="button"
+                                                    style={{ fontSize: '11px', padding: '4px 12px', backgroundColor: '#ef4444', border: 'none' }}
+                                                    onClick={() => setDeleteConfirmation(op)}
+                                                >
+                                                    🗑️ Borrar
                                                 </button>
                                             </td>
                                         </tr>
@@ -410,6 +443,66 @@ export default function OperationsEditor({
                     </button>
                 </div>
             </div>
+
+            {/* Modal de confirmación de eliminación */}
+            {deleteConfirmation && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10000
+                }}>
+                    <div style={{
+                        backgroundColor: '#1e1e1e',
+                        padding: '24px',
+                        borderRadius: '8px',
+                        maxWidth: '500px',
+                        border: '1px solid #444'
+                    }}>
+                        <h3 style={{ marginTop: 0, color: '#ef4444' }}>⚠️ Confirmar Eliminación</h3>
+                        <p style={{ color: '#ccc' }}>
+                            ¿Estás seguro de que quieres eliminar esta operación?
+                        </p>
+                        <div style={{
+                            backgroundColor: '#2a2a2a',
+                            padding: '12px',
+                            borderRadius: '4px',
+                            marginBottom: '16px'
+                        }}>
+                            <p style={{ margin: '4px 0' }}><strong>Fecha:</strong> {new Date(deleteConfirmation.date).toLocaleDateString()}</p>
+                            <p style={{ margin: '4px 0' }}><strong>Tipo:</strong> {deleteConfirmation.type === 'purchase' ? '📈 COMPRA' : '📉 VENTA'}</p>
+                            <p style={{ margin: '4px 0' }}><strong>Empresa:</strong> {deleteConfirmation.company}</p>
+                            <p style={{ margin: '4px 0' }}><strong>Acciones:</strong> {deleteConfirmation.shares}</p>
+                            <p style={{ margin: '4px 0' }}><strong>Precio:</strong> €{deleteConfirmation.totalCost.toFixed(2)}</p>
+                        </div>
+                        <p style={{ color: '#f59e0b', fontSize: '14px' }}>
+                            <strong>⚠️ Esta acción no se puede deshacer.</strong>
+                        </p>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                            <button
+                                className="button"
+                                onClick={() => setDeleteConfirmation(null)}
+                                style={{ padding: '8px 16px' }}
+                            >
+                                ❌ Cancelar
+                            </button>
+                            <button
+                                className="button"
+                                onClick={() => deleteOperation(deleteConfirmation.id)}
+                                style={{ padding: '8px 16px', backgroundColor: '#ef4444', border: 'none' }}
+                            >
+                                🗑️ Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

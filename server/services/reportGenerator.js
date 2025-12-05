@@ -27,7 +27,7 @@ import {
 import { generateAlerts } from './alertsService.js';
 import { fetchHistorical } from './datasources/yahooService.js';
 import { getLogLevel } from '../services/configService.js';
-import { calculateMonthlyAnalysis } from './pnlService.js';
+import { calculateMonthlyAnalysis, calculateRealizedPnLByMonth } from './pnlService.js';
 
 /**
  * Servicio para generar reportes completos del portafolio
@@ -240,6 +240,7 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
         // 7. Calcular ganancias mensuales y mejor/peor mes
         // Usamos el servicio de PnL para obtener datos históricos precisos
         const monthlyGains = await calculateMonthlyAnalysis(userId, portfolioId);
+        const realizedMonthlyGains = await calculateRealizedPnLByMonth(userId, portfolioId);
         const { bestMonth, worstMonth } = findBestWorstMonth(monthlyGains);
         const growthRate = calculateMonthlyGrowth(dailyStats);
 
@@ -390,6 +391,7 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
 
             // Métricas mensuales/anuales
             monthlyGains,
+            realizedMonthlyGains,
             bestMonth,
             worstMonth,
             growthRate,

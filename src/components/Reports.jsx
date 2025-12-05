@@ -38,7 +38,7 @@ function Reports({
                 setError(null);
 
                 const response = await authenticatedFetch(
-                    `/api/reports/current?portfolioId=${portfolioId}&eurUsd=${currentEURUSD}`
+                    `/api/reports/current?portfolioId=${portfolioId}&eurUsd=${currentEURUSD}&period=${selectedPeriod}`
                 );
 
                 if (!response.ok) {
@@ -56,7 +56,7 @@ function Reports({
         };
 
         fetchReport();
-    }, [portfolioId, currentEURUSD]);
+    }, [portfolioId, currentEURUSD, selectedPeriod]);
 
     // Handle PDF download
     const handleDownloadPDF = async () => {
@@ -264,7 +264,7 @@ function Reports({
             {/* Análisis Mensual */}
             {reportData.monthlyGains && reportData.monthlyGains.length > 0 && (
                 <div className="monthly-analysis">
-                    <h3>📅 Análisis Mensual</h3>
+                    <h3>📊 PnL No Realizado al Final del Mes</h3>
                     <div className="monthly-stats">
                         {reportData.bestMonth && (
                             <div className="monthly-highlight best">
@@ -305,12 +305,79 @@ function Reports({
                                         <div
                                             className={`month-bar ${month.gain >= 0 ? 'positive' : 'negative'}`}
                                             style={{ height: `${height}%` }}
-                                            title={`${month.month}: €${month.gain.toFixed(2)}`}
+                                            title={`${month.month}: PnL total €${month.gain.toFixed(2)}`}
                                         >
                                         </div>
                                     </div>
                                     <div className={`month-value ${month.gain >= 0 ? 'positive' : 'negative'}`}>
                                         {month.gain >= 0 ? '+' : '-'}€{Math.abs(month.gain).toFixed(0)}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Análisis Mensual - PnL Realizado (Cerrado) */}
+            {reportData.realizedMonthlyGains && reportData.realizedMonthlyGains.length > 0 && (
+                <div className="monthly-analysis">
+                    <h3>💰 PnL Realizado Mensual (Posiciones Cerradas)</h3>
+                    <div className="monthly-stats">
+                        {(() => {
+                            const bestRealized = reportData.realizedMonthlyGains.reduce((max, m) =>
+                                m.realizedGain > max.realizedGain ? m : max
+                            );
+                            const worstRealized = reportData.realizedMonthlyGains.reduce((min, m) =>
+                                m.realizedGain < min.realizedGain ? m : min
+                            );
+
+                            return (
+                                <>
+                                    <div className="monthly-highlight best">
+                                        <span className="highlight-label">🏆 Mejor Mes:</span>
+                                        <span className="highlight-value">
+                                            {bestRealized.month}
+                                            <span className="positive">
+                                                {' '}+€{bestRealized.realizedGain.toFixed(2)}
+                                            </span>
+                                        </span>
+                                    </div>
+                                    {bestRealized.month !== worstRealized.month && (
+                                        <div className="monthly-highlight worst">
+                                            <span className="highlight-label">📉 Peor Mes:</span>
+                                            <span className="highlight-value">
+                                                {worstRealized.month}
+                                                <span className={worstRealized.realizedGain >= 0 ? "positive" : "negative"}>
+                                                    {' '}{worstRealized.realizedGain >= 0 ? '+' : ''}€{worstRealized.realizedGain.toFixed(2)}
+                                                </span>
+                                            </span>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
+                    </div>
+
+                    {/* Gráfico de barras de PnL Realizado */}
+                    <div className="monthly-chart">
+                        {reportData.realizedMonthlyGains.map((month, index) => {
+                            const maxGain = Math.max(...reportData.realizedMonthlyGains.map(m => Math.abs(m.realizedGain)));
+                            const height = maxGain > 0 ? (Math.abs(month.realizedGain) / maxGain * 100) : 0;
+
+                            return (
+                                <div key={index} className="month-bar-container">
+                                    <div className="month-label">{month.month.split('-')[1]}</div>
+                                    <div className="month-bar-wrapper">
+                                        <div
+                                            className={`month-bar ${month.realizedGain >= 0 ? 'positive' : 'negative'}`}
+                                            style={{ height: `${height}%` }}
+                                            title={`${month.month}: €${month.realizedGain.toFixed(2)}`}
+                                        >
+                                        </div>
+                                    </div>
+                                    <div className={`month-value ${month.realizedGain >= 0 ? 'positive' : 'negative'}`}>
+                                        {month.realizedGain >= 0 ? '+' : '-'}€{Math.abs(month.realizedGain).toFixed(0)}
                                     </div>
                                 </div>
                             );

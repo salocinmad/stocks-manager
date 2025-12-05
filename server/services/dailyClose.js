@@ -391,7 +391,8 @@ export const reloadDaily = async () => {
 
 export default { startDaily, stopDaily, reloadDaily, runDailyOnce }
 const getFxMapToEUR = async () => {
-  const map = { USD: 1, EUR: 1, GBP: 1 }
+  // Defaults razonables en caso de que todas las APIs fallen
+  const map = { USD: 0.92, EUR: 1.0, GBP: 0.86 }
   try {
     let key = process.env.FINNHUB_API_KEY || ''
     if (!key) {
