@@ -1,0 +1,51 @@
+services:
+  mariadb:
+    build:
+      context: .
+      dockerfile: docker/mariadb/Dockerfile
+    restart: always
+    environment:
+      # Valores por defecto - serán reemplazados por credenciales generadas automáticamente
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-portfolio_manager}
+      MYSQL_USER: ${MYSQL_USER:-user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - db_secrets:/run/secrets
+
+  server:
+    build: ./server
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST=mariadb
+      - DB_NAME=${MYSQL_DATABASE:-portfolio_manager}
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_key}
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
+    depends_on:
+      - mariadb
+    volumes:
+      - backend_env:/app/env
+      - profile_pictures_data:/app/images/profile-pictures
+      - db_secrets:/run/secrets:ro
+
+  frontend:
+    build:
+      context: .
+      args:
+        VITE_API_URL: http://server:5000
+    ports:
+      - "3000:80"
+    stdin_open: true
+    tty: true
+    depends_on:
+      - server
+
+volumes:
+  mariadb_data:
+  backend_env:
+  profile_pictures_data:
+  db_secrets:
