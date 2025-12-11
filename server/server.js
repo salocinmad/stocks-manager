@@ -91,15 +91,15 @@ app.get('/api/health', (req, res) => {
 });
 
 // Iniciar programador después de sincronizar BD
-connectDB().then(async () => {
+connectDB().then(async (initializedDb) => {
   try {
-    const r = await scheduler.start();
+    const r = await scheduler.start(initializedDb);
     if (r.ok) {
       console.log(`🕒 Scheduler iniciado cada ${r.minutes} min`);
     } else {
       console.log(`🕒 Scheduler no iniciado: ${r.reason}`);
     }
-    const d = await dailyClose.startDaily();
+    const d = await dailyClose.startDaily(initializedDb);
     if (d.ok) {
       console.log(`📅 Snapshot diario programado a las ${d.timeStr}`)
     } else {

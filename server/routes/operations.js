@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../config/database.js';
 import { operations, portfolios, users } from '../drizzle/schema.js';
-import { eq, and, asc, desc } from 'drizzle-orm';
+import { eq, and, asc, desc, count } from 'drizzle-orm';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -14,14 +14,14 @@ async function resolvePortfolioId(req) {
   const raw = req.query.portfolioId || req.body?.portfolioId;
   const id = raw ? parseInt(raw, 10) : null;
   if (id) {
-    const exists = await Portfolio.count({ where: { id, userId } });
-    if (exists) return id;
+    const exists = await db.select({ cnt: count() }).from(portfolios).where(and(eq(portfolios.id, id), eq(portfolios.userId, userId)));
+    if (exists[0]?.cnt > 0) return id;
   }
-  const u = await User.findByPk(userId);
-  if (u?.favoritePortfolioId) {
-    return u.favoritePortfolioId;
-  }
-  const first = await Portfolio.findOne({ where: { userId }, order: [['id', 'ASC']] });
+  const uRes = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  const u = uRes[0];
+  if (u?.favoritePortfolioId) return u.favoritePortfolioId;
+  const firstRes = await db.select({ id: portfolios.id }).from(portfolios).where(eq(portfolios.userId, userId)).orderBy(asc(portfolios.id)).limit(1);
+  const first = firstRes[0];
   if (first) return first.id;
   return null;
 }
@@ -30,11 +30,8 @@ async function resolvePortfolioId(req) {
 router.get('/', async (req, res) => {
   try {
     const portfolioId = await resolvePortfolioId(req);
-    const operations = await Operation.findAll({
-      where: { userId: req.user.id, portfolioId },
-      order: [['date', 'DESC']]
-    });
-    res.json(operations);
+    const ops = await db.select().from(operations).where(and(eq(operations.userId, req.user.id), eq(operations.portfolioId, portfolioId))).orderBy(desc(operations.date));
+    res.json(ops);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -44,9 +41,8 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const portfolioId = await resolvePortfolioId(req);
-    const operation = await Operation.findOne({
-      where: { id: req.params.id, userId: req.user.id, portfolioId }
-    });
+    const opRes = await db.select().from(operations).where(and(eq(operations.id, parseInt(req.params.id)), eq(operations.userId, req.user.id), eq(operations.portfolioId, portfolioId))).limit(1);
+    const operation = opRes[0];
     if (!operation) {
       return res.status(404).json({ error: 'Operación no encontrada' });
     }
@@ -67,8 +63,7 @@ router.post('/', async (req, res) => {
     // Asociar la operación al usuario actual
     operationData.userId = req.user.id;
     operationData.portfolioId = await resolvePortfolioId(req);
-
-    const operation = await Operation.create(operationData);
+    const [operation] = await db.insert(operations).values(operationData).returning();
     res.status(201).json(operation);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -106,15 +101,12 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const portfolioId = await resolvePortfolioId(req);
-    const operation = await Operation.findOne({
-      where: { id: req.params.id, userId: req.user.id, portfolioId }
-    });
-
+    const opRes = await db.select().from(operations).where(and(eq(operations.id, parseInt(req.params.id)), eq(operations.userId, req.user.id), eq(operations.portfolioId, portfolioId))).limit(1);
+    const operation = opRes[0];
     if (!operation) {
       return res.status(404).json({ error: 'Operación no encontrada' });
     }
-
-    await operation.destroy();
+    await db.delete(operations).where(eq(operations.id, parseInt(req.params.id)));
     res.json({ message: 'Operación eliminada correctamente' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -133,4 +125,3 @@ router.delete('/', async (req, res) => {
 });
 
 export default router;
-

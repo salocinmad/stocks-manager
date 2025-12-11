@@ -1,4 +1,5 @@
-import { db, schema } from '../config/database.js'
+import { db } from '../config/database.js'
+import * as schema from '../drizzle/schema.js'
 import { sql } from 'drizzle-orm'
 
 /**
@@ -54,8 +55,8 @@ function escapeSQLValue(value) {
 export async function exportToJSON() {
     const data = {}
 
-    for (const model of BACKUP_MODELS) {
-        data[model.name] = await model.findAll()
+    for (const t of BACKUP_TABLES) {
+        data[t.modelName] = await db.select().from(t.table)
     }
 
     return data

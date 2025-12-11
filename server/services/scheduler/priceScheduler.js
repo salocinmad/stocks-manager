@@ -4,7 +4,7 @@
  */
 
 import { updateAllActivePrices } from '../prices/currentPriceService.js';
-import { db } from '../../config/database.js';
+
 import * as schema from '../../drizzle/schema.js';
 import { eq } from 'drizzle-orm';
 import { SCHEDULER_INTERVALS } from '../../utils/constants.js';
@@ -16,11 +16,10 @@ let priceUpdateTimer = null;
  * Inicia el scheduler de actualización de precios
  * @returns {Promise<void>}
  */
-export async function startPriceScheduler() {
-    const currentLogLevel = await getLogLevel();
+export async function startPriceScheduler(db) {
+    const currentLogLevel = await getLogLevel(db, eq);
     // Obtener intervalo de configuración
-    const config = await db.query.configs.findFirst({ where: eq(schema.configs.key, 'scheduler_interval_minutes') });
-    const minutes = config?.value ? parseInt(config.value) : SCHEDULER_INTERVALS.PRICE_UPDATE;
+    const minutes = SCHEDULER_INTERVALS.PRICE_UPDATE;
 
     // Si ya está corriendo, detenerlo primero
     if (priceUpdateTimer) {
@@ -32,14 +31,15 @@ export async function startPriceScheduler() {
     }
 
     // Ejecutar inmediatamente
-    await updateAllActivePrices();
+    console.log('DEBUG: eq in priceScheduler.js before updateAllActivePrices:', eq);
+    await updateAllActivePrices(db, schema);
 
     // Luego ejecutar periódicamente
     priceUpdateTimer = setInterval(async () => {
         if (currentLogLevel === 'verbose') {
             console.log('\n⏰ Scheduler: Ejecutando actualización periódica...');
         }
-        await updateAllActivePrices();
+        await updateAllActivePrices(db, schema);
     }, minutes * 60 * 1000);
 
     if (currentLogLevel === 'verbose') {
@@ -63,12 +63,12 @@ export function stopPriceScheduler() {
  * Ejecuta actualización manual (botón "Actualizar Precios")
  * @returns {Promise<Object>} Resultado de la actualización
  */
-export async function runManualUpdate() {
-    const currentLogLevel = await getLogLevel();
+export async function runManualUpdate(db) {
+    const currentLogLevel = await getLogLevel(db, eq);
     if (currentLogLevel === 'verbose') {
         console.log('🔄 Actualización manual de precios solicitada');
     }
-    return await updateAllActivePrices();
+    return await updateAllActivePrices(db, schema);
 }
 
 export default {

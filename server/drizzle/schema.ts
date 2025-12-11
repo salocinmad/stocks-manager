@@ -226,6 +226,19 @@ export const externalLinkButtons = pgTable('ExternalLinkButtons', {
   elbUserDisplayOrder: uniqueIndex('elb_user_display_order').on(table.userId, table.displayOrder),
 }));
 
+export const portfolioReports = pgTable('PortfolioReports', {
+  id: serial('id').primaryKey(),
+  userId: integer('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  portfolioId: integer('portfolioId').notNull().references(() => portfolios.id, { onDelete: 'cascade' }),
+  reportDate: date('reportDate').notNull(),
+  reportData: jsonb('reportData').notNull(), // Almacenar el JSON del reporte
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().notNull(),
+}, (table) => ({
+  prUserPortfolioDate: uniqueIndex('pr_user_portfolio_date').on(table.userId, table.portfolioId, table.reportDate),
+  prUserIdx: index('pr_user_idx').on(table.userId),
+}));
+
 export const globalCurrentPrices = pgTable('GlobalCurrentPrices', {
   symbol: varchar('symbol', { length: 50 }).primaryKey(),
   lastPrice: real('lastPrice').notNull(),

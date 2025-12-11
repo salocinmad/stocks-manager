@@ -1,9 +1,7 @@
 import YahooFinance from 'yahoo-finance2';
-import DailyPrice from '../models/DailyPrice.js';
-import Operation from '../models/Operation.js';
-import Portfolio from '../models/Portfolio.js';
-import Config from '../models/Config.js';
-import { Op } from 'sequelize';
+import { db } from '../config/database.js';
+import * as schema from '../drizzle/schema.js';
+import { eq, and } from 'drizzle-orm';
 import { getLogLevel } from './configService.js';
 
 // Instancia de Yahoo Finance
@@ -25,7 +23,7 @@ const getFxMapToEUR = async () => {
     try {
         let key = process.env.FINNHUB_API_KEY || '';
         if (!key) {
-            const row = await Config.findOne({ where: { key: 'finnhub-api-key' } });
+            const row = await db.query.configs.findFirst({ where: eq(schema.configs.key, 'finnhub-api-key') });
             key = row?.value || '';
         }
         if (key) {
@@ -63,7 +61,7 @@ const getFxMapToEUR = async () => {
  * @param {number} days Número de días hacia atrás a actualizar
  */
 export const overwriteHistoricalData = async (days = 30) => {
-    const currentLogLevel = await getLogLevel();
+    const currentLogLevel = await getLogLevel(db, eq);
     const results = {
         updatedPositions: 0,
         errors: [],
@@ -85,7 +83,7 @@ export const overwriteHistoricalData = async (days = 30) => {
         endDate.setHours(23, 59, 59, 999);
 
         // 2. Obtener todas las operaciones para identificar posiciones activas
-        const operations = await Operation.findAll();
+        const operations = await db.select().from(schema.operations);
 
         // Agrupar operaciones por Usuario + Portafolio + Símbolo
         // Map key: "userId:portfolioId:company:symbol"
@@ -182,14 +180,13 @@ export const overwriteHistoricalData = async (days = 30) => {
 
                 // Upsert DailyPrice
                 // Buscamos si existe registro para ese día
-                const existingPrice = await DailyPrice.findOne({
-                    where: {
-                        userId,
-                        portfolioId,
-                        positionKey,
-                        date: dateStr
-                    }
-                });
+                const whereClause = and(
+                    eq(schema.dailyPrices.userId, userId),
+                    eq(schema.dailyPrices.portfolioId, portfolioId),
+                    eq(schema.dailyPrices.positionKey, positionKey),
+                    eq(schema.dailyPrices.date, dateStr)
+                );
+                const existingPrice = await db.query.dailyPrices.findFirst({ where: whereClause });
 
                 const priceData = {
                     userId,
@@ -206,15 +203,18 @@ export const overwriteHistoricalData = async (days = 30) => {
                     exchangeRate,
                     source: 'yahoo_history_overwrite',
                     shares: shares,
-                    volume: quote.volume || null, // Guardar volumen
+                    volume: quote.volume || null,
                     change: 0,
                     changePercent: 0
                 };
 
                 if (existingPrice) {
-                    await existingPrice.update(priceData);
+                    await db.update(schema.dailyPrices)
+                        .set(priceData)
+                        .where(eq(schema.dailyPrices.id, existingPrice.id))
+                        .execute();
                 } else {
-                    await DailyPrice.create(priceData);
+                    await db.insert(schema.dailyPrices).values(priceData).execute();
                 }
                 updatedCount++;
             }
@@ -310,4 +310,4 @@ export const overwriteHistoricalData = async (days = 30) => {
     }
 };
 
-export default { overwriteHistoricalData };
+export { overwriteHistoricalData };

@@ -1,16 +1,15 @@
-// i:\Proyectos\test\stocks-manager\server\routes\profilePictures.js
 import express from 'express';
-import multer from 'multer'; // Importar multer para manejar la subida de archivos
+import multer from 'multer';
 import { authenticate } from '../middleware/auth.js';
-import ProfilePicture from '../models/ProfilePicture.js';
-import User from '../models/User.js'; // Necesario para la asociación
-import fs from 'fs'; // Importar fs para manejar operaciones de archivos
+import { db } from '../config/database.js';
+import * as schema from '../drizzle/schema.js';
+import { eq } from 'drizzle-orm';
+import fs from 'fs';
 import crypto from 'crypto';
-
-const router = express.Router();
-
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+const router = express.Router();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,17 +70,18 @@ router.post('/', (req, res, next) => {
     const filename = req.file.filename; // Nombre del archivo guardado por Multer
 
     // Buscar si ya existe una imagen de perfil para este usuario
-    let profilePicture = await ProfilePicture.findOne({ where: { userId } });
+    const existing = await db.query.profilePictures.findFirst({
+      where: eq(schema.profilePictures.userId, userId)
+    });
 
-    if (profilePicture) {
+    if (existing) {
       // Si existe, actualizarla (borrar la antigua y guardar la nueva referencia)
       // POR HACER: Considerar borrar el archivo antiguo del disco si existe
-      profilePicture.filename = filename;
-      await profilePicture.save();
+      await db.update(schema.profilePictures).set({ filename }).where(eq(schema.profilePictures.id, existing.id));
       res.status(200).json({ message: 'Imagen de perfil actualizada correctamente.', filename });
     } else {
       // Si no existe, crear una nueva
-      profilePicture = await ProfilePicture.create({
+      await db.insert(schema.profilePictures).values({
         userId,
         filename
       });
@@ -97,7 +97,7 @@ router.post('/', (req, res, next) => {
 router.get('/', async (req, res) => {
   try {
     const userId = req.user.id;
-    const profilePicture = await ProfilePicture.findOne({ where: { userId } });
+    const profilePicture = await db.query.profilePictures.findFirst({ where: eq(schema.profilePictures.userId, userId) });
 
     if (!profilePicture) {
       return res.status(404).json({ error: 'Imagen de perfil no encontrada.' });

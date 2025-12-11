@@ -3,8 +3,9 @@
  * CRUD para GlobalStockPrices
  */
 
-import { Op } from 'sequelize';
-import GlobalStockPrice from '../../models/GlobalStockPrice.js';
+import { db } from '../../config/database.js';
+import * as schema from '../../drizzle/schema.js';
+import { and, eq, lt, between, asc, desc, count } from 'drizzle-orm';
 import { fetchHistorical } from '../datasources/yahooService.js';
 import { HISTORICAL_CONFIG } from '../../utils/constants.js';
 import { formatDateOnly } from '../../utils/dateHelpers.js';
@@ -81,7 +82,7 @@ export async function fetchAndSaveHistorical(symbol, days = HISTORICAL_CONFIG.DE
  * @param {number} maxDaysBack - Días máximos a revisar
  */
 export async function fillHistoricalGaps(symbol, maxDaysBack = HISTORICAL_CONFIG.DEFAULT_DAYS) {
-    const currentLogLevel = await getLogLevel();
+    const currentLogLevel = await getLogLevel(db, eq);
     // Obtener primer registro
     const firstRecord = await GlobalStockPrice.findOne({
         where: { symbol },

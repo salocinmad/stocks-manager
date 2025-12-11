@@ -1,14 +1,17 @@
 import express from 'express'
-import { Op } from 'sequelize'
+
 import { db } from '../config/database.js';
 import * as schema from '../drizzle/schema.js';
 import { eq, and, desc, asc, lte } from 'drizzle-orm';
+import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router()
 router.use(authenticate)
 
 const sharesByPosition = async (userId, portfolioId) => {
-  const ops = await Operation.findAll({ where: { userId, portfolioId } })
+  const ops = await db.select({ company: schema.operations.company, symbol: schema.operations.symbol, type: schema.operations.type, shares: schema.operations.shares })
+    .from(schema.operations)
+    .where(and(eq(schema.operations.userId, userId), eq(schema.operations.portfolioId, portfolioId)));
   const map = new Map()
   for (const o of ops) {
     const key = `${o.company}|||${o.symbol || ''}`
@@ -24,7 +27,7 @@ router.get('/contribution', async (req, res) => {
     const userId = req.user.id
     const portfolioId = req.query.portfolioId ? parseInt(req.query.portfolioId, 10) : null
     const dateParam = req.query.date
-    const lastRunRow = await Config.findOne({ where: { key: 'daily_close_last_run' } })
+    const lastRunRow = await db.query.configs.findFirst({ where: eq(schema.configs.key, 'daily_close_last_run') });
     const last = lastRunRow?.value || null
     const date = dateParam || (last ? last.slice(0, 10) : null)
     if (!date) {
@@ -34,14 +37,14 @@ router.get('/contribution', async (req, res) => {
     const items = []
     for (const p of positions) {
       const pk = `${p.company}|||${p.symbol}`
-      const rowResult = await db.select().from(dailyPrices)
+      const rowResult = await db.select().from(schema.dailyPrices)
         .where(and(
-          eq(dailyPrices.userId, userId),
-          eq(dailyPrices.portfolioId, portfolioId),
-          eq(dailyPrices.positionKey, pk),
-          lte(dailyPrices.date, date)
+          eq(schema.dailyPrices.userId, userId),
+          eq(schema.dailyPrices.portfolioId, portfolioId),
+          eq(schema.dailyPrices.positionKey, pk),
+          lte(schema.dailyPrices.date, date)
         ))
-        .orderBy(desc(dailyPrices.date))
+        .orderBy(desc(schema.dailyPrices.date))
         .limit(1);
       const row = rowResult[0];
       if (!row) continue
@@ -88,7 +91,7 @@ export default router
 router.get('/', async (req, res) => {
   try {
     const userId = req.user.id
-    const items = await Portfolio.findAll({ where: { userId }, order: [['id', 'ASC']] })
+    const items = await db.select().from(schema.portfolios).where(eq(schema.portfolios.userId, userId)).orderBy(asc(schema.portfolios.id))
     res.json({ items })
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -101,7 +104,7 @@ router.post('/', async (req, res) => {
     const userId = req.user.id
     const name = (req.body?.name || '').trim()
     if (!name) return res.status(400).json({ error: 'Nombre requerido' })
-    const p = await Portfolio.create({ userId, name })
+    const [p] = await db.insert(schema.portfolios).values({ userId, name }).returning()
     res.status(201).json({ item: p })
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -131,23 +134,19 @@ router.delete('/:id', async (req, res) => {
   try {
     const userId = req.user.id
     const id = parseInt(req.params.id, 10)
-    const p = await Portfolio.findOne({ where: { id, userId } })
+    const pResult = await db.select().from(schema.portfolios).where(and(eq(schema.portfolios.id, id), eq(schema.portfolios.userId, userId))).limit(1);
+    const p = pResult[0];
     if (!p) return res.status(404).json({ error: 'Portafolio no encontrado' })
-    const t = await Portfolio.sequelize.transaction()
-    try {
-      await Operation.destroy({ where: { userId, portfolioId: id }, transaction: t })
-      await PriceCache.destroy({ where: { userId, portfolioId: id }, transaction: t })
-      await DailyPrice.destroy({ where: { userId, portfolioId: id }, transaction: t })
-      await DailyPortfolioStats.destroy({ where: { userId, portfolioId: id }, transaction: t })
-      await Note.destroy({ where: { userId, portfolioId: id }, transaction: t })
-      await PositionOrder.destroy({ where: { userId, portfolioId: id }, transaction: t })
-      await p.destroy({ transaction: t })
-      await User.update({ favoritePortfolioId: null }, { where: { id: userId, favoritePortfolioId: id }, transaction: t })
-      await t.commit()
-    } catch (e) {
-      await t.rollback()
-      throw e
-    }
+    await db.transaction(async (tx) => {
+      await tx.delete(schema.operations).where(and(eq(schema.operations.userId, userId), eq(schema.operations.portfolioId, id)));
+      await tx.delete(schema.priceCaches).where(and(eq(schema.priceCaches.userId, userId), eq(schema.priceCaches.portfolioId, id)));
+      await tx.delete(schema.dailyPrices).where(and(eq(schema.dailyPrices.userId, userId), eq(schema.dailyPrices.portfolioId, id)));
+      await tx.delete(schema.dailyPortfolioStats).where(and(eq(schema.dailyPortfolioStats.userId, userId), eq(schema.dailyPortfolioStats.portfolioId, id)));
+      await tx.delete(schema.notes).where(and(eq(schema.notes.userId, userId), eq(schema.notes.portfolioId, id)));
+      await tx.delete(schema.positionOrders).where(and(eq(schema.positionOrders.userId, userId), eq(schema.positionOrders.portfolioId, id)));
+      await tx.delete(schema.portfolios).where(eq(schema.portfolios.id, id));
+      await tx.update(schema.users).set({ favoritePortfolioId: null }).where(and(eq(schema.users.id, userId), eq(schema.users.favoritePortfolioId, id)));
+    });
     res.json({ ok: true })
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -159,7 +158,7 @@ router.put('/:id/favorite', async (req, res) => {
   try {
     const userId = req.user.id
     const id = parseInt(req.params.id, 10)
-    const pResult = await db.select().from(portfolios).where(and(eq(portfolios.id, id), eq(portfolios.userId, userId))).limit(1);
+    const pResult = await db.select().from(schema.portfolios).where(and(eq(schema.portfolios.id, id), eq(schema.portfolios.userId, userId))).limit(1);
     const p = pResult[0];
     if (!p) return res.status(404).json({ error: 'Portafolio no encontrado' })
     await db.update(schema.users).set({ favoritePortfolioId: id }).where(eq(schema.users.id, userId));

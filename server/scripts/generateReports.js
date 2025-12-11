@@ -1,6 +1,6 @@
-import { Op } from 'sequelize';
-import User from '../models/User.js';
-import Portfolio from '../models/Portfolio.js';
+import { db } from '../config/database.js';
+import * as schema from '../drizzle/schema.js';
+import { eq } from 'drizzle-orm';
 import { generateDailyReport } from '../services/reportGenerator.js';
 import { getLogLevel } from '../services/configService.js';
 
@@ -103,7 +103,7 @@ async function generateReportsForUser(user, date, currentEURUSD, currentLogLevel
  * @returns {Object} Resultado de la generación
  */
 export async function generateAllReports(date = null) {
-    const currentLogLevel = await getLogLevel();
+    const currentLogLevel = await getLogLevel(db, eq);
     const startTime = Date.now();
 
     // Usar fecha de hoy si no se especifica
@@ -146,7 +146,7 @@ export async function generateAllReports(date = null) {
         }
 
         // 2. Obtener todos los usuarios
-        const users = await User.findAll();
+        const users = await db.select().from(schema.users);
 
         summary.totalUsers = users.length;
         if (currentLogLevel === 'verbose') {

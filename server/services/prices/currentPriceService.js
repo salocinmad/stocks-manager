@@ -3,9 +3,8 @@
  * CRUD para GlobalCurrentPrices
  */
 
-import { db } from '../../config/database.js';
 import * as schema from '../../drizzle/schema.js';
-import { eq, and, inArray, isNotNull, ne } from 'drizzle-orm';
+import { eq, and, inArray, isNotNull, ne, gt } from 'drizzle-orm';
 import { fetchCombinedPrice } from '../datasources/priceCombinaService.js';
 import { fetchAssetProfile } from '../datasources/yahooService.js';
 import { getUniqueSymbols } from '../../utils/symbolHelpers.js';
@@ -16,16 +15,21 @@ import { getLogLevel } from '../configService.js';
  * Usado por: scheduler automático y botón manual
  * @returns {Promise<Object>} Resumen de actualización
  */
-export async function updateAllActivePrices() {
-    const currentLogLevel = await getLogLevel();
+export async function updateAllActivePrices(db, schema) {
+    console.log('DEBUG: db argument at start of updateAllActivePrices:', db);
+    const currentLogLevel = await getLogLevel(db, eq);
 
-    // 1. Obtener símbolos únicos EN USO
-    const operations = await Operation.findAll({
-        attributes: ['symbol'],
-        where: {
-            symbol: { [Op.not]: null, [Op.not]: '' }
-        }
-    });
+    console.log('DEBUG: eq before db.select in updateAllActivePrices:', eq);
+    let operations;
+    try {
+        // 1. Obtener símbolos únicos EN USO
+        operations = await db.select({ symbol: schema.operations.symbol })
+            .from(schema.operations)
+            .where(and(gt(schema.operations.shares, 0), isNotNull(schema.operations.symbol), ne(schema.operations.symbol, '')));
+    } catch (error) {
+        console.error('Error in db.select for operations:', error);
+        throw error;
+    }
 
     const symbols = getUniqueSymbols(operations);
 
@@ -77,7 +81,7 @@ export async function updateAllActivePrices() {
             updated++;
 
             // 3. Actualizar Perfil del Activo
-            await ensureAssetProfile(symbol, currentLogLevel);
+            await ensureAssetProfile(db, symbol, schema, currentLogLevel);
 
         } catch (error) {
             if (currentLogLevel === 'verbose') {
@@ -95,8 +99,8 @@ export async function updateAllActivePrices() {
  * @param {string} symbol - Símbolo a actualizar
  * @returns {Promise<Object|null>} Datos actualizados o null
  */
-export async function updateSinglePrice(symbol) {
-    const currentLogLevel = await getLogLevel();
+export async function updateSinglePrice(db, symbol) {
+    const currentLogLevel = await getLogLevel(db, eq);
     try {
         const priceData = await fetchCombinedPrice(symbol);
 
@@ -116,30 +120,23 @@ export async function updateSinglePrice(symbol) {
             }
         }
 
-        await GlobalCurrentPrice.upsert({
-            symbol,
-            ...priceData
-        });
+        await db.insert(schema.globalCurrentPrices)
+                .values({ symbol, ...priceData })
+                .onConflictDoUpdate({
+                    target: schema.globalCurrentPrices.symbol,
+                    set: priceData
+                });
 
         if (currentLogLevel === 'verbose') {
             console.log(`✅ ${symbol}: ${priceData.lastPrice} actualizado`);
         }
 
         // Actualizar perfil también en actualización manual
-        try {
-            const profile = await AssetProfile.findByPk(symbol);
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-            if (!profile || profile.updatedAt < thirtyDaysAgo) {
-                const profileData = await fetchAssetProfile(symbol);
-                if (profileData) {
-                    await AssetProfile.upsert(profileData);
-                }
+            try {
+                await ensureAssetProfile(db, symbol, schema, currentLogLevel);
+            } catch (e) {
+                console.error(`⚠️ Error actualizando perfil ${symbol} (manual):`, e.message);
             }
-        } catch (e) {
-            console.error(`⚠️ Error actualizando perfil ${symbol} (manual):`, e.message);
-        }
 
         return priceData;
     } catch (error) {
@@ -155,8 +152,8 @@ export async function updateSinglePrice(symbol) {
  * @param {string} symbol - Símbolo a consultar
  * @returns {Promise<Object|null>} Datos de precio o null
  */
-export async function getCurrentPrice(symbol) {
-    const currentLogLevel = await getLogLevel();
+export async function getCurrentPrice(db, symbol) {
+    const currentLogLevel = await getLogLevel(db, eq);
     try {
         return await db.query.globalCurrentPrices.findFirst({
             where: eq(schema.globalCurrentPrices.symbol, symbol)
@@ -174,12 +171,12 @@ export async function getCurrentPrice(symbol) {
  * @param {Array<string>} symbols - Array de símbolos
  * @returns {Promise<Array>} Array de precios
  */
-export async function getCurrentBatch(symbols) {
-    const currentLogLevel = await getLogLevel();
+export async function getCurrentBatch(db, symbols) {
+    const currentLogLevel = await getLogLevel(db, eq);
     try {
-        return await GlobalCurrentPrice.findAll({
-            where: { symbol: { [Op.in]: symbols } }
-        });
+        return await db.select()
+            .from(schema.globalCurrentPrices)
+            .where(inArray(schema.globalCurrentPrices.symbol, symbols));
     } catch (error) {
         if (currentLogLevel === 'verbose') {
             console.error('Error getting batch prices:', error.message);
@@ -200,8 +197,9 @@ export default {
  * @param {string} symbol - Símbolo del activo
  * @param {string} logLevel - Nivel de log actual
  */
-export async function ensureAssetProfile(symbol, logLevel = 'info') {
+export async function ensureAssetProfile(db, symbol, schema, logLevel = 'info') {
     try {
+        console.log('DEBUG: eq in ensureAssetProfile:', eq);
         const profile = await db.query.assetProfiles.findFirst({ 
             where: eq(schema.assetProfiles.symbol, symbol) 
         });

@@ -33,6 +33,7 @@ export const connectDB = async () => {
     console.log('✅ Conectado a PostgreSQL correctamente');
     // Drizzle migrations se ejecutan en Docker entrypoint o manualmente
     console.log('✅ Schema Drizzle listo (migrations pendientes)');
+    return db;
   } catch (error) {
     console.error('❌ Error al conectar con PostgreSQL:', error);
     process.exit(1);

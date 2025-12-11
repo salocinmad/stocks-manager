@@ -6,6 +6,7 @@
 
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
 import { getLogLevel } from '../configService.js';
+import { eq } from 'drizzle-orm';
 import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
@@ -16,7 +17,7 @@ const yahooFinance = new YahooFinance();
  * @returns {Promise<Object|null>} Datos de precio o null
  */
 export async function fetchQuote(symbol) {
-    const currentLogLevel = await getLogLevel();
+    const currentLogLevel = await getLogLevel(db, eq);
     try {
         // CRITICAL: Yahoo usa punto (.) no dos puntos (:) para mercados internacionales
         // DB tiene: OHLA:MC, DIA:MC, AMP:MC
@@ -126,7 +127,7 @@ export async function fetchQuote(symbol) {
  * @returns {Promise<Array>} Array de datos históricos
  */
 export async function fetchHistorical(symbol, days = 365) {
-    const currentLogLevel = await getLogLevel();
+    const currentLogLevel = await getLogLevel(db, eq);
     try {
         const parts = symbol.split('|||');
         let yahooSymbol = parts[parts.length - 1]; // Obtener la última parte (el ticker)

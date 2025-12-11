@@ -1,5 +1,5 @@
-import { db } from '../../config/database.js';
-import * as schema from '../../drizzle/schema.js';
+import { db } from '../config/database.js';
+import * as schema from '../drizzle/schema.js';
 import { eq, and, gte, lte, asc, inArray, sql } from 'drizzle-orm';
 import {
     calculateROI,
@@ -38,7 +38,7 @@ import { calculateMonthlyAnalysis, calculateRealizedPnLByMonth } from './pnlServ
  * @returns {Object} Reporte generado
  */
 export async function generateDailyReport(userId, portfolioId, date, currentEURUSD = null) {
-    const currentLogLevel = await getLogLevel();
+    const currentLogLevel = await getLogLevel(db, eq);
     try {
         // 1. Obtener operaciones del portafolio
         const operations = await db.select().from(schema.operations).where(and(eq(schema.operations.userId, userId), eq(schema.operations.portfolioId, portfolioId))).orderBy(asc(schema.operations.date));
@@ -127,7 +127,13 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
                         console.log(`DEBUG: Intentando bulkCreate para ${position.positionKey} con ${dailyPriceRecords.length} registros.`);
                     }
                     try {
-                        const result = await db.insert(schema.dailyPrices).values(dailyPriceRecords).onConflictDoUpdate({\n                            target: [schema.dailyPrices.userId, schema.dailyPrices.portfolioId, schema.dailyPrices.positionKey, schema.dailyPrices.date],\n                            set: {\n                                open: sql`excluded.open`, high: sql`excluded.high`, low: sql`excluded.low`,\n                                close: sql`excluded.close`, volume: sql`excluded.volume`, adjClose: sql`excluded.adjClose`\n                            }\n                        }).execute();
+                        const result = await db.insert(schema.dailyPrices).values(dailyPriceRecords).onConflictDoUpdate({
+                            target: [schema.dailyPrices.userId, schema.dailyPrices.portfolioId, schema.dailyPrices.positionKey, schema.dailyPrices.date],
+                            set: {
+                                open: sql`excluded.open`, high: sql`excluded.high`, low: sql`excluded.low`,
+                                close: sql`excluded.close`, volume: sql`excluded.volume`, adjClose: sql`excluded.adjClose`
+                            }
+                        });
                         if (currentLogLevel === 'verbose') {
                             console.log(`✅ bulkCreate exitoso para ${position.positionKey}. Se afectaron ${result.length} registros.`);
                         }
@@ -143,18 +149,15 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
                 }
             }
 
-            const dailyPrices = await DailyPrice.findAll({
-                where: {
-                    userId,
-                    portfolioId,
-                    positionKey: position.positionKey,
-                    date: {
-                        [Op.gte]: oneYearAgo.toISOString().split('T')[0],
-                        [Op.lte]: date
-                    }
-                },
-                order: [['date', 'ASC']]
-            });
+            const dailyPrices = await db.select().from(schema.dailyPrices).where(
+                and(
+                    eq(schema.dailyPrices.userId, userId),
+                    eq(schema.dailyPrices.portfolioId, portfolioId),
+                    eq(schema.dailyPrices.positionKey, position.positionKey),
+                    gte(schema.dailyPrices.date, oneYearAgoStr),
+                    lte(schema.dailyPrices.date, date)
+                )
+            ).orderBy(asc(schema.dailyPrices.date));
             historicalPrices[position.positionKey] = dailyPrices.map(dp => ({
                 date: dp.date,
                 close: dp.close

@@ -1,6 +1,7 @@
 
 import YahooFinance from 'yahoo-finance2';
 import { getLogLevel } from './configService.js';
+import { eq, and, asc } from 'drizzle-orm';
 
 let dailyTimer = null
 let dailyRunning = false
@@ -16,16 +17,16 @@ const yahooFinance = new YahooFinance({
   }
 });
 
-const getConfig = async () => {
-  const enabledRow = await Config.findOne({ where: { key: 'daily_close_enabled' } })
-  const timeRow = await Config.findOne({ where: { key: 'daily_close_time' } })
+const getConfig = async (db) => {
+  const enabledRow = await db.query.configs.findFirst({ where: eq(schema.configs.key, 'daily_close_enabled') });
+  const timeRow = await db.query.configs.findFirst({ where: eq(schema.configs.key, 'daily_close_time') });
   const enabled = enabledRow ? enabledRow.value === 'true' : true
   // Por defecto a las 01:00 si no está configurado
   const timeStr = timeRow?.value || '01:00'
 
   // Si la configuración de hora no existe, crearla con el valor por defecto 01:00
   if (!timeRow) {
-    await Config.create({ key: 'daily_close_time', value: '01:00' })
+    await db.insert(schema.configs).values({ key: 'daily_close_time', value: '01:00' });
   }
 
   return { enabled, timeStr }
@@ -83,12 +84,12 @@ export const fetchPreviousClose = async (symbol) => {
   }
 }
 
-export const runDailyOnce = async () => {
-  const currentLogLevel = await getLogLevel();
+export const runDailyOnce = async (db) => {
+  const currentLogLevel = await getLogLevel(db, eq);
   if (dailyRunning) return { ok: false, reason: 'already_running' }
   dailyRunning = true
   try {
-    await scheduler.runOnce().catch(() => { })
+    await scheduler.runOnce(db).catch(() => { })
     const date = await getPreviousBusinessDate()
     const fxMap = await getFxMapToEUR()
     const users = await db.select({ userId: schema.operations.userId }).from(schema.operations).groupBy(schema.operations.userId);
@@ -136,21 +137,30 @@ export const runDailyOnce = async () => {
           const pk = `${p.company}|||${p.symbol}`
           try {
             // Intentar encontrar precio diario existente primero para evitar re-fetch si ya se ejecutó hoy
-            let dailyPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date } })
+            let dailyPrice = await db.query.dailyPrices.findFirst({
+              where: and(
+                eq(schema.dailyPrices.userId, userId),
+                eq(schema.dailyPrices.portfolioId, portfolioId),
+                eq(schema.dailyPrices.positionKey, pk),
+                eq(schema.dailyPrices.date, date)
+              )
+            });
 
             if (!dailyPrice) {
               const prev = await fetchPreviousClose(p.symbol)
               if (prev) {
                 const { close, currency = 'EUR', source = 'yahoo' } = prev
                 const exchangeRate = fxMap[currency] ?? 1
-                dailyPrice = await DailyPrice.create({
+                const newDailyPrice = {
                   userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol,
                   date, close, currency, exchangeRate, source,
                   // Nuevos campos de análisis histórico
                   change: prev.change,
                   changePercent: prev.changePercent,
                   shares: p.shares
-                })
+                };
+                await db.insert(schema.dailyPrices).values(newDailyPrice);
+                dailyPrice = newDailyPrice; // Assign the newly created object
               }
             }
 
@@ -161,9 +171,14 @@ export const runDailyOnce = async () => {
 
             // Crear snapshot de la posición
             try {
-              const existingSnapshot = await DailyPositionSnapshot.findOne({
-                where: { userId, portfolioId, positionKey: pk, date }
-              })
+              const existingSnapshot = await db.query.dailyPositionSnapshots.findFirst({
+                where: and(
+                  eq(schema.dailyPositionSnapshots.userId, userId),
+                  eq(schema.dailyPositionSnapshots.portfolioId, portfolioId),
+                  eq(schema.dailyPositionSnapshots.positionKey, pk),
+                  eq(schema.dailyPositionSnapshots.date, date)
+                )
+              });
               if (!existingSnapshot && dailyPrice) {
                 const avgCost = p.totalCost / p.shares
                 const currentPrice = dailyPrice.close * (dailyPrice.exchangeRate || 1)
@@ -171,7 +186,7 @@ export const runDailyOnce = async () => {
                 const pnl = totalValue - p.totalCost
                 const pnlPercent = p.totalCost > 0 ? (pnl / p.totalCost) * 100 : 0
 
-                await DailyPositionSnapshot.create({
+                await db.insert(schema.dailyPositionSnapshots).values({
                   userId,
                   portfolioId,
                   positionKey: pk,
@@ -187,7 +202,7 @@ export const runDailyOnce = async () => {
                   pnlPercent,
                   currency: dailyPrice.currency,
                   exchangeRate: dailyPrice.exchangeRate
-                })
+                });
               }
             } catch (snapshotErr) {
               if (currentLogLevel === 'verbose') {
@@ -238,9 +253,15 @@ export const runDailyOnce = async () => {
           }
 
 
-          const existing = await DailyPortfolioStats.findOne({ where: { userId, portfolioId, date } })
+          const existing = await db.query.dailyPortfolioStats.findFirst({
+            where: and(
+              eq(schema.dailyPortfolioStats.userId, userId),
+              eq(schema.dailyPortfolioStats.portfolioId, portfolioId),
+              eq(schema.dailyPortfolioStats.date, date)
+            )
+          });
           if (!existing) {
-            await DailyPortfolioStats.create({
+            await db.insert(schema.dailyPortfolioStats).values({
               userId,
               portfolioId,
               date,
@@ -253,7 +274,7 @@ export const runDailyOnce = async () => {
               roi,
               activePositionsCount,
               closedOperationsCount
-            })
+            });
             processed++
           } else {
           }
@@ -370,15 +391,15 @@ const msUntilTime = (timeStr) => {
   return target.getTime() - now.getTime()
 }
 
-export const startDaily = async () => {
-  const { enabled, timeStr } = await getConfig()
+export const startDaily = async (db) => {
+  const { enabled, timeStr } = await getConfig(db)
   if (!enabled) return { ok: false, reason: 'disabled' }
   if (dailyTimer) clearTimeout(dailyTimer)
   const wait = msUntilTime(timeStr)
   dailyTimer = setTimeout(() => {
-    runDailyOnce().then(() => {
+    runDailyOnce(db).then(() => {
       // programar siguientes ejecuciones cada 24h
-      dailyTimer = setInterval(runDailyOnce, 24 * 60 * 60 * 1000)
+      dailyTimer = setInterval(() => runDailyOnce(db), 24 * 60 * 60 * 1000)
     })
   }, wait)
   return { ok: true, timeStr }

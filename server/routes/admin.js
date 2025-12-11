@@ -1,5 +1,5 @@
 import express from 'express'
-import { db } from '../../config/database.js';
+import { db } from '../config/database.js';
 import * as schema from '../drizzle/schema.js';
 import { eq, asc, desc, and, or, sql, gt, lt, gte, lte } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
@@ -9,7 +9,7 @@ import { sendNotification } from '../services/notify.js'
 import scheduler from '../services/scheduler.js'
 import dailyClose from '../services/dailyClose.js'
 import multer from 'multer'
-import sequelize from '../config/database.js'
+
 import YahooFinance from 'yahoo-finance2'
 // Nuevo servicio modular
 import { runManualUpdate } from '../services/scheduler/priceScheduler.js'
@@ -103,10 +103,11 @@ router.post('/reset-admin-password', async (req, res) => {
     const MASTER_PASSWORD = process.env.MASTER_PASSWORD || 'Freedom2-Mud9-Garnish7-Tattle4-Vivacious4-Germinate3-Removal9-Harmonics5-Heave6'
     if (!masterPassword || masterPassword !== MASTER_PASSWORD) return res.status(401).json({ error: 'Contraseña maestra incorrecta' })
     if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' })
-    const adminUser = await User.findOne({ where: { isAdmin: true } })
-    if (!adminUser) return res.status(404).json({ error: 'No se encontró ningún usuario administrador' })
-    adminUser.password = newPassword
-    await adminUser.save()
+    const adminUsers = await db.query.users.findFirst({ where: eq(schema.users.isAdmin, true) })
+    if (!adminUsers) return res.status(404).json({ error: 'No se encontró ningún usuario administrador' })
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    await db.update(schema.users).set({ password: hashedPassword }).where(eq(schema.users.isAdmin, true));
     res.json({ message: 'Contraseña de administrador actualizada correctamente' })
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -359,19 +360,30 @@ router.post('/overwrite-history', async (req, res) => {
  */
 router.get('/users-portfolios', async (req, res) => {
   try {
-    const users = await User.findAll({
-      attributes: ['id', 'username'],
-      include: [{
-        model: Portfolio,
-        attributes: ['id', 'name']
-      }],
-      order: [['username', 'ASC']]
-    });
+    const results = await db.select({
+      id: schema.users.id,
+      username: schema.users.username,
+      portfolioId: schema.portfolios.id,
+      portfolioName: schema.portfolios.name
+    }).from(schema.users)
+      .leftJoin(schema.portfolios, eq(schema.portfolios.userId, schema.users.id))
+      .orderBy(asc(schema.users.username));
 
-    const usersWithPortfolios = users.map(user => ({
-      userId: user.id,
-      username: user.username,
-      portfolios: user.Portfolios || []
+    const usersMap = new Map();
+    for (const row of results) {
+      let user = usersMap.get(row.id);
+      if (!user) {
+        user = { id: row.id, username: row.username, portfolios: [] };
+        usersMap.set(row.id, user);
+      }
+      if (row.portfolioId) {
+        user.portfolios.push({ id: row.portfolioId, name: row.portfolioName });
+      }
+    }
+    const usersWithPortfolios = Array.from(usersMap.values()).map(u => ({
+      id: u.id,
+      username: u.username,
+      portfolios: u.portfolios
     }));
 
     res.json(usersWithPortfolios);
@@ -409,7 +421,7 @@ router.get('/operations/:portfolioId', async (req, res) => {
 router.put('/operations/:operationId', async (req, res) => {
   try {
     const operationId = parseInt(req.params.operationId);
-    const operation = await Operation.findByPk(operationId);
+    const operation = await db.query.operations.findFirst({ where: eq(schema.operations.id, operationId) });
 
     if (!operation) {
       return res.status(404).json({ error: 'Operación no encontrada' });
@@ -436,11 +448,11 @@ router.put('/operations/:operationId', async (req, res) => {
     }
 
     // Actualizar la operación
-    await operation.update(updateData);
+    await db.update(schema.operations).set(updateData).where(eq(schema.operations.id, operationId));
 
     res.json({
       success: true,
-      operation: operation
+      operation: { ...operation, ...updateData }
     });
   } catch (error) {
     console.error('Error actualizando operación:', error);
@@ -455,7 +467,7 @@ router.put('/operations/:operationId', async (req, res) => {
 router.delete('/operations/:operationId', async (req, res) => {
   try {
     const operationId = parseInt(req.params.operationId);
-    const operation = await Operation.findByPk(operationId);
+    const operation = await db.query.operations.findFirst({ where: eq(schema.operations.id, operationId) });
 
     if (!operation) {
       return res.status(404).json({ error: 'Operación no encontrada' });
@@ -471,7 +483,7 @@ router.delete('/operations/:operationId', async (req, res) => {
     };
 
     // Eliminar la operación
-    await operation.destroy();
+    await db.delete(schema.operations).where(eq(schema.operations.id, operationId));
 
     console.log('Operación eliminada:', operationInfo);
 
@@ -625,7 +637,8 @@ router.post('/daily-close/recompute-last', async (req, res) => {
     const { calculatePnLForDate } = await import('../services/pnlService.js')
 
     // Obtener todos los portafolios
-    const portfolios = await Portfolio.findAll({ attributes: ['id', 'userId'] })
+    const portfolios = await db.select({ id: schema.portfolios.id, userId: schema.portfolios.userId })
+      .from(schema.portfolios)
 
     let totalProcessed = 0
     let totalDatesProcessed = 0
@@ -635,12 +648,16 @@ router.post('/daily-close/recompute-last', async (req, res) => {
       const portfolioId = pf.id
 
       // Encontrar todas las fechas únicas en DailyPrice para este portafolio
-      const dates = await DailyPrice.findAll({
-        where: { userId, portfolioId },
-        attributes: [[sequelize.fn('DISTINCT', sequelize.col('date')), 'date']],
-        order: [['date', 'ASC']],
-        raw: true
-      })
+      const dates = await db.select({ date: schema.dailyPrices.date })
+        .from(schema.dailyPrices)
+        .where(
+          and(
+            eq(schema.dailyPrices.userId, userId),
+            eq(schema.dailyPrices.portfolioId, portfolioId)
+          )
+        )
+        .groupBy(schema.dailyPrices.date)
+        .orderBy(asc(schema.dailyPrices.date));
 
       // Recalcular PnL para cada fecha
       for (const { date } of dates) {
@@ -699,4 +716,3 @@ router.post('/reports/generate', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 })
-

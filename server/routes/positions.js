@@ -1,11 +1,8 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-import PositionOrder from '../models/PositionOrder.js';
-import Portfolio from '../models/Portfolio.js';
-import User from '../models/User.js';
-import DailyPrice from '../models/DailyPrice.js';
-import Operation from '../models/Operation.js'; // Importar modelo Operation
-import { Op } from 'sequelize';
+import { db } from '../config/database.js';
+import * as schema from '../drizzle/schema.js';
+import { eq, and, asc, gte, or, count } from 'drizzle-orm';
 
 const router = express.Router();
 
@@ -38,9 +35,12 @@ router.put('/order', authenticate, async (req, res) => {
 
         // Eliminar orden existente para este usuario
         const portfolioId = await resolvePortfolioId(req);
-        await PositionOrder.destroy({
-            where: { userId: req.user.id, portfolioId }
-        });
+        await db.delete(schema.positionOrders).where(
+            and(
+                eq(schema.positionOrders.userId, req.user.id),
+                eq(schema.positionOrders.portfolioId, portfolioId)
+            )
+        );
 
         // Crear nuevas entradas de orden
         const orderEntries = order.map((positionKey, index) => ({
@@ -51,7 +51,7 @@ router.put('/order', authenticate, async (req, res) => {
         }));
 
         if (orderEntries.length > 0) {
-            await PositionOrder.bulkCreate(orderEntries);
+            await db.insert(schema.positionOrders).values(orderEntries).onConflictDoNothing();
         }
 
         res.json({ success: true, message: 'Orden actualizado correctamente' });
@@ -107,19 +107,23 @@ router.get('/history/:positionKey', authenticate, async (req, res) => {
             searchSymbol = decodedPositionKey.split(':')[1];
         }
 
-        const operations = await Operation.findAll({
-            where: {
-                userId: req.user.id,
-                portfolioId,
-                [Op.or]: [
-                    { symbol: decodedPositionKey },
-                    { symbol: searchSymbol },
-                    { company: decodedPositionKey }
-                ]
-            },
-            attributes: ['id', 'type', 'date', 'price', 'shares'],
-            order: [['date', 'ASC']]
-        });
+        const operations = await db.select({
+            id: schema.operations.id,
+            type: schema.operations.type,
+            date: schema.operations.date,
+            price: schema.operations.price,
+            shares: schema.operations.shares
+        }).from(schema.operations).where(
+            and(
+                eq(schema.operations.userId, req.user.id),
+                eq(schema.operations.portfolioId, portfolioId),
+                or(
+                    eq(schema.operations.symbol, decodedPositionKey),
+                    eq(schema.operations.symbol, searchSymbol),
+                    eq(schema.operations.company, decodedPositionKey)
+                )
+            )
+        ).orderBy(asc(schema.operations.date));
 
         res.json({
             success: true,
@@ -144,16 +148,16 @@ async function resolvePortfolioId(req) {
     const raw = req.query.portfolioId || req.body?.portfolioId;
     const id = raw ? parseInt(raw, 10) : null;
     if (id) {
-        const result = await db.select({ cnt: count() }).from(portfolios)
-            .where(and(eq(portfolios.id, id), eq(portfolios.userId, userId)));
+        const result = await db.select({ cnt: count() }).from(schema.portfolios)
+            .where(and(eq(schema.portfolios.id, id), eq(schema.portfolios.userId, userId)));
         if (result[0]?.cnt > 0) return id;
     }
-    const uResult = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    const uResult = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
     const u = uResult[0];
     if (u?.favoritePortfolioId) return u.favoritePortfolioId;
-    const firstResult = await db.select({ id: portfolios.id }).from(portfolios)
-        .where(eq(portfolios.userId, userId))
-        .orderBy(asc(portfolios.id))
+    const firstResult = await db.select({ id: schema.portfolios.id }).from(schema.portfolios)
+        .where(eq(schema.portfolios.userId, userId))
+        .orderBy(asc(schema.portfolios.id))
         .limit(1);
     const first = firstResult[0];
     return first ? first.id : null;

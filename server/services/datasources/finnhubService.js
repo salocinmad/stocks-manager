@@ -3,7 +3,9 @@
  * Priority service para mercado americano
  */
 
-import Config from '../../models/Config.js';
+import { db } from '../../config/database.js';
+import * as schema from '../../drizzle/schema.js';
+import { eq } from 'drizzle-orm';
 import { API_TIMEOUTS } from '../../utils/constants.js';
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
 import { getLogLevel } from '../configService.js';
@@ -14,10 +16,13 @@ import { getLogLevel } from '../configService.js';
  * @returns {Promise<Object|null>} Datos de precio o null
  */
 export async function fetchQuote(symbol) {
-    const currentLogLevel = await getLogLevel();
+    const currentLogLevel = await getLogLevel(db, eq);
     try {
-        const apiKey = await Config.findOne({ where: { key: 'finnhub-api-key' } });
-        if (!apiKey?.value) {
+        const apiKeyRow = await db.query.configs.findFirst({
+            where: eq(schema.configs.key, 'finnhub-api-key')
+        });
+        const apiKey = apiKeyRow?.value;
+        if (!apiKey) {
             if (currentLogLevel === 'verbose') {
                 console.log('⚠️  Finnhub API key not configured');
             }

@@ -7,12 +7,9 @@ import { authenticate } from '../../middleware/auth.js';
 import * as currentPriceService from '../../services/prices/currentPriceService.js';
 import { ensureAssetProfile } from '../../services/prices/currentPriceService.js';
 import * as historicalPriceService from '../../services/prices/historicalPriceService.js';
-import GlobalCurrentPrice from '../../models/GlobalCurrentPrice.js';
-import PriceCache from '../../models/PriceCache.js';
-import Operation from '../../models/Operation.js';
-import Portfolio from '../../models/Portfolio.js';
-import User from '../../models/User.js';
-import Config from '../../models/Config.js';
+import { db } from '../../config/database.js';
+import * as schema from '../../drizzle/schema.js';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { sendNotification } from '../../services/notify.js';
 import { getSymbolFromPositionKey } from '../../utils/symbolHelpers.js';
 
@@ -160,8 +157,6 @@ router.get('/market/:symbol', async (req, res) => {
         const decodedSymbol = decodeURIComponent(symbol);
 
         const { fetchHistorical } = await import('../../services/datasources/yahooService.js');
-        const DailyPrice = (await import('../../models/DailyPrice.js')).default;
-        const { Op } = await import('sequelize');
 
         console.log(`📊 Fetching market data for ${decodedSymbol} (${daysToFetch} days)`);
 
@@ -174,16 +169,21 @@ router.get('/market/:symbol', async (req, res) => {
 
         const positionKey = decodedSymbol === '^GSPC' ? 'S&P 500|||^GSPC' : `${decodedSymbol}|||${decodedSymbol}`;
 
-        const cachedData = await DailyPrice.findAll({
-            where: {
-                userId: 0,
-                portfolioId: 0,
-                positionKey: positionKey,
-                date: { [Op.gte]: dateLimitStr }
-            },
-            attributes: ['date', 'open', 'high', 'low', 'close', 'volume'],
-            order: [['date', 'ASC']]
-        });
+        const cachedData = await db.select({
+            date: schema.dailyPrices.date,
+            open: schema.dailyPrices.open,
+            high: schema.dailyPrices.high,
+            low: schema.dailyPrices.low,
+            close: schema.dailyPrices.close,
+            volume: schema.dailyPrices.volume
+        }).from(schema.dailyPrices).where(
+            and(
+                eq(schema.dailyPrices.userId, 0),
+                eq(schema.dailyPrices.portfolioId, 0),
+                eq(schema.dailyPrices.positionKey, positionKey),
+                sql`${schema.dailyPrices.date} >= ${dateLimitStr}`
+            )
+        ).orderBy(asc(schema.dailyPrices.date));
 
         // Si hay caché, usarlo
         if (cachedData && cachedData.length > 0) {
@@ -280,22 +280,32 @@ router.put('/:positionKey', async (req, res) => {
         }
 
         const portfolioId = await resolvePortfolioId(req)
-        const existing = await PriceCache.findOne({
-            where: { userId: req.user.id, portfolioId, positionKey }
-        })
-
+        const existing = await db.query.priceCaches.findFirst({
+            where: and(
+                eq(schema.priceCaches.userId, req.user.id),
+                eq(schema.priceCaches.portfolioId, portfolioId),
+                eq(schema.priceCaches.positionKey, positionKey)
+            )
+        });
         if (existing) {
-            await existing.update({ lastPrice: price, change, changePercent, source, updatedAt: new Date() })
+            await db.update(schema.priceCaches).set({ 
+                lastPrice: price, 
+                change, 
+                changePercent, 
+                source, 
+                updatedAt: new Date() 
+            }).where(eq(schema.priceCaches.id, existing.id));
         } else {
-            await PriceCache.create({
+            await db.insert(schema.priceCaches).values({
                 userId: req.user.id,
                 portfolioId,
                 positionKey,
                 lastPrice: price,
                 change,
                 changePercent,
-                source
-            })
+                source,
+                updatedAt: new Date()
+            });
         }
 
         // Activar actualización de perfil asíncrona (no bloqueante)

@@ -1,8 +1,6 @@
-import { Op } from 'sequelize'
-import Operation from '../models/Operation.js'
-import DailyPrice from '../models/DailyPrice.js'
-import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
-
+import { db } from '../config/database.js'
+import * as schema from '../drizzle/schema.js'
+import { and, eq, asc, gte, lte } from 'drizzle-orm'
 /**
  * Calcula el historial del portafolio (PnL, Valor Total, Total Invertido) para un rango de días.
  * @param {number} userId
@@ -24,14 +22,7 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
     .where(and(eq(schema.operations.userId, userId), eq(schema.operations.portfolioId, portfolioId)))
     .orderBy(asc(schema.operations.date))
 
-    // 2. Obtener todos los precios diarios dentro del rango
-    const prices = await DailyPrice.findAll({
-        where: {
-            userId,
-            portfolioId,
-            date: { [Op.gte]: startIso, [Op.lte]: endIso }
-        }
-    })
+    // 2. Obtener todos los precios diarios dentro del rango\n    const prices = await db.select().from(schema.dailyPrices).where(\n        and(\n            eq(schema.dailyPrices.userId, userId),\n            eq(schema.dailyPrices.portfolioId, portfolioId),\n            gte(schema.dailyPrices.date, startIso),\n            lte(schema.dailyPrices.date, endIso)\n        )\n    )
 
     // Agrupar precios por fecha y positionKey para búsqueda rápida
     // Map<date, Map<positionKey, priceObj>>
@@ -177,9 +168,13 @@ export const calculatePnLForDate = async (userId, portfolioId, dateIso) => {
     }
 
     // 4. Obtener Precios para esa fecha
-    const prices = await DailyPrice.findAll({
-        where: { userId, portfolioId, date: dateIso }
-    })
+    const prices = await db.select().from(schema.dailyPrices).where(
+        and(
+            eq(schema.dailyPrices.userId, userId),
+            eq(schema.dailyPrices.portfolioId, portfolioId),
+            eq(schema.dailyPrices.date, dateIso)
+        )
+    )
     const priceMap = new Map()
     for (const p of prices) {
         priceMap.set(p.positionKey, p)
@@ -201,11 +196,26 @@ export const calculatePnLForDate = async (userId, portfolioId, dateIso) => {
     const pnlEUR = totalValueEUR - totalInvestedEUR
 
     // 5. Actualizar/Crear DailyPortfolioStats
-    const existing = await DailyPortfolioStats.findOne({ where: { userId, portfolioId, date: dateIso } })
+    const existing = await db.query.dailyPortfolioStats.findFirst({ 
+        where: and(
+            eq(schema.dailyPortfolioStats.userId, userId),
+            eq(schema.dailyPortfolioStats.portfolioId, portfolioId),
+            eq(schema.dailyPortfolioStats.date, dateIso)
+        ) 
+    });
     if (existing) {
-        await existing.update({ totalInvestedEUR, totalValueEUR, pnlEUR })
+        await db.update(schema.dailyPortfolioStats)
+            .set({ totalInvestedEUR, totalValueEUR, pnlEUR })
+            .where(eq(schema.dailyPortfolioStats.id, existing.id));
     } else {
-        await DailyPortfolioStats.create({ userId, portfolioId, date: dateIso, totalInvestedEUR, totalValueEUR, pnlEUR })
+        await db.insert(schema.dailyPortfolioStats).values({ 
+            userId, 
+            portfolioId, 
+            date: dateIso, 
+            totalInvestedEUR, 
+            totalValueEUR, 
+            pnlEUR 
+        });
     }
 
     return { date: dateIso, totalInvestedEUR, totalValueEUR, pnlEUR }
@@ -340,10 +350,9 @@ export const calculateMonthlyAnalysis = async (userId, portfolioId) => {
  * @returns {Promise<Array>} Array de { month: 'YYYY-MM', realizedGain: number }
  */
 export const calculateRealizedPnLByMonth = async (userId, portfolioId) => {
-    const operations = await Operation.findAll({
-        where: { userId, portfolioId },
-        order: [['date', 'ASC'], ['id', 'ASC']]
-    })
+    const operations = await db.select().from(schema.operations)
+        .where(and(eq(schema.operations.userId, userId), eq(schema.operations.portfolioId, portfolioId)))
+        .orderBy(asc(schema.operations.date), asc(schema.operations.id))
 
     const positions = new Map() // key -> { shares, costBasis }
     const monthlyRealized = new Map() // 'YYYY-MM' -> gain
