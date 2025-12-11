@@ -5,7 +5,8 @@
 
 import { updateAllActivePrices } from '../prices/currentPriceService.js';
 
-import * as schema from '../../drizzle/schema.js';
+import { operations, assetProfiles, configs, globalCurrentPrices } from '../../drizzle/schema.ts';
+const schema = { operations, assetProfiles, configs, globalCurrentPrices };
 import { eq } from 'drizzle-orm';
 import { SCHEDULER_INTERVALS } from '../../utils/constants.js';
 import { getLogLevel } from '../configService.js';
@@ -16,8 +17,10 @@ let priceUpdateTimer = null;
  * Inicia el scheduler de actualización de precios
  * @returns {Promise<void>}
  */
-export async function startPriceScheduler(db) {
-    const currentLogLevel = await getLogLevel(db, eq);
+export async function startPriceScheduler(db, schema) {
+    console.log('DEBUG: schema in priceScheduler.js at start of startPriceScheduler:', schema);
+    console.log('DEBUG: schema in priceScheduler.js before calling getLogLevel:', schema);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     // Obtener intervalo de configuración
     const minutes = SCHEDULER_INTERVALS.PRICE_UPDATE;
 
@@ -27,12 +30,15 @@ export async function startPriceScheduler(db) {
     }
 
     if (currentLogLevel === 'verbose') {
-        console.log(`🚀 Iniciando scheduler de precios (cada ${minutes} minutos)...`);
-    }
+                console.log(`🚀 Iniciando scheduler de precios (cada ${minutes} minutos)...`);
+            }
 
-    // Ejecutar inmediatamente
-    console.log('DEBUG: eq in priceScheduler.js before updateAllActivePrices:', eq);
-    await updateAllActivePrices(db, schema);
+            console.log('DEBUG: schema object in priceScheduler.js before updateAllActivePrices:', schema);
+
+            // Ejecutar inmediatamente
+            console.log('DEBUG: eq in priceScheduler.js before updateAllActivePrices:', eq);
+            console.log('DEBUG: Calling updateAllActivePrices with db and schema:', db, schema);
+            await updateAllActivePrices(db, schema);
 
     // Luego ejecutar periódicamente
     priceUpdateTimer = setInterval(async () => {
@@ -63,8 +69,8 @@ export function stopPriceScheduler() {
  * Ejecuta actualización manual (botón "Actualizar Precios")
  * @returns {Promise<Object>} Resultado de la actualización
  */
-export async function runManualUpdate(db) {
-    const currentLogLevel = await getLogLevel(db, eq);
+export async function runManualUpdate(db, schema) {
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     if (currentLogLevel === 'verbose') {
         console.log('🔄 Actualización manual de precios solicitada');
     }

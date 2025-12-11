@@ -3,7 +3,8 @@
  * CRUD para GlobalCurrentPrices
  */
 
-import * as schema from '../../drizzle/schema.js';
+import { operations, globalCurrentPrices, assetProfiles } from '../../drizzle/schema.ts';
+const schema = { operations, globalCurrentPrices, assetProfiles };
 import { eq, and, inArray, isNotNull, ne, gt } from 'drizzle-orm';
 import { fetchCombinedPrice } from '../datasources/priceCombinaService.js';
 import { fetchAssetProfile } from '../datasources/yahooService.js';
@@ -16,8 +17,9 @@ import { getLogLevel } from '../configService.js';
  * @returns {Promise<Object>} Resumen de actualización
  */
 export async function updateAllActivePrices(db, schema) {
+    console.log('DEBUG: schema argument at start of updateAllActivePrices:', schema);
     console.log('DEBUG: db argument at start of updateAllActivePrices:', db);
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
 
     console.log('DEBUG: eq before db.select in updateAllActivePrices:', eq);
     let operations;
@@ -100,7 +102,7 @@ export async function updateAllActivePrices(db, schema) {
  * @returns {Promise<Object|null>} Datos actualizados o null
  */
 export async function updateSinglePrice(db, symbol) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     try {
         const priceData = await fetchCombinedPrice(symbol);
 
@@ -153,7 +155,7 @@ export async function updateSinglePrice(db, symbol) {
  * @returns {Promise<Object|null>} Datos de precio o null
  */
 export async function getCurrentPrice(db, symbol) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     try {
         return await db.query.globalCurrentPrices.findFirst({
             where: eq(schema.globalCurrentPrices.symbol, symbol)
@@ -172,7 +174,7 @@ export async function getCurrentPrice(db, symbol) {
  * @returns {Promise<Array>} Array de precios
  */
 export async function getCurrentBatch(db, symbols) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     try {
         return await db.select()
             .from(schema.globalCurrentPrices)

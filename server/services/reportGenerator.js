@@ -38,7 +38,7 @@ import { calculateMonthlyAnalysis, calculateRealizedPnLByMonth } from './pnlServ
  * @returns {Object} Reporte generado
  */
 export async function generateDailyReport(userId, portfolioId, date, currentEURUSD = null) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     try {
         // 1. Obtener operaciones del portafolio
         const operations = await db.select().from(schema.operations).where(and(eq(schema.operations.userId, userId), eq(schema.operations.portfolioId, portfolioId))).orderBy(asc(schema.operations.date));
@@ -509,7 +509,7 @@ export async function generateDailyReport(userId, portfolioId, date, currentEURU
  * @returns {Object} Reporte mensual
  */
 export async function generateMonthlyReport(userId, portfolioId, month) {
-    const currentLogLevel = await getLogLevel();
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     try {
         const [year, monthNum] = month.split('-');
         const startDate = `${year}-${monthNum}-01`;
@@ -585,7 +585,7 @@ export async function generateMonthlyReport(userId, portfolioId, month) {
  * @returns {Object} Reporte anual
  */
 export async function generateYearlyReport(userId, portfolioId, year) {
-    const currentLogLevel = await getLogLevel();
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     try {
         const startDate = `${year}-01-01`;
         const endDate = `${year}-12-31`;

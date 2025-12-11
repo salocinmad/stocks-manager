@@ -17,7 +17,7 @@ const yahooFinance = new YahooFinance();
  * @returns {Promise<Object|null>} Datos de precio o null
  */
 export async function fetchQuote(symbol) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     try {
         // CRITICAL: Yahoo usa punto (.) no dos puntos (:) para mercados internacionales
         // DB tiene: OHLA:MC, DIA:MC, AMP:MC
@@ -127,7 +127,7 @@ export async function fetchQuote(symbol) {
  * @returns {Promise<Array>} Array de datos históricos
  */
 export async function fetchHistorical(symbol, days = 365) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     try {
         const parts = symbol.split('|||');
         let yahooSymbol = parts[parts.length - 1]; // Obtener la última parte (el ticker)

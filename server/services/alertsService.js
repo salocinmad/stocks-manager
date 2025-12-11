@@ -37,7 +37,7 @@ export const AlertSeverity = {
  * @returns {Object|null} Alerta o null si no aplica
  */
 export async function checkLossSustained(position, userId, portfolioId, days = 30, threshold = 15) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     try {
         const currentPrice = await db.query.priceCaches.findFirst({
             where: and(
@@ -175,7 +175,7 @@ export function checkConcentrationRisk(position, positionValueEUR, totalPortfoli
  */
 export async function generateAlerts(userId, portfolioId, operations, currentPrices, currentEURUSD) {
     const alerts = [];
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
 
     try {
         // Calcular posiciones activas

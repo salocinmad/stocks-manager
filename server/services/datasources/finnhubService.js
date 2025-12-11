@@ -16,7 +16,7 @@ import { getLogLevel } from '../configService.js';
  * @returns {Promise<Object|null>} Datos de precio o null
  */
 export async function fetchQuote(symbol) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     try {
         const apiKeyRow = await db.query.configs.findFirst({
             where: eq(schema.configs.key, 'finnhub-api-key')

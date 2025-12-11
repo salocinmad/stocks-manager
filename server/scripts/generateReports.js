@@ -103,7 +103,7 @@ async function generateReportsForUser(user, date, currentEURUSD, currentLogLevel
  * @returns {Object} Resultado de la generación
  */
 export async function generateAllReports(date = null) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     const startTime = Date.now();
 
     // Usar fecha de hoy si no se especifica

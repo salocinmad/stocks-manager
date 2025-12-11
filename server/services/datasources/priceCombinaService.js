@@ -5,6 +5,9 @@
 
 import * as finnhubService from './finnhubService.js';
 import * as yahooService from './yahooService.js';
+import { db } from '../../config/database.js';
+import * as schema from '../../drizzle/schema.js';
+import { eq } from 'drizzle-orm';
 import { getPreviousMarketDay } from '../../utils/dateHelpers.js';
 import { getLogLevel } from '../configService.js';
 
@@ -16,7 +19,7 @@ import { getLogLevel } from '../configService.js';
 export async function fetchCombinedPrice(symbol) {
     let finnhubData = null;
     let yahooData = null;
-    const currentLogLevel = await getLogLevel();
+    const currentLogLevel = await getLogLevel(db, eq, schema);
 
     // 1. Intentar Finnhub primero (solo US)
     try {

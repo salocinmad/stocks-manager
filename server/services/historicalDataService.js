@@ -61,7 +61,7 @@ const getFxMapToEUR = async () => {
  * @param {number} days Número de días hacia atrás a actualizar
  */
 export const overwriteHistoricalData = async (days = 30) => {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     const results = {
         updatedPositions: 0,
         errors: [],

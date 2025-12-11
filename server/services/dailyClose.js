@@ -1,12 +1,14 @@
 
-import YahooFinance from 'yahoo-finance2';
 import { getLogLevel } from './configService.js';
 import { eq, and, asc } from 'drizzle-orm';
+import { configs, operations, portfolios, dailyPrices, dailyPositionSnapshots, dailyPortfolioStats } from '../drizzle/schema.ts';
+const schema = { configs, operations, portfolios, dailyPrices, dailyPositionSnapshots, dailyPortfolioStats };
 
 let dailyTimer = null
 let dailyRunning = false
 
 import scheduler from './scheduler.js'
+import YahooFinance from 'yahoo-finance2';
 
 // Instancia de Yahoo Finance v3
 const yahooFinance = new YahooFinance({
@@ -17,7 +19,7 @@ const yahooFinance = new YahooFinance({
   }
 });
 
-const getConfig = async (db) => {
+const getConfig = async (db, schema) => {
   const enabledRow = await db.query.configs.findFirst({ where: eq(schema.configs.key, 'daily_close_enabled') });
   const timeRow = await db.query.configs.findFirst({ where: eq(schema.configs.key, 'daily_close_time') });
   const enabled = enabledRow ? enabledRow.value === 'true' : true
@@ -32,7 +34,7 @@ const getConfig = async (db) => {
   return { enabled, timeStr }
 }
 
-const setLastRun = async (iso) => {
+const setLastRun = async (db, schema, iso) => {
   const key = 'daily_close_last_run'
   const val = iso || new Date().toISOString()
   const existing = await db.query.configs.findFirst({ where: eq(schema.configs.key, key) });
@@ -85,7 +87,7 @@ export const fetchPreviousClose = async (symbol) => {
 }
 
 export const runDailyOnce = async (db) => {
-  const currentLogLevel = await getLogLevel(db, eq);
+  const currentLogLevel = await getLogLevel(db, eq, schema);
   if (dailyRunning) return { ok: false, reason: 'already_running' }
   dailyRunning = true
   try {
@@ -344,7 +346,7 @@ export const runDailyOnce = async (db) => {
     }
 
     if (processed > 0) {
-      await setLastRun(date);
+      await setLastRun(db, schema, date);
 
       // ✨ NUEVO: Generar reportes después del cierre diario exitoso
       if (currentLogLevel === 'verbose') {
@@ -392,7 +394,7 @@ const msUntilTime = (timeStr) => {
 }
 
 export const startDaily = async (db) => {
-  const { enabled, timeStr } = await getConfig(db)
+  const { enabled, timeStr } = await getConfig(db, schema)
   if (!enabled) return { ok: false, reason: 'disabled' }
   if (dailyTimer) clearTimeout(dailyTimer)
   const wait = msUntilTime(timeStr)

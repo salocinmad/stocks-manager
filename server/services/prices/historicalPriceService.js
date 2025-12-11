@@ -82,7 +82,7 @@ export async function fetchAndSaveHistorical(symbol, days = HISTORICAL_CONFIG.DE
  * @param {number} maxDaysBack - Días máximos a revisar
  */
 export async function fillHistoricalGaps(symbol, maxDaysBack = HISTORICAL_CONFIG.DEFAULT_DAYS) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     // Obtener primer registro
     const firstRecord = await GlobalStockPrice.findOne({
         where: { symbol },

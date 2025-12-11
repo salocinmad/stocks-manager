@@ -8,11 +8,14 @@
 import { startPriceScheduler, stopPriceScheduler, runManualUpdate } from './scheduler/priceScheduler.js';
 import { getLogLevel } from './configService.js';
 import { eq } from 'drizzle-orm';
+import { operations, assetProfiles, configs, globalCurrentPrices } from '../drizzle/schema.ts';
+const schema = { operations, assetProfiles, configs, globalCurrentPrices };
 
 // Delegación completa al nuevo servicio modular
 export async function start(db) {
   try {
-    await startPriceScheduler(db);
+    console.log('DEBUG: schema in scheduler.js before calling startPriceScheduler:', schema);
+    await startPriceScheduler(db, schema);
   } catch (error) {
     console.error('Error in startPriceScheduler:', error);
     return { ok: false, reason: error.message };
@@ -26,11 +29,11 @@ export function stop() {
 
 // runOnce para compatibilidad con daily close
 export async function runOnce(db) {
-    const currentLogLevel = await getLogLevel(db, eq);
+    const currentLogLevel = await getLogLevel(db, eq, schema);
     if (currentLogLevel === 'verbose') {
         console.log('🔄 Ejecutando actualización única (runOnce)...');
     }
-    return await runManualUpdate(db);
+    return await runManualUpdate(db, schema);
 }
 
 export default {
