@@ -1,0 +1,163 @@
+/* ========================================
+   PositionCard - Estilos para tarjetas móviles
+   ======================================== */
+
+.position-card {
+    background-color: #2d2d2d;
+    border: 1px solid #404040;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.position-card.light {
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 1px 3px rgba(148, 163, 184, 0.1);
+}
+
+/* Header de la tarjeta */
+.position-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background-color: #363636;
+    cursor: pointer;
+    border-bottom: 1px solid #404040;
+}
+
+.position-card.light .position-card-header {
+    background-color: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.position-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.position-card-company {
+    font-weight: 600;
+    font-size: 16px;
+    color: #ffffff;
+}
+
+.position-card.light .position-card-company {
+    color: #1e293b;
+}
+
+.position-card-symbol {
+    font-size: 13px;
+    color: #888888;
+    font-weight: 400;
+}
+
+.position-card.light .position-card-symbol {
+    color: #64748b;
+}
+
+.position-card-expand-btn {
+    background: none;
+    border: none;
+    color: #888888;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+/* Cuerpo de la tarjeta */
+.position-card-body {
+    padding: 14px 16px;
+}
+
+.position-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.position-card-row:last-child {
+    margin-bottom: 0;
+}
+
+.position-card-label {
+    font-size: 13px;
+    color: #888888;
+    flex-shrink: 0;
+}
+
+.position-card.light .position-card-label {
+    color: #64748b;
+}
+
+.position-card-value {
+    font-size: 15px;
+    font-weight: 500;
+    color: #ffffff;
+    text-align: right;
+}
+
+.position-card.light .position-card-value {
+    color: #1e293b;
+}
+
+/* Contenedor de precio */
+.position-card-price-container,
+.position-card-profit-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.position-card-indicator {
+    margin-left: 6px;
+    font-size: 14px;
+}
+
+.position-card-change {
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.position-card-change.positive {
+    color: #10b981;
+}
+
+.position-card-change.negative {
+    color: #ef4444;
+}
+
+.position-card-value.positive {
+    color: #10b981;
+}
+
+.position-card-value.negative {
+    color: #ef4444;
+}
+
+/* Contenido expandido */
+.position-card-expanded {
+    padding: 14px 16px;
+    border-top: 1px solid #404040;
+    background-color: #262626;
+}
+
+.position-card.light .position-card-expanded {
+    border-top: 1px solid #e2e8f0;
+    background-color: #ffffff;
+}
+
+.position-card-extra {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed #404040;
+}
+
+.position-card.light .position-card-extra {
+    border-bottom: 1px dashed #e2e8f0;
+}

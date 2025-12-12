@@ -541,3 +541,68 @@ body.light {
 .light .position-row:hover {
   background-color: rgba(59, 130, 246, 0.05);
 }
+
+/* ==== RESPONSIVE: Contenedor de tarjetas móvil ==== */
+.positions-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 8px;
+}
+
+/* ==== RESPONSIVE: Media queries globales ==== */
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 0;
+  }
+
+  .header h1 {
+    font-size: 20px;
+    text-align: center;
+  }
+
+  .stats {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+  }
+
+  .stat-value {
+    font-size: 18px;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-width: none;
+    max-height: 90vh;
+    margin: 20px auto;
+    padding: 20px;
+  }
+
+  .form-row {
+    flex-direction: column;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .button {
+    width: 100%;
+    text-align: center;
+  }
+}

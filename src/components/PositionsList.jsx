@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import StockHistoryChart from './StockHistoryChart.jsx'
+import PositionCard from './PositionCard.jsx'
+import useDeviceType from '../hooks/useDeviceType.jsx'
 import { notesAPI } from '../services/api.js'
 
 export default function PositionsList({
@@ -28,6 +30,7 @@ export default function PositionsList({
   setNotesCache
 }) {
   const [expandedPositions, setExpandedPositions] = useState({})
+  const { isMobile } = useDeviceType()
 
   // Función para obtener solo las operaciones editables de una posición
   // Solo muestra operaciones que contribuyen al saldo actual (después del último cierre)
@@ -64,6 +67,111 @@ export default function PositionsList({
     return sorted.slice(lastZeroIndex + 1)
   }
 
+  // Preparar datos de todas las posiciones
+  const positionsData = Object.entries(activePositions).map(([positionKey, position]) => {
+    const [company, symbol = ''] = positionKey.split('|||')
+    const currency = position.currency || 'EUR'
+    const companyOperations = operations.filter(op => {
+      const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company
+      return opKey === positionKey
+    })
+
+    const purchases = companyOperations.filter(op => op.type === 'purchase')
+    const weightedExchangeRatePurchase = (() => {
+      let totalShares = 0
+      let totalExchangeRateWeighted = 0
+      purchases.forEach(purchase => {
+        totalShares += purchase.shares
+        totalExchangeRateWeighted += purchase.shares * (purchase.exchangeRate || 1)
+      })
+      return totalShares > 0 ? (totalExchangeRateWeighted / totalShares) : (purchases[0]?.exchangeRate || 1)
+    })()
+
+    const avgCostPerShare = position.shares > 0
+      ? (position.totalOriginalCost / position.shares)
+      : 0
+
+    const currentPriceData = currentPrices[positionKey]
+    let currentValueInBaseCurrency = null
+    let currentValueInEUR = null
+    let profitLossInEUR = null
+    let profitLossPercent = null
+
+    if (currentPriceData) {
+      currentValueInBaseCurrency = position.shares * currentPriceData.price
+      if (currency === 'EUR') {
+        currentValueInEUR = currentValueInBaseCurrency
+      } else if (currency === 'USD') {
+        const eurPerUsd = currentEURUSD || 0.92
+        currentValueInEUR = currentValueInBaseCurrency * eurPerUsd
+      } else {
+        currentValueInEUR = currentValueInBaseCurrency * weightedExchangeRatePurchase
+      }
+      profitLossInEUR = currentValueInEUR - position.totalCost
+      profitLossPercent = position.totalCost > 0
+        ? (profitLossInEUR / position.totalCost) * 100
+        : 0
+    }
+
+    const firstTargetPrice = purchases.length > 0 ? purchases.sort((a, b) => new Date(b.date) - new Date(a.date))[0].targetPrice : null
+
+    return {
+      positionKey,
+      position,
+      company,
+      symbol,
+      currency,
+      companyOperations,
+      avgCostPerShare,
+      currentPriceData,
+      currentValueInEUR,
+      profitLossInEUR,
+      profitLossPercent,
+      weightedExchangeRatePurchase,
+      firstTargetPrice
+    }
+  })
+
+  // ============ VISTA MÓVIL (Tarjetas) ============
+  if (isMobile) {
+    return (
+      <div className="positions-cards-container">
+        {positionsData.map(({
+          positionKey, position, company, symbol, avgCostPerShare,
+          currentPriceData, currentValueInEUR, profitLossInEUR, profitLossPercent
+        }) => (
+          <PositionCard
+            key={positionKey}
+            positionKey={positionKey}
+            position={position}
+            currentPriceData={currentPriceData}
+            profitLossInEUR={profitLossInEUR}
+            profitLossPercent={profitLossPercent}
+            currentValueInEUR={currentValueInEUR}
+            avgCostPerShare={avgCostPerShare}
+            theme={theme}
+            formatPrice={formatPrice}
+            formatCurrency={formatCurrency}
+            isExpanded={expandedPositions[positionKey]}
+            onExpand={() => setExpandedPositions(prev => ({
+              ...prev,
+              [positionKey]: !prev[positionKey]
+            }))}
+          >
+            {/* Gráfico expandido */}
+            <StockHistoryChart
+              positionKey={positionKey}
+              userId={userId}
+              portfolioId={currentPortfolioId}
+              theme={theme}
+            />
+          </PositionCard>
+        ))}
+      </div>
+    )
+  }
+
+  // ============ VISTA DESKTOP (Tabla) ============
   return (
     <table className="table">
       <thead>
@@ -81,51 +189,11 @@ export default function PositionsList({
         </tr>
       </thead>
       <tbody>
-        {Object.entries(activePositions).map(([positionKey, position]) => {
-          const [company, symbol = ''] = positionKey.split('|||')
-          const currency = position.currency || 'EUR'
-          const companyOperations = operations.filter(op => {
-            const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company
-            return opKey === positionKey
-          })
-
-          const purchases = companyOperations.filter(op => op.type === 'purchase')
-          const weightedExchangeRatePurchase = (() => {
-            let totalShares = 0
-            let totalExchangeRateWeighted = 0
-            purchases.forEach(purchase => {
-              totalShares += purchase.shares
-              totalExchangeRateWeighted += purchase.shares * (purchase.exchangeRate || 1)
-            })
-            return totalShares > 0 ? (totalExchangeRateWeighted / totalShares) : (purchases[0]?.exchangeRate || 1)
-          })()
-
-          const avgCostPerShare = position.shares > 0
-            ? (position.totalOriginalCost / position.shares)
-            : 0
-
-          const currentPriceData = currentPrices[positionKey]
-          let currentValueInBaseCurrency = null
-          let currentValueInEUR = null
-          let profitLossInEUR = null
-          let profitLossPercent = null
-
-          if (currentPriceData) {
-            currentValueInBaseCurrency = position.shares * currentPriceData.price
-            if (currency === 'EUR') {
-              currentValueInEUR = currentValueInBaseCurrency
-            } else if (currency === 'USD') {
-              const eurPerUsd = currentEURUSD || 0.92
-              currentValueInEUR = currentValueInBaseCurrency * eurPerUsd
-            } else {
-              currentValueInEUR = currentValueInBaseCurrency * weightedExchangeRatePurchase
-            }
-            profitLossInEUR = currentValueInEUR - position.totalCost
-            profitLossPercent = position.totalCost > 0
-              ? (profitLossInEUR / position.totalCost) * 100
-              : 0
-          }
-
+        {positionsData.map(({
+          positionKey, position, company, symbol, currency, companyOperations,
+          avgCostPerShare, currentPriceData, currentValueInEUR, profitLossInEUR,
+          profitLossPercent, weightedExchangeRatePurchase, firstTargetPrice
+        }) => {
           return (
             <React.Fragment key={positionKey}>
               <tr
@@ -178,14 +246,15 @@ export default function PositionsList({
                         })()}
                       </div>
                       {currentPriceData.change !== null && (
-                        <div style={{ fontSize: '11px', color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444' }}>
-                          {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)} {'('}{currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%{')'}
+                        <div style={{
+                          fontSize: '12px',
+                          color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444'
+                        }}>
+                          {currentPriceData.change >= 0 ? '+' : ''}{currentPriceData.change.toFixed(2)} ({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <span style={{ color: '#888', fontSize: '12px' }}>Sin datos</span>
-                  )}
+                  ) : <span style={{ color: '#888', fontSize: '12px' }}>Sin datos</span>}
                 </td>
                 <td>
                   {currentValueInEUR !== null ? (
@@ -207,31 +276,39 @@ export default function PositionsList({
                   )}
                 </td>
                 <td>
-                  {(() => {
-                    const purchasesOnly = companyOperations.filter(op => op.type === 'purchase')
-                    if (purchasesOnly.length === 0) return <span style={{ color: '#888' }}>-</span>
-                    const latestPurchase = purchasesOnly.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
-                    if (latestPurchase.targetPrice) {
-                      return (
-                        <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>
-                          {currency === 'EUR' ? '€' : '$'}{formatPrice(latestPurchase.targetPrice)}
-                        </div>
-                      )
-                    }
-                    return <span style={{ color: '#888' }}>-</span>
-                  })()}
+                  {firstTargetPrice !== null && firstTargetPrice !== undefined
+                    ? (
+                      <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>
+                        {currency === 'EUR' ? '€' : '$'}{formatPrice(firstTargetPrice)}
+                      </div>
+                    )
+                    : <span style={{ color: '#888' }}>-</span>}
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                    {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => {
-                      const symbolForButton = (() => {
-                        const op = companyOperations.find(o => o[`externalSymbol${button.displayOrder}`])
-                        return op ? op[`externalSymbol${button.displayOrder}`] : null
-                      })()
-                      if (!symbolForButton) return null
+                    {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map((button, idx) => {
+                      const externalSymbolField = `externalSymbol${idx + 1}`
+                      const op = companyOperations.find(o => o[externalSymbolField])
+                      const externalSymbol = op?.[externalSymbolField] || symbol
+                      if (!externalSymbol) return null
+                      const finalUrl = button.baseUrl.replace('{symbol}', encodeURIComponent(externalSymbol))
                       return (
-                        <a key={button.id} href={`${button.baseUrl}${symbolForButton}`} target="_blank" rel="noopener noreferrer" title={`${button.name}: ${symbolForButton}`} style={{ display: 'block' }}>
-                          <img src={button.imageUrl} alt={button.name} style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }} />
+                        <a
+                          key={button.id}
+                          href={finalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={`${button.name}: ${externalSymbol}`}
+                          style={{ display: 'block' }}
+                        >
+                          {button.imageUrl ? (
+                            <img
+                              src={button.imageUrl} alt={button.name}
+                              style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: '18px' }}>{button.emoji || '🔗'}</span>
+                          )}
                         </a>
                       )
                     })}
