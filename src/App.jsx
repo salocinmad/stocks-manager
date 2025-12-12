@@ -1209,10 +1209,10 @@ function App() {
         </div>
 
         {/* Segunda fila: Controles */}
-        <div style={{ marginTop: '10px' }}>
+        <div style={{ marginTop: '10px', width: '100%' }}>
 
           {/* === DESKTOP VIEW === */}
-          <div className="desktop-view-only" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="desktop-view-only" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             {/* Izquierda: Selector de Portafolio */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ marginRight: '8px', position: 'relative' }}>
