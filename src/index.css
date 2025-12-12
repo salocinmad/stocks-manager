@@ -544,11 +544,7 @@ body.light {
 
 /* ==== RESPONSIVE: Clases de utilidad para cambio de vista ==== */
 .mobile-view-only {
-  display: none;
-}
-
-.desktop-view-only {
-  display: block;
+  display: none !important;
 }
 
 /* ==== RESPONSIVE: Contenedor de tarjetas móvil ==== */
@@ -559,14 +555,28 @@ body.light {
   padding: 0 8px;
 }
 
+/* Grid por defecto para desktop */
+.positions-header-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
 /* ==== RESPONSIVE: Media queries globales ==== */
 @media (max-width: 768px) {
+  .positions-header-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
   .mobile-view-only {
-    display: block;
+    display: block !important;
   }
 
   .desktop-view-only {
-    display: none;
+    display: none !important;
   }
 
   .container {
@@ -587,6 +597,7 @@ body.light {
     text-align: center;
   }
 
+  /* Ajuste para que el stat-item no desborde */
   .stats {
     flex-direction: column;
     gap: 12px;
