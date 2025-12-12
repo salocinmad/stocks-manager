@@ -20,12 +20,25 @@ export const formatPrice = (price) => {
 
 export const formatNumberForCSV = (number) => {
   if (number === null || number === undefined || isNaN(number)) return '0,00';
-  return number.toFixed(2).replace('.', ',');
+  // Convertir a número por si viene como string
+  const num = typeof number === 'string' ? parseFloat(number) : number;
+
+  // Limitar a máximo 3 decimales
+  let str = num.toFixed(3);
+
+  // Quitar ceros finales y punto si sobra (ej: 1.500 -> 1.5, 1.000 -> 1)
+  if (str.includes('.')) {
+    str = str.replace(/\.?0+$/, '');
+  }
+  return str.replace('.', ',');
 };
 
 export const formatCurrency = (value, currencyCode) => {
-  if (value === null || value === undefined || isNaN(value)) return '-';
-  const formatted = parseFloat(value).toFixed(2);
+  if (value === null || value === undefined) return '-';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '-';
+
+  const formatted = num.toFixed(2);
   const symbol = currencyCode === 'USD' ? '$' : (currencyCode === 'GBP' ? '£' : '€');
   return `${symbol}${formatted}`;
 };
@@ -63,7 +76,14 @@ export const markdownToHtml = (md) => {
 };
 
 export const formatExchangeRate = (rate) => {
-  if (rate === 1) return '1';
-  return rate.toFixed(8).replace('.', ',');
+  if (rate === null || rate === undefined) return '1';
+  let num = parseFloat(rate);
+  if (isNaN(num)) return '1';
+  if (num === 1) return '1';
+
+  // Convertir a string con hasta 12 decimales y quitar ceros
+  let str = num.toFixed(12);
+  str = str.replace(/\.?0+$/, '');
+  return str.replace('.', ',');
 };
 

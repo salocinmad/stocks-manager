@@ -1338,7 +1338,15 @@ function App() {
               </button>
               {showUserMenu && (
                 <div className="user-dropdown-menu">
-                  <button onClick={() => generateFullCSV(operations)} className="dropdown-item">📊 Exportar CSV</button>
+                  <button onClick={() => {
+                    try {
+                      generateFullCSV(operations);
+                    } catch (error) {
+                      console.error('[CSV Export] Error:', error);
+                      alert('Error al exportar CSV: ' + error.message);
+                    }
+                    setShowUserMenu(false);
+                  }} className="dropdown-item">📊 Exportar CSV</button>
                   <button onClick={() => {
                     setShowConfigModal(true);
                     setShowUserMenu(false);

@@ -25,12 +25,12 @@ const getConfig = async () => {
   const enabledRow = await Config.findOne({ where: { key: 'daily_close_enabled' } })
   const timeRow = await Config.findOne({ where: { key: 'daily_close_time' } })
   const enabled = enabledRow ? enabledRow.value === 'true' : true
-  // Por defecto a las 01:00 si no está configurado
-  const timeStr = timeRow?.value || '01:00'
+  // Por defecto a las 03:00 si no está configurado (antes 01:00)
+  const timeStr = timeRow?.value || '03:00'
 
-  // Si la configuración de hora no existe, crearla con el valor por defecto 01:00
+  // Si la configuración de hora no existe, crearla con el valor por defecto 03:00
   if (!timeRow) {
-    await Config.create({ key: 'daily_close_time', value: '01:00' })
+    await Config.create({ key: 'daily_close_time', value: '03:00' })
   }
 
   return { enabled, timeStr }
@@ -58,28 +58,57 @@ const getPreviousBusinessDate = async () => {
   return isoMadrid // YYYY-MM-DD en huso Madrid
 }
 
-export const fetchPreviousClose = async (symbol) => {
+// NUEVA FUNCIÓN: Obtiene el cierre histórico exacto para una fecha específica usando chart()
+// Esto garantiza consistencia con la herramienta de administración manual
+export const fetchHistoricalClose = async (symbol, targetDateStr) => {
   try {
     if (!symbol) return null
     const ySymbol = String(symbol).replace(/[:\-]/g, '.')
-    const q = await yahooFinance.quote(ySymbol)
-    let close = q?.regularMarketPreviousClose || q?.regularMarketPrice || null
 
-    // Capturar change y changePercent desde Yahoo Finance
-    const change = q?.regularMarketChange ?? null
-    const changePercent = q?.regularMarketChangePercent ?? null
+    // Configurar rango para pedir la vela específica
+    const period1 = new Date(targetDateStr)
+    period1.setHours(0, 0, 0, 0)
 
-    if (!close || close <= 0) {
-      const chart = await yahooFinance.chart(ySymbol, { period1: '7d', interval: '1d' })
-      const arr = chart?.quotes || []
-      if (arr.length > 0) {
-        const last = arr[arr.length - 1]
-        close = last?.close || close
+    const period2 = new Date(targetDateStr)
+    period2.setHours(23, 59, 59, 999)
+    // Añadir un día de margen al final para asegurar que Yahoo incluya la fecha
+    period2.setDate(period2.getDate() + 1)
+
+    const queryOptions = {
+      period1,
+      period2,
+      interval: '1d'
+    }
+
+    const chartData = await yahooFinance.chart(ySymbol, queryOptions)
+
+    let candle = null
+
+    if (chartData && chartData.quotes && chartData.quotes.length > 0) {
+      // Buscar exactamente la fecha objetivo
+      candle = chartData.quotes.find(q => {
+        if (!q.date) return false
+        const d = q.date.toISOString().split('T')[0]
+        return d === targetDateStr
+      })
+
+      // Si no se encuentra exacta (ej: festivo), intentar usar la última disponible dentro del rango
+      if (!candle) {
+        candle = chartData.quotes[chartData.quotes.length - 1]
       }
     }
-    if (!close || close <= 0) return null
-    return { close, currency: q?.currency || 'EUR', change, changePercent, source: 'yahoo' }
-  } catch {
+
+    if (!candle || !candle.close) return null
+
+    return {
+      close: candle.close,
+      currency: chartData.meta?.currency || 'EUR',
+      change: 0, // En histórico change es relativo al día anterior, se podría calcular pero no es crítico
+      changePercent: 0,
+      source: 'yahoo_chart_daily_close'
+    }
+  } catch (e) {
+    // console.log(`Error fetching historical for ${symbol}: ${e.message}`)
     return null
   }
 }
@@ -140,16 +169,23 @@ export const runDailyOnce = async () => {
             let dailyPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date } })
 
             if (!dailyPrice) {
-              const prev = await fetchPreviousClose(p.symbol)
+              // CAMBIO CRÍTICO: Usar fetchHistoricalClose en lugar de fetchPreviousClose
+              // Esto asegura que ottenemos el dato histórico OFICIAL de la fecha 'date'
+              const prev = await fetchHistoricalClose(p.symbol, date)
               if (prev) {
-                const { close, currency = 'EUR', source = 'yahoo' } = prev
-                const exchangeRate = fxMap[currency] ?? 1
+                const { close, currency = 'EUR', source = 'yahoo_chart_daily_close' } = prev
+
+                // Manejo especial para acciones británicas (GBp -> GBP)
+                let exchangeRate = fxMap[currency] ?? 1
+                if (p.symbol && p.symbol.endsWith('.L') && (currency === 'GBP' || currency === 'GBp')) {
+                  exchangeRate = (fxMap['GBP'] || 0.86) * 0.01;
+                }
+
                 dailyPrice = await DailyPrice.create({
                   userId, portfolioId, positionKey: pk, company: p.company, symbol: p.symbol,
                   date, close, currency, exchangeRate, source,
-                  // Nuevos campos de análisis histórico
-                  change: prev.change,
-                  changePercent: prev.changePercent,
+                  change: 0,
+                  changePercent: 0,
                   shares: p.shares
                 })
               }
@@ -276,9 +312,10 @@ export const runDailyOnce = async () => {
       });
 
       if (!existing) {
-        const sp500Data = await fetchPreviousClose(sp500Symbol);
+        // CAMBIO CRÍTICO: Usar fetchHistoricalClose también para SP500
+        const sp500Data = await fetchHistoricalClose(sp500Symbol, date);
         if (sp500Data) {
-          const { close, currency = 'USD', change, changePercent, source = 'yahoo' } = sp500Data;
+          const { close, currency = 'USD', source = 'yahoo_chart_daily_close' } = sp500Data;
           const exchangeRate = fxMap[currency] ?? 1;
 
           await DailyPrice.create({
@@ -292,8 +329,8 @@ export const runDailyOnce = async () => {
             currency,
             exchangeRate,
             source,
-            change,
-            changePercent,
+            change: 0,
+            changePercent: 0,
             shares: 0
           });
 

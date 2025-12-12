@@ -29,6 +29,41 @@ export default function PositionsList({
 }) {
   const [expandedPositions, setExpandedPositions] = useState({})
 
+  // Función para obtener solo las operaciones editables de una posición
+  // Solo muestra operaciones que contribuyen al saldo actual (después del último cierre)
+  const getEditableOperations = (companyOperations, currentShares) => {
+    // Si no hay acciones actuales, no hay operaciones editables
+    if (!currentShares || currentShares === 0) return []
+
+    // Ordenar operaciones cronológicamente (por fecha, luego por ID)
+    const sorted = [...companyOperations].sort((a, b) => {
+      const dateCompare = new Date(a.date) - new Date(b.date)
+      if (dateCompare !== 0) return dateCompare
+      return (a.id || 0) - (b.id || 0)
+    })
+
+    // Encontrar el último punto donde el número de acciones llegó a 0
+    let lastZeroIndex = -1
+    let runningShares = 0
+
+    sorted.forEach((op, index) => {
+      const shares = parseInt(op.shares) || 0
+      if (op.type === 'purchase') {
+        runningShares += shares
+      } else if (op.type === 'sale') {
+        runningShares -= shares
+      }
+
+      // Si llegamos a 0 acciones, marcamos este índice
+      if (runningShares === 0) {
+        lastZeroIndex = index
+      }
+    })
+
+    // Solo devolver operaciones después del último cierre (índice + 1)
+    return sorted.slice(lastZeroIndex + 1)
+  }
+
   return (
     <table className="table">
       <thead>
@@ -46,215 +81,215 @@ export default function PositionsList({
         </tr>
       </thead>
       <tbody>
-      {Object.entries(activePositions).map(([positionKey, position]) => {
-        const [company, symbol = ''] = positionKey.split('|||')
-        const currency = position.currency || 'EUR'
-        const companyOperations = operations.filter(op => {
-          const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company
-          return opKey === positionKey
-        })
-
-        const purchases = companyOperations.filter(op => op.type === 'purchase')
-        const weightedExchangeRatePurchase = (() => {
-          let totalShares = 0
-          let totalExchangeRateWeighted = 0
-          purchases.forEach(purchase => {
-            totalShares += purchase.shares
-            totalExchangeRateWeighted += purchase.shares * (purchase.exchangeRate || 1)
+        {Object.entries(activePositions).map(([positionKey, position]) => {
+          const [company, symbol = ''] = positionKey.split('|||')
+          const currency = position.currency || 'EUR'
+          const companyOperations = operations.filter(op => {
+            const opKey = op.symbol ? `${op.company}|||${op.symbol}` : op.company
+            return opKey === positionKey
           })
-          return totalShares > 0 ? (totalExchangeRateWeighted / totalShares) : (purchases[0]?.exchangeRate || 1)
-        })()
 
-        const avgCostPerShare = position.shares > 0
-          ? (position.totalOriginalCost / position.shares)
-          : 0
+          const purchases = companyOperations.filter(op => op.type === 'purchase')
+          const weightedExchangeRatePurchase = (() => {
+            let totalShares = 0
+            let totalExchangeRateWeighted = 0
+            purchases.forEach(purchase => {
+              totalShares += purchase.shares
+              totalExchangeRateWeighted += purchase.shares * (purchase.exchangeRate || 1)
+            })
+            return totalShares > 0 ? (totalExchangeRateWeighted / totalShares) : (purchases[0]?.exchangeRate || 1)
+          })()
 
-        const currentPriceData = currentPrices[positionKey]
-        let currentValueInBaseCurrency = null
-        let currentValueInEUR = null
-        let profitLossInEUR = null
-        let profitLossPercent = null
-
-        if (currentPriceData) {
-          currentValueInBaseCurrency = position.shares * currentPriceData.price
-          if (currency === 'EUR') {
-            currentValueInEUR = currentValueInBaseCurrency
-          } else if (currency === 'USD') {
-            const eurPerUsd = currentEURUSD || 0.92
-            currentValueInEUR = currentValueInBaseCurrency * eurPerUsd
-          } else {
-            currentValueInEUR = currentValueInBaseCurrency * weightedExchangeRatePurchase
-          }
-          profitLossInEUR = currentValueInEUR - position.totalCost
-          profitLossPercent = position.totalCost > 0
-            ? (profitLossInEUR / position.totalCost) * 100
+          const avgCostPerShare = position.shares > 0
+            ? (position.totalOriginalCost / position.shares)
             : 0
-        }
 
-        return (
-          <React.Fragment key={positionKey}>
-            <tr
-              draggable="true"
-              onDragStart={(e) => handleDragStart(e, positionKey)}
-              onDragEnd={handleDragEnd}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, positionKey, Object.keys(activePositions))}
-              className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
-            >
-              <td>
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setExpandedPositions(prev => ({
-                      ...prev,
-                      [positionKey]: !prev[positionKey]
-                    }))
-                  }}
-                  style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', userSelect: 'none' }}
-                >
-                  <span style={{
-                    display: 'inline-block', width: '0', height: '0', borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '6px solid currentColor',
-                    transform: expandedPositions[positionKey] ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease', opacity: 0.7
-                  }}></span>
-                  <span style={{ fontWeight: 'bold' }}>{company}</span>
-                </div>
-                {symbol && (
-                  <div style={{ fontSize: '11px', color: '#888' }}>{symbol}</div>
-                )}
-              </td>
-              <td>{position.shares}</td>
-              <td>€{position.totalCost.toFixed(2)}</td>
-              <td>{formatCurrency(avgCostPerShare, position.currency)}</td>
-              <td>
-                {currentPriceData ? (
-                  <div>
-                    <div style={{ fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                      <span>{currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}</span>
-                      {(() => {
-                        const src = currentPriceData.source
-                        const url = src === 'finnhub' ? 'https://finnhub.io/static/img/webp/finnhub-logo.webp' : (src === 'yahoo' ? 'https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg' : null)
-                        const title = src ? `${src.toUpperCase()}${currentPriceData.updatedAt ? ` • ${new Date(currentPriceData.updatedAt).toLocaleString('es-ES', { hour12: false })}` : ''}` : ''
-                        if (url) {
-                          return (
-                            <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="lazy" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
-                          )
-                        }
-                        return null
-                      })()}
-                    </div>
-                    {currentPriceData.change !== null && (
-                      <div style={{ fontSize: '11px', color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444' }}>
-                        {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)} {'('}{currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%{')'}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <span style={{ color: '#888', fontSize: '12px' }}>Sin datos</span>
-                )}
-              </td>
-              <td>
-                {currentValueInEUR !== null ? (
-                  `€${currentValueInEUR.toFixed(2)}`
-                ) : (
-                  <span style={{ color: '#888' }}>-</span>
-                )}
-              </td>
-              <td>
-                {profitLossInEUR !== null ? (
-                  <div style={{ color: profitLossInEUR >= 0 ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>
-                    {profitLossInEUR >= 0 ? '+' : ''}€{profitLossInEUR.toFixed(2)}
-                    {profitLossPercent !== null && (
-                      <div style={{ fontSize: '11px' }}>({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)</div>
-                    )}
-                  </div>
-                ) : (
-                  <span style={{ color: '#888' }}>-</span>
-                )}
-              </td>
-              <td>
-                {(() => {
-                  const purchasesOnly = companyOperations.filter(op => op.type === 'purchase')
-                  if (purchasesOnly.length === 0) return <span style={{ color: '#888' }}>-</span>
-                  const latestPurchase = purchasesOnly.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
-                  if (latestPurchase.targetPrice) {
-                    return (
-                      <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>
-                        {currency === 'EUR' ? '€' : '$'}{formatPrice(latestPurchase.targetPrice)}
-                      </div>
-                    )
-                  }
-                  return <span style={{ color: '#888' }}>-</span>
-                })()}
-              </td>
-              <td>
-                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                  {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => {
-                    const symbolForButton = (() => {
-                      const op = companyOperations.find(o => o[`externalSymbol${button.displayOrder}`])
-                      return op ? op[`externalSymbol${button.displayOrder}`] : null
-                    })()
-                    if (!symbolForButton) return null
-                    return (
-                      <a key={button.id} href={`${button.baseUrl}${symbolForButton}`} target="_blank" rel="noopener noreferrer" title={`${button.name}: ${symbolForButton}`} style={{ display: 'block' }}>
-                        <img src={button.imageUrl} alt={button.name} style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }} />
-                      </a>
-                    )
-                  })}
-                </div>
-              </td>
-              <td>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  {companyOperations.map((operation) => (
-                    <button
-                      key={operation.id}
-                      className="button"
-                      onClick={() => openModal(operation.type, operation)}
-                      style={{ fontSize: '12px', padding: '5px 8px' }}
-                      title={`Editar ${operation.type === 'purchase' ? 'compra' : 'venta'}`}
-                    >
-                      ✏️ {operation.type === 'purchase' ? 'C' : 'V'}
-                    </button>
-                  ))}
-                  <button
-                    className="button"
-                    onClick={async () => {
-                      const pk = positionKey
-                      setNotePositionKey(pk)
-                      setShowNoteModal(true)
-                      setNoteLoading(true)
-                      try {
-                        const r = await notesAPI.get(pk)
-                        const content = r?.content || ''
-                        setNoteContent(content)
-                        setNoteOriginalContent(content)
-                        setNoteEditMode(!content || content.trim() === '')
-                        setNotesCache(prev => ({ ...prev, [pk]: !!content }))
-                      } catch (e) {
-                        setNoteContent('')
-                        setNoteOriginalContent('')
-                        setNoteEditMode(true)
-                      } finally {
-                        setNoteLoading(false)
-                      }
+          const currentPriceData = currentPrices[positionKey]
+          let currentValueInBaseCurrency = null
+          let currentValueInEUR = null
+          let profitLossInEUR = null
+          let profitLossPercent = null
+
+          if (currentPriceData) {
+            currentValueInBaseCurrency = position.shares * currentPriceData.price
+            if (currency === 'EUR') {
+              currentValueInEUR = currentValueInBaseCurrency
+            } else if (currency === 'USD') {
+              const eurPerUsd = currentEURUSD || 0.92
+              currentValueInEUR = currentValueInBaseCurrency * eurPerUsd
+            } else {
+              currentValueInEUR = currentValueInBaseCurrency * weightedExchangeRatePurchase
+            }
+            profitLossInEUR = currentValueInEUR - position.totalCost
+            profitLossPercent = position.totalCost > 0
+              ? (profitLossInEUR / position.totalCost) * 100
+              : 0
+          }
+
+          return (
+            <React.Fragment key={positionKey}>
+              <tr
+                draggable="true"
+                onDragStart={(e) => handleDragStart(e, positionKey)}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, positionKey, Object.keys(activePositions))}
+                className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
+              >
+                <td>
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setExpandedPositions(prev => ({
+                        ...prev,
+                        [positionKey]: !prev[positionKey]
+                      }))
                     }}
-                    style={{ fontSize: '12px', padding: '5px 8px' }}
-                    title="Nota"
+                    style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', userSelect: 'none' }}
                   >
-                    📝 Nota
-                  </button>
-                </div>
-              </td>
-            </tr>
-            {expandedPositions[positionKey] && (
-              <tr className="expanded-chart-row">
-                <td colSpan="10" style={{ padding: 0, backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f9fafb' }}>
-                  <StockHistoryChart positionKey={positionKey} userId={userId} portfolioId={currentPortfolioId} theme={theme} />
+                    <span style={{
+                      display: 'inline-block', width: '0', height: '0', borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '6px solid currentColor',
+                      transform: expandedPositions[positionKey] ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease', opacity: 0.7
+                    }}></span>
+                    <span style={{ fontWeight: 'bold' }}>{company}</span>
+                  </div>
+                  {symbol && (
+                    <div style={{ fontSize: '11px', color: '#888' }}>{symbol}</div>
+                  )}
+                </td>
+                <td>{position.shares}</td>
+                <td>€{position.totalCost.toFixed(2)}</td>
+                <td>{formatCurrency(avgCostPerShare, position.currency)}</td>
+                <td>
+                  {currentPriceData ? (
+                    <div>
+                      <div style={{ fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}</span>
+                        {(() => {
+                          const src = currentPriceData.source
+                          const url = src === 'finnhub' ? 'https://finnhub.io/static/img/webp/finnhub-logo.webp' : (src === 'yahoo' ? 'https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg' : null)
+                          const title = src ? `${src.toUpperCase()}${currentPriceData.updatedAt ? ` • ${new Date(currentPriceData.updatedAt).toLocaleString('es-ES', { hour12: false })}` : ''}` : ''
+                          if (url) {
+                            return (
+                              <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="lazy" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
+                            )
+                          }
+                          return null
+                        })()}
+                      </div>
+                      {currentPriceData.change !== null && (
+                        <div style={{ fontSize: '11px', color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444' }}>
+                          {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)} {'('}{currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%{')'}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span style={{ color: '#888', fontSize: '12px' }}>Sin datos</span>
+                  )}
+                </td>
+                <td>
+                  {currentValueInEUR !== null ? (
+                    `€${currentValueInEUR.toFixed(2)}`
+                  ) : (
+                    <span style={{ color: '#888' }}>-</span>
+                  )}
+                </td>
+                <td>
+                  {profitLossInEUR !== null ? (
+                    <div style={{ color: profitLossInEUR >= 0 ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>
+                      {profitLossInEUR >= 0 ? '+' : ''}€{profitLossInEUR.toFixed(2)}
+                      {profitLossPercent !== null && (
+                        <div style={{ fontSize: '11px' }}>({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)</div>
+                      )}
+                    </div>
+                  ) : (
+                    <span style={{ color: '#888' }}>-</span>
+                  )}
+                </td>
+                <td>
+                  {(() => {
+                    const purchasesOnly = companyOperations.filter(op => op.type === 'purchase')
+                    if (purchasesOnly.length === 0) return <span style={{ color: '#888' }}>-</span>
+                    const latestPurchase = purchasesOnly.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+                    if (latestPurchase.targetPrice) {
+                      return (
+                        <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>
+                          {currency === 'EUR' ? '€' : '$'}{formatPrice(latestPurchase.targetPrice)}
+                        </div>
+                      )
+                    }
+                    return <span style={{ color: '#888' }}>-</span>
+                  })()}
+                </td>
+                <td>
+                  <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                    {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map(button => {
+                      const symbolForButton = (() => {
+                        const op = companyOperations.find(o => o[`externalSymbol${button.displayOrder}`])
+                        return op ? op[`externalSymbol${button.displayOrder}`] : null
+                      })()
+                      if (!symbolForButton) return null
+                      return (
+                        <a key={button.id} href={`${button.baseUrl}${symbolForButton}`} target="_blank" rel="noopener noreferrer" title={`${button.name}: ${symbolForButton}`} style={{ display: 'block' }}>
+                          <img src={button.imageUrl} alt={button.name} style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }} />
+                        </a>
+                      )
+                    })}
+                  </div>
+                </td>
+                <td>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    {getEditableOperations(companyOperations, position.shares).map((operation) => (
+                      <button
+                        key={operation.id}
+                        className="button"
+                        onClick={() => openModal(operation.type, operation)}
+                        style={{ fontSize: '12px', padding: '5px 8px' }}
+                        title={`Editar ${operation.type === 'purchase' ? 'compra' : 'venta'}`}
+                      >
+                        ✏️ {operation.type === 'purchase' ? 'C' : 'V'}
+                      </button>
+                    ))}
+                    <button
+                      className="button"
+                      onClick={async () => {
+                        const pk = positionKey
+                        setNotePositionKey(pk)
+                        setShowNoteModal(true)
+                        setNoteLoading(true)
+                        try {
+                          const r = await notesAPI.get(pk)
+                          const content = r?.content || ''
+                          setNoteContent(content)
+                          setNoteOriginalContent(content)
+                          setNoteEditMode(!content || content.trim() === '')
+                          setNotesCache(prev => ({ ...prev, [pk]: !!content }))
+                        } catch (e) {
+                          setNoteContent('')
+                          setNoteOriginalContent('')
+                          setNoteEditMode(true)
+                        } finally {
+                          setNoteLoading(false)
+                        }
+                      }}
+                      style={{ fontSize: '12px', padding: '5px 8px' }}
+                      title="Nota"
+                    >
+                      📝 Nota
+                    </button>
+                  </div>
                 </td>
               </tr>
-            )}
-          </React.Fragment>
-        )
-      })}
+              {expandedPositions[positionKey] && (
+                <tr className="expanded-chart-row">
+                  <td colSpan="10" style={{ padding: 0, backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f9fafb' }}>
+                    <StockHistoryChart positionKey={positionKey} userId={userId} portfolioId={currentPortfolioId} theme={theme} />
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          )
+        })}
       </tbody>
     </table>
   )
