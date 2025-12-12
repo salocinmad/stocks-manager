@@ -89,7 +89,12 @@ export const generateFullCSV = (operations) => {
     }
 
     avgPurchasePrice = totalPurchaseShares > 0 ? totalPurchaseCost / totalPurchaseShares : 0;
-    avgPurchaseExchangeRate = totalPurchaseShares > 0 ? avgPurchaseExchangeRate / totalPurchaseShares : 0;
+    avgPurchaseExchangeRate = totalPurchaseShares > 0 ? avgPurchaseExchangeRate / totalPurchaseShares : 1;
+
+    // Asegurar que avgPurchaseExchangeRate sea un número válido
+    if (!avgPurchaseExchangeRate || isNaN(avgPurchaseExchangeRate)) {
+      avgPurchaseExchangeRate = 1;
+    }
 
     const purchaseExchangeRate = purchaseCurrency === 'EUR' ? 1 : avgPurchaseExchangeRate;
 
@@ -101,11 +106,15 @@ export const generateFullCSV = (operations) => {
       avgPurchaseDate = `${avgDate.getDate().toString().padStart(2, '0')}/${(avgDate.getMonth() + 1).toString().padStart(2, '0')}/${avgDate.getFullYear()}`;
     }
 
-    const saleExchangeRate = sale.currency === 'EUR' ? 1 : (sale.exchangeRate || 1);
+    // Validar exchangeRate de venta
+    let saleExchangeRate = sale.currency === 'EUR' ? 1 : (sale.exchangeRate || 1);
+    if (isNaN(saleExchangeRate) || !saleExchangeRate) {
+      saleExchangeRate = 1;
+    }
 
-    const precioVenOriginalCurrency = sale.shares * sale.price;
+    const precioVenOriginalCurrency = (sale.shares || 0) * (sale.price || 0);
 
-    const precioEnEuroVen = (precioVenOriginalCurrency - sale.commission) * saleExchangeRate;
+    const precioEnEuroVen = (precioVenOriginalCurrency - (sale.commission || 0)) * saleExchangeRate;
 
     const gananciasOriginalCurrency = precioVenOriginalCurrency - totalPurchaseCostOriginalCurrency;
 
