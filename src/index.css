@@ -542,6 +542,15 @@ body.light {
   background-color: rgba(59, 130, 246, 0.05);
 }
 
+/* ==== RESPONSIVE: Clases de utilidad para cambio de vista ==== */
+.mobile-view-only {
+  display: none;
+}
+
+.desktop-view-only {
+  display: block;
+}
+
 /* ==== RESPONSIVE: Contenedor de tarjetas móvil ==== */
 .positions-cards-container {
   display: flex;
@@ -552,9 +561,19 @@ body.light {
 
 /* ==== RESPONSIVE: Media queries globales ==== */
 @media (max-width: 768px) {
+  .mobile-view-only {
+    display: block;
+  }
+
+  .desktop-view-only {
+    display: none;
+  }
+
   .container {
     padding: 10px;
   }
+
+  /* ... resto de media query ... */
 
   .header {
     flex-direction: column;
