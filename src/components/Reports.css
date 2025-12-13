@@ -198,6 +198,21 @@
     border-radius: 12px;
     padding: 25px;
     margin-bottom: 30px;
+}
+
+/* Gráficos Responsivos */
+.charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
     border: 1px solid var(--border-color, #333);
 }
 

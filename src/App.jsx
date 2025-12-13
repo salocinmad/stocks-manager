@@ -39,6 +39,7 @@ function App() {
   const [editingOperation, setEditingOperation] = useState(null);
   // Estados de modales/menús gestionados por useModals
   const [finnhubApiKey, setFinnhubApiKey] = useState('');
+  const [showMobileMenu, setShowMobileMenu] = useState(false); // Mobile menu visibility control
 
   const [tempDeletePassword, setTempDeletePassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -1181,29 +1182,196 @@ function App() {
     <div className="container">
       {/* Header */}
       <div className="header" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-        {/* Primera fila: Logo + Nombre */}
-        <h1>
-          <img
-            src="/logo64.png"
-            alt="Logo"
-            style={{
-              width: '48px',
-              height: '48px',
-              marginRight: '10px',
-              verticalAlign: 'middle'
-            }}
-          />
-          Stocks Manager
-        </h1>
-        {/* Segunda fila: Botones */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Selector de Portafolio */}
-            <span style={{ marginRight: '8px', position: 'relative' }}>
+        {/* Primera fila: Logo + Nombre + Hamburguesa Móvil */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1>
+            <img
+              src="/logo64.png"
+              alt="Logo"
+              style={{
+                width: '48px',
+                height: '48px',
+                marginRight: '10px',
+                verticalAlign: 'middle'
+              }}
+            />
+            Stocks Manager
+          </h1>
+
+          {/* Botón Hamburguesa (Solo Móvil) */}
+          <button
+            className="mobile-view-only hamburger-button"
+            onClick={() => setShowMobileMenu(!showMobileMenu)}
+            style={{ background: 'transparent', border: '1px solid currentColor' }}
+          >
+            {showMobileMenu ? '✕' : '☰'}
+          </button>
+        </div>
+
+        {/* Segunda fila: Controles */}
+        <div style={{ marginTop: '10px', width: '100%' }}>
+
+          {/* === DESKTOP VIEW === */}
+          <div className="desktop-view-only" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            {/* Izquierda: Selector de Portafolio */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ marginRight: '8px', position: 'relative' }}>
+                <select
+                  value={currentPortfolioId || ''}
+                  onChange={(e) => switchPortfolio(e.target.value)}
+                  style={{ padding: '6px', borderRadius: '4px', marginRight: '6px' }}
+                >
+                  <option value="" disabled>Selecciona Portafolio</option>
+                  {portfolios.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}{currentUser?.favoritePortfolioId === p.id ? ' ⭐' : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="button"
+                  onClick={() => setShowPortfolioMenu(v => !v)}
+                >
+                  ⚙️ Portafolios
+                </button>
+                {showPortfolioMenu && (
+                  <div className="user-dropdown-menu" style={{ position: 'absolute', top: '36px', left: '0' }}>
+                    <button
+                      className="dropdown-item"
+                      onClick={async () => {
+                        setShowPortfolioMenu(false);
+                        const name = window.prompt('Nombre del nuevo portafolio:');
+                        if (name && name.trim()) {
+                          const r = await portfolioAPI.create(name.trim());
+                          if (r?.item) {
+                            await reloadPortfolios();
+                            switchPortfolio(r.item.id);
+                          }
+                        }
+                      }}
+                    >➕ Crear</button>
+                    <button
+                      className="dropdown-item"
+                      onClick={async () => {
+                        if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                        setShowPortfolioMenu(false);
+                        const cur = portfolios.find(p => p.id === currentPortfolioId);
+                        const name = window.prompt('Nuevo nombre del portafolio:', cur?.name || '');
+                        if (name && name.trim()) {
+                          await portfolioAPI.rename(currentPortfolioId, name.trim());
+                          await reloadPortfolios();
+                        }
+                      }}
+                    >✏️ Renombrar</button>
+                    <button
+                      className="dropdown-item"
+                      onClick={async () => {
+                        if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                        setShowPortfolioMenu(false);
+                        if (window.confirm('¿Eliminar portafolio actual? Se eliminarán también sus operaciones y datos asociados.')) {
+                          await portfolioAPI.remove(currentPortfolioId);
+                          await reloadPortfolios();
+                          window.location.reload();
+                        }
+                      }}
+                    >🗑️ Eliminar</button>
+                    <button
+                      className="dropdown-item"
+                      onClick={async () => {
+                        if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
+                        await markFavorite(currentPortfolioId);
+                        setShowPortfolioMenu(false);
+                      }}
+                    >⭐ Marcar favorito</button>
+                  </div>
+                )}
+              </span>
+            </div>
+
+            {/* Derecha: Botones de Acción */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button className="theme-toggle" onClick={toggleTheme} title="Cambiar tema">
+                {theme === 'dark' ? '☀️' : '🌙'}
+              </button>
+              <button className="button" onClick={() => {
+                setShowReports(!showReports);
+                if (!showReports) setShowHistory(false);
+              }}>
+                {showReports ? '🏠 Portada' : '📊 Análisis'}
+              </button>
+              <button className="button" onClick={() => {
+                setShowHistory(!showHistory);
+                if (!showHistory) setShowReports(false);
+              }}>
+                {showHistory ? '🏠 Portada' : '📜 Histórico'}
+              </button>
+              {currentUser?.isAdmin && (
+                <button className="button" onClick={() => navigate('/admin')} title="Panel de Administración">
+                  🛠️ Admin
+                </button>
+              )}
+              <button className="button success" onClick={() => openModal('purchase')}>
+                ➕ Comprar
+              </button>
+              <button className="button danger" onClick={() => {
+                const activePositions = getActivePositions();
+                if (Object.keys(activePositions).length === 0) {
+                  alert('No tienes posiciones activas para vender');
+                  return;
+                }
+                setShowSelectPositionModal(true);
+              }}>
+                ➖ Vender
+              </button>
+
+              {/* Menú Usuario Desktop */}
+              <div className="user-menu-container">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="user-initial-button"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '20px' }}
+                >
+                  {profilePictureUrl ? (
+                    <img
+                      src={profilePictureUrl}
+                      alt="Profile"
+                      style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#404040', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>
+                      {getUserInitial()}
+                    </div>
+                  )}
+                  {currentUser && (
+                    <span style={{ fontSize: '14px' }}>
+                      {currentUser.username}
+                    </span>
+                  )}
+                </button>
+                {showUserMenu && (
+                  <div className="user-dropdown-menu">
+                    <button onClick={() => {
+                      try { generateFullCSV(operations); } catch (error) { console.error(error); alert('Error CSV'); }
+                      setShowUserMenu(false);
+                    }} className="dropdown-item">📊 Exportar CSV</button>
+                    <button onClick={() => { setShowConfigModal(true); setShowUserMenu(false); }} className="dropdown-item">⚙️ Config</button>
+                    <button onClick={() => { setShowExternalButtonsModal(true); setShowUserMenu(false); }} className="dropdown-item">🔗 Botones Externos</button>
+                    <button onClick={() => { setShowProfilePictureModal(true); setShowUserMenu(false); }} className="dropdown-item">👤 Perfil</button>
+                    <button onClick={() => { logout(); navigate('/login'); setShowUserMenu(false); }} className="dropdown-item">🚪 Salir</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* === MOBILE VIEW === */}
+          <div className="mobile-view-only">
+            {/* Selector de Portafolio siempre visible en móvil */}
+            <div style={{ marginBottom: '10px' }}>
               <select
                 value={currentPortfolioId || ''}
                 onChange={(e) => switchPortfolio(e.target.value)}
-                style={{ padding: '6px', borderRadius: '4px', marginRight: '6px' }}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px' }}
               >
                 <option value="" disabled>Selecciona Portafolio</option>
                 {portfolios.map(p => (
@@ -1212,162 +1380,95 @@ function App() {
                   </option>
                 ))}
               </select>
-              <button
-                className="button"
-                onClick={() => setShowPortfolioMenu(v => !v)}
-              >
-                ⚙️ Portafolios
-              </button>
-              {showPortfolioMenu && (
-                <div className="user-dropdown-menu" style={{ position: 'absolute', top: '36px', left: '0' }}>
-                  <button
-                    className="dropdown-item"
-                    onClick={async () => {
-                      setShowPortfolioMenu(false);
-                      const name = window.prompt('Nombre del nuevo portafolio:');
-                      if (name && name.trim()) {
-                        const r = await portfolioAPI.create(name.trim());
-                        if (r?.item) {
-                          await reloadPortfolios();
-                          switchPortfolio(r.item.id);
-                        }
-                      }
-                    }}
-                  >➕ Crear</button>
-                  <button
-                    className="dropdown-item"
-                    onClick={async () => {
-                      if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
-                      setShowPortfolioMenu(false);
-                      const cur = portfolios.find(p => p.id === currentPortfolioId);
-                      const name = window.prompt('Nuevo nombre del portafolio:', cur?.name || '');
-                      if (name && name.trim()) {
-                        await portfolioAPI.rename(currentPortfolioId, name.trim());
-                        await reloadPortfolios();
-                      }
-                    }}
-                  >✏️ Renombrar</button>
-                  <button
-                    className="dropdown-item"
-                    onClick={async () => {
-                      if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
-                      setShowPortfolioMenu(false);
-                      if (window.confirm('¿Eliminar portafolio actual? Se eliminarán también sus operaciones y datos asociados.')) {
-                        await portfolioAPI.remove(currentPortfolioId);
-                        await reloadPortfolios();
-                        // Al recargar, si el actual ya no existe, el contexto o el usuario debería manejarlo,
-                        // pero por seguridad cambiamos al primero disponible o null
-                        // reloadPortfolios actualiza el estado, pero necesitamos saber a cuál cambiar.
-                        // Mejor dejar que el usuario seleccione o recargar la página si es crítico,
-                        // pero reloadPortfolios actualiza la lista.
-                        // switchPortfolio(null) podría ser necesario si el contexto no lo maneja.
-                        window.location.reload(); // La forma más segura de resetear el estado tras borrar el activo
-                      }
-                    }}
-                  >🗑️ Eliminar</button>
-                  <button
-                    className="dropdown-item"
-                    onClick={async () => {
-                      if (!currentPortfolioId) { setShowPortfolioMenu(false); return; }
-                      await markFavorite(currentPortfolioId);
-                      setShowPortfolioMenu(false);
-                    }}
-                  >⭐ Marcar favorito</button>
+            </div>
+
+            {/* Menú Desplegable Móvil */}
+            {showMobileMenu && (
+              <div className="mobile-menu-dropdown card">
+                {/* Botones de acción principales */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <button className="button success" style={{ width: '100%' }} onClick={() => { openModal('purchase'); setShowMobileMenu(false); }}>
+                    ➕ Comprar
+                  </button>
+                  <button className="button danger" style={{ width: '100%' }} onClick={() => {
+                    const activePositions = getActivePositions();
+                    if (Object.keys(activePositions).length === 0) { alert('No tienes posiciones activas para vender'); return; }
+                    setShowSelectPositionModal(true);
+                    setShowMobileMenu(false);
+                  }}>
+                    ➖ Vender
+                  </button>
                 </div>
-              )}
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button className="theme-toggle" onClick={toggleTheme}>
-              {theme === 'dark' ? '☀️' : '🌙'}
-            </button>
-            <button className="button" onClick={() => {
-              setShowReports(!showReports);
-              if (!showReports) setShowHistory(false); // Si abrimos reportes, cerramos histórico
-            }}>
-              {showReports ? '🏠 Portada' : '📊 Análisis'}
-            </button>
-            <button className="button" onClick={() => {
-              setShowHistory(!showHistory);
-              if (!showHistory) setShowReports(false); // Si abrimos histórico, cerramos reportes
-            }}>
-              {showHistory ? '🏠 Portada' : '📜 Histórico'}
-            </button>
-            {currentUser?.isAdmin && (
-              <button className="button" onClick={() => navigate('/admin')} title="Panel de Administración">
-                🛠️ Admin
-              </button>
-            )}
 
+                <hr style={{ borderColor: '#404040', opacity: 0.3 }} />
 
-            <button className="button success" onClick={() => openModal('purchase')}>
-              ➕ Comprar
-            </button>
-            <button className="button danger" onClick={() => {
-              const activePositions = getActivePositions();
-              if (Object.keys(activePositions).length === 0) {
-                alert('No tienes posiciones activas para vender');
-                return;
-              }
-              setShowSelectPositionModal(true);
-            }}>
-              ➖ Vender
-            </button>
-            <div className="user-menu-container">
-              <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className="user-initial-button"
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '20px' }}
-              >
-                {profilePictureUrl ? (
-                  <img
-                    src={profilePictureUrl}
-                    alt="Profile"
-                    style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#404040', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: '14px' }}>
-                    {getUserInitial()}
+                <button className="button" style={{ width: '100%' }} onClick={() => { setShowReports(!showReports); if (!showReports) setShowHistory(false); setShowMobileMenu(false); }}>
+                  {showReports ? '🏠 Portada' : '📊 Análisis'}
+                </button>
+                <button className="button" style={{ width: '100%' }} onClick={() => { setShowHistory(!showHistory); if (!showHistory) setShowReports(false); setShowMobileMenu(false); }}>
+                  {showHistory ? '🏠 Portada' : '📜 Histórico'}
+                </button>
+                <button className="button" style={{ width: '100%' }} onClick={() => { setShowConfigModal(true); setShowMobileMenu(false); }}>
+                  ⚙️ Configuración
+                </button>
+                <button className="button" style={{ width: '100%' }} onClick={() => { setShowExternalButtonsModal(true); setShowMobileMenu(false); }}>
+                  🔗 Botones Externos
+                </button>
+                <button className="button" style={{ width: '100%' }} onClick={() => {
+                  setShowPortfolioMenu(v => !v);
+                  // En movil esto podria abrir el modal de portfolio management si está adaptado, o quizás simplificarlo
+                }}>
+                  ⚙️ Gestionar Portafolios
+                </button>
+                {/* Sub-menu de portafolios inline si está abierto */}
+                {showPortfolioMenu && (
+                  <div style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <button className="button" style={{ fontSize: '12px' }} onClick={async () => {
+                      const name = window.prompt('Nombre del nuevo portafolio:');
+                      if (name && name.trim()) { const r = await portfolioAPI.create(name.trim()); if (r?.item) { await reloadPortfolios(); switchPortfolio(r.item.id); } }
+                      setShowPortfolioMenu(false); setShowMobileMenu(false);
+                    }}>➕ Crear Nuevo</button>
+                    <button className="button" style={{ fontSize: '12px' }} onClick={async () => {
+                      if (window.confirm('¿Eliminar portafolio actual?')) { await portfolioAPI.remove(currentPortfolioId); await reloadPortfolios(); window.location.reload(); }
+                    }}>🗑️ Eliminar Actual</button>
                   </div>
                 )}
-                {currentUser && (
-                  <span style={{ fontSize: '14px' }}>
-                    {currentUser.username}
-                  </span>
+
+
+                <button className="button" style={{ width: '100%' }} onClick={toggleTheme}>
+                  {theme === 'dark' ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+                </button>
+
+                {currentUser?.isAdmin && (
+                  <button className="button" style={{ width: '100%' }} onClick={() => { navigate('/admin'); setShowMobileMenu(false); }}>
+                    🛠️ Admin Panel
+                  </button>
                 )}
-              </button>
-              {showUserMenu && (
-                <div className="user-dropdown-menu">
-                  <button onClick={() => {
-                    try {
-                      generateFullCSV(operations);
-                    } catch (error) {
-                      console.error('[CSV Export] Error:', error);
-                      alert('Error al exportar CSV: ' + error.message);
-                    }
-                    setShowUserMenu(false);
-                  }} className="dropdown-item">📊 Exportar CSV</button>
-                  <button onClick={() => {
-                    setShowConfigModal(true);
-                    setShowUserMenu(false);
-                  }} className="dropdown-item">⚙️ Config</button>
-                  <button onClick={() => {
-                    setShowExternalButtonsModal(true);
-                    setShowUserMenu(false);
-                  }} className="dropdown-item">🔗 Botones Externos</button>
-                  <button onClick={() => {
-                    setShowProfilePictureModal(true);
-                    setShowUserMenu(false);
-                  }} className="dropdown-item">👤 Perfil</button>
-                  <button onClick={() => {
-                    logout();
-                    navigate('/login');
-                    setShowUserMenu(false);
-                  }} className="dropdown-item">🚪 Salir</button>
+
+                <hr style={{ borderColor: '#404040', opacity: 0.3 }} />
+
+                {/* Perfil y Salir */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {profilePictureUrl ? (
+                      <img src={profilePictureUrl} alt="Profile" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#404040', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
+                        {getUserInitial()}
+                      </div>
+                    )}
+                    <span>{currentUser?.username}</span>
+                  </div>
+                  <div>
+                    <button className="button" onClick={() => { setShowProfilePictureModal(true); setShowMobileMenu(false); }}>👤</button>
+                    <button className="button" onClick={() => { logout(); navigate('/login'); setShowMobileMenu(false); }}>🚪</button>
+                  </div>
                 </div>
-              )}
-            </div>
+
+              </div>
+            )}
           </div>
+
         </div>
       </div>
 
@@ -1403,7 +1504,7 @@ function App() {
 
           {/* Posiciones Activas */}
           <div className="card">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+            <div className="positions-header-grid" style={{ marginBottom: '15px' }}>
               <div>
                 <h2 style={{ margin: 0 }}>Posiciones Activas</h2>
                 {currentEURUSD && (
@@ -1457,7 +1558,8 @@ function App() {
                   disabled={loadingPrices}
                   style={{ fontSize: '14px' }}
                 >
-                  {loadingPrices ? '⏳ Actualizando...' : '🔄 Actualizar Precios'}
+                  {loadingPrices ? '⏳' : <span className="mobile-view-only">🔄</span>}
+                  <span className="desktop-view-only" style={{ marginLeft: loadingPrices ? '5px' : '0' }}>{loadingPrices ? 'Actualizando...' : '🔄 Actualizar Precios'}</span>
                 </button>
               </div>
             </div>
@@ -1496,7 +1598,7 @@ function App() {
           {/* Gráfico de Inversión vs Ganancias */}
           {
             Object.keys(activePositions).length > 0 && chartData.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="charts-grid">
                 <div className="card">
                   <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>📊 Inversión vs Ganancias</h2>
                   <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>

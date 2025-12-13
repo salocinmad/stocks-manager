@@ -31,10 +31,14 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
             chartRef.current = null;
         }
 
+        // Determinar altura según ancho de pantalla
+        const isMobile = window.innerWidth < 768;
+        const initialHeight = isMobile ? 220 : 300;
+
         // Crear gráfico
         const chart = createChart(chartContainerRef.current, {
             width: chartContainerRef.current.clientWidth,
-            height: 300,
+            height: initialHeight,
             layout: {
                 background: { color: 'transparent' },
                 textColor: theme === 'dark' ? '#9ca3af' : '#475569',
@@ -175,7 +179,12 @@ const PnLChart = ({ data, theme, onTimePeriodChange }) => {
         // Manejar redimensionamiento
         const handleResize = () => {
             if (chartContainerRef.current && chartRef.current) {
-                chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+                const newWidth = chartContainerRef.current.clientWidth;
+                const newHeight = window.innerWidth < 768 ? 220 : 300;
+                chartRef.current.applyOptions({
+                    width: newWidth,
+                    height: newHeight
+                });
             }
         };
 

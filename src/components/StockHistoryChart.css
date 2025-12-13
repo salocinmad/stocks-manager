@@ -130,3 +130,18 @@ body[data-theme="light"] .control-button.active {
     border-color: #60a5fa;
     color: #60a5fa;
 }
+
+@media (max-width: 768px) {
+    .stock-history-container {
+        padding: 4px;
+    }
+
+    .chart-controls-row {
+        gap: 6px;
+    }
+
+    .control-button {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+}

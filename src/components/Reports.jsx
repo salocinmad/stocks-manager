@@ -293,6 +293,59 @@ function Reports({
                 </div>
             )}
 
+            {/* Gráficos de Inversión vs Ganancias y Contribución por Empresa */}
+            <div className="charts-grid">
+                {reportData.investmentVsGain && (
+                    <div className="chart-card">
+                        <h3>📈 Inversión vs Ganancias</h3>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={reportData.investmentVsGain}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                >
+                                    {reportData.investmentVsGain.map((entry, index) => (
+                                        <Cell key={`cell-investment-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip formatter={(value) => `€${value.toFixed(2)}`} />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                )}
+
+                {reportData.companyContribution && (
+                    <div className="chart-card">
+                        <h3>📊 Contribución por Empresa</h3>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={reportData.companyContribution}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                >
+                                    {reportData.companyContribution.map((entry, index) => (
+                                        <Cell key={`cell-contribution-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip formatter={(value) => `€${value.toFixed(2)}`} />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                )}
+            </div>
+
             {/* Alertas */}
             {reportData.alerts && reportData.alerts.length > 0 && (
                 <div className="alerts-section">
