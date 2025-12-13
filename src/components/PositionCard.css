@@ -110,8 +110,10 @@
 .position-card-price-container,
 .position-card-profit-container {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .position-card-indicator {
