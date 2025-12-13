@@ -1200,9 +1200,9 @@ function App() {
 
           {/* Botón Hamburguesa (Solo Móvil) */}
           <button
-            className="button mobile-view-only"
+            className="mobile-view-only hamburger-button"
             onClick={() => setShowMobileMenu(!showMobileMenu)}
-            style={{ fontSize: '24px', padding: '4px 12px', background: 'transparent', border: '1px solid currentColor' }}
+            style={{ background: 'transparent', border: '1px solid currentColor' }}
           >
             {showMobileMenu ? '✕' : '☰'}
           </button>
@@ -1384,7 +1384,7 @@ function App() {
 
             {/* Menú Desplegable Móvil */}
             {showMobileMenu && (
-              <div className="mobile-menu-dropdown card" style={{ padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid #404040' }}>
+              <div className="mobile-menu-dropdown card">
                 {/* Botones de acción principales */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <button className="button success" style={{ width: '100%' }} onClick={() => { openModal('purchase'); setShowMobileMenu(false); }}>

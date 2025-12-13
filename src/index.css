@@ -125,6 +125,25 @@ body.light {
   flex-shrink: 0;
 }
 
+.hamburger-button {
+  font-size: 24px;
+  padding: 4px 8px;
+  color: white;
+  border-color: white;
+}
+
+.mobile-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1000;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #404040;
+}
+
 .button.primary {
   background-color: #93c5fd;
   color: #1e3a8a;
@@ -213,6 +232,7 @@ body.light {
   margin-bottom: 20px;
   gap: 10px;
   flex-wrap: wrap;
+  position: relative;
 }
 
 .header>div {
