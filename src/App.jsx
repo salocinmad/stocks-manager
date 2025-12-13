@@ -1598,7 +1598,7 @@ function App() {
           {/* Gráfico de Inversión vs Ganancias */}
           {
             Object.keys(activePositions).length > 0 && chartData.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="charts-grid">
                 <div className="card">
                   <h2 style={{ fontSize: '20px', marginBottom: '10px' }}>📊 Inversión vs Ganancias</h2>
                   <p style={{ fontSize: '12px', color: theme === 'dark' ? '#888' : '#64748b', marginBottom: '10px' }}>

@@ -583,12 +583,24 @@ body.light {
   gap: 10px;
 }
 
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
 /* ==== RESPONSIVE: Media queries globales ==== */
 @media (max-width: 768px) {
   .positions-header-grid {
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .charts-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
   .mobile-view-only {
