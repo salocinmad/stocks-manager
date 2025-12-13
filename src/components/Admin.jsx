@@ -408,11 +408,14 @@ function Admin() {
             >
               {logLevelEnabled ? '✅ Logging Detallado' : '❌ Logging Minimal'}
             </button>
+
+            <button className="button" onClick={() => setShowOperationsEditor(true)}>✏️ Editar Operaciones</button>
+
           </div>
         </div>
 
-        <div className="admin-card">
-          <h3>Mantenimiento</h3>
+          <div className="card">
+            <h3 style={{ borderBottom: '1px solid #404040', paddingBottom: '10px', marginBottom: '15px' }}>🔧 Mantenimiento</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               className="button"
@@ -492,36 +495,7 @@ function Admin() {
             >
               🔁 Rearmar Alertas
             </button>
-            <button
-              className="button"
-              onClick={async () => {
-                if (!window.confirm('¿Generar reportes para todos los portafolios ahora?')) return;
-                try {
-                  const r = await authenticatedFetch('/api/admin/reports/generate', { method: 'POST' });
-                  const d = await r.json().catch(() => ({}));
-                  if (r.ok) {
-                    setSuccess(`Reportes generados (${d.count || '—'} portafolios procesados)`);
-                  } else {
-                    setError(d?.error || 'Error generando reportes');
-                  }
-                } catch (e) {
-                  setError('Error generando reportes');
-                }
-              }}
-              style={{ justifyContent: 'center' }}
-            >
-              📊 Generar Reportes
-            </button>
-            <button
-              className="button"
-              onClick={() => {
-                setShowOperationsEditor(true);
-                loadUsersPortfolios();
-              }}
-              style={{ justifyContent: 'center' }}
-            >
-              ✏️ Editar Operaciones
-            </button>
+              <button className="button" onClick={() => setShowOperationsEditor(true)}>📊 Generar Reportes</button>
             <button
               className="button warning"
               onClick={async () => {

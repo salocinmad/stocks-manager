@@ -56,11 +56,6 @@ const PositionCard = ({
                 <div className="position-card-row">
                     <span className="position-card-label">Precio Actual:</span>
                     <div className="position-card-price-container">
-                        {currentPriceData && (
-                            <span className={`position-card-change ${isPriceUp ? 'positive' : 'negative'}`}>
-                                {isPriceUp ? '+' : ''}{priceChange.toFixed(2)} ({isPriceUp ? '+' : ''}{priceChangePercent.toFixed(2)}%)
-                            </span>
-                        )}
                         <span className="position-card-value">
                             {currentPriceData
                                 ? `${currentPriceData.currency === 'USD' ? '$' : '€'}${formatPrice(currentPriceData.price)}`
@@ -70,6 +65,11 @@ const PositionCard = ({
                                 {isPriceUp ? '👍' : '👎'}
                             </span>
                         </span>
+                        {currentPriceData && (
+                            <span className={`position-card-change ${isPriceUp ? 'positive' : 'negative'}`}>
+                                {isPriceUp ? '+' : ''}{priceChange.toFixed(2)} ({isPriceUp ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -77,17 +77,17 @@ const PositionCard = ({
                 <div className="position-card-row">
                     <span className="position-card-label">Ganancia/Pérdida:</span>
                     <div className="position-card-profit-container">
-                        {profitLossPercent !== null && (
-                            <span className={`position-card-change ${isProfit ? 'positive' : 'negative'}`}>
-                                ({isProfit ? '+' : ''}{profitLossPercent.toFixed(2)}%)
-                            </span>
-                        )}
                         <span className={`position-card-value ${isProfit ? 'positive' : 'negative'}`}>
                             {profitLossInEUR !== null
                                 ? `${isProfit ? '+' : ''}€${profitLossInEUR.toFixed(2)}`
                                 : '-'
                             }
                         </span>
+                        {profitLossPercent !== null && (
+                            <span className={`position-card-change ${isProfit ? 'positive' : 'negative'}`}>
+                                ({isProfit ? '+' : ''}{profitLossPercent.toFixed(2)}%)
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
