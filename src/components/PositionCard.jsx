@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatPriceChange } from '../utils/formatters';
 import './PositionCard.css';
 
 /**
@@ -67,7 +68,7 @@ const PositionCard = ({
                         </span>
                         {currentPriceData && (
                             <span className={`position-card-change ${isPriceUp ? 'positive' : 'negative'}`}>
-                                {isPriceUp ? '+' : ''}{priceChange.toFixed(2)} ({isPriceUp ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+                                {isPriceUp ? '+' : ''}{formatPriceChange(priceChange)} ({isPriceUp ? '+' : ''}{priceChangePercent.toFixed(2)}%)
                             </span>
                         )}
                     </div>

@@ -1,5 +1,9 @@
 export const getPriceDecimals = (price) => {
-  if (!price || price === 0) return 2;
+  if (price === null || price === undefined) return 2;
+  if (price === 0) return 2;
+  if (Math.abs(price) < 0.01) {
+    return 4;
+  }
   if (price < 1) {
     return 4;
   }
@@ -31,6 +35,18 @@ export const formatNumberForCSV = (number) => {
     str = str.replace(/\.?0+$/, '');
   }
   return str.replace('.', ',');
+};
+
+export const formatPriceChange = (change) => {
+  if (change === null || change === undefined) return '-';
+  const absChange = Math.abs(change);
+  let decimals = 2;
+  if (absChange < 0.01 && absChange !== 0) {
+    decimals = 4;
+  } else if (absChange < 1) {
+    decimals = 3;
+  }
+  return change.toFixed(decimals);
 };
 
 export const formatCurrency = (value, currencyCode) => {

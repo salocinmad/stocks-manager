@@ -1,4 +1,4 @@
-import { formatCurrency, formatPrice } from '../utils/marketUtils.js';
+import { formatCurrency, formatPrice, formatPriceChange } from '../utils/marketUtils.js';
 
 export default function SelectPositionModal({
     isOpen,
