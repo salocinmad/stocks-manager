@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import StockHistoryChart from './StockHistoryChart.jsx'
 import PositionCard from './PositionCard.jsx'
 import { notesAPI } from '../services/api.js'
+import { formatPriceChange } from '../utils/formatters';
 
 export default function PositionsList({
   activePositions,
@@ -226,7 +227,7 @@ export default function PositionsList({
                     <td>{formatCurrency(avgCostPerShare, position.currency)}</td>
                     <td>
                       {currentPriceData ? (
-                        <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                             <span>{currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}</span>
                             {(() => {
@@ -246,7 +247,7 @@ export default function PositionsList({
                               fontSize: '12px',
                               color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444'
                             }}>
-                              {currentPriceData.change >= 0 ? '+' : ''}{currentPriceData.change.toFixed(2)} ({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
+                              {currentPriceData.change >= 0 ? '+' : ''}{formatPriceChange(currentPriceData.change)} ({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
                             </div>
                           )}
                         </div>
