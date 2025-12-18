@@ -56,26 +56,34 @@ const PositionCard = ({
         <div className={`position-card ${theme} ${flashClass}`}>
             {/* Cabecera de la tarjeta */}
             <div className="position-card-header" onClick={onExpand} style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <div className="position-card-title" style={{ gap: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span className="position-card-company" style={{ fontSize: '16px', fontWeight: '700' }}>{company}</span>
-                        {symbol && <span className="symbol-tag" style={{ width: 'fit-content', marginTop: '4px' }}>{symbol}</span>}
+                <div className="position-card-title">
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                        <span className="position-card-company" style={{
+                            fontSize: '15px',
+                            fontWeight: '700',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                        }}>
+                            {company}
+                        </span>
+                        {symbol && <span className="symbol-tag" style={{ width: 'fit-content', marginTop: '2px' }}>{symbol}</span>}
                     </div>
                     {symbol && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', marginRight: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
                             {/* Botón Yahoo por defecto */}
                             <a
                                 href={`https://es.finance.yahoo.com/quote/${symbol.replace(/:/g, '.')}/`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                style={{ display: 'flex', alignItems: 'center', opacity: 0.8 }}
+                                style={{ display: 'flex', alignItems: 'center', opacity: 0.9 }}
                                 title="Yahoo Finance"
                             >
                                 <img
                                     src="/yahoo.svg"
                                     alt="Yahoo Finance"
-                                    style={{ width: '18px', height: '18px', borderRadius: '4px' }}
+                                    style={{ width: '20px', height: '20px', borderRadius: '4px' }}
                                 />
                             </a>
 
@@ -94,15 +102,15 @@ const PositionCard = ({
                                         rel="noopener noreferrer"
                                         onClick={(e) => e.stopPropagation()}
                                         title={`${button.name}: ${externalSymbol}`}
-                                        style={{ display: 'flex', alignItems: 'center', opacity: 0.8 }}
+                                        style={{ display: 'flex', alignItems: 'center', opacity: 0.9 }}
                                     >
                                         {button.imageUrl ? (
                                             <img
                                                 src={button.imageUrl} alt={button.name}
-                                                style={{ width: '18px', height: '18px', borderRadius: '4px', objectFit: 'cover' }}
+                                                style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)' }}
                                             />
                                         ) : (
-                                            <span style={{ fontSize: '16px' }}>{button.emoji || '🔗'}</span>
+                                            <span style={{ fontSize: '18px' }}>{button.emoji || '🔗'}</span>
                                         )}
                                     </a>
                                 )
@@ -132,6 +140,31 @@ const PositionCard = ({
                                     : '-'
                                 }
                             </span>
+                            {currentPriceData && (() => {
+                                const src = (currentPriceData.source || '').toLowerCase()
+                                const isFinnhub = src.includes('finnhub')
+                                const isYahoo = src.includes('yahoo')
+                                return (
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                        {isFinnhub && (
+                                            <img
+                                                src="https://finnhub.io/static/img/webp/finnhub-logo.webp"
+                                                alt="Finnhub"
+                                                title="Precio Real Time (Finnhub)"
+                                                style={{ width: '12px', height: '12px', opacity: 0.8 }}
+                                            />
+                                        )}
+                                        {isYahoo && (
+                                            <img
+                                                src="https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg"
+                                                alt="Yahoo"
+                                                title="Precio Yahoo Finance"
+                                                style={{ width: '12px', height: '12px', opacity: 0.8 }}
+                                            />
+                                        )}
+                                    </div>
+                                )
+                            })()}
                         </div>
                         {currentPriceData && (
                             <span style={{

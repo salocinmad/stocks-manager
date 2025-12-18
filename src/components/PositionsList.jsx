@@ -238,10 +238,29 @@ export default function PositionsList({
                           <div style={{ fontWeight: '700', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <span>{currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}</span>
                             {(() => {
-                              const src = currentPriceData.source
-                              const url = src === 'finnhub' ? 'https://finnhub.io/static/img/webp/finnhub-logo.webp' : (src === 'yahoo' ? 'https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg' : null)
-                              if (url) return <img src={url} alt={src} style={{ width: '14px', height: '14px', opacity: 0.6 }} />
-                              return null
+                              const src = (currentPriceData.source || '').toLowerCase()
+                              const isFinnhub = src.includes('finnhub')
+                              const isYahoo = src.includes('yahoo')
+                              return (
+                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                  {isFinnhub && (
+                                    <img
+                                      src="https://finnhub.io/static/img/webp/finnhub-logo.webp"
+                                      alt="Finnhub"
+                                      title="Precio Real Time (Finnhub)"
+                                      style={{ width: '14px', height: '14px', opacity: 0.8 }}
+                                    />
+                                  )}
+                                  {isYahoo && (
+                                    <img
+                                      src="https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg"
+                                      alt="Yahoo"
+                                      title="Precio Yahoo Finance"
+                                      style={{ width: '14px', height: '14px', opacity: 0.8 }}
+                                    />
+                                  )}
+                                </div>
+                              )
                             })()}
                           </div>
                           {currentPriceData.change !== null && (
@@ -249,8 +268,13 @@ export default function PositionsList({
                               fontSize: '11px',
                               fontWeight: '600',
                               color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444',
+                              whiteSpace: 'nowrap'
                             }}>
-                              {currentPriceData.change >= 0 ? '▲' : '▼'} {Math.abs(currentPriceData.changePercent).toFixed(2)}%
+                              {currentPriceData.change >= 0 ? '▲' : '▼'}
+                              {Math.abs(currentPriceData.change).toLocaleString('es-ES', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 4
+                              })} ({Math.abs(currentPriceData.changePercent).toFixed(2)}%)
                             </div>
                           )}
                         </div>
@@ -261,12 +285,12 @@ export default function PositionsList({
                         `€${currentValueInEUR.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       ) : '-'}
                     </td>
-                    <td>
+                    <td style={{ minWidth: '160px' }}>
                       {profitLossInEUR !== null ? (
-                        <div className={`badge ${isProfit ? 'badge-success' : 'badge-danger'}`}>
+                        <div className={`badge ${isProfit ? 'badge-success' : 'badge-danger'}`} style={{ whiteSpace: 'nowrap' }}>
                           {isProfit ? '+' : ''}{profitLossPercent.toFixed(2)}%
-                          <span style={{ marginLeft: '6px', fontSize: '11px', fontWeight: '400', opacity: 0.8 }}>
-                            ({isProfit ? '+' : ''}€{Math.abs(profitLossInEUR).toFixed(2)})
+                          <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: '500', opacity: 0.9 }}>
+                            ({isProfit ? '+' : ''}€{Math.abs(profitLossInEUR).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                           </span>
                         </div>
                       ) : '-'}
