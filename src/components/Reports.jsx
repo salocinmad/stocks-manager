@@ -22,6 +22,8 @@ function Reports({
     const [error, setError] = useState(null);
     const [selectedPeriod, setSelectedPeriod] = useState('30'); // días
     const [generatingPDF, setGeneratingPDF] = useState(false);
+    const [dividendData, setDividendData] = useState([]);
+    const [loadingDividends, setLoadingDividends] = useState(false);
     const reportRef = useRef(null);
 
     // Fetch reporte actual
@@ -57,6 +59,26 @@ function Reports({
 
         fetchReport();
     }, [portfolioId, currentEURUSD, selectedPeriod]);
+
+    // Fetch dividendos
+    useEffect(() => {
+        const fetchDividendsData = async () => {
+            if (!portfolioId) return;
+            try {
+                setLoadingDividends(true);
+                const response = await authenticatedFetch(`/api/reports/dividends?portfolioId=${portfolioId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setDividendData(data.dividends);
+                }
+            } catch (err) {
+                console.error('Error fetching dividends:', err);
+            } finally {
+                setLoadingDividends(false);
+            }
+        };
+        fetchDividendsData();
+    }, [portfolioId]);
 
     // Handle PDF download
     const handleDownloadPDF = async () => {
@@ -656,6 +678,50 @@ function Reports({
 
 
             {/* Tabla de Precios Históricos (Último Año) - Eliminada por petición del usuario */}
+
+            {/* Calendario de Dividendos (Último Año) */}
+            {dividendData && dividendData.length > 0 && (
+                <div className="dividends-section">
+                    <h3>📅 Historial de Dividendos (Último Año)</h3>
+                    <div className="positions-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha Ex-Div</th>
+                                    <th>Empresa</th>
+                                    <th>Dividendo/Acc</th>
+                                    <th>Acciones</th>
+                                    <th>Total Bruto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {dividendData.flatMap(d => d.history.map((h, i) => ({ ...h, company: d.company, key: `${d.symbol}-${h.date}-${i}` })))
+                                    .sort((a, b) => b.date.localeCompare(a.date))
+                                    .slice(0, 25) // Mostrar los 25 más recientes
+                                    .map((div) => (
+                                        <tr key={div.key}>
+                                            <td>{new Date(div.date).toLocaleDateString('es-ES')}</td>
+                                            <td><strong>{div.company}</strong></td>
+                                            <td>{div.amount.toFixed(4)}</td>
+                                            <td>{div.shares.toFixed(2)}</td>
+                                            <td className="value-cell" style={{ color: '#10b981', fontWeight: 'bold' }}>
+                                                +€{div.totalReceived.toFixed(2)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {dividendData.length > 0 && (
+                        <div style={{ marginTop: '10px', textAlign: 'right', fontSize: '14px' }}>
+                            <strong>Ingresos totales por dividendos (estimados 12m): </strong>
+                            <span style={{ color: '#10b981', fontSize: '18px', marginLeft: '10px' }}>
+                                €{dividendData.reduce((sum, d) => sum + d.history.reduce((s, h) => s + h.totalReceived, 0), 0).toFixed(2)}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Nota al pie */}
             <div className="report-footer">

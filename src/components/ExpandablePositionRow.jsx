@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { authenticatedFetch } from '../services/auth.js';
 import HistoricalChart from './HistoricalChart.jsx';
 
@@ -36,6 +36,24 @@ function ExpandablePositionRow({
     const [loadingData, setLoadingData] = useState(false);
     const [error, setError] = useState(null);
     const [chartType, setChartType] = useState('line'); // Nuevo estado para el tipo de gráfico
+    const prevPriceRef = useRef(currentPriceData?.price);
+    const [flashClass, setFlashClass] = useState('');
+
+    useEffect(() => {
+        if (currentPriceData?.price !== undefined && prevPriceRef.current !== undefined) {
+            if (currentPriceData.price > prevPriceRef.current) {
+                setFlashClass('price-up-flash');
+            } else if (currentPriceData.price < prevPriceRef.current) {
+                setFlashClass('price-down-flash');
+            }
+            if (currentPriceData.price !== prevPriceRef.current) {
+                const timer = setTimeout(() => setFlashClass(''), 1500);
+                prevPriceRef.current = currentPriceData.price;
+                return () => clearTimeout(timer);
+            }
+        }
+        prevPriceRef.current = currentPriceData?.price;
+    }, [currentPriceData?.price]);
 
     const calculatedChange = useMemo(() => {
         if (!historicalData || historicalData.length < 2) return null;
@@ -83,7 +101,7 @@ function ExpandablePositionRow({
                 onDragEnd={onDragEnd}
                 onDragOver={onDragOver}
                 onDrop={(e) => onDrop(e, positionKey, allPositionKeys)}
-                className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
+                className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''} ${flashClass}`}
             >
                 <td>
                     <div

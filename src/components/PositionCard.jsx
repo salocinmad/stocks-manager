@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { formatPriceChange } from '../utils/formatters';
 import './PositionCard.css';
 
@@ -20,9 +20,28 @@ const PositionCard = ({
     formatCurrency,
     onExpand,
     isExpanded,
+
     children // Para renderizar contenido expandido (gráficos)
 }) => {
     const [company, symbol = ''] = positionKey.split('|||');
+    const prevPriceRef = useRef(currentPriceData?.price);
+    const [flashClass, setFlashClass] = useState('');
+
+    useEffect(() => {
+        if (currentPriceData?.price !== undefined && prevPriceRef.current !== undefined) {
+            if (currentPriceData.price > prevPriceRef.current) {
+                setFlashClass('price-up-flash');
+            } else if (currentPriceData.price < prevPriceRef.current) {
+                setFlashClass('price-down-flash');
+            }
+            if (currentPriceData.price !== prevPriceRef.current) {
+                const timer = setTimeout(() => setFlashClass(''), 1500);
+                prevPriceRef.current = currentPriceData.price;
+                return () => clearTimeout(timer);
+            }
+        }
+        prevPriceRef.current = currentPriceData?.price;
+    }, [currentPriceData?.price]);
 
     // Determinar si el precio subió o bajó
     const priceChange = currentPriceData?.change || 0;
@@ -33,7 +52,7 @@ const PositionCard = ({
     const isProfit = profitLossInEUR !== null && profitLossInEUR >= 0;
 
     return (
-        <div className={`position-card ${theme}`}>
+        <div className={`position-card ${theme} ${flashClass}`}>
             {/* Cabecera de la tarjeta */}
             <div className="position-card-header" onClick={onExpand}>
                 <div className="position-card-title">
@@ -91,6 +110,8 @@ const PositionCard = ({
                         )}
                     </div>
                 </div>
+
+
             </div>
 
             {/* Contenido expandido */}

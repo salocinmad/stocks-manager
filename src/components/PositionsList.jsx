@@ -156,6 +156,7 @@ export default function PositionsList({
               ...prev,
               [positionKey]: !prev[positionKey]
             }))}
+
           >
             {/* Gráfico expandido */}
             <StockHistoryChart

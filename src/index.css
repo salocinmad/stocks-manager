@@ -56,6 +56,47 @@ body.light {
   background-color: #555555;
 }
 
+/* Estilos para modo OLED (Midnight) */
+.oled {
+  background-color: #000000;
+  color: #eeeeee;
+}
+
+.oled .card {
+  background-color: #000000;
+  border: 1px solid #222222;
+  color: #ffffff;
+}
+
+.oled .input {
+  background-color: #0a0a0a;
+  border: 1px solid #333333;
+  color: #ffffff;
+}
+
+.oled .button {
+  background-color: #111111;
+  color: #ffffff;
+  border: 1px solid #333333;
+}
+
+.oled .button:hover {
+  background-color: #222222;
+}
+
+.oled .stats {
+  background-color: #000000;
+  border: 1px solid #222222;
+}
+
+.oled .table th {
+  background-color: #0a0a0a;
+}
+
+.oled .table td {
+  border-bottom: 1px solid #1a1a1a;
+}
+
 /* Estilos para modo claro - Paleta pastel gris azulada */
 .light {
   background-color: #eef2f5;
@@ -478,6 +519,10 @@ body.light {
   background-color: #e2e8f0;
 }
 
+.oled .theme-toggle:hover {
+  background-color: #222222;
+}
+
 .stats {
   display: flex;
   justify-content: space-around;
@@ -485,6 +530,28 @@ body.light {
   padding: 20px;
   background-color: #2d2d2d;
   border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.stats.sticky-stats {
+  position: sticky;
+  top: 10px;
+  z-index: 900;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  margin-top: 0;
+  border: 1px solid #555;
+}
+
+.light .stats.sticky-stats {
+  box-shadow: 0 4px 12px rgba(148, 163, 184, 0.2);
+  background-color: rgba(241, 245, 249, 0.95);
+  backdrop-filter: blur(8px);
+}
+
+.oled .stats.sticky-stats {
+  background-color: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(8px);
+  border: 1px solid #333;
 }
 
 .light .stats {
@@ -563,8 +630,16 @@ body.light {
 }
 
 /* ==== RESPONSIVE: Clases de utilidad para cambio de vista ==== */
-.mobile-view-only {
-  display: none !important;
+@media (min-width: 769px) {
+  .mobile-view-only {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .desktop-view-only {
+    display: none !important;
+  }
 }
 
 /* ==== RESPONSIVE: Contenedor de tarjetas móvil ==== */
@@ -603,13 +678,7 @@ body.light {
     gap: 16px;
   }
 
-  .mobile-view-only {
-    display: block !important;
-  }
 
-  .desktop-view-only {
-    display: none !important;
-  }
 
   .container {
     padding: 10px;
@@ -667,4 +736,33 @@ body.light {
     width: 100%;
     text-align: center;
   }
+}
+
+/* Animaciones Premium */
+@keyframes price-flash-up {
+  0% {
+    background-color: rgba(16, 185, 129, 0.4);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes price-flash-down {
+  0% {
+    background-color: rgba(239, 68, 68, 0.4);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+.price-up-flash {
+  animation: price-flash-up 1.5s ease-out;
+}
+
+.price-down-flash {
+  animation: price-flash-down 1.5s ease-out;
 }
