@@ -20,8 +20,9 @@ const PositionCard = ({
     formatCurrency,
     onExpand,
     isExpanded,
-
-    children // Para renderizar contenido expandido (gráficos)
+    externalButtons = [],
+    companyOperations = [],
+    children
 }) => {
     const [company, symbol = ''] = positionKey.split('|||');
     const prevPriceRef = useRef(currentPriceData?.price);
@@ -57,7 +58,55 @@ const PositionCard = ({
             <div className="position-card-header" onClick={onExpand}>
                 <div className="position-card-title">
                     <span className="position-card-company">{company}</span>
-                    {symbol && <span className="position-card-symbol">({symbol})</span>}
+                    {symbol && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span className="position-card-symbol">({symbol})</span>
+                            {/* Botón Yahoo por defecto */}
+                            <a
+                                href={`https://es.finance.yahoo.com/quote/${symbol.replace(/:/g, '.')}/`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ display: 'flex', alignItems: 'center' }}
+                                title="Yahoo Finance"
+                            >
+                                <img
+                                    src="/yahoo.svg"
+                                    alt="Yahoo Finance"
+                                    style={{ width: '16px', height: '16px', borderRadius: '3px' }}
+                                />
+                            </a>
+
+                            {/* Botones personalizados */}
+                            {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map((button, idx) => {
+                                const externalSymbolField = `externalSymbol${idx + 1}`
+                                const op = companyOperations.find(o => o[externalSymbolField])
+                                const externalSymbol = op?.[externalSymbolField]
+                                if (!externalSymbol) return null
+                                const finalUrl = button.baseUrl.replace('{symbol}', encodeURIComponent(externalSymbol))
+                                return (
+                                    <a
+                                        key={button.id}
+                                        href={finalUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        title={`${button.name}: ${externalSymbol}`}
+                                        style={{ display: 'flex', alignItems: 'center' }}
+                                    >
+                                        {button.imageUrl ? (
+                                            <img
+                                                src={button.imageUrl} alt={button.name}
+                                                style={{ width: '16px', height: '16px', borderRadius: '3px', objectFit: 'cover' }}
+                                            />
+                                        ) : (
+                                            <span style={{ fontSize: '14px' }}>{button.emoji || '🔗'}</span>
+                                        )}
+                                    </a>
+                                )
+                            })}
+                        </div>
+                    )}
                 </div>
                 <button className="position-card-expand-btn">
                     {isExpanded ? '▲' : '▼'}

@@ -27,25 +27,33 @@ function ExternalButtonsModal({ show, onClose, externalButtons, setExternalButto
         try {
             setError('');
 
+            let imageUrl = formData.imageUrl.trim();
+            // Si no empieza por http y no tiene barra inicial, añadirla
+            if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
+                imageUrl = '/' + imageUrl;
+            }
+
+            const dataToSave = { ...formData, imageUrl };
+
             // Validaciones
-            if (!formData.name || !formData.baseUrl || !formData.imageUrl) {
+            if (!dataToSave.name || !dataToSave.baseUrl || !dataToSave.imageUrl) {
                 setError('Todos los campos son obligatorios');
                 return;
             }
 
-            if (!/^[a-zA-Z0-9_-]+$/.test(formData.name)) {
+            if (!/^[a-zA-Z0-9_-]+$/.test(dataToSave.name)) {
                 setError('El nombre solo puede contener letras, números, guiones y guiones bajos');
                 return;
             }
 
-            if (formData.name.length > 20) {
+            if (dataToSave.name.length > 20) {
                 setError('El nombre no puede exceder 20 caracteres');
                 return;
             }
 
             if (editingButton) {
                 // Actualizar botón existente
-                const updated = await externalButtonsAPI.update(editingButton.id, formData);
+                const updated = await externalButtonsAPI.update(editingButton.id, dataToSave);
                 setExternalButtons(prev => prev.map(b => b.id === editingButton.id ? updated : b));
             } else {
                 // Crear nuevo botón
@@ -60,9 +68,9 @@ function ExternalButtonsModal({ show, onClose, externalButtons, setExternalButto
                     : 1;
 
                 const created = await externalButtonsAPI.create(
-                    formData.name,
-                    formData.baseUrl,
-                    formData.imageUrl,
+                    dataToSave.name,
+                    dataToSave.baseUrl,
+                    dataToSave.imageUrl,
                     nextOrder
                 );
                 setExternalButtons(prev => [...prev, created]);
@@ -201,10 +209,33 @@ function ExternalButtonsModal({ show, onClose, externalButtons, setExternalButto
                             type="text"
                             value={formData.imageUrl}
                             onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                            placeholder="ejemplo: https://investing.com/investing.webp"
+                            placeholder="ejemplo: /investing.webp o https://..."
                             style={{ width: '100%' }}
                         />
-                        <small style={{ color: '#888' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                            <span style={{ fontSize: '11px', color: '#888', width: '100%' }}>Sugerencias del servidor:</span>
+                            {[
+                                { name: 'Investing', path: '/investing.webp' }
+                            ].map(icon => (
+                                <button
+                                    key={icon.path}
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, imageUrl: icon.path })}
+                                    style={{
+                                        padding: '2px 8px',
+                                        fontSize: '11px',
+                                        background: '#333',
+                                        border: '1px solid #555',
+                                        borderRadius: '12px',
+                                        color: '#ccc',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {icon.name}
+                                </button>
+                            ))}
+                        </div>
+                        <small style={{ color: '#888', marginTop: '5px', display: 'block' }}>
                             Ruta relativa (ej: /investing.webp) o URL completa
                         </small>
                         {formData.imageUrl && (
@@ -214,7 +245,7 @@ function ExternalButtonsModal({ show, onClose, externalButtons, setExternalButto
                                     <img
                                         src={formData.imageUrl}
                                         alt="Preview"
-                                        style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover' }}
+                                        style={{ width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover', border: '1px solid #444' }}
                                         onError={(e) => { e.target.style.display = 'none'; }}
                                     />
                                 </div>

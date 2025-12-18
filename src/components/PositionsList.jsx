@@ -137,7 +137,8 @@ export default function PositionsList({
       <div className="positions-cards-container mobile-view-only">
         {positionsData.map(({
           positionKey, position, company, symbol, avgCostPerShare,
-          currentPriceData, currentValueInEUR, profitLossInEUR, profitLossPercent
+          currentPriceData, currentValueInEUR, profitLossInEUR, profitLossPercent,
+          companyOperations
         }) => (
           <PositionCard
             key={positionKey}
@@ -152,6 +153,8 @@ export default function PositionsList({
             formatPrice={formatPrice}
             formatCurrency={formatCurrency}
             isExpanded={expandedPositions[positionKey]}
+            externalButtons={externalButtons}
+            companyOperations={companyOperations}
             onExpand={() => setExpandedPositions(prev => ({
               ...prev,
               [positionKey]: !prev[positionKey]
@@ -285,10 +288,28 @@ export default function PositionsList({
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                        {/* Botón de Yahoo Finance (Por defecto) */}
+                        {symbol && (
+                          <a
+                            href={`https://es.finance.yahoo.com/quote/${symbol.replace(/:/g, '.')}/`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Ver ${symbol} en Yahoo Finance`}
+                            style={{ display: 'block' }}
+                          >
+                            <img
+                              src="/yahoo.svg"
+                              alt="Yahoo Finance"
+                              style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }}
+                            />
+                          </a>
+                        )}
+
+                        {/* Botones Personalizados (Solo si tienen símbolo configurado) */}
                         {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map((button, idx) => {
                           const externalSymbolField = `externalSymbol${idx + 1}`
                           const op = companyOperations.find(o => o[externalSymbolField])
-                          const externalSymbol = op?.[externalSymbolField] || symbol
+                          const externalSymbol = op?.[externalSymbolField]
                           if (!externalSymbol) return null
                           const finalUrl = button.baseUrl.replace('{symbol}', encodeURIComponent(externalSymbol))
                           return (

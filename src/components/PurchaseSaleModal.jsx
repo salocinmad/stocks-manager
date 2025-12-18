@@ -178,7 +178,6 @@ export default function PurchaseSaleModal({
               ))}
             </div>
           )}
-
           <div className="form-row">
             <div className="form-group">
               <label>Precio Objetivo (Opcional):</label>
