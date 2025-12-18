@@ -245,6 +245,21 @@ router.get('/historical/:symbol', async (req, res) => {
 });
 
 /**
+ * POST /api/prices/refresh-all
+ * Activa la actualización de todos los precios activos desde el servidor
+ */
+router.post('/refresh-all', async (req, res) => {
+    try {
+        console.log('🔄 /api/prices/refresh-all - Iniciando actualización manual');
+        const result = await currentPriceService.updateAllActivePrices();
+        res.json({ success: true, result });
+    } catch (error) {
+        console.error('Error in /refresh-all:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
  * POST /api/prices/update/:symbol
  * Actualiza precio de un símbolo manualmente
  */

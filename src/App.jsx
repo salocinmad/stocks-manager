@@ -234,7 +234,10 @@ function App() {
         try {
           const lastSync = await configAPI.get('last_prices_sync_at');
           if (lastSync && lastSync.value) {
-            setLastUpdatedAt(new Date(lastSync.value));
+            const syncDate = new Date(lastSync.value);
+            if (!lastUpdatedAt || syncDate > lastUpdatedAt) {
+              setLastUpdatedAt(syncDate);
+            }
           }
         } catch (e) {
           console.log('No se pudo cargar last_prices_sync_at');

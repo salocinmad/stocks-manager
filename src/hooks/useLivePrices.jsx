@@ -8,153 +8,56 @@ export function useLivePrices({ finnhubApiKey, getActivePositions, fetchPriceFro
 
   const refreshPrices = useCallback(async () => {
     const activePositions = getActivePositions()
-    const companies = Object.keys(activePositions)
+    const positionKeys = Object.keys(activePositions)
 
-    if (companies.length === 0) {
+    if (positionKeys.length === 0) {
       setCurrentPrices({})
       return
     }
 
     setLoadingPrices(true)
-    const prices = {}
-
-    const positionSymbols = {}
-    companies.forEach(positionKey => {
-      const position = activePositions[positionKey]
-      if (position && position.symbol) {
-        positionSymbols[positionKey] = position.symbol
-      }
-    })
-
-    const pricePromises = companies.map(async (positionKey) => {
-      const symbol = positionSymbols[positionKey]
-      if (!symbol) {
-        return { positionKey, priceData: null }
-      }
-
-      const position = activePositions[positionKey]
-      const companyName = position?.company || positionKey.split('|||')[0]
-
-      try {
-        let symbolInput = symbol.toUpperCase().trim()
-        let symbolPart = symbolInput
-        let exchangePart = ''
-
-        if (symbolInput.includes(':')) {
-          const parts = symbolInput.split(':')
-          symbolPart = parts[0]
-          exchangePart = parts[1]
-        }
-
-        let priceData = null
-
-        let finnhubExchange = exchangePart
-        if (finnhubExchange) {
-          const exchangeUpper = finnhubExchange.toUpperCase()
-          if (exchangeUpper === 'MC' || exchangeUpper === 'BME') {
-            finnhubExchange = 'BME'
-          } else if (exchangeUpper === 'F' || exchangeUpper === 'FRA') {
-            finnhubExchange = 'FRA'
-          }
-        }
-
-        let yahooExchange = exchangePart
-        if (yahooExchange) {
-          const exchangeUpper = yahooExchange.toUpperCase()
-          if (exchangeUpper === 'FRA') {
-            yahooExchange = 'F'
-          } else if (exchangeUpper === 'BME') {
-            yahooExchange = 'MC'
-          }
-        }
-
-        if (finnhubApiKey) {
-          try {
-            const finnhubSymbol = finnhubExchange ? `${symbolPart}.${finnhubExchange}` : symbolPart
-            const controller = new AbortController()
-            const timeoutId = setTimeout(() => controller.abort(), 10000)
-
-            const response = await fetch(
-              `https://finnhub.io/api/v1/quote?symbol=${finnhubSymbol}&token=${finnhubApiKey}`,
-              { signal: controller.signal }
-            )
-
-            clearTimeout(timeoutId)
-
-            if (response.ok) {
-              const data = await response.json()
-              if (data.c && data.c > 0) {
-                priceData = {
-                  price: data.c,
-                  change: data.d,
-                  changePercent: data.dp,
-                  symbol: finnhubSymbol,
-                  source: 'finnhub',
-                  updatedAt: new Date().toISOString()
-                }
-              }
-            }
-          } catch (error) {
-            if (error.name !== 'AbortError') {
-            }
-          }
-        }
-
-        if (!priceData) {
-          try {
-            const yahooPromise = fetchPriceFromYahoo(symbolPart, yahooExchange)
-            const timeoutPromise = new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Timeout después de 15 segundos')), 15000)
-            )
-
-            priceData = await Promise.race([yahooPromise, timeoutPromise])
-
-            if (priceData) {
-              priceData.source = 'yahoo'
-              priceData.updatedAt = new Date().toISOString()
-            }
-          } catch (error) {
-          }
-        }
-
-        if (priceData && typeof priceData.price === 'number') {
-          try {
-            await pricesAPI.upsert(positionKey, {
-              price: priceData.price,
-              change: priceData.change ?? null,
-              changePercent: priceData.changePercent ?? null,
-              source: priceData.source
-            })
-          } catch (e) {
-          }
-        }
-
-        return { positionKey, priceData }
-      } catch (error) {
-        return { positionKey, priceData: null }
-      }
-    })
-
-    const results = await Promise.allSettled(pricePromises)
-    results.forEach((result) => {
-      if (result.status === 'fulfilled' && result.value) {
-        const { positionKey, priceData } = result.value
-        if (priceData) {
-          prices[positionKey] = priceData
-        }
-      }
-    })
-
-    setCurrentPrices(prices)
-    setLoadingPrices(false)
-
-    const nowIso = new Date().toISOString()
-    setLastUpdatedAt(new Date(nowIso))
     try {
-      await configAPI.set('last_prices_sync_at', nowIso)
-    } catch (e) {
+      // 1. Indicar al servidor que actualice todos los precios en la base de datos
+      await pricesAPI.refreshAll()
+
+      // 2. Obtener los nuevos precios desde la base de datos
+      const res = await pricesAPI.getBulk(positionKeys)
+      const updatedPrices = {}
+      let maxUpdatedAt = null
+
+      Object.entries(res.prices || {}).forEach(([key, p]) => {
+        updatedPrices[key] = {
+          price: p.price,
+          change: p.change ?? 0,
+          changePercent: p.changePercent ?? 0,
+          source: p.source || 'cache',
+          updatedAt: p.updatedAt
+        }
+
+        if (p.updatedAt) {
+          const dt = new Date(p.updatedAt)
+          if (!isNaN(dt.valueOf()) && (!maxUpdatedAt || dt > maxUpdatedAt)) {
+            maxUpdatedAt = dt
+          }
+        }
+      })
+
+      setCurrentPrices(updatedPrices)
+      if (maxUpdatedAt) setLastUpdatedAt(maxUpdatedAt)
+
+      // Actualizar el marcador local del scheduler para evitar que el efecto de polling 
+      // intente recargar lo que acabamos de traer
+      const schedulerLastRun = await configAPI.get('scheduler_last_run')
+      if (schedulerLastRun?.value) {
+        localStorage.setItem('scheduler_last_run', schedulerLastRun.value)
+      }
+
+    } catch (error) {
+      console.error('Error refreshing prices:', error)
+    } finally {
+      setLoadingPrices(false)
     }
-  }, [finnhubApiKey, getActivePositions, fetchPriceFromYahoo])
+  }, [getActivePositions])
 
   useEffect(() => {
     let timer
