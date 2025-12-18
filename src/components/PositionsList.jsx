@@ -177,16 +177,16 @@ export default function PositionsList({
         <table className="table">
           <thead>
             <tr>
-              <th>Empresa</th>
+              <th style={{ paddingLeft: '40px' }}>Activo</th>
               <th>Acciones</th>
-              <th>Coste Total (EUR)</th>
-              <th>Coste Promedio</th>
-              <th>Precio Actual</th>
-              <th>Valor Actual (EUR)</th>
-              <th>Ganancia pérdida</th>
-              <th>Precio Objetivo</th>
-              <th>Info</th>
-              <th>Editar</th>
+              <th>Coste Total</th>
+              <th>Coste Prom.</th>
+              <th>Precio Mercado</th>
+              <th>Valor Posición</th>
+              <th>Rentabilidad</th>
+              <th>Objetivo</th>
+              <th>Enlaces</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -195,6 +195,7 @@ export default function PositionsList({
               avgCostPerShare, currentPriceData, currentValueInEUR, profitLossInEUR,
               profitLossPercent, weightedExchangeRatePurchase, firstTargetPrice
             }) => {
+              const isProfit = profitLossInEUR >= 0;
               return (
                 <React.Fragment key={positionKey}>
                   <tr
@@ -203,9 +204,9 @@ export default function PositionsList({
                     onDragEnd={handleDragEnd}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, positionKey, Object.keys(activePositions))}
-                    className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
+                    className={`position-row premium-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
                   >
-                    <td>
+                    <td style={{ minWidth: '200px' }}>
                       <div
                         onClick={(e) => {
                           e.stopPropagation()
@@ -214,163 +215,112 @@ export default function PositionsList({
                             [positionKey]: !prev[positionKey]
                           }))
                         }}
-                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', userSelect: 'none' }}
+                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}
                       >
                         <span style={{
-                          display: 'inline-block', width: '0', height: '0', borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '6px solid currentColor',
-                          transform: expandedPositions[positionKey] ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.2s ease', opacity: 0.7
-                        }}></span>
-                        <span style={{ fontWeight: 'bold' }}>{company}</span>
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px',
+                          transform: expandedPositions[positionKey] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s ease'
+                        }}>
+                          ▼
+                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: '600', fontSize: '15px' }}>{company}</span>
+                          {symbol && <span className="symbol-tag" style={{ alignSelf: 'flex-start', marginTop: '4px' }}>{symbol}</span>}
+                        </div>
                       </div>
-                      {symbol && (
-                        <div style={{ fontSize: '11px', color: '#888' }}>{symbol}</div>
-                      )}
                     </td>
-                    <td>{position.shares}</td>
-                    <td>€{position.totalCost.toFixed(2)}</td>
-                    <td>{formatCurrency(avgCostPerShare, position.currency)}</td>
+                    <td style={{ fontWeight: '500' }}>{position.shares}</td>
+                    <td style={{ opacity: 0.9 }}>€{position.totalCost.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td style={{ fontSize: '13px', color: '#888' }}>{formatCurrency(avgCostPerShare, position.currency)}</td>
                     <td>
                       {currentPriceData ? (
-                        <div>
-                          <div style={{ fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ fontWeight: '700', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <span>{currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}</span>
                             {(() => {
                               const src = currentPriceData.source
                               const url = src === 'finnhub' ? 'https://finnhub.io/static/img/webp/finnhub-logo.webp' : (src === 'yahoo' ? 'https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg' : null)
-                              const title = src ? `${src.toUpperCase()}${currentPriceData.updatedAt ? ` • ${new Date(currentPriceData.updatedAt).toLocaleString('es-ES', { hour12: false })}` : ''}` : ''
-                              if (url) {
-                                return (
-                                  <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="eager" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
-                                )
-                              }
+                              if (url) return <img src={url} alt={src} style={{ width: '14px', height: '14px', opacity: 0.6 }} />
                               return null
                             })()}
                           </div>
                           {currentPriceData.change !== null && (
                             <div style={{
-                              fontSize: '12px',
+                              fontSize: '11px',
+                              fontWeight: '600',
                               color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444',
-                              whiteSpace: 'nowrap'
                             }}>
-                              {currentPriceData.change >= 0 ? '+' : ''}{formatPriceChange(currentPriceData.change)} ({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
+                              {currentPriceData.change >= 0 ? '▲' : '▼'} {Math.abs(currentPriceData.changePercent).toFixed(2)}%
                             </div>
                           )}
                         </div>
-                      ) : <span style={{ color: '#888', fontSize: '12px' }}>Sin datos</span>}
+                      ) : <span style={{ color: '#888', fontSize: '12px' }}>-</span>}
                     </td>
-                    <td>
+                    <td style={{ fontWeight: '600' }}>
                       {currentValueInEUR !== null ? (
-                        `€${currentValueInEUR.toFixed(2)}`
-                      ) : (
-                        <span style={{ color: '#888' }}>-</span>
-                      )}
+                        `€${currentValueInEUR.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      ) : '-'}
                     </td>
                     <td>
                       {profitLossInEUR !== null ? (
-                        <div style={{ color: profitLossInEUR >= 0 ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>
-                          {profitLossInEUR >= 0 ? '+' : ''}€{profitLossInEUR.toFixed(2)}
-                          {profitLossPercent !== null && (
-                            <div style={{ fontSize: '11px' }}>({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)</div>
-                          )}
+                        <div className={`badge ${isProfit ? 'badge-success' : 'badge-danger'}`}>
+                          {isProfit ? '+' : ''}{profitLossPercent.toFixed(2)}%
+                          <span style={{ marginLeft: '6px', fontSize: '11px', fontWeight: '400', opacity: 0.8 }}>
+                            ({isProfit ? '+' : ''}€{Math.abs(profitLossInEUR).toFixed(2)})
+                          </span>
                         </div>
-                      ) : (
-                        <span style={{ color: '#888' }}>-</span>
-                      )}
+                      ) : '-'}
                     </td>
                     <td>
-                      {firstTargetPrice !== null && firstTargetPrice !== undefined
-                        ? (
-                          <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>
-                            {currency === 'EUR' ? '€' : '$'}{formatPrice(firstTargetPrice)}
-                          </div>
-                        )
-                        : <span style={{ color: '#888' }}>-</span>}
+                      {firstTargetPrice !== null && firstTargetPrice !== undefined ? (
+                        <div style={{ fontWeight: '600', color: '#3b82f6', fontSize: '13px' }}>
+                          {currency === 'EUR' ? '€' : '$'}{formatPrice(firstTargetPrice)}
+                        </div>
+                      ) : <span style={{ color: '#888' }}>-</span>}
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                        {/* Botón de Yahoo Finance (Por defecto) */}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {/* Yahoo Finance */}
                         {symbol && (
-                          <a
-                            href={`https://es.finance.yahoo.com/quote/${symbol.replace(/:/g, '.')}/`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`Ver ${symbol} en Yahoo Finance`}
-                            style={{ display: 'block' }}
-                          >
-                            <img
-                              src="/yahoo.svg"
-                              alt="Yahoo Finance"
-                              style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }}
-                            />
+                          <a href={`https://es.finance.yahoo.com/quote/${symbol.replace(/:/g, '.')}/`} target="_blank" rel="noopener noreferrer" title="Yahoo Finance">
+                            <img src="/yahoo.svg" alt="Yahoo" style={{ width: '18px', height: '18px', borderRadius: '4px', filter: theme === 'dark' ? 'none' : 'grayscale(0.2)' }} />
                           </a>
                         )}
-
-                        {/* Botones Personalizados (Solo si tienen símbolo configurado) */}
+                        {/* Custom Buttons */}
                         {externalButtons.sort((a, b) => a.displayOrder - b.displayOrder).map((button, idx) => {
                           const externalSymbolField = `externalSymbol${idx + 1}`
                           const op = companyOperations.find(o => o[externalSymbolField])
                           const externalSymbol = op?.[externalSymbolField]
                           if (!externalSymbol) return null
-                          const finalUrl = button.baseUrl.replace('{symbol}', encodeURIComponent(externalSymbol))
                           return (
-                            <a
-                              key={button.id}
-                              href={finalUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={`${button.name}: ${externalSymbol}`}
-                              style={{ display: 'block' }}
-                            >
+                            <a key={button.id} href={button.baseUrl.replace('{symbol}', encodeURIComponent(externalSymbol))} target="_blank" rel="noopener noreferrer" title={button.name}>
                               {button.imageUrl ? (
-                                <img
-                                  src={button.imageUrl} alt={button.name}
-                                  style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }}
-                                />
-                              ) : (
-                                <span style={{ fontSize: '18px' }}>{button.emoji || '🔗'}</span>
-                              )}
+                                <img src={button.imageUrl} alt={button.name} style={{ width: '18px', height: '18px', borderRadius: '4px', objectFit: 'cover' }} />
+                              ) : <span style={{ fontSize: '16px' }}>{button.emoji || '🔗'}</span>}
                             </a>
                           )
                         })}
                       </div>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', gap: '5px' }}>
-                        {getEditableOperations(companyOperations, position.shares).map((operation) => (
-                          <button
-                            key={operation.id}
-                            className="button"
-                            onClick={() => openModal(operation.type, operation)}
-                            style={{ fontSize: '12px', padding: '5px 8px' }}
-                            title={`Editar ${operation.type === 'purchase' ? 'compra' : 'venta'}`}
-                          >
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {getEditableOperations(companyOperations, position.shares).slice(0, 1).map((operation) => (
+                          <button key={operation.id} className="action-btn-minimal" onClick={() => openModal(operation.type, operation)}>
                             ✏️ {operation.type === 'purchase' ? 'C' : 'V'}
                           </button>
                         ))}
                         <button
-                          className="button"
+                          className="action-btn-minimal"
                           onClick={async () => {
-                            const pk = positionKey
-                            setNotePositionKey(pk)
-                            setShowNoteModal(true)
-                            setNoteLoading(true)
+                            const pk = positionKey; setNotePositionKey(pk); setShowNoteModal(true); setNoteLoading(true);
                             try {
-                              const r = await notesAPI.get(pk)
-                              const content = r?.content || ''
-                              setNoteContent(content)
-                              setNoteOriginalContent(content)
-                              setNoteEditMode(!content || content.trim() === '')
-                              setNotesCache(prev => ({ ...prev, [pk]: !!content }))
+                              const r = await notesAPI.get(pk); const content = r?.content || '';
+                              setNoteContent(content); setNoteOriginalContent(content); setNoteEditMode(!content || content.trim() === '');
+                              setNotesCache(prev => ({ ...prev, [pk]: !!content }));
                             } catch (e) {
-                              setNoteContent('')
-                              setNoteOriginalContent('')
-                              setNoteEditMode(true)
-                            } finally {
-                              setNoteLoading(false)
-                            }
+                              setNoteContent(''); setNoteOriginalContent(''); setNoteEditMode(true);
+                            } finally { setNoteLoading(false); }
                           }}
-                          style={{ fontSize: '12px', padding: '5px 8px' }}
-                          title="Nota"
                         >
                           📝 Nota
                         </button>
@@ -379,8 +329,10 @@ export default function PositionsList({
                   </tr>
                   {expandedPositions[positionKey] && (
                     <tr className="expanded-chart-row">
-                      <td colSpan="10" style={{ padding: 0, backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f9fafb' }}>
-                        <StockHistoryChart positionKey={positionKey} userId={userId} portfolioId={currentPortfolioId} theme={theme} />
+                      <td colSpan="10" style={{ padding: '10px', backgroundColor: theme === 'dark' ? '#111' : '#f8fafc' }}>
+                        <div style={{ border: '1px solid #333', borderRadius: '8px', overflow: 'hidden' }}>
+                          <StockHistoryChart positionKey={positionKey} userId={userId} portfolioId={currentPortfolioId} theme={theme} />
+                        </div>
                       </td>
                     </tr>
                   )}

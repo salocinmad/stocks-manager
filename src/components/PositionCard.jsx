@@ -55,25 +55,27 @@ const PositionCard = ({
     return (
         <div className={`position-card ${theme} ${flashClass}`}>
             {/* Cabecera de la tarjeta */}
-            <div className="position-card-header" onClick={onExpand}>
-                <div className="position-card-title">
-                    <span className="position-card-company">{company}</span>
+            <div className="position-card-header" onClick={onExpand} style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div className="position-card-title" style={{ gap: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span className="position-card-company" style={{ fontSize: '16px', fontWeight: '700' }}>{company}</span>
+                        {symbol && <span className="symbol-tag" style={{ width: 'fit-content', marginTop: '4px' }}>{symbol}</span>}
+                    </div>
                     {symbol && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span className="position-card-symbol">({symbol})</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', marginRight: '8px' }}>
                             {/* Botón Yahoo por defecto */}
                             <a
                                 href={`https://es.finance.yahoo.com/quote/${symbol.replace(/:/g, '.')}/`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                style={{ display: 'flex', alignItems: 'center' }}
+                                style={{ display: 'flex', alignItems: 'center', opacity: 0.8 }}
                                 title="Yahoo Finance"
                             >
                                 <img
                                     src="/yahoo.svg"
                                     alt="Yahoo Finance"
-                                    style={{ width: '16px', height: '16px', borderRadius: '3px' }}
+                                    style={{ width: '18px', height: '18px', borderRadius: '4px' }}
                                 />
                             </a>
 
@@ -92,15 +94,15 @@ const PositionCard = ({
                                         rel="noopener noreferrer"
                                         onClick={(e) => e.stopPropagation()}
                                         title={`${button.name}: ${externalSymbol}`}
-                                        style={{ display: 'flex', alignItems: 'center' }}
+                                        style={{ display: 'flex', alignItems: 'center', opacity: 0.8 }}
                                     >
                                         {button.imageUrl ? (
                                             <img
                                                 src={button.imageUrl} alt={button.name}
-                                                style={{ width: '16px', height: '16px', borderRadius: '3px', objectFit: 'cover' }}
+                                                style={{ width: '18px', height: '18px', borderRadius: '4px', objectFit: 'cover' }}
                                             />
                                         ) : (
-                                            <span style={{ fontSize: '14px' }}>{button.emoji || '🔗'}</span>
+                                            <span style={{ fontSize: '16px' }}>{button.emoji || '🔗'}</span>
                                         )}
                                     </a>
                                 )
@@ -108,59 +110,60 @@ const PositionCard = ({
                         </div>
                     )}
                 </div>
-                <button className="position-card-expand-btn">
-                    {isExpanded ? '▲' : '▼'}
-                </button>
+                <div style={{ color: '#666', fontSize: '18px', transition: 'transform 0.3s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                    ▼
+                </div>
             </div>
 
             {/* Cuerpo de la tarjeta */}
             <div className="position-card-body">
-                {/* Acciones */}
-                <div className="position-card-row">
-                    <span className="position-card-label">Acciones:</span>
-                    <span className="position-card-value">{position.shares}</span>
-                </div>
-
-                {/* Precio Actual con cambio diario */}
-                <div className="position-card-row">
-                    <span className="position-card-label">Precio Actual:</span>
-                    <div className="position-card-price-container">
-                        <span className="position-card-value">
-                            {currentPriceData
-                                ? `${currentPriceData.currency === 'USD' ? '$' : '€'}${formatPrice(currentPriceData.price)}`
-                                : '-'
-                            }
-                            <span className={`position-card-indicator ${isPriceUp ? 'up' : 'down'}`}>
-                                {isPriceUp ? '👍' : '👎'}
+                {/* Primera fila: Acciones y Precio Actual */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span className="position-card-label">Acciones</span>
+                        <span style={{ fontWeight: '600', fontSize: '16px' }}>{position.shares}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <span className="position-card-label">Precio Mercado</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: '700', fontSize: '18px' }}>
+                                {currentPriceData
+                                    ? `${currentPriceData.currency === 'USD' ? '$' : '€'}${formatPrice(currentPriceData.price)}`
+                                    : '-'
+                                }
                             </span>
-                        </span>
+                        </div>
                         {currentPriceData && (
-                            <span className={`position-card-change ${isPriceUp ? 'positive' : 'negative'}`}>
-                                {isPriceUp ? '+' : ''}{formatPriceChange(priceChange)} ({isPriceUp ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+                            <span style={{
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444'
+                            }}>
+                                {currentPriceData.change >= 0 ? '▲' : '▼'} {Math.abs(currentPriceData.changePercent).toFixed(2)}%
                             </span>
                         )}
                     </div>
                 </div>
 
-                {/* Ganancia/Pérdida */}
-                <div className="position-card-row">
-                    <span className="position-card-label">Ganancia/Pérdida:</span>
-                    <div className="position-card-profit-container">
-                        <span className={`position-card-value ${isProfit ? 'positive' : 'negative'}`}>
-                            {profitLossInEUR !== null
-                                ? `${isProfit ? '+' : ''}€${profitLossInEUR.toFixed(2)}`
-                                : '-'
-                            }
+                {/* Segunda fila: Valor y Rentabilidad */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span className="position-card-label">Valor Posición</span>
+                        <span style={{ fontWeight: '600' }}>
+                            {currentValueInEUR !== null ? `€${currentValueInEUR.toFixed(2)}` : '-'}
                         </span>
-                        {profitLossPercent !== null && (
-                            <span className={`position-card-change ${isProfit ? 'positive' : 'negative'}`}>
-                                ({isProfit ? '+' : ''}{profitLossPercent.toFixed(2)}%)
-                            </span>
-                        )}
+                    </div>
+                    <div>
+                        {profitLossInEUR !== null ? (
+                            <div className={`badge ${isProfit ? 'badge-success' : 'badge-danger'}`} style={{ padding: '6px 12px' }}>
+                                {isProfit ? '+' : ''}{profitLossPercent.toFixed(2)}%
+                                <span style={{ marginLeft: '6px', fontSize: '11px', opacity: 0.8, fontWeight: '400' }}>
+                                    (€{Math.abs(profitLossInEUR).toFixed(2)})
+                                </span>
+                            </div>
+                        ) : '-'}
                     </div>
                 </div>
-
-
             </div>
 
             {/* Contenido expandido */}
