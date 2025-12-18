@@ -1,47 +1,14 @@
 import sequelize from '../config/database.js'
-import User from '../models/User.js'
-import Portfolio from '../models/Portfolio.js'
-import PortfolioReport from '../models/PortfolioReport.js'
-import Config from '../models/Config.js'
-import Operation from '../models/Operation.js'
-import GlobalCurrentPrice from '../models/GlobalCurrentPrice.js'
-import GlobalStockPrice from '../models/GlobalStockPrice.js'
-import UserStockAlert from '../models/UserStockAlert.js'
-import AssetProfile from '../models/AssetProfile.js'
-import PriceCache from '../models/PriceCache.js'
-import DailyPrice from '../models/DailyPrice.js'
-import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
-import DailyPositionSnapshot from '../models/DailyPositionSnapshot.js'
-import Note from '../models/Note.js'
-import PositionOrder from '../models/PositionOrder.js'
-import ProfilePicture from '../models/ProfilePicture.js'
-import ExternalLinkButton from '../models/ExternalLinkButton.js'
-
 /**
- * Lista de modelos a incluir en el backup (en orden de dependencias)
+ * Obtiene todos los modelos cargados en Sequelize
+ * @returns {Array} Array de modelos
  */
-const BACKUP_MODELS = [
-    User,
-    Portfolio,
-    PortfolioReport,
-    Config,
-    Operation,
-    // Tablas globales
-    GlobalCurrentPrice,
-    GlobalStockPrice,
-    UserStockAlert,
-    AssetProfile,
-    // Tablas heredadas
-    PriceCache,
-    DailyPrice,
-    // Resto de tablas
-    DailyPortfolioStats,
-    DailyPositionSnapshot,
-    Note,
-    PositionOrder,
-    ProfilePicture,
-    ExternalLinkButton
-]
+function getBackupModels() {
+    // Obtener modelos dinámicamente de la instancia de Sequelize
+    // Esto asegura que cualquier nueva tabla o columna añadida sea incluida automáticamente
+    return Object.values(sequelize.models);
+}
+
 
 /**
  * Escapa un valor para SQL
@@ -74,7 +41,7 @@ function escapeSQLValue(value) {
 export async function exportToJSON() {
     const data = {}
 
-    for (const model of BACKUP_MODELS) {
+    for (const model of getBackupModels()) {
         data[model.name] = await model.findAll()
     }
 
@@ -91,7 +58,7 @@ export async function exportToSQL() {
     sql += '-- ADVERTENCIA: Este script eliminará todos los datos existentes\n\n'
     sql += 'SET FOREIGN_KEY_CHECKS = 0;\n\n'
 
-    for (const model of BACKUP_MODELS) {
+    for (const model of getBackupModels()) {
         const rows = data[model.name]
         if (rows.length > 0) {
             sql += `-- Tabla: ${model.tableName}\n`
@@ -171,7 +138,7 @@ function parseSQLStatements(content) {
  * @param {Object} transaction - Transacción de Sequelize
  */
 async function importFromJSON(data, transaction) {
-    for (const model of BACKUP_MODELS) {
+    for (const model of getBackupModels()) {
         if (data[model.name] && Array.isArray(data[model.name])) {
             if (data[model.name].length > 0) {
                 await model.bulkCreate(data[model.name], { transaction })
@@ -215,7 +182,7 @@ export async function importBackup(fileBuffer, filename) {
         await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction })
 
         // Truncar todas las tablas
-        for (const model of BACKUP_MODELS) {
+        for (const model of getBackupModels()) {
             await model.destroy({ where: {}, truncate: true, transaction })
         }
 
