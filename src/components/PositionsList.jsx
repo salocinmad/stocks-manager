@@ -227,7 +227,7 @@ export default function PositionsList({
                     <td>{formatCurrency(avgCostPerShare, position.currency)}</td>
                     <td>
                       {currentPriceData ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div>
                           <div style={{ fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                             <span>{currency === 'EUR' ? '€' : '$'}{formatPrice(currentPriceData.price)}</span>
                             {(() => {
@@ -245,7 +245,8 @@ export default function PositionsList({
                           {currentPriceData.change !== null && (
                             <div style={{
                               fontSize: '12px',
-                              color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444'
+                              color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444',
+                              whiteSpace: 'nowrap'
                             }}>
                               {currentPriceData.change >= 0 ? '+' : ''}{formatPriceChange(currentPriceData.change)} ({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
                             </div>
