@@ -126,15 +126,23 @@ function ExpandablePositionRow({
                                     const title = src ? `${src.toUpperCase()}${currentPriceData.updatedAt ? ` • ${new Date(currentPriceData.updatedAt).toLocaleString('es-ES', { hour12: false })}` : ''}` : '';
                                     if (url) {
                                         return (
-                                            <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="lazy" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
+                                            <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="eager" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
                                         );
                                     }
                                     return null;
                                 })()}
                             </div>
-                            {/* Lógica para mostrar el cambio: primero calculatedChange, luego currentPriceData */}
-                        </span>
-                    )}
+                            {currentPriceData.change !== null && (
+                                <div style={{
+                                    fontSize: '12px',
+                                    color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)} ({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
+                                </div>
+                            )}
+                        </div>
+                    ) : <span style={{ color: '#888', fontSize: '12px' }}>Sin datos</span>}
                 </td>
                 <td>{currentValueInEUR !== null ? `€${currentValueInEUR.toFixed(2)}` : '-'}</td>
                 <td className={profitLossInEUR >= 0 ? 'gain' : 'loss'}>

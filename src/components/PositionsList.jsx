@@ -236,7 +236,7 @@ export default function PositionsList({
                               const title = src ? `${src.toUpperCase()}${currentPriceData.updatedAt ? ` • ${new Date(currentPriceData.updatedAt).toLocaleString('es-ES', { hour12: false })}` : ''}` : ''
                               if (url) {
                                 return (
-                                  <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="lazy" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
+                                  <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="eager" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
                                 )
                               }
                               return null
