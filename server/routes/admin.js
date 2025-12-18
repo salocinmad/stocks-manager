@@ -206,7 +206,10 @@ router.post('/reset-alerts', async (req, res) => {
   try {
     const { userId } = req.body || {}
     const where = userId ? { userId } : {}
-    const [affected] = await PriceCache.update({ targetHitNotifiedAt: null }, { where })
+    const [affected] = await PriceCache.update({
+      targetHitNotifiedAt: null,
+      stopLossHitNotifiedAt: null
+    }, { where })
     res.json({ success: true, affected })
   } catch (error) {
     res.status(500).json({ error: error.message })

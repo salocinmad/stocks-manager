@@ -36,6 +36,7 @@ router.get('/', async (req, res) => {
     });
     res.json(operations);
   } catch (error) {
+    console.error('❌ Error in GET /api/operations:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -69,6 +70,17 @@ router.post('/', async (req, res) => {
     operationData.portfolioId = await resolvePortfolioId(req);
 
     const operation = await Operation.create(operationData);
+
+    // Resetear alertas para esta posición al crear una nueva operación
+    if (operation.targetPrice || operation.stopLossPrice) {
+      const PriceCache = (await import('../models/PriceCache.js')).default;
+      const positionKey = operation.symbol ? `${operation.company}|||${operation.symbol}` : operation.company;
+      await PriceCache.update(
+        { targetHitNotifiedAt: null, stopLossHitNotifiedAt: null },
+        { where: { userId: req.user.id, portfolioId: operation.portfolioId, positionKey } }
+      ).catch(() => { }); // Ignorar si no existe el cache aún
+    }
+
     res.status(201).json(operation);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -96,7 +108,21 @@ router.put('/:id', async (req, res) => {
       updateData.date = new Date(updateData.date);
     }
 
+    const oldTarget = operation.targetPrice;
+    const oldStop = operation.stopLossPrice;
+
     await operation.update(updateData);
+
+    // Si han cambiado los umbrales, resetear las notificaciones en el PriceCache
+    if (oldTarget !== operation.targetPrice || oldStop !== operation.stopLossPrice) {
+      const PriceCache = (await import('../models/PriceCache.js')).default;
+      const positionKey = operation.symbol ? `${operation.company}|||${operation.symbol}` : operation.company;
+      await PriceCache.update(
+        { targetHitNotifiedAt: null, stopLossHitNotifiedAt: null },
+        { where: { userId: req.user.id, portfolioId, positionKey } }
+      );
+    }
+
     res.json(operation);
   } catch (error) {
     res.status(400).json({ error: error.message });

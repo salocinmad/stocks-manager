@@ -309,36 +309,81 @@ router.put('/:positionKey', async (req, res) => {
         // Activar actualización de perfil asíncrona (no bloqueante)
         ensureAssetProfile(positionKey).catch(err => console.error(`Error updating profile for ${positionKey}:`, err.message));
 
-        // Verificar precio objetivo y notificar
+        // Verificar precio objetivo y stop loss y notificar
         try {
             const [company, symbol] = positionKey.includes('|||') ? positionKey.split('|||') : [positionKey, '']
             const where = symbol ? { userId: req.user.id, portfolioId, company, symbol } : { userId: req.user.id, portfolioId, company, symbol: '' }
             const ops = await Operation.findAll({ where })
-            const purchases = ops.filter(o => o.type === 'purchase' && o.targetPrice && o.targetPrice > 0)
-            if (purchases.length > 0) {
-                // Usar precio objetivo de la última compra
-                purchases.sort((a, b) => new Date(b.date) - new Date(a.date))
-                const target = purchases[0].targetPrice
-                if (typeof target === 'number' && price >= target) {
-                    const cacheRow = await PriceCache.findOne({ where: { userId: req.user.id, portfolioId, positionKey } })
+            const activeOps = ops.filter(o => o.type === 'purchase')
+
+            if (activeOps.length > 0) {
+                // Ordenar por fecha descendente para obtener los umbrales más actuales
+                activeOps.sort((a, b) => new Date(b.date) - new Date(a.date))
+                const latestOp = activeOps[0]
+                const target = latestOp.targetPrice
+                const stopLoss = latestOp.stopLossPrice
+
+                const cacheRow = await PriceCache.findOne({ where: { userId: req.user.id, portfolioId, positionKey } })
+                const subjectCfg = await Config.findOne({ where: { key: 'smtp_subject' } })
+                const subjectBase = subjectCfg?.value || 'Alerta de precios'
+                const niceName = symbol ? `${company} (${symbol})` : company
+
+                // Notificación Target Price (Alza)
+                if (typeof target === 'number' && target > 0 && price >= target) {
                     const already = cacheRow?.targetHitNotifiedAt
                     if (!already) {
-                        const subjectCfg = await Config.findOne({ where: { key: 'smtp_subject' } })
-                        const subjectBase = subjectCfg?.value || 'Alerta de precios'
-                        const niceName = symbol ? `${company} (${symbol})` : company
-                        const r = await sendNotification({
+                        await sendNotification({
                             subject: `${subjectBase}: ${niceName} alcanzó objetivo`,
                             text: `${niceName} ha alcanzado el precio objetivo de ${target}. Precio actual: ${price}.`,
                             html: `<p><b>${niceName}</b> ha alcanzado el precio objetivo de <b>${target}</b>.<br/>Precio actual: <b>${price}</b>.</p>`
                         })
-                        if (r.ok && cacheRow) {
-                            await cacheRow.update({ targetHitNotifiedAt: new Date() })
+                        if (cacheRow) await cacheRow.update({ targetHitNotifiedAt: new Date() })
+                    }
+                }
+
+                // Notificación Stop Loss (Baja o Alza según umbral alcanzado)
+                if (typeof stopLoss === 'number' && stopLoss > 0) {
+                    // El usuario pide que avise tanto si supera al alza como a la baja.
+                    // Esto suele referirse a que si el precio cruza el umbral en cualquier dirección.
+                    // Para simplificar y ser útil: notificamos si el precio ACTUAL ha cruzado el umbral.
+                    // Si el precio de compra era mayor a stopLoss, avisamos cuando baja de él.
+                    // Si el precio de compra era menor a stopLoss, avisamos cuando sube de él.
+                    // Pero como el usuario dice "supera al alza como a la baja" de forma genérica, 
+                    // notificaremos si el precio cruza el valor definido.
+
+                    const already = cacheRow?.stopLossHitNotifiedAt
+                    if (!already) {
+                        let shouldNotify = false;
+                        let direction = '';
+
+                        // Lógica: Si el precio de la operación era X, y el stopLoss es Y.
+                        // Si X > Y (Stop loss normal), avisamos si price <= Y.
+                        // Si X < Y (Alert al alza), avisamos si price >= Y.
+                        if (latestOp.price > stopLoss && price <= stopLoss) {
+                            shouldNotify = true;
+                            direction = 'a la baja';
+                        } else if (latestOp.price < stopLoss && price >= stopLoss) {
+                            shouldNotify = true;
+                            direction = 'al alza';
+                        } else if (Math.abs(price - stopLoss) < 0.001) {
+                            // Si es exactamente el mismo (raro pero posible)
+                            shouldNotify = true;
+                            direction = 'alcanzado';
+                        }
+
+                        if (shouldNotify) {
+                            await sendNotification({
+                                subject: `${subjectBase}: ${niceName} alcanzó precio STOP LOSS`,
+                                text: `${niceName} ha alcanzado el precio stop loss de ${stopLoss} (${direction}). Precio actual: ${price}.`,
+                                html: `<p><b>${niceName}</b> ha alcanzado el precio <b>STOP LOSS</b> de <b>${stopLoss}</b> (${direction}).<br/>Precio actual: <b>${price}</b>.</p>`
+                            })
+                            if (cacheRow) await cacheRow.update({ stopLossHitNotifiedAt: new Date() })
                         }
                     }
                 }
             }
         } catch (e) {
-            // ignorar errores de notificación para no interrumpir la actualización de precios
+            console.error('Error in notification logic:', e)
         }
         res.json({ success: true })
     } catch (error) {

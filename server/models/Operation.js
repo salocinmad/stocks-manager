@@ -64,6 +64,14 @@ const Operation = sequelize.define('Operation', {
       min: 0
     }
   },
+  stopLossPrice: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
+    defaultValue: null,
+    validate: {
+      min: 0
+    }
+  },
   date: {
     type: DataTypes.DATE,
     allowNull: false,

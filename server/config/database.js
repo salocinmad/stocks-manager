@@ -83,6 +83,16 @@ export const connectDB = async () => {
       await sequelize.query('ALTER TABLE `DailyPrices` ADD UNIQUE INDEX `dp_user_portfolio_pos_date` (`userId`,`portfolioId`,`positionKey`,`date`)')
     } catch (e) { }
 
+    // Asegurar columnas de alertas de precios en Operations
+    try {
+      await sequelize.query("ALTER TABLE `Operations` ADD COLUMN IF NOT EXISTS `stopLossPrice` FLOAT DEFAULT NULL AFTER `targetPrice`")
+    } catch (e) { }
+
+    // Asegurar columnas de alertas de precios en PriceCaches
+    try {
+      await sequelize.query("ALTER TABLE `PriceCaches` ADD COLUMN IF NOT EXISTS `stopLossHitNotifiedAt` DATETIME DEFAULT NULL AFTER `targetHitNotifiedAt`")
+    } catch (e) { }
+
     try {
       const [rowsU] = await sequelize.query("SHOW INDEX FROM `Users`")
       const uniqUsername = (rowsU || []).filter(r => r.Non_unique === 0 && String(r.Column_name).toLowerCase() === 'username')

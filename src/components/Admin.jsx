@@ -491,7 +491,7 @@ function Admin() {
               className="button warning"
               disabled={resettingAlerts}
               onClick={async () => {
-                if (!window.confirm('¿Rearmar todas las alertas de precio objetivo?')) return;
+                if (!window.confirm('¿Rearmar todas las alertas de precio? (Objetivo y Stop Loss)')) return;
                 try {
                   setResettingAlerts(true);
                   const r = await authenticatedFetch('/api/admin/reset-alerts', { method: 'POST', body: JSON.stringify({}) })
