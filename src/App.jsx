@@ -1335,6 +1335,7 @@ function App() {
                     <img
                       src={profilePictureUrl}
                       alt="Profile"
+                      loading="eager"
                       style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                     />
                   ) : (
@@ -1451,7 +1452,7 @@ function App() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {profilePictureUrl ? (
-                      <img src={profilePictureUrl} alt="Profile" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
+                      <img src={profilePictureUrl} alt="Profile" loading="eager" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
                     ) : (
                       <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#404040', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
                         {getUserInitial()}
@@ -1513,9 +1514,9 @@ function App() {
                     {(() => {
                       const src = currentEURUSDSource;
                       if (src === 'finnhub') {
-                        return <img src="https://finnhub.io/static/img/webp/finnhub-logo.webp" alt="Finnhub" title="Finnhub" style={{ width: '14px', height: '14px' }} />
+                        return <img src="https://finnhub.io/static/img/webp/finnhub-logo.webp" alt="Finnhub" title="Finnhub" loading="eager" style={{ width: '14px', height: '14px' }} />
                       } else if (src === 'yahoo') {
-                        return <img src="https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg" alt="Yahoo" title="Yahoo" style={{ width: '14px', height: '14px' }} />
+                        return <img src="https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg" alt="Yahoo" title="Yahoo" loading="eager" style={{ width: '14px', height: '14px' }} />
                       }
                       return null;
                     })()}

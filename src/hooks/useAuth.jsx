@@ -27,27 +27,32 @@ export const useAuth = () => {
      * Cargar la imagen de perfil del usuario desde el servidor
      */
     const fetchProfilePicture = async () => {
-        console.log('useAuth: fetchProfilePicture called. Current profilePictureUrl (before fetch):', profilePictureUrl);
         if (!currentUser) {
+            if (profilePictureUrl && profilePictureUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(profilePictureUrl);
+            }
             setProfilePictureUrl(null);
-            console.log('useAuth: No currentUser, setting profilePictureUrl to null.');
             return;
         }
+
         try {
             const response = await profilePicturesAPI.get();
             if (response.status === 404) {
                 setProfilePictureUrl(DEFAULT_PROFILE_PICTURE_URL);
-                console.log('useAuth: Profile picture not found (404), setting to default. New profilePictureUrl:', DEFAULT_PROFILE_PICTURE_URL);
                 return;
             }
             const blob = await response.blob();
             const imageUrl = URL.createObjectURL(blob);
+
+            // Revocar la URL anterior si existía para evitar fugas de memoria
+            if (profilePictureUrl && profilePictureUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(profilePictureUrl);
+            }
+
             setProfilePictureUrl(imageUrl);
-            console.log('useAuth: Profile picture fetched successfully. New profilePictureUrl:', imageUrl);
         } catch (error) {
             console.error('Error al cargar la imagen de perfil:', error);
             setProfilePictureUrl(DEFAULT_PROFILE_PICTURE_URL);
-            console.log('useAuth: Error fetching profile picture, setting to default. New profilePictureUrl:', DEFAULT_PROFILE_PICTURE_URL);
         }
     };
 
@@ -126,6 +131,8 @@ export const useAuth = () => {
                 if (user.favoritePortfolioId) {
                     localStorage.setItem('currentUserFavorite', String(user.favoritePortfolioId));
                 }
+            } else {
+                setProfilePictureUrl(null);
             }
         };
         loadUser();
@@ -133,8 +140,10 @@ export const useAuth = () => {
 
     // Cargar imagen de perfil cuando cambia el usuario
     useEffect(() => {
-        fetchProfilePicture();
-    }, [currentUser]);
+        if (currentUser) {
+            fetchProfilePicture();
+        }
+    }, [currentUser?.id]);
 
     return {
         // Estado
