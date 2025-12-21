@@ -28,7 +28,7 @@ i18n
                     },
                     "dashboard": {
                         "net_worth": "Patrimonio Neto",
-                        "todays_gain": "Ganancia de Hoy",
+                        "todays_gain": "Variación Diaria",
                         "total_return": "Rentabilidad Total",
                         "ai_analysis": "Análisis Estratégico IA"
                     },

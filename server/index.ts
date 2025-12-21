@@ -16,6 +16,7 @@ import { initDatabase } from './init_db';
 import { SettingsService } from './services/settingsService';
 import { AlertService } from './services/alertService';
 import { MarketDataService } from './services/marketData';
+import { schedulePnLJob, calculatePnLForAllPortfolios } from './jobs/pnlJob';
 
 // Initialize DB and load settings
 await initDatabase();
@@ -29,6 +30,15 @@ setInterval(() => {
 // Initial History Sync: DESACTIVADO para mejorar arranque.
 // Los datos se cargarán bajo demanda (Lazy Loading) al consultar tickers o via Admin.
 // MarketDataService.syncPortfolioHistory(24)...
+
+// Schedule PnL Pre-calculation Job (runs at 4:00 AM daily)
+schedulePnLJob();
+
+// Initial PnL calculation if cache is empty (run once on startup)
+setTimeout(() => {
+    console.log('[Startup] Running initial PnL pre-calculation...');
+    calculatePnLForAllPortfolios().catch(e => console.error('Initial PnL Calc Error:', e));
+}, 5000); // Wait 5s for other services to initialize
 
 // Daily Cron Job (04:00 AM Europe/Madrid)
 // Updates only last 1 month of data to keep it fresh

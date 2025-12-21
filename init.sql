@@ -72,3 +72,14 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     title VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- PNL HISTORY CACHE (For fast dashboard loading)
+CREATE TABLE IF NOT EXISTS pnl_history_cache (
+    portfolio_id UUID REFERENCES portfolios(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    pnl_eur NUMERIC(20, 4),
+    calculated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(portfolio_id, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pnl_cache_portfolio ON pnl_history_cache(portfolio_id);

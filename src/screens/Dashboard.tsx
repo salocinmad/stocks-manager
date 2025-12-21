@@ -37,6 +37,7 @@ export const Dashboard: React.FC = () => {
   const [topAsset, setTopAsset] = useState<string>("NASDAQ:AAPL");
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [pnlHistory, setPnlHistory] = useState<any[]>([]);
+  const [pnlPeriod, setPnlPeriod] = useState<'1M' | '3M' | '1Y'>('3M'); // Default 3 months
   const [loading, setLoading] = useState(true);
   const [pnlLoading, setPnlLoading] = useState(false); // To track chart loading specifically
   const [theme, setTheme] = useState<"dark" | "light">("dark");
@@ -80,9 +81,15 @@ export const Dashboard: React.FC = () => {
           }
         }
 
-        // 3. Get Summary, Details (Render these fast)
+        // 3. Get Summary AND Details in PARALLEL (Optimized)
         if (activeId) {
-          const { data: summary } = await api.get(`/portfolios/summary?portfolioId=${activeId}`);
+          const [summaryRes, detailsRes] = await Promise.all([
+            api.get(`/portfolios/summary?portfolioId=${activeId}`),
+            api.get(`/portfolios/${activeId}`)
+          ]);
+
+          const summary = summaryRes.data;
+          const details = detailsRes.data;
 
           if (summary && !summary.error) {
             setTotalValue(summary.totalValueEur || 0);
@@ -91,9 +98,6 @@ export const Dashboard: React.FC = () => {
             setTotalGain(summary.totalGainEur || 0);
             setTotalGainPercent(summary.totalGainPercent || 0);
           }
-
-          // Details for Sector & Watchlist
-          const { data: details } = await api.get(`/portfolios/${activeId}`);
 
           if (details && details.positions && details.positions.length > 0) {
             const positions = details.positions;
@@ -165,7 +169,7 @@ export const Dashboard: React.FC = () => {
           // 4. Fetch PnL History (Slow - Async)
           try {
             setPnlLoading(true); // Ensure specific loading is set
-            const { data: history } = await api.get(`/portfolios/${activeId}/pnl-history`);
+            const { data: history } = await api.get(`/portfolios/${activeId}/pnl-history?period=3M`);
             if (Array.isArray(history)) {
               setPnlHistory(history);
             } else {
@@ -332,7 +336,33 @@ export const Dashboard: React.FC = () => {
                 <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                   <span className="material-symbols-outlined text-xl">ssid_chart</span>
                 </div>
-                <h3 className="text-xl font-bold dark:text-white">PnL no realizado</h3>
+                <h3 className="text-xl font-bold dark:text-white">PnL Ganancias/Perdidas</h3>
+              </div>
+              {/* Period Filter Buttons */}
+              <div className="flex gap-1 bg-bg-light dark:bg-bg-dark rounded-lg p-1">
+                {(['1M', '3M', '1Y'] as const).map((period) => (
+                  <button
+                    key={period}
+                    onClick={async () => {
+                      setPnlPeriod(period);
+                      setPnlLoading(true);
+                      try {
+                        const { data } = await api.get(`/portfolios/${selectedPortfolioId}/pnl-history?period=${period}`);
+                        setPnlHistory(Array.isArray(data) ? data : []);
+                      } catch (e) {
+                        console.error('Error fetching PnL:', e);
+                      } finally {
+                        setPnlLoading(false);
+                      }
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${pnlPeriod === period
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
+                      }`}
+                  >
+                    {period}
+                  </button>
+                ))}
               </div>
             </div>
             <div className="flex-1 w-full h-full z-10">

@@ -4,6 +4,50 @@ import sql from '../db';
 // Crear instancia de yahoo-finance2
 const yahooFinance = new YahooFinance();
 
+// ============================================================
+// CACHE SYSTEM WITH TTL
+// ============================================================
+interface CacheEntry<T> {
+    data: T;
+    expiry: number;
+}
+
+const cache = new Map<string, CacheEntry<any>>();
+
+// TTL Configuration (in milliseconds)
+const TTL = {
+    QUOTE: 60 * 1000,             // 60 seconds - Real-time-ish quotes
+    EXCHANGE_RATE: 5 * 60 * 1000, // 5 minutes - Rates change slowly
+    PROFILE: 24 * 60 * 60 * 1000, // 24 hours - Sector/Industry rarely changes
+    HISTORY: 24 * 60 * 60 * 1000  // 24 hours - Historical data is static
+};
+
+function getFromCache<T>(key: string): T | null {
+    const entry = cache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiry) {
+        cache.delete(key);
+        return null;
+    }
+    return entry.data;
+}
+
+function setCache<T>(key: string, data: T, ttlMs: number): void {
+    cache.set(key, { data, expiry: Date.now() + ttlMs });
+}
+
+// Clear expired entries periodically (every 5 minutes)
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of cache.entries()) {
+        if (now > entry.expiry) {
+            cache.delete(key);
+        }
+    }
+}, 5 * 60 * 1000);
+
+// ============================================================
+
 interface SymbolSearchResult {
     symbol: string;
     name: string;
@@ -67,15 +111,22 @@ export const MarketDataService = {
         }
     },
 
-    // Obtener tipo de cambio usando yahoo-finance2
+    // Obtener tipo de cambio usando yahoo-finance2 (CACHED)
     async getExchangeRate(fromCurrency: string, toCurrency: string): Promise<number | null> {
         if (fromCurrency === toCurrency) return 1.0;
+
+        const cacheKey = `rate:${fromCurrency}:${toCurrency}`;
+        const cached = getFromCache<number>(cacheKey);
+        if (cached !== null) {
+            return cached;
+        }
 
         try {
             const symbol = `${fromCurrency}${toCurrency}=X`;
             const quote = await yahooFinance.quote(symbol);
 
             if (quote && quote.regularMarketPrice) {
+                setCache(cacheKey, quote.regularMarketPrice, TTL.EXCHANGE_RATE);
                 return quote.regularMarketPrice;
             }
             return null;
@@ -85,8 +136,14 @@ export const MarketDataService = {
         }
     },
 
-    // Obtener cotización usando yahoo-finance2
+    // Obtener cotización usando yahoo-finance2 (CACHED)
     async getQuote(ticker: string): Promise<QuoteResult | null> {
+        const cacheKey = `quote:${ticker.toUpperCase()}`;
+        const cached = getFromCache<QuoteResult>(cacheKey);
+        if (cached !== null) {
+            return cached;
+        }
+
         try {
             const quote = await yahooFinance.quote(ticker);
 
@@ -95,7 +152,7 @@ export const MarketDataService = {
                 return null;
             }
 
-            return {
+            const result: QuoteResult = {
                 c: quote.regularMarketPrice || 0,
                 pc: quote.regularMarketPreviousClose || 0,
                 d: quote.regularMarketChange || 0,
@@ -103,20 +160,29 @@ export const MarketDataService = {
                 currency: quote.currency || 'USD',
                 name: quote.longName || quote.shortName || ticker
             };
+
+            setCache(cacheKey, result, TTL.QUOTE);
+            return result;
         } catch (e) {
             console.error(`Quote Error for ${ticker}:`, e);
             return null;
         }
     },
 
-    // Obtener perfil del activo (sector/industria) usando quoteSummary
+    // Obtener perfil del activo (sector/industria) usando quoteSummary (CACHED)
     async getAssetProfile(ticker: string) {
+        const cacheKey = `profile:${ticker.toUpperCase()}`;
+        const cached = getFromCache<any>(cacheKey);
+        if (cached !== null) {
+            return cached;
+        }
+
         try {
             const result = await yahooFinance.quoteSummary(ticker, {
                 modules: ['summaryProfile', 'price']
             });
 
-            return {
+            const profile = {
                 sector: result.summaryProfile?.sector || 'Desconocido',
                 industry: result.summaryProfile?.industry || 'Desconocido',
                 country: result.summaryProfile?.country || 'Desconocido',
@@ -124,6 +190,9 @@ export const MarketDataService = {
                 longBusinessSummary: result.summaryProfile?.longBusinessSummary || null,
                 fullTimeEmployees: result.summaryProfile?.fullTimeEmployees || null
             };
+
+            setCache(cacheKey, profile, TTL.PROFILE);
+            return profile;
         } catch (e) {
             console.error(`Asset Profile Error for ${ticker}:`, e);
             return {

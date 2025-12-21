@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import sql from '../db';
 import { MarketDataService } from '../services/marketData';
+import { calculatePnLWeekly } from '../jobs/pnlJob';
 
 export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
     .use(
@@ -419,155 +420,53 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             averagePrice: t.Number()
         })
     })
-    // PnL History for Chart (Unrealized PnL of current positions over time)
-    .get('/:id/pnl-history', async ({ userId, params }) => {
+    // PnL History for Chart (Reads from pre-calculated cache, updated daily at 4:00 AM)
+    .get('/:id/pnl-history', async ({ userId, params, query }) => {
         const { id } = params;
-        const days = 180; // 6 months history
+        const period = (query as any)?.period || '3M'; // Default 3 months
 
-        // 1. Get positions
-        const positions = await sql`SELECT * FROM positions WHERE portfolio_id = ${id}`;
+        // Calculate date filter based on period
+        let monthsBack = 3;
+        if (period === '1M') monthsBack = 1;
+        else if (period === '1Y') monthsBack = 12;
 
-        if (!positions || positions.length === 0) return [];
+        const cutoffDate = new Date();
+        cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
+        const cutoffStr = cutoffDate.toISOString().split('T')[0];
 
-        // 2. Get unique tickers and currencies (Normalized)
-        const tickers = [...new Set(positions.map(p => p.ticker ? p.ticker.toUpperCase() : ''))].filter(t => t);
-        const currencies = [...new Set(positions.map(p => p.currency ? p.currency.toUpperCase() : ''))].filter(c => c && c !== 'EUR');
+        try {
+            // Read from cache (pre-calculated by job at 4:00 AM)
+            const cachedData = await sql`
+                SELECT date, pnl_eur 
+                FROM pnl_history_cache 
+                WHERE portfolio_id = ${id}
+                AND date >= ${cutoffStr}::date
+                ORDER BY date ASC
+            `;
 
-        console.log(`[PnL] Computing for tickers: ${tickers.join(', ')}`);
-
-        // 3. Sync/Fetch historical data for tickers
-        const historyData: Record<string, any[]> = {};
-        for (const ticker of tickers) {
-            try {
-                // Ensure we have data in DB
-                await MarketDataService.getDetailedHistory(ticker, 1); // 1 year fallback
-
-                // Query DB for the specific range
-                const hist = await sql`
-                    SELECT date, close 
-                    FROM historical_data 
-                    WHERE ticker = ${ticker} 
-                    AND date >= NOW() - INTERVAL '6 months' 
-                    ORDER BY date ASC
-                `;
-                historyData[ticker] = hist;
-                console.log(`[PnL] ${ticker}: ${hist.length} history points`);
-            } catch (err) {
-                console.error(`[PnL] Error fetching history for ${ticker}:`, err);
-                historyData[ticker] = [];
+            if (cachedData && cachedData.length > 0) {
+                // Format for lightweight-charts (YYYY-MM-DD)
+                return cachedData.map(row => {
+                    const d = new Date(row.date);
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const year = d.getFullYear();
+                    return {
+                        time: `${year}-${month}-${day}`,
+                        value: Number(row.pnl_eur) || 0
+                    };
+                });
             }
+
+            // If no cache, trigger initial calculation (runs in background)
+            console.log(`[PnL] No cache for portfolio ${id}. Triggering initial calculation...`);
+
+            // Don't await - let it run in background
+            calculatePnLWeekly().catch(e => console.error('[PnL] Background calc error:', e));
+
+            return []; // Return empty for now, will have data after background job finishes
+        } catch (error) {
+            console.error('[PnL History] Error:', error);
+            return [];
         }
-
-        // 4. Sync/Fetch historical data for currencies (to EUR)
-        const currencyData: Record<string, any[]> = {};
-        for (const currency of currencies) {
-            const pair = `${currency}/EUR`;
-            try {
-                // Check if we have data for this pair in historical_data
-                let hist = await sql`
-                    SELECT date, close 
-                    FROM historical_data 
-                    WHERE ticker = ${pair} 
-                    AND date >= NOW() - INTERVAL '6 months'
-                    ORDER BY date ASC
-                `;
-
-                if (hist.length === 0) {
-                    console.log(`[PnL] Missing history for currency ${pair}. Triggering sync...`);
-                    // Attempt basic fill (calls getDetailedHistory logic adapted for currencies or simple sync)
-                    // Reusing syncCurrencyHistory logic locally for this specific pair
-                    // WORKAROUND: Force a global syncCurrencyHistory since it reads derived positions.
-                    await MarketDataService.syncCurrencyHistory(6);
-
-                    // Retry read
-                    hist = await sql`
-                        SELECT date, close 
-                        FROM historical_data 
-                        WHERE ticker = ${pair} 
-                        AND date >= NOW() - INTERVAL '6 months'
-                        ORDER BY date ASC
-                    `;
-                }
-                currencyData[currency] = hist;
-            } catch (err) {
-                console.error(`[PnL] Error fetching currency history for ${currency}:`, err);
-                currencyData[currency] = [];
-            }
-        }
-
-        // 5. Aggregate PnL per day
-        // Create a map of Date -> PnL
-        const pnlMap: Record<string, number> = {};
-        const datesSet = new Set<string>();
-
-        // Collect all dates from all tickers
-        Object.values(historyData).forEach(list => {
-            list.forEach(item => datesSet.add(new Date(item.date).toISOString().split('T')[0]));
-        });
-
-        const sortedDates = Array.from(datesSet).sort();
-
-        // Helper to get price at date (or previous close if missing)
-        const getPriceAtDate = (ticker: string, dateStr: string) => {
-            const list = historyData[ticker] || [];
-            // Find exact match
-            const exact = list.find(d => new Date(d.date).toISOString().split('T')[0] === dateStr);
-            if (exact) return Number(exact.close);
-
-            // Find closest previous
-            // Optimization: Iterate backwards from date
-            return 0; // Fallback if no data (assume 0 value? or exclude?)
-        };
-
-        // Helper to get rate at date
-        const getRateAtDate = (curr: string, dateStr: string) => {
-            if (curr === 'EUR') return 1.0;
-            const list = currencyData[curr] || [];
-            const exact = list.find(d => new Date(d.date).toISOString().split('T')[0] === dateStr);
-            if (exact) return Number(exact.close);
-            return 1.0; // Fallback to 1.0 implies parity or missing data
-        };
-
-        for (const dateStr of sortedDates) {
-            let totalValue = 0;
-            let totalCost = 0;
-            let hasData = false;
-
-            for (const pos of positions) {
-                const price = getPriceAtDate(pos.ticker, dateStr);
-
-                // Only count if we have price data (otherwise it skews the graph abruptly)
-                if (price > 0) {
-                    hasData = true;
-                    const rate = getRateAtDate(pos.currency, dateStr);
-                    const qty = Number(pos.quantity);
-                    const avgPrice = Number(pos.average_buy_price);
-
-                    const valueEur = qty * price * rate;
-                    const costEur = qty * avgPrice * rate; // Using historical rate for cost too to see "Unrealized PnL" in EUR terms at that moment? 
-                    // Actually, usually "Cost Basis" is fixed in base currency at time of purchase. 
-                    // If we stored cost_basis_eur in DB, we'd use that. 
-                    // Since we calculate on fly, keeping it simple: compare (ValueInEUR - CostInEUR_AtCurrentRate) 
-                    // or (ValueInEUR - CostInEUR_Fixed). 
-                    // Let's assume CostInEUR is relatively fixed or we use the current rate to approximate "what if I sold now vs bought now".
-                    // Standard PnL: (Current Price - Avg Price) * Qty. Converted to EUR.
-
-                    const pnlInAssetCurrency = (price - avgPrice) * qty;
-                    const pnlInEur = pnlInAssetCurrency * rate;
-
-                    totalValue += pnlInEur;
-                }
-            }
-
-            // Only add point if we had valid stock data
-            if (hasData) {
-                pnlMap[dateStr] = totalValue; // This is Total Unrealized PnL
-            }
-        }
-
-        return sortedDates.map(date => ({
-            time: date,
-            value: pnlMap[date] || 0
-        })).filter(p => p.value !== 0); // Cleanup zeros if needed
     });
-
