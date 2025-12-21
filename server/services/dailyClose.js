@@ -12,6 +12,7 @@ let dailyRunning = false
 import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
 import DailyPositionSnapshot from '../models/DailyPositionSnapshot.js'
 import scheduler from './scheduler.js'
+import { getFxMapToEUR } from '../utils/exchangeRateService.js'
 
 // Instancia de Yahoo Finance v3
 const yahooFinance = new YahooFinance({
@@ -500,36 +501,3 @@ export const reloadDaily = async () => {
 }
 
 export default { startDaily, stopDaily, reloadDaily, runDailyOnce, runBackfill }
-const getFxMapToEUR = async () => {
-  // Defaults razonables en caso de que todas las APIs fallen
-  const map = { USD: 0.92, EUR: 1.0, GBP: 0.86 }
-  try {
-    let key = process.env.FINNHUB_API_KEY || ''
-    if (!key) {
-      const row = await Config.findOne({ where: { key: 'finnhub_api_key' } })
-      key = row?.value || ''
-    }
-    if (key) {
-      const r1 = await fetch(`https://finnhub.io/api/v1/forex/rates?base=EUR&token=${encodeURIComponent(key)}`)
-      if (r1.ok) {
-        const data = await r1.json()
-        const usdPerEur = Number(data?.rates?.USD)
-        const gbpPerEur = Number(data?.rates?.GBP)
-        if (usdPerEur && usdPerEur > 0) map.USD = 1 / usdPerEur
-        if (gbpPerEur && gbpPerEur > 0) map.GBP = 1 / gbpPerEur
-        return map
-      }
-    }
-  } catch { }
-  try {
-    const eurusd = await yahooFinance.quote('EURUSD=X')
-    const r = eurusd?.regularMarketPrice || eurusd?.regularMarketPreviousClose
-    if (r && r > 0) map.USD = 1 / r
-  } catch { }
-  try {
-    const eurgbp = await yahooFinance.quote('EURGBP=X')
-    const r = eurgbp?.regularMarketPrice || eurgbp?.regularMarketPreviousClose
-    if (r && r > 0) map.GBP = 1 / r
-  } catch { }
-  return map
-}

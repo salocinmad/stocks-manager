@@ -5,6 +5,7 @@ import Portfolio from '../models/Portfolio.js';
 import Config from '../models/Config.js';
 import { Op } from 'sequelize';
 import { getLogLevel } from './configService.js';
+import { getFxMapToEUR } from '../utils/exchangeRateService.js';
 
 // Instancia de Yahoo Finance
 const yahooFinance = new YahooFinance({
@@ -15,48 +16,6 @@ const yahooFinance = new YahooFinance({
     }
 });
 
-/**
- * Obtiene el mapa de tipos de cambio a EUR
- */
-const getFxMapToEUR = async () => {
-    // Defaults razonables en caso de que todas las APIs fallen
-    const map = { USD: 0.92, EUR: 1.0, GBP: 0.86 };
-
-    try {
-        let key = process.env.FINNHUB_API_KEY || '';
-        if (!key) {
-            const row = await Config.findOne({ where: { key: 'finnhub-api-key' } });
-            key = row?.value || '';
-        }
-        if (key) {
-            const r1 = await fetch(`https://finnhub.io/api/v1/forex/rates?base=EUR&token=${encodeURIComponent(key)}`);
-            if (r1.ok) {
-                const data = await r1.json();
-                const usdPerEur = Number(data?.rates?.USD);
-                const gbpPerEur = Number(data?.rates?.GBP);
-                if (usdPerEur && usdPerEur > 0) map.USD = 1 / usdPerEur;
-                if (gbpPerEur && gbpPerEur > 0) map.GBP = 1 / gbpPerEur;
-                return map;
-            }
-        }
-    } catch { }
-
-    // Fallback Yahoo para USD
-    try {
-        const eurusd = await yahooFinance.quote('EURUSD=X');
-        const r = eurusd?.regularMarketPrice || eurusd?.regularMarketPreviousClose;
-        if (r && r > 0) map.USD = 1 / r;
-    } catch { }
-
-    // Fallback Yahoo para GBP
-    try {
-        const eurgbp = await yahooFinance.quote('EURGBP=X');
-        const rateGBP = eurgbp?.regularMarketPrice || eurgbp?.regularMarketPreviousClose;
-        if (rateGBP && rateGBP > 0) map.GBP = 1 / rateGBP;
-    } catch { }
-
-    return map;
-};
 
 /**
  * Sobrescribe los datos históricos de DailyPrice para los últimos N días

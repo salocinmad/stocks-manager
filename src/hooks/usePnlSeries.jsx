@@ -18,13 +18,23 @@ export function usePnlSeries({ days = 30, computeCurrentNetPnL }) {
     loadingRef.current = true
     try {
       const ts = await portfolioAPI.timeseries({ days })
-      const today = new Date().toISOString().slice(0, 10)
+      const nowD = new Date()
+      const today = nowD.getFullYear() + '-' + String(nowD.getMonth() + 1).padStart(2, '0') + '-' + String(nowD.getDate()).padStart(2, '0')
+
       let series = (ts.items || [])
         .filter(d => d.date !== today)
         .map(d => {
           const value = (typeof d.pnlEUR !== 'undefined') ? d.pnlEUR : d.totalValueEUR
           return { date: d.date, pnlEUR: parseFloat(value || 0) }
         })
+
+      // Añadir el punto "en vivo" de hoy
+      if (computeRef.current) {
+        const current = computeRef.current();
+        if (current && typeof current.net === 'number') {
+          series.push({ date: today, pnlEUR: current.net });
+        }
+      }
 
       setPnlSeries(series)
     } catch (e) {
