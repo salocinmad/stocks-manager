@@ -9,6 +9,8 @@ interface User {
     name: string;
     role: 'admin' | 'user';
     isBlocked: boolean;
+    twoFactorEnabled: boolean;
+    securityMode: 'standard' | 'enhanced';
     createdAt: string;
 }
 
@@ -208,6 +210,30 @@ export const AdminScreen: React.FC = () => {
             await loadStats();
         } catch (err: any) {
             alert(err.response?.data?.message || 'Error al eliminar usuario');
+        }
+    };
+
+    // Reset 2FA para usuario
+    const reset2FA = async (userId: string, email: string) => {
+        if (!confirm(`¿Desactivar 2FA para ${email}?`)) return;
+        try {
+            await api.delete(`/admin/users/${userId}/2fa`);
+            await loadUsers();
+            alert('2FA desactivado');
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Error al resetear 2FA');
+        }
+    };
+
+    // Reset security mode para usuario
+    const resetSecurityMode = async (userId: string, email: string) => {
+        if (!confirm(`¿Cambiar modo de seguridad a estándar para ${email}?`)) return;
+        try {
+            await api.patch(`/admin/users/${userId}/security-mode`, { mode: 'standard' });
+            await loadUsers();
+            alert('Modo de seguridad cambiado a estándar');
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Error al cambiar modo');
         }
     };
 
@@ -556,6 +582,7 @@ export const AdminScreen: React.FC = () => {
                                                 <th className="px-4 py-3 text-left">Usuario</th>
                                                 <th className="px-4 py-3 text-center">Rol</th>
                                                 <th className="px-4 py-3 text-center">Estado</th>
+                                                <th className="px-4 py-3 text-center">2FA</th>
                                                 <th className="px-4 py-3 text-center">Registrado</th>
                                                 <th className="px-4 py-3 text-center">Acciones</th>
                                             </tr>
@@ -584,6 +611,20 @@ export const AdminScreen: React.FC = () => {
                                                             }`}>
                                                             {u.isBlocked ? 'Bloqueado' : 'Activo'}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-center">
+                                                        {u.twoFactorEnabled ? (
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span className="px-2 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-500">
+                                                                    ✓ Activo
+                                                                </span>
+                                                                {u.securityMode === 'enhanced' && (
+                                                                    <span className="text-[10px] text-purple-500">Reforzado</span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-text-secondary-light">—</span>
+                                                        )}
                                                     </td>
                                                     <td className="px-4 py-4 text-center text-sm text-text-secondary-light">
                                                         {new Date(u.createdAt).toLocaleDateString('es-ES')}
@@ -636,6 +677,28 @@ export const AdminScreen: React.FC = () => {
                                                                     title="Eliminar usuario"
                                                                 >
                                                                     <span className="material-symbols-outlined text-lg">delete</span>
+                                                                </button>
+                                                            )}
+
+                                                            {/* Reset 2FA */}
+                                                            {u.twoFactorEnabled && u.id !== currentUser?.id && (
+                                                                <button
+                                                                    onClick={() => reset2FA(u.id, u.email)}
+                                                                    className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-500 transition-all"
+                                                                    title="Desactivar 2FA"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-lg">key_off</span>
+                                                                </button>
+                                                            )}
+
+                                                            {/* Reset Security Mode */}
+                                                            {u.securityMode === 'enhanced' && u.id !== currentUser?.id && (
+                                                                <button
+                                                                    onClick={() => resetSecurityMode(u.id, u.email)}
+                                                                    className="p-2 rounded-lg hover:bg-amber-500/20 text-text-secondary-light hover:text-amber-500 transition-all"
+                                                                    title="Cambiar a modo estándar"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-lg">shield</span>
                                                                 </button>
                                                             )}
                                                         </div>

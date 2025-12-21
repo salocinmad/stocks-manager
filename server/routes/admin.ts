@@ -70,7 +70,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     // Listar todos los usuarios
     .get('/users', async () => {
         const users = await sql`
-            SELECT id, email, full_name, role, is_blocked, created_at, updated_at
+            SELECT id, email, full_name, role, is_blocked, two_factor_enabled, security_mode, created_at, updated_at
             FROM users
             ORDER BY created_at DESC
         `;
@@ -80,6 +80,8 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             name: u.full_name,
             role: u.role || 'user',
             isBlocked: u.is_blocked || false,
+            twoFactorEnabled: u.two_factor_enabled || false,
+            securityMode: u.security_mode || 'standard',
             createdAt: u.created_at
         }));
     })
@@ -168,6 +170,46 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
 
         console.log(`User ${userId} deleted`);
         return { success: true, message: 'Usuario eliminado' };
+    })
+    // ===== 2FA ADMIN CONTROLS =====
+    // Reset 2FA for a user
+    .delete('/users/:userId/2fa', async ({ params }) => {
+        const { userId } = params;
+
+        await sql`
+            UPDATE users 
+            SET two_factor_enabled = FALSE,
+                two_factor_secret = NULL,
+                security_mode = 'standard',
+                backup_codes = NULL,
+                backup_codes_downloaded = FALSE,
+                backup_codes_generated_at = NULL
+            WHERE id = ${userId}
+        `;
+
+        console.log(`Admin reset 2FA for user ${userId}`);
+        return { success: true, message: '2FA desactivado para el usuario' };
+    })
+    // Reset security mode to standard
+    .patch('/users/:userId/security-mode', async ({ params, body }) => {
+        const { userId } = params;
+        // @ts-ignore
+        const { mode } = body;
+
+        if (mode !== 'standard' && mode !== 'enhanced') {
+            throw new Error('Modo inválido');
+        }
+
+        await sql`
+            UPDATE users SET security_mode = ${mode} WHERE id = ${userId}
+        `;
+
+        console.log(`Admin changed security mode to ${mode} for user ${userId}`);
+        return { success: true, message: `Modo de seguridad cambiado a ${mode}` };
+    }, {
+        body: t.Object({
+            mode: t.String()
+        })
     })
     // Estadísticas
     .get('/stats', async () => {

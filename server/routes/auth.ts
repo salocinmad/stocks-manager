@@ -2,6 +2,11 @@ import { Elysia, t } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import sql from '../db';
 import bcrypt from 'bcryptjs';
+import { TwoFactorService } from '../services/twoFactorService';
+import { EmailService } from '../services/emailService';
+
+// Store temporary 2FA sessions (in production, use Redis)
+const pending2FASessions = new Map<string, { userId: string; email: string; role: string; name: string; currency: string; securityMode: string; emailCode?: string; expiresAt: number }>();
 
 // Duración del token: 2 horas en segundos
 const TOKEN_EXPIRATION = 2 * 60 * 60;
@@ -11,48 +16,41 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         jwt({
             name: 'jwt',
             secret: process.env.JWT_SECRET || 'changeme_in_prod',
-            exp: '2h' // Token expira en 2 horas
+            exp: '2h'
         })
     )
     .post('/register', async ({ body, set, jwt }) => {
         // @ts-ignore
         const { email, password, fullName } = body;
 
-        // Check if user exists
         const existing = await sql`SELECT id FROM users WHERE email = ${email}`;
         if (existing.length > 0) {
             set.status = 400;
             return { error: 'User already exists' };
         }
 
-        // Determinar si es el primer usuario (será admin)
         const userCount = await sql`SELECT COUNT(*) as count FROM users`;
         const isFirstUser = parseInt(userCount[0].count) === 0;
         const role = isFirstUser ? 'admin' : 'user';
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Insert user con rol
         const [user] = await sql`
-      INSERT INTO users (email, password_hash, full_name, role)
-      VALUES (${email}, ${hashedPassword}, ${fullName}, ${role})
-      RETURNING id, email, full_name, role
-    `;
+            INSERT INTO users (email, password_hash, full_name, role)
+            VALUES (${email}, ${hashedPassword}, ${fullName}, ${role})
+            RETURNING id, email, full_name, role
+        `;
 
-        // Auto-create default portfolio
         await sql`
-      INSERT INTO portfolios (user_id, name, is_public)
-      VALUES (${user.id}, 'Portafolio Principal', false)
-    `;
+            INSERT INTO portfolios (user_id, name, is_public)
+            VALUES (${user.id}, 'Portafolio Principal', false)
+        `;
 
-        // Generate JWT con expiración y rol
         const token = await jwt.sign({
             sub: user.id,
             email: user.email,
             role: user.role
         });
-
-        console.log(`User registered: ${user.email} with role: ${user.role}`);
 
         return {
             token,
@@ -67,8 +65,62 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     })
     .post('/login', async ({ body, set, jwt }) => {
         // @ts-ignore
-        const { email, password } = body;
+        const { email, password, totpCode, backupCode, sessionToken } = body;
 
+        // Step 2: 2FA verification
+        if (sessionToken) {
+            const session = pending2FASessions.get(sessionToken);
+            if (!session || session.expiresAt < Date.now()) {
+                pending2FASessions.delete(sessionToken);
+                set.status = 401;
+                return { error: 'Sesión 2FA expirada. Vuelve a iniciar sesión.' };
+            }
+
+            const [user] = await sql`SELECT * FROM users WHERE id = ${session.userId}`;
+            if (!user) {
+                set.status = 401;
+                return { error: 'Usuario no encontrado' };
+            }
+
+            // Validate TOTP or backup code
+            if (backupCode) {
+                const valid = await TwoFactorService.verifyBackupCode(user.id, backupCode);
+                if (!valid) {
+                    set.status = 401;
+                    return { error: 'Código de respaldo inválido' };
+                }
+            } else if (totpCode) {
+                const valid = TwoFactorService.verifyCode(user.two_factor_secret, totpCode);
+                if (!valid) {
+                    set.status = 401;
+                    return { error: 'Código 2FA incorrecto' };
+                }
+            } else {
+                set.status = 400;
+                return { error: 'Se requiere código 2FA o código de respaldo' };
+            }
+
+            pending2FASessions.delete(sessionToken);
+
+            const token = await jwt.sign({
+                sub: user.id,
+                email: user.email,
+                role: user.role || 'user'
+            });
+
+            return {
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.full_name,
+                    currency: user.preferred_currency,
+                    role: user.role || 'user'
+                }
+            };
+        }
+
+        // Step 1: Validate email/password
         const users = await sql`SELECT * FROM users WHERE email = ${email}`;
         if (users.length === 0) {
             set.status = 401;
@@ -77,10 +129,9 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
 
         const user = users[0];
 
-        // Verificar si el usuario está bloqueado
         if (user.is_blocked) {
             set.status = 403;
-            return { error: 'Tu cuenta ha sido bloqueada. Contacta con el administrador.' };
+            return { error: 'Tu cuenta ha sido bloqueada.' };
         }
 
         const valid = await bcrypt.compare(password, user.password_hash);
@@ -89,14 +140,44 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
             return { error: 'Invalid credentials' };
         }
 
-        // Generate JWT con expiración y rol
+        // Check if 2FA is enabled
+        if (user.two_factor_enabled) {
+            const sessionToken = crypto.randomUUID();
+            const sessionData: any = {
+                userId: user.id,
+                email: user.email,
+                role: user.role || 'user',
+                name: user.full_name,
+                currency: user.preferred_currency,
+                securityMode: user.security_mode || 'standard',
+                expiresAt: Date.now() + 5 * 60 * 1000
+            };
+
+            if (user.security_mode === 'enhanced') {
+                const emailCode = TwoFactorService.generateEmailCode();
+                sessionData.emailCode = emailCode;
+
+                await EmailService.sendEmail(
+                    user.email,
+                    'Código de verificación - Stocks Manager',
+                    `<p>Tu código de verificación es: <strong>${emailCode}</strong></p><p>Válido por 5 minutos.</p>`
+                );
+            }
+
+            pending2FASessions.set(sessionToken, sessionData);
+
+            return {
+                requires2FA: true,
+                sessionToken,
+                securityMode: user.security_mode || 'standard'
+            };
+        }
+
         const token = await jwt.sign({
             sub: user.id,
             email: user.email,
             role: user.role || 'user'
         });
-
-        console.log('User logged in:', user.id, user.email, 'role:', user.role);
 
         return {
             token,
@@ -108,11 +189,6 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
                 role: user.role || 'user'
             }
         };
-    }, {
-        body: t.Object({
-            email: t.String(),
-            password: t.String()
-        })
     })
     .post('/forgot-password', async ({ body, set }) => {
         // @ts-ignore
@@ -122,101 +198,225 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
 
         if (users.length > 0) {
             const user = users[0];
-            // Generar password de 10 caracteres (letras y números)
             const newPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-4).toUpperCase();
-
-            // Hashear
             const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-            // Actualizar DB
             await sql`UPDATE users SET password_hash = ${hashedPassword} WHERE id = ${user.id}`;
 
-            // Enviar Email
-            // Import dinámico para evitar error si no se ha regenerado el bundle aún o issue con imports circulares, aunque no debería.
-            // Mejor import arriba si pudiera, pero replace no me deja fácil editar arriba. 
-            // Usaré require o import si puedo, pero `EmailService` es ts. 
-            // Asumiré que puedo añadir el import arriba.
-
-            const { EmailService } = await import('../services/emailService');
-
             const emailHtml = `
-                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #eee; border-radius: 10px;">
-                    <h2 style="color: #2563eb;">Stocks Manager - Recuperación</h2>
-                    <p>Hola <strong>${user.full_name || 'Usuario'}</strong>,</p>
-                    <p>Hemos recibido una solicitud para restablecer tu contraseña.</p>
-                    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
-                        <p style="margin: 0; font-size: 14px; color: #666;">Tu nueva contraseña temporal es:</p>
-                        <p style="margin: 10px 0; font-size: 24px; font-weight: bold; color: #111; letter-spacing: 2px;">${newPassword}</p>
-                    </div>
-                    <p>Por favor, inicia sesión y cambia esta contraseña lo antes posible desde tu perfil.</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="font-size: 12px; color: #999;">Si no has solicitado esto, contacta con el administrador.</p>
+                <div style="font-family: Arial, sans-serif; padding: 20px;">
+                    <h2>Stocks Manager - Recuperación</h2>
+                    <p>Tu nueva contraseña temporal es: <strong>${newPassword}</strong></p>
+                    <p>Cámbiala lo antes posible.</p>
                 </div>
             `;
 
-            const sent = await EmailService.sendEmail(email, 'Restablecimiento de Contraseña', emailHtml);
-
-            if (!sent) {
-                set.status = 500;
-                return { error: 'Error al enviar el correo. Verifica la configuración SMTP del servidor.' };
-            }
-        } else {
-            // Retardo artificial para evitar user enumeration timing attack
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await EmailService.sendEmail(email, 'Nueva contraseña', emailHtml);
         }
 
-        return { success: true, message: 'Si el correo está registrado, recibirás una nueva contraseña en breve.' };
+        return { success: true, message: 'Si el correo existe, recibirás instrucciones.' };
     }, {
-        body: t.Object({
-            email: t.String()
-        })
+        body: t.Object({ email: t.String() })
     })
     .post('/change-password', async ({ headers, body, set, jwt }) => {
-        // 1. Auth Check Manual
         const auth = headers['authorization'];
         if (!auth?.startsWith('Bearer ')) {
             set.status = 401;
-            throw new Error('Unauthorized');
+            return { error: 'Unauthorized' };
         }
-        const token = auth.slice(7);
-        const profile = await jwt.verify(token) as any;
-
-        if (!profile || !profile.sub) {
+        const profile = await jwt.verify(auth.slice(7)) as any;
+        if (!profile?.sub) {
             set.status = 401;
-            throw new Error('Unauthorized');
+            return { error: 'Unauthorized' };
         }
 
-        const userId = profile.sub;
         const { currentPassword, newPassword } = body as any;
-
-        if (!currentPassword || !newPassword) {
-            set.status = 400;
-            return { error: 'Faltan campos requeridos' };
-        }
-
-        if (newPassword.length < 6) {
-            set.status = 400;
-            return { error: 'La nueva contraseña debe tener al menos 6 caracteres' };
-        }
-
-        // 2. Verificar contraseña actual
-        const user = await sql`SELECT password_hash FROM users WHERE id = ${userId}`;
-        if (user.length === 0) {
-            set.status = 404;
-            return { error: 'Usuario no encontrado' };
-        }
+        const user = await sql`SELECT password_hash FROM users WHERE id = ${profile.sub}`;
 
         const valid = await bcrypt.compare(currentPassword, user[0].password_hash);
         if (!valid) {
             set.status = 400;
-            return { error: 'La contraseña actual es incorrecta' };
+            return { error: 'Contraseña actual incorrecta' };
         }
 
-        // 3. Hashear y actualizar
         const hashed = await bcrypt.hash(newPassword, 10);
-        await sql`UPDATE users SET password_hash = ${hashed} WHERE id = ${userId}`;
+        await sql`UPDATE users SET password_hash = ${hashed} WHERE id = ${profile.sub}`;
 
-        console.log(`User ${userId} changed password`);
-        return { success: true, message: 'Contraseña actualizada correctamente' };
+        return { success: true };
+    })
+    // ============ 2FA ENDPOINTS ============
+    .get('/2fa/status', async ({ headers, set, jwt }) => {
+        const auth = headers['authorization'];
+        if (!auth?.startsWith('Bearer ')) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+        const profile = await jwt.verify(auth.slice(7)) as any;
+        if (!profile?.sub) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+
+        return await TwoFactorService.getStatus(profile.sub);
+    })
+    .post('/2fa/setup', async ({ headers, set, jwt }) => {
+        const auth = headers['authorization'];
+        if (!auth?.startsWith('Bearer ')) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+        const profile = await jwt.verify(auth.slice(7)) as any;
+        if (!profile?.sub) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+
+        const [user] = await sql`SELECT email, two_factor_enabled FROM users WHERE id = ${profile.sub}`;
+        if (user.two_factor_enabled) {
+            set.status = 400;
+            return { error: '2FA ya está activado' };
+        }
+
+        const { secret, uri } = TwoFactorService.generateSecret(user.email);
+        const qrCode = await TwoFactorService.generateQRCode(uri);
+        await TwoFactorService.savePendingSetup(profile.sub, secret);
+        const backupCodes = TwoFactorService.generateBackupCodes();
+
+        return { secret, qrCode, backupCodes };
+    })
+    .post('/2fa/verify', async ({ headers, body, set, jwt }) => {
+        const auth = headers['authorization'];
+        if (!auth?.startsWith('Bearer ')) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+        const profile = await jwt.verify(auth.slice(7)) as any;
+        if (!profile?.sub) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+
+        const { code, backupCodes } = body as any;
+
+        const [user] = await sql`SELECT two_factor_secret, two_factor_enabled FROM users WHERE id = ${profile.sub}`;
+
+        if (!user.two_factor_secret) {
+            set.status = 400;
+            return { error: 'Primero inicia la configuración de 2FA' };
+        }
+
+        if (user.two_factor_enabled) {
+            set.status = 400;
+            return { error: '2FA ya está activado' };
+        }
+
+        if (!backupCodes || backupCodes.length !== 10) {
+            set.status = 400;
+            return { error: 'Debes descargar los códigos de respaldo primero' };
+        }
+
+        const valid = TwoFactorService.verifyCode(user.two_factor_secret, code);
+        if (!valid) {
+            set.status = 400;
+            return { error: 'Código incorrecto' };
+        }
+
+        await TwoFactorService.activateTwoFactor(profile.sub, backupCodes);
+
+        return { success: true, message: '2FA activado correctamente' };
+    })
+    .post('/2fa/disable', async ({ headers, body, set, jwt }) => {
+        const auth = headers['authorization'];
+        if (!auth?.startsWith('Bearer ')) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+        const profile = await jwt.verify(auth.slice(7)) as any;
+        if (!profile?.sub) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+
+        const { code, password } = body as any;
+
+        const [user] = await sql`SELECT password_hash, two_factor_secret, two_factor_enabled FROM users WHERE id = ${profile.sub}`;
+
+        if (!user.two_factor_enabled) {
+            set.status = 400;
+            return { error: '2FA no está activado' };
+        }
+
+        const validPwd = await bcrypt.compare(password, user.password_hash);
+        if (!validPwd) {
+            set.status = 400;
+            return { error: 'Contraseña incorrecta' };
+        }
+
+        const valid = TwoFactorService.verifyCode(user.two_factor_secret, code);
+        if (!valid) {
+            set.status = 400;
+            return { error: 'Código 2FA incorrecto' };
+        }
+
+        await TwoFactorService.disableTwoFactor(profile.sub);
+
+        return { success: true };
+    })
+    .patch('/2fa/security-mode', async ({ headers, body, set, jwt }) => {
+        const auth = headers['authorization'];
+        if (!auth?.startsWith('Bearer ')) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+        const profile = await jwt.verify(auth.slice(7)) as any;
+        if (!profile?.sub) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+
+        const { mode } = body as any;
+        if (mode !== 'standard' && mode !== 'enhanced') {
+            set.status = 400;
+            return { error: 'Modo inválido' };
+        }
+
+        const [user] = await sql`SELECT two_factor_enabled FROM users WHERE id = ${profile.sub}`;
+        if (mode === 'enhanced' && !user.two_factor_enabled) {
+            set.status = 400;
+            return { error: 'Activa 2FA primero' };
+        }
+
+        await TwoFactorService.setSecurityMode(profile.sub, mode);
+
+        return { success: true, mode };
+    })
+    .post('/2fa/regenerate-backup-codes', async ({ headers, body, set, jwt }) => {
+        const auth = headers['authorization'];
+        if (!auth?.startsWith('Bearer ')) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+        const profile = await jwt.verify(auth.slice(7)) as any;
+        if (!profile?.sub) {
+            set.status = 401;
+            return { error: 'Unauthorized' };
+        }
+
+        const { password } = body as any;
+
+        const [user] = await sql`SELECT password_hash, two_factor_enabled FROM users WHERE id = ${profile.sub}`;
+
+        if (!user.two_factor_enabled) {
+            set.status = 400;
+            return { error: '2FA no está activado' };
+        }
+
+        const validPwd = await bcrypt.compare(password, user.password_hash);
+        if (!validPwd) {
+            set.status = 400;
+            return { error: 'Contraseña incorrecta' };
+        }
+
+        const newCodes = await TwoFactorService.regenerateBackupCodes(profile.sub);
+
+        return { success: true, backupCodes: newCodes };
     });
-

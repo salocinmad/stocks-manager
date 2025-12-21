@@ -24,8 +24,15 @@ export async function initDatabase() {
       await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'`;
       await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false`;
       await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
+      // 2FA columns
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_secret TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN DEFAULT FALSE`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_mode TEXT DEFAULT 'standard'`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS backup_codes TEXT[]`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS backup_codes_downloaded BOOLEAN DEFAULT FALSE`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS backup_codes_generated_at TIMESTAMP WITH TIME ZONE`;
     } catch (e) {
-      console.log('User columns role/is_blocked may already exist');
+      console.log('User columns may already exist');
     }
 
     // 2. Table portfolios

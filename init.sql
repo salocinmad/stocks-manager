@@ -10,6 +10,14 @@ CREATE TABLE IF NOT EXISTS users (
     role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('admin', 'user')),
     is_blocked BOOLEAN DEFAULT FALSE,
     preferred_currency VARCHAR(3) DEFAULT 'EUR',
+    -- 2FA Fields
+    two_factor_secret VARCHAR(64),
+    two_factor_enabled BOOLEAN DEFAULT FALSE,
+    security_mode VARCHAR(20) DEFAULT 'standard' CHECK (security_mode IN ('standard', 'enhanced')),
+    backup_codes TEXT[],
+    backup_codes_downloaded BOOLEAN DEFAULT FALSE,
+    backup_codes_generated_at TIMESTAMP WITH TIME ZONE,
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

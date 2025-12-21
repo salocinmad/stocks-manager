@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Header } from '../components/Header';
+import { TwoFactorSettings } from '../components/TwoFactorSettings';
 
 export const ProfileScreen: React.FC = () => {
   const { isAdmin, api, logout } = useAuth();
@@ -141,6 +142,9 @@ export const ProfileScreen: React.FC = () => {
           {/* SECURITY TAB */}
           {activeTab === 'security' && (
             <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {/* 2FA Settings */}
+              <TwoFactorSettings />
+
               <div className="flex flex-col p-8 rounded-3xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
                 <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary">lock</span> Cambio de Contraseña
