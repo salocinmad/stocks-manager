@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.gitignore
+README.md
+build.log
+build_output.txt
+docker-compose.yml
+.env
+.env.local
+.DS_Store
+Thumbs.db

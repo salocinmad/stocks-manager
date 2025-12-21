@@ -1,0 +1,45 @@
+{
+  "name": "stocks-manager",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run server/index.ts --dev",
+    "build:frontend": "bun build ./src/index.tsx --outdir ./dist --minify",
+    "start": "bun run server/index.ts"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "latest",
+    "@elysiajs/jwt": "latest",
+    "@elysiajs/static": "latest",
+    "@elysiajs/swagger": "latest",
+    "@google/generative-ai": "latest",
+    "axios": "latest",
+    "bcryptjs": "latest",
+    "dotenv": "^17.2.3",
+    "elysia": "latest",
+    "i18next": "latest",
+    "lightweight-charts": "^4.1.0",
+    "nodemailer": "^6.9.16",
+    "otpauth": "^9.4.0",
+    "postgres": "latest",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-i18next": "latest",
+    "react-router-dom": "^7.11.0",
+    "recharts": "^3.6.0",
+    "yahoo-finance2": "^3.10.2",
+    "xlsx": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.19",
+    "bun-types": "latest",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "typescript": "~5.8.2"
+  }
+}

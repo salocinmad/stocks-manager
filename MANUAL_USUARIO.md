@@ -1,0 +1,385 @@
+# 📖 Manual de Usuario - Stocks Manager
+
+Versión 2.0 | Última actualización: Diciembre 2025
+
+---
+
+## 📑 Índice
+
+1. [Introducción](#-introducción)
+2. [Primeros Pasos](#-primeros-pasos)
+3. [Dashboard](#-dashboard)
+4. [Gestión de Portfolios](#-gestión-de-portfolios)
+5. [Operaciones de Compra/Venta](#-operaciones-de-compraventa)
+6. [Alertas de Precio](#-alertas-de-precio)
+7. [Watchlists](#-watchlists)
+8. [Reportes Fiscales](#-reportes-fiscales)
+9. [ChatBot IA](#-chatbot-ia)
+10. [Configuración de Perfil](#-configuración-de-perfil)
+11. [Preguntas Frecuentes](#-preguntas-frecuentes)
+
+---
+
+## 🎯 Introducción
+
+### ¿Qué es Stocks Manager?
+
+Stocks Manager es una aplicación de gestión de carteras de inversión que te permite:
+
+- 📊 **Visualizar** el rendimiento de tus inversiones en tiempo real
+- 💰 **Registrar** operaciones de compra y venta
+- 📈 **Analizar** tu cartera con gráficos profesionales
+- 🔔 **Recibir alertas** cuando un activo alcance un precio objetivo
+- 📋 **Generar reportes fiscales** para la declaración de la renta
+- 🤖 **Consultar a la IA** sobre estrategias y análisis de mercado
+
+### Requisitos
+
+- Navegador web moderno (Chrome, Firefox, Edge, Safari)
+- Conexión a internet
+- Cuenta de usuario registrada
+
+---
+
+## 🚀 Primeros Pasos
+
+### Registro
+
+1. Accede a la aplicación desde tu navegador
+2. Haz clic en **"Registrarse"**
+3. Completa el formulario con:
+   - Nombre completo
+   - Email
+   - Contraseña (mínimo 6 caracteres)
+4. Haz clic en **"Crear cuenta"**
+
+### Inicio de Sesión
+
+1. Introduce tu email y contraseña
+2. Si tienes 2FA activado:
+   - Introduce el código de 6 dígitos de tu app autenticadora
+   - O usa un código de respaldo si no tienes acceso a la app
+3. Haz clic en **"Iniciar sesión"**
+
+### Configurar 2FA (Recomendado)
+
+La autenticación de dos factores protege tu cuenta:
+
+1. Ve a **Perfil → Seguridad**
+2. Haz clic en **"Activar 2FA"**
+3. Escanea el código QR con tu app (Google Authenticator, Authy)
+4. **Descarga los códigos de respaldo** (¡importante!)
+5. Confirma que los has guardado
+6. Introduce el código de 6 dígitos para activar
+
+> ⚠️ **Importante**: Guarda los códigos de respaldo en un lugar seguro. Si pierdes acceso a tu app autenticadora, los necesitarás para entrar.
+
+---
+
+## 📊 Dashboard
+
+El Dashboard es tu página principal con un resumen de toda tu cartera.
+
+### Elementos del Dashboard
+
+| Sección | Descripción |
+|---------|-------------|
+| **Valor Total** | El valor actual de todas tus inversiones en EUR |
+| **PnL Total** | Ganancia o pérdida total (Profit & Loss) |
+| **Gráfico PnL** | Evolución de tu rentabilidad en el tiempo |
+| **Mercado** | Estado del mercado (abierto/cerrado) |
+| **Asignación Sectorial** | Distribución de tu cartera por sectores |
+
+### Filtros del Gráfico PnL
+
+Puedes filtrar el periodo del gráfico:
+- **1S** - Última semana
+- **1M** - Último mes
+- **3M** - Últimos 3 meses
+- **6M** - Últimos 6 meses
+- **1A** - Último año
+- **Todo** - Todo el histórico
+
+### Cambiar de Portfolio
+
+Si tienes varios portfolios, puedes cambiar entre ellos desde el selector en la parte superior.
+
+---
+
+## 💼 Gestión de Portfolios
+
+### Crear un Portfolio
+
+1. Ve a **Portfolio** en el menú lateral
+2. Haz clic en el icono **"+"** o **"Nuevo Portfolio"**
+3. Introduce un nombre (ej: "Cartera Largo Plazo")
+4. Haz clic en **"Crear"**
+
+### Editar Portfolio
+
+1. Abre el portfolio que quieres editar
+2. Haz clic en el icono de **configuración** (⚙️)
+3. Modifica el nombre o configuración
+4. Guarda los cambios
+
+### Marcar como Favorito
+
+El portfolio favorito es el que se muestra por defecto en el Dashboard:
+
+1. Abre el portfolio
+2. Haz clic en el icono de **estrella** (⭐)
+
+### Añadir Posiciones
+
+1. Abre tu portfolio
+2. Haz clic en **"+ Añadir Posición"** o **"Entrada Manual"**
+3. Busca el ticker del activo (ej: AAPL, MSFT, TEF.MC)
+4. Introduce:
+   - Cantidad de acciones
+   - Precio de compra
+   - Fecha de compra
+   - Moneda
+5. Haz clic en **"Guardar"**
+
+---
+
+## 💸 Operaciones de Compra/Venta
+
+### Registrar una Compra
+
+1. Ve a **Portfolio** o **Entrada Manual**
+2. Selecciona el activo o busca uno nuevo
+3. Elige **"Compra"**
+4. Completa los datos:
+   - Cantidad
+   - Precio por unidad
+   - Fecha
+   - Comisiones (opcional)
+5. Confirma la operación
+
+### Registrar una Venta
+
+1. En tu portfolio, haz clic en la posición
+2. Selecciona **"Vender"**
+3. Introduce:
+   - Cantidad a vender
+   - Precio de venta
+   - Fecha
+4. Confirma la operación
+
+### Historial de Operaciones
+
+Puedes ver todas tus operaciones en:
+
+1. Abre una posición
+2. Ve a la pestaña **"Historial"** u **"Operaciones"**
+
+Verás una lista con:
+- Tipo (Compra/Venta)
+- Cantidad
+- Precio
+- Fecha
+- P&L de la operación
+
+### Importar desde Broker
+
+Si tu broker permite exportar operaciones:
+
+1. Ve a **Importadores**
+2. Selecciona tu broker o formato
+3. Sube el archivo (CSV, Excel)
+4. Revisa las operaciones detectadas
+5. Confirma la importación
+
+---
+
+## 🔔 Alertas de Precio
+
+Las alertas te notifican cuando un activo alcanza un precio objetivo.
+
+### Crear una Alerta
+
+1. Ve a **Alertas** en el menú lateral
+2. Haz clic en **"+ Nueva Alerta"**
+3. Busca el ticker del activo
+4. Configura:
+   - **Condición**: "Mayor que" o "Menor que"
+   - **Precio objetivo**: El precio que dispara la alerta
+5. Guarda la alerta
+
+### Tipos de Notificación
+
+Puedes recibir alertas por:
+- 📧 **Email**
+- 🔔 **Navegador** (notificaciones push)
+- 📱 **Telegram** (requiere configuración)
+
+### Gestionar Alertas
+
+- **Activar/Desactivar**: Toggle para pausar una alerta sin eliminarla
+- **Editar**: Modificar el precio objetivo
+- **Eliminar**: Borrar la alerta permanentemente
+
+---
+
+## 👁️ Watchlists
+
+Las watchlists te permiten seguir activos que NO tienes en cartera.
+
+### Crear una Watchlist
+
+1. Ve a **Watchlists** en el menú lateral
+2. Haz clic en **"+ Añadir"**
+3. Busca el ticker del activo
+4. Haz clic en **"Añadir a Watchlist"**
+
+### Ver Detalles
+
+Haz clic en cualquier activo de tu watchlist para ver:
+- Precio actual
+- Cambio del día
+- Gráfico histórico
+- Noticias relacionadas
+
+---
+
+## 📋 Reportes Fiscales
+
+Stocks Manager genera los informes necesarios para tu declaración de la renta en España.
+
+### Informe de Ganancias/Pérdidas
+
+1. Ve a **Reportes** en el menú lateral
+2. Selecciona el **año fiscal**
+3. Haz clic en **"Generar Informe"**
+
+El informe incluye:
+- Todas las ventas del año
+- Precio de adquisición vs. precio de venta
+- Ganancia/Pérdida por operación
+- **Total para declarar en IRPF**
+
+### Exportar a Excel
+
+1. Genera el informe
+2. Haz clic en **"Exportar Excel"**
+3. Se descargará un archivo `.xlsx` con todos los datos
+
+### Modelo D6 (Inversiones en el Extranjero)
+
+Si tienes inversiones en activos extranjeros por valor superior a 50.000€, el informe D6 es obligatorio:
+
+1. En Reportes, selecciona **"Modelo D6"**
+2. Indica la fecha de referencia (31 de diciembre)
+3. Genera el informe
+
+> 💡 **Nota sobre comisiones**: Las comisiones de compra aumentan tu precio de adquisición, y las de venta reducen tu precio de transmisión. Esto reduce la ganancia patrimonial a declarar (Art. 35 LIRPF).
+
+---
+
+## 🤖 ChatBot IA
+
+El ChatBot usa inteligencia artificial para ayudarte con análisis y consultas.
+
+### Cómo Usar el ChatBot
+
+1. Haz clic en el icono del **bot** (💬) en la esquina inferior
+2. Escribe tu pregunta
+3. Espera la respuesta
+
+### Ejemplos de Preguntas
+
+- "¿Cómo está mi cartera?"
+- "Analiza AAPL"
+- "¿Cuáles son los soportes y resistencias de Tesla?"
+- "¿Debería vender mis acciones de Microsoft?"
+- "¿Qué opinas de invertir en el sector tecnológico?"
+
+### Limitaciones
+
+- El ChatBot no tiene acceso a información en tiempo real de todos los mercados
+- Sus consejos son orientativos, no recomendaciones de inversión profesionales
+- No puede ejecutar operaciones por ti
+
+---
+
+## ⚙️ Configuración de Perfil
+
+### Datos Personales
+
+1. Ve a **Perfil** en el menú lateral
+2. En la pestaña **"General"** puedes:
+   - Cambiar tu nombre
+   - Cambiar tu email
+   - Subir foto de perfil
+
+### Cambiar Contraseña
+
+1. Ve a **Perfil → Seguridad**
+2. Introduce tu contraseña actual
+3. Introduce la nueva contraseña (2 veces)
+4. Haz clic en **"Cambiar Contraseña"**
+
+### Gestionar 2FA
+
+En **Perfil → Seguridad** puedes:
+
+- **Activar 2FA** si no lo tienes
+- **Cambiar modo de seguridad**:
+  - *Estándar*: Contraseña + Código 2FA
+  - *Reforzado*: Contraseña + Código 2FA + Código por Email
+- **Regenerar códigos de respaldo**
+- **Desactivar 2FA** (requiere contraseña y código actual)
+
+### Preferencias
+
+- **Idioma**: Español / Inglés
+- **Moneda preferida**: EUR, USD, GBP...
+- **Tema**: Claro / Oscuro
+
+---
+
+## ❓ Preguntas Frecuentes
+
+### ¿Mis datos están seguros?
+
+Sí. Usamos:
+- Contraseñas hasheadas con bcrypt
+- 2FA opcional con TOTP
+- Conexiones HTTPS cifradas
+- Base de datos aislada
+
+### ¿De dónde vienen los precios?
+
+Los datos de mercado provienen de **Yahoo Finance**, que ofrece precios con 15-20 minutos de retraso para la mayoría de mercados.
+
+### ¿Puedo usar la app desde el móvil?
+
+Sí. La interfaz es responsive y funciona en cualquier dispositivo con navegador.
+
+### ¿Cómo recupero mi contraseña?
+
+1. En la pantalla de login, haz clic en **"¿Olvidaste tu contraseña?"**
+2. Introduce tu email
+3. Recibirás una nueva contraseña temporal
+
+### ¿Puedo tener varios portfolios?
+
+Sí. Puedes crear tantos portfolios como necesites para organizar tus inversiones (largo plazo, trading, dividendos, etc.).
+
+### ¿El ChatBot da consejos de inversión?
+
+El ChatBot ofrece análisis y opiniones basadas en IA, pero **no son recomendaciones de inversión profesionales**. Siempre consulta con un asesor financiero antes de tomar decisiones importantes.
+
+---
+
+## 📞 Soporte
+
+Si tienes problemas o sugerencias:
+
+- Contacta con el administrador de tu instancia
+- Revisa los logs de la aplicación
+
+---
+
+*Stocks Manager v2.0 - Gestión Inteligente de Inversiones*

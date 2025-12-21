@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    platform: linux/amd64
+    container_name: stocks_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-securepassword}
+      POSTGRES_DB: stocks_manager
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - stocks_net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin -d stocks_manager" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    platform: linux/amd64
+    container_name: stocks_app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://${DB_USER:-admin}:${DB_PASSWORD:-securepassword}@db:5432/stocks_manager
+      - JWT_SECRET=${JWT_SECRET:-changeme_in_prod}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - stocks_net
+    volumes:
+      - ./server:/app/server
+      # NO montar dist - el build ocurre dentro del contenedor
+      # - ./dist:/app/dist
+
+networks:
+  stocks_net:
+    driver: bridge
+
+volumes:
+  postgres_data:

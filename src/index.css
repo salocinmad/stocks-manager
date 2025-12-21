@@ -1,0 +1,371 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========================================
+   DESIGN SYSTEM - Stocks Manager Pro
+   ======================================== */
+
+/* ----- BASE LAYER ----- */
+@layer base {
+  :root {
+    --color-primary: #fce903;
+    --color-primary-dim: #b5a805;
+  }
+
+  body {
+    @apply bg-background-light dark:bg-background-dark;
+    @apply text-text-primary-light dark:text-text-primary-dark;
+    @apply font-body antialiased;
+    @apply transition-colors duration-200;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+
+  /* Scrollbar personalizada */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+}
+
+/* ----- COMPONENT LAYER ----- */
+@layer components {
+
+  /* ===== TARJETAS ===== */
+  .card {
+    @apply p-6 md:p-8;
+    @apply rounded-[2rem] md:rounded-[3rem];
+    @apply bg-white dark:bg-surface-dark;
+    @apply border border-border-light dark:border-border-dark;
+    @apply shadow-sm;
+  }
+
+  .card-hover {
+    @apply hover:shadow-xl hover:border-primary/50;
+    @apply transition-all duration-300;
+  }
+
+  .card-elevated {
+    @apply bg-surface-light dark:bg-surface-dark-elevated;
+  }
+
+  .card-stat {
+    @apply card;
+    @apply flex flex-col gap-1;
+  }
+
+  /* ===== BOTONES ===== */
+  .btn {
+    @apply px-6 py-3;
+    @apply rounded-2xl;
+    @apply font-bold;
+    @apply transition-all duration-200;
+    @apply active:scale-95;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn;
+    @apply bg-primary text-black;
+    @apply hover:bg-primary-dim;
+    @apply shadow-lg shadow-primary/20;
+  }
+
+  .btn-secondary {
+    @apply btn;
+    @apply border border-border-light dark:border-border-dark;
+    @apply hover:bg-background-light dark:hover:bg-white/5;
+  }
+
+  .btn-danger {
+    @apply btn;
+    @apply bg-red-500 text-white;
+    @apply hover:bg-red-600;
+    @apply shadow-lg shadow-red-500/20;
+  }
+
+  .btn-icon {
+    @apply size-10 md:size-12;
+    @apply rounded-2xl;
+    @apply flex items-center justify-center;
+    @apply transition-all duration-200;
+    @apply hover:bg-background-light dark:hover:bg-white/10;
+  }
+
+  /* ===== INPUTS ===== */
+  .input {
+    @apply w-full;
+    @apply px-5 py-4;
+    @apply rounded-2xl;
+    @apply bg-background-light dark:bg-surface-dark-elevated;
+    @apply border border-border-light dark:border-border-dark;
+    @apply outline-none;
+    @apply focus:ring-2 focus:ring-primary focus:border-transparent;
+    @apply font-medium;
+    @apply transition-all duration-200;
+  }
+
+  .input-label {
+    @apply text-[10px] font-black uppercase tracking-widest;
+    @apply text-text-secondary-light dark:text-text-secondary-dark;
+    @apply ml-4 mb-2;
+  }
+
+  /* ===== BADGES / CHIPS ===== */
+  .badge {
+    @apply px-3 py-1;
+    @apply rounded-xl;
+    @apply text-xs font-bold;
+  }
+
+  .badge-success {
+    @apply badge;
+    @apply bg-green-500/10 text-green-500;
+  }
+
+  .badge-danger {
+    @apply badge;
+    @apply bg-red-500/10 text-red-500;
+  }
+
+  .badge-primary {
+    @apply badge;
+    @apply bg-primary/10 text-primary;
+  }
+
+  /* ===== TÍTULOS DE SECCIÓN ===== */
+  .section-title {
+    @apply text-xs font-bold uppercase tracking-wider;
+    @apply text-text-secondary-light dark:text-text-secondary-dark;
+    @apply mb-4;
+  }
+
+  .page-title {
+    @apply text-3xl md:text-4xl font-bold tracking-tight;
+    @apply text-text-primary-light dark:text-text-primary-dark;
+  }
+
+  .page-subtitle {
+    @apply text-lg font-medium opacity-80;
+    @apply text-text-secondary-light dark:text-text-secondary-dark;
+  }
+
+  /* ===== TABLAS ===== */
+  .table-header {
+    @apply px-6 py-4;
+    @apply text-left text-xs font-bold uppercase tracking-wider;
+    @apply text-text-secondary-light dark:text-text-secondary-dark;
+    @apply bg-background-light/50 dark:bg-surface-dark-elevated/30;
+  }
+
+  .table-cell {
+    @apply px-6 py-6;
+    @apply border-b border-border-light/50 dark:border-border-dark/30;
+  }
+
+  /* ===== ICONOS ===== */
+  .icon-container {
+    @apply size-12 rounded-2xl;
+    @apply flex items-center justify-center;
+  }
+
+  .icon-primary {
+    @apply icon-container;
+    @apply bg-primary/10 text-primary;
+  }
+
+  .icon-success {
+    @apply icon-container;
+    @apply bg-green-500/10 text-green-500;
+  }
+
+  .icon-danger {
+    @apply icon-container;
+    @apply bg-red-500/10 text-red-500;
+  }
+
+  .icon-blue {
+    @apply icon-container;
+    @apply bg-accent-blue/10 text-accent-blue;
+  }
+
+  /* ===== MODALES ===== */
+  .modal-overlay {
+    @apply fixed inset-0 z-[100];
+    @apply flex items-center justify-center p-6;
+    @apply backdrop-blur-sm bg-black/40;
+    @apply animate-in fade-in duration-200;
+  }
+
+  .modal-content {
+    @apply w-full max-w-md;
+    @apply bg-white dark:bg-surface-dark;
+    @apply rounded-[2.5rem];
+    @apply border border-border-light dark:border-border-dark;
+    @apply shadow-2xl p-8;
+    @apply animate-in zoom-in-95 duration-200;
+  }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar-item {
+    @apply flex items-center gap-4;
+    @apply px-5 py-4;
+    @apply rounded-2xl;
+    @apply font-bold text-sm;
+    @apply transition-all duration-200;
+  }
+
+  .sidebar-item-active {
+    @apply sidebar-item;
+    @apply bg-primary/10 text-primary;
+  }
+
+  .sidebar-item-inactive {
+    @apply sidebar-item;
+    @apply text-text-secondary-light dark:text-text-secondary-dark;
+    @apply hover:bg-background-light dark:hover:bg-white/5;
+  }
+
+  /* ===== VALORES MONETARIOS ===== */
+  .value-positive {
+    @apply text-green-500;
+  }
+
+  .value-negative {
+    @apply text-red-500;
+  }
+
+  .value-display {
+    @apply text-3xl md:text-4xl font-black tracking-tight;
+  }
+}
+
+/* ----- UTILITIES LAYER ----- */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Material Symbols configuración */
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  .material-symbols-outlined.fill {
+    font-variation-settings: 'FILL' 1;
+  }
+
+  /* Truncate con tooltip */
+  .truncate-with-tooltip {
+    @apply truncate;
+  }
+}
+
+@media print {
+  @page {
+    margin: 1cm;
+    size: auto;
+  }
+
+  /* Ocultar TODO por defecto */
+  body {
+    visibility: hidden;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* Ocultar elementos flotantes explícitamente */
+  button[class*="ChatBot"],
+  .fixed,
+  .sticky {
+    display: none !important;
+  }
+
+  /* Mostrar SOLO el reporte y sus hijos */
+  #printable-report,
+  #printable-report * {
+    visibility: visible;
+  }
+
+  /* Posicionar el reporte ocupando toda la página */
+  #printable-report {
+    position: static !important;
+    /* Static permite el flujo normal de páginas */
+    visibility: visible !important;
+    display: block !important;
+
+    /* Resetear posición para que empiece arriba */
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: auto !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background-color: white !important;
+    color: black !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+
+  /* Hack para mover el contenido al principio de la página impresa */
+  #printable-report {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+  }
+
+  /* Asegurar que la tabla se rompa bien */
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  /* Asegurar colores de fondo */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
