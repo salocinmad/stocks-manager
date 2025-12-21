@@ -1,51 +1,49 @@
 services:
-  mariadb:
-    build:
-      context: .
-      dockerfile: docker/mariadb/Dockerfile
-    restart: always
+  db:
+    image: postgres:16-alpine
+    platform: linux/amd64
+    container_name: stocks_db
     environment:
-      # Valores por defecto - serán reemplazados por credenciales generadas automáticamente
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-portfolio_manager}
-      MYSQL_USER: ${MYSQL_USER:-user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-password}
-    ports:
-      - "3306:3306"
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-securepassword}
+      POSTGRES_DB: stocks_manager
     volumes:
-      - mariadb_data:/var/lib/mysql
-      - db_secrets:/run/secrets
-
-  server:
-    build: ./server
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5000:5000"
+      - "5432:5432"
+    networks:
+      - stocks_net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin -d stocks_manager" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    platform: linux/amd64
+    container_name: stocks_app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
     environment:
-      - DB_HOST=mariadb
-      - DB_NAME=${MYSQL_DATABASE:-portfolio_manager}
-      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_key}
-      - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
+      - DATABASE_URL=postgres://${DB_USER:-admin}:${DB_PASSWORD:-securepassword}@db:5432/stocks_manager
+      - JWT_SECRET=${JWT_SECRET:-changeme_in_prod}
     depends_on:
-      - mariadb
+      db:
+        condition: service_healthy
+    networks:
+      - stocks_net
     volumes:
-      - backend_env:/app/env
-      - profile_pictures_data:/app/images/profile-pictures
-      - db_secrets:/run/secrets:ro
+      - ./server:/app/server
+      # NO montar dist - el build ocurre dentro del contenedor
+      # - ./dist:/app/dist
 
-  frontend:
-    build:
-      context: .
-      args:
-        VITE_API_URL: http://server:5000
-    ports:
-      - "3000:80"
-    stdin_open: true
-    tty: true
-    depends_on:
-      - server
+networks:
+  stocks_net:
+    driver: bridge
 
 volumes:
-  mariadb_data:
-  backend_env:
-  profile_pictures_data:
-  db_secrets:
+  postgres_data:

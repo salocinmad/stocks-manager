@@ -1,16 +1,425 @@
-<!doctype html>
-<html lang="es">
+<!DOCTYPE html>
+<html lang="es" class="dark">
 
 <head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/png" href="/logo64.png" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Stocks Manager</title>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Stocks Manager Pro</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&family=Noto+Sans:wght@400;500;700&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+
+    <!-- Tailwind CSS (CDN como fallback temporal - será procesado localmente en producción) -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#fce903",
+                        "primary-dim": "#b5a805",
+                        "background-light": "#f8f8f5",
+                        "surface-light": "#ffffff",
+                        "background-dark": "#0f172a",
+                        "surface-dark": "#1e293b",
+                        "surface-dark-elevated": "#334155",
+                        "border-dark": "#334155",
+                        "border-light": "#e6e6db",
+                        "text-primary-light": "#181811",
+                        "text-primary-dark": "#f1f5f9",
+                        "text-secondary-light": "#8c8b5f",
+                        "text-secondary-dark": "#94a3b8",
+                        "accent-blue": "#3b82f6",
+                        "accent-green": "#22c55e",
+                        "accent-red": "#ef4444",
+                        "accent-orange": "#f97316",
+                        "accent-purple": "#a855f7",
+                    },
+                    fontFamily: {
+                        "display": ["Spline Sans", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+
+    <!-- Estilos del Design System -->
+    <style>
+        /* Estilos base que se aplican inmediatamente */
+        body {
+            font-family: 'Noto Sans', sans-serif;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            font-family: 'Spline Sans', sans-serif;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Material Symbols */
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* ===== DESIGN SYSTEM COMPONENTS ===== */
+
+        /* Cards */
+        .card {
+            padding: 1.5rem;
+            border-radius: 2rem;
+            background: white;
+            border: 1px solid #e6e6db;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .dark .card {
+            background: #1e293b;
+            border-color: #334155;
+        }
+
+        @media (min-width: 768px) {
+            .card {
+                padding: 2rem;
+                border-radius: 3rem;
+            }
+        }
+
+        .card-hover {
+            transition: all 0.3s;
+        }
+
+        .card-hover:hover {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            border-color: rgba(252, 233, 3, 0.5);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 1rem;
+            font-weight: 700;
+            transition: all 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: #fce903;
+            color: black;
+            box-shadow: 0 4px 6px rgba(252, 233, 3, 0.2);
+        }
+
+        .btn-primary:hover {
+            background: #b5a805;
+        }
+
+        .btn-secondary {
+            border: 1px solid #e6e6db;
+        }
+
+        .dark .btn-secondary {
+            border-color: #334155;
+        }
+
+        .btn-secondary:hover {
+            background: #f8f8f5;
+        }
+
+        .dark .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+            box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        /* Inputs */
+        .input {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            border-radius: 1rem;
+            background: #f8f8f5;
+            border: 1px solid #e6e6db;
+            outline: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .dark .input {
+            background: #334155;
+            border-color: #334155;
+        }
+
+        .input:focus {
+            ring: 2px;
+            ring-color: #fce903;
+            border-color: transparent;
+        }
+
+        .input-label {
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #8c8b5f;
+            margin-left: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .dark .input-label {
+            color: #94a3b8;
+        }
+
+        /* Badges */
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .badge-success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        .badge-primary {
+            background: rgba(252, 233, 3, 0.1);
+            color: #fce903;
+        }
+
+        /* Section titles */
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8c8b5f;
+            margin-bottom: 1rem;
+        }
+
+        .dark .section-title {
+            color: #94a3b8;
+        }
+
+        .page-title {
+            font-size: 1.875rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        @media (min-width: 768px) {
+            .page-title {
+                font-size: 2.25rem;
+            }
+        }
+
+        /* Icon containers */
+        .icon-container {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-primary {
+            background: rgba(252, 233, 3, 0.1);
+            color: #fce903;
+        }
+
+        .icon-success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+
+        .icon-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        .icon-blue {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            backdrop-filter: blur(4px);
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            width: 100%;
+            max-width: 28rem;
+            background: white;
+            border-radius: 2.5rem;
+            border: 1px solid #e6e6db;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 2rem;
+        }
+
+        .dark .modal-content {
+            background: #1e293b;
+            border-color: #334155;
+        }
+
+        /* Values */
+        .value-positive {
+            color: #22c55e;
+        }
+
+        .value-negative {
+            color: #ef4444;
+        }
+
+        .value-display {
+            font-size: 1.875rem;
+            font-weight: 900;
+            letter-spacing: -0.025em;
+        }
+
+        @media (min-width: 768px) {
+            .value-display {
+                font-size: 2.25rem;
+            }
+        }
+
+        /* Sidebar */
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border-radius: 1rem;
+            font-weight: 700;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .sidebar-item-active {
+            background: rgba(252, 233, 3, 0.1);
+            color: #fce903;
+        }
+
+        .sidebar-item-inactive {
+            color: #8c8b5f;
+        }
+
+        .dark .sidebar-item-inactive {
+            color: #94a3b8;
+        }
+
+        .sidebar-item-inactive:hover {
+            background: #f8f8f5;
+        }
+
+        .dark .sidebar-item-inactive:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Table styles */
+        .table-header {
+            padding: 1rem 1.5rem;
+            text-align: left;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8c8b5f;
+            background: rgba(248, 248, 245, 0.5);
+        }
+
+        .dark .table-header {
+            color: #94a3b8;
+            background: rgba(51, 65, 85, 0.3);
+        }
+
+        .table-cell {
+            padding: 1.5rem;
+            border-bottom: 1px solid rgba(230, 230, 219, 0.5);
+        }
+
+        .dark .table-cell {
+            border-color: rgba(51, 65, 85, 0.3);
+        }
+    </style>
 </head>
 
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
+<body
+    class="bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark antialiased transition-colors duration-200">
+    <div id="root">Cargando Stocks Manager... (Si ves esto, el JS no se ha ejecutado)</div>
+    <script type="module" src="index.js"></script>
 </body>
 
 </html>

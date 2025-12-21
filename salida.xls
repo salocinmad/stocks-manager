@@ -1,0 +1,913 @@
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+    <META http-equiv="Expires" content="Tue, 20 Aug 1996 14:25:27 GMT">
+    <META http-equiv="Cache-Control" content="no-cache">
+    <meta http-equiv=Content-Type content="text/html; charset=iso-8859-1">
+    <meta name=ProgId content=Excel.Sheet>
+</head>
+<body>
+
+
+    <table border="1">
+      <TR>
+        <th colspan="2">Fechas</th>
+        <th rowspan="2">Operación</th>
+	    <th rowspan="2">Mercado</th>
+	    <th rowspan="2">Operación</th>
+	    <th rowspan="2">ISIN</th>
+		<th rowspan="2">Valor</th>
+		<th rowspan="2">Títulos/NOMINAL</th>
+		<th rowspan="2">Divisa</th>
+		<th rowspan="2">Precio Neto</th>
+		<th rowspan="2">Importe neto</th>
+	  </TR>
+	  <tr>
+		<th>Operación</th>
+		<th>Liquidación</th> 
+	  </TR>
+
+	  <tr>
+		<td align="center">2025-12-11&nbsp;</td>
+		<td align="center">2025-12-12&nbsp;</td>
+		<td> 244314227</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US00217D1000</td>
+		<td>AST SPACEMOBILE INC</td>
+		<td x:num="5">5</td>
+		<td>USD</td>
+		<td x:num="81.1000000">81.1000000</td>
+		<td x:num="405.50">405.50</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-12-11&nbsp;</td>
+		<td align="center">2025-12-12&nbsp;</td>
+		<td> 244314125</td>
+		<td>NYSE</td>
+		<td>VENTA</td>
+		<td>US01609W1027</td>
+		<td>ALIBABA GROUP HOLDING SP ADR</td>
+		<td x:num="2">2</td>
+		<td>USD</td>
+		<td x:num="152.9300000">152.9300000</td>
+		<td x:num="305.86">305.86</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-12-11&nbsp;</td>
+		<td align="center">2025-12-12&nbsp;</td>
+		<td> 244308075</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US89377M1099</td>
+		<td>TRANSMEDICS GROUP INC</td>
+		<td x:num="5">5</td>
+		<td>USD</td>
+		<td x:num="131.1680000">131.1680000</td>
+		<td x:num="655.84">655.84</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-12-11&nbsp;</td>
+		<td align="center">2025-12-12&nbsp;</td>
+		<td> 244307232</td>
+		<td>NYSE</td>
+		<td>VENTA</td>
+		<td>US01609W1027</td>
+		<td>ALIBABA GROUP HOLDING SP ADR</td>
+		<td x:num="1">1</td>
+		<td>USD</td>
+		<td x:num="150.5100000">150.5100000</td>
+		<td x:num="150.51">150.51</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-12-11&nbsp;</td>
+		<td align="center">2025-12-12&nbsp;</td>
+		<td> 244303573</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US5949181045</td>
+		<td>MICROSOFT CORP</td>
+		<td x:num="1">1</td>
+		<td>USD</td>
+		<td x:num="473.9200000">473.9200000</td>
+		<td x:num="473.92">473.92</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-12-03&nbsp;</td>
+		<td align="center">2025-12-04&nbsp;</td>
+		<td> 243032580</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US70438V1061</td>
+		<td>PAYLOCITY HOLDING</td>
+		<td x:num="2">2</td>
+		<td>USD</td>
+		<td x:num="148.2400000">148.2400000</td>
+		<td x:num="296.48">296.48</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-12-03&nbsp;</td>
+		<td align="center">2025-12-04&nbsp;</td>
+		<td> 243032561</td>
+		<td>NYSE</td>
+		<td>COMPRA</td>
+		<td>KYG872641009</td>
+		<td>TECNOGLASS INC</td>
+		<td x:num="6">6</td>
+		<td>USD</td>
+		<td x:num="50.9716667">50.9716667</td>
+		<td x:num="305.83">305.83</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-12-03&nbsp;</td>
+		<td align="center">2025-12-04&nbsp;</td>
+		<td> 243029240</td>
+		<td>NYSE</td>
+		<td>VENTA</td>
+		<td>US05352A1007</td>
+		<td>AVANTOR INC</td>
+		<td x:num="13">13</td>
+		<td>USD</td>
+		<td x:num="11.2353846">11.2353846</td>
+		<td x:num="146.06">146.06</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-12-03&nbsp;</td>
+		<td align="center">2025-12-04&nbsp;</td>
+		<td> 243028242</td>
+		<td>NYSE</td>
+		<td>VENTA</td>
+		<td>US10240L1026</td>
+		<td>BOWHEAD SPECIALTY HOLDINGS I</td>
+		<td x:num="12">12</td>
+		<td>USD</td>
+		<td x:num="26.1375000">26.1375000</td>
+		<td x:num="313.65">313.65</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-12-03&nbsp;</td>
+		<td align="center">2025-12-04&nbsp;</td>
+		<td> 243025770</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US00217D1000</td>
+		<td>AST SPACEMOBILE INC</td>
+		<td x:num="2">2</td>
+		<td>USD</td>
+		<td x:num="56.2450000">56.2450000</td>
+		<td x:num="112.49">112.49</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-21&nbsp;</td>
+		<td align="center">2025-11-24&nbsp;</td>
+		<td> 240858202</td>
+		<td>NYSE</td>
+		<td>COMPRA</td>
+		<td>US10240L1026</td>
+		<td>BOWHEAD SPECIALTY HOLDINGS I</td>
+		<td x:num="12">12</td>
+		<td>USD</td>
+		<td x:num="27.9566667">27.9566667</td>
+		<td x:num="335.48">335.48</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-19&nbsp;</td>
+		<td align="center">2025-11-21&nbsp;</td>
+		<td> 240501066</td>
+		<td>XETRA</td>
+		<td>VENTA</td>
+		<td>US0079031078</td>
+		<td>ADVANCED MICRO DEVICES</td>
+		<td x:num="1">1</td>
+		<td>EUR</td>
+		<td x:num="194.6600000">194.6600000</td>
+		<td x:num="194.66">194.66</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-18&nbsp;</td>
+		<td align="center">2025-11-19&nbsp;</td>
+		<td> 240417226</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US00217D1000</td>
+		<td>AST SPACEMOBILE INC</td>
+		<td x:num="2">2</td>
+		<td>USD</td>
+		<td x:num="57.2250000">57.2250000</td>
+		<td x:num="114.45">114.45</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-18&nbsp;</td>
+		<td align="center">2025-11-19&nbsp;</td>
+		<td> 240415094</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US74766W1080</td>
+		<td>QUANTUM COMPUTING INC</td>
+		<td x:num="20">20</td>
+		<td>USD</td>
+		<td x:num="12.3855000">12.3855000</td>
+		<td x:num="247.71">247.71</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-07&nbsp;</td>
+		<td align="center">2025-11-10&nbsp;</td>
+		<td> 238974233</td>
+		<td>CONTINUO</td>
+		<td>VENTA</td>
+		<td>ES0142090317</td>
+		<td>OHL - OBRASCON HUARTE LAIN</td>
+		<td x:num="1250">1250</td>
+		<td>EUR</td>
+		<td x:num="0.4092160">0.4092160</td>
+		<td x:num="511.52">511.52</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-04&nbsp;</td>
+		<td align="center">2025-11-06&nbsp;</td>
+		<td> 238124307</td>
+		<td>XETRA</td>
+		<td>COMPRA</td>
+		<td>US0079031078</td>
+		<td>ADVANCED MICRO DEVICES</td>
+		<td x:num="1">1</td>
+		<td>EUR</td>
+		<td x:num="222.8500000">222.8500000</td>
+		<td x:num="222.85">222.85</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-03&nbsp;</td>
+		<td align="center">2025-11-04&nbsp;</td>
+		<td> 238009066</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US0079031078</td>
+		<td>ADVANCED MICRO DEVICES</td>
+		<td x:num="8">8</td>
+		<td>USD</td>
+		<td x:num="258.5900000">258.5900000</td>
+		<td x:num="2068.72">2068.72</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-03&nbsp;</td>
+		<td align="center">2025-11-04&nbsp;</td>
+		<td> 238008970</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US20030N1019</td>
+		<td>COMCAST CORP - CL A</td>
+		<td x:num="8">8</td>
+		<td>USD</td>
+		<td x:num="26.4462500">26.4462500</td>
+		<td x:num="211.57">211.57</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-03&nbsp;</td>
+		<td align="center">2025-11-04&nbsp;</td>
+		<td> 238008891</td>
+		<td>NYSE</td>
+		<td>VENTA</td>
+		<td>US90138F1021</td>
+		<td>TWILIO INC A</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="135.3633333">135.3633333</td>
+		<td x:num="406.09">406.09</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-03&nbsp;</td>
+		<td align="center">2025-11-04&nbsp;</td>
+		<td> 238008887</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US0231351067</td>
+		<td>AMAZON</td>
+		<td x:num="4">4</td>
+		<td>USD</td>
+		<td x:num="254.3125000">254.3125000</td>
+		<td x:num="1017.25">1017.25</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-11-03&nbsp;</td>
+		<td align="center">2025-11-04&nbsp;</td>
+		<td> 238008826</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US0079031078</td>
+		<td>ADVANCED MICRO DEVICES</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="256.6833333">256.6833333</td>
+		<td x:num="770.05">770.05</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-27&nbsp;</td>
+		<td align="center">2025-10-28&nbsp;</td>
+		<td> 236470304</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US0231351067</td>
+		<td>AMAZON</td>
+		<td x:num="1">1</td>
+		<td>USD</td>
+		<td x:num="230.9100000">230.9100000</td>
+		<td x:num="230.91">230.91</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-27&nbsp;</td>
+		<td align="center">2025-10-28&nbsp;</td>
+		<td> 236468825</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US5949181045</td>
+		<td>MICROSOFT CORP</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="534.1700000">534.1700000</td>
+		<td x:num="1602.51">1602.51</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-27&nbsp;</td>
+		<td align="center">2025-10-28&nbsp;</td>
+		<td> 236464316</td>
+		<td>NYSE</td>
+		<td>VENTA</td>
+		<td>US7170811035</td>
+		<td>PFIZER INC</td>
+		<td x:num="20">20</td>
+		<td>USD</td>
+		<td x:num="24.5450000">24.5450000</td>
+		<td x:num="490.90">490.90</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-27&nbsp;</td>
+		<td align="center">2025-10-28&nbsp;</td>
+		<td> 236461254</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US7291321005</td>
+		<td>PLEXUS CP</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="143.5800000">143.5800000</td>
+		<td x:num="430.74">430.74</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-27&nbsp;</td>
+		<td align="center">2025-10-28&nbsp;</td>
+		<td> 236461155</td>
+		<td>CONTINUO</td>
+		<td>VENTA</td>
+		<td>ES0126962069</td>
+		<td>NUEVA EXPRESION TEXTIL</td>
+		<td x:num="1050">1050</td>
+		<td>EUR</td>
+		<td x:num="0.7400857">0.7400857</td>
+		<td x:num="777.09">777.09</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-24&nbsp;</td>
+		<td align="center">2025-10-27&nbsp;</td>
+		<td> 235994593</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US74766W1080</td>
+		<td>QUANTUM COMPUTING INC</td>
+		<td x:num="20">20</td>
+		<td>USD</td>
+		<td x:num="17.4390000">17.4390000</td>
+		<td x:num="348.78">348.78</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-24&nbsp;</td>
+		<td align="center">2025-10-27&nbsp;</td>
+		<td> 235960581</td>
+		<td>CONTINUO</td>
+		<td>VENTA</td>
+		<td>ES0126962069</td>
+		<td>NUEVA EXPRESION TEXTIL</td>
+		<td x:num="550">550</td>
+		<td>EUR</td>
+		<td x:num="0.7265273">0.7265273</td>
+		<td x:num="399.59">399.59</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-23&nbsp;</td>
+		<td align="center">2025-10-24&nbsp;</td>
+		<td> 235726165</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US20030N1019</td>
+		<td>COMCAST CORP - CL A</td>
+		<td x:num="8">8</td>
+		<td>USD</td>
+		<td x:num="29.8437500">29.8437500</td>
+		<td x:num="238.75">238.75</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-21&nbsp;</td>
+		<td align="center">2025-10-22&nbsp;</td>
+		<td> 234873691</td>
+		<td>NYSE</td>
+		<td>COMPRA</td>
+		<td>US05352A1007</td>
+		<td>AVANTOR INC</td>
+		<td x:num="13">13</td>
+		<td>USD</td>
+		<td x:num="15.9323077">15.9323077</td>
+		<td x:num="207.12">207.12</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-21&nbsp;</td>
+		<td align="center">2025-10-22&nbsp;</td>
+		<td> 234871216</td>
+		<td>NYSE</td>
+		<td>COMPRA</td>
+		<td>US90138F1021</td>
+		<td>TWILIO INC A</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="112.6966667">112.6966667</td>
+		<td x:num="338.09">338.09</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-21&nbsp;</td>
+		<td align="center">2025-10-22&nbsp;</td>
+		<td> 234840096</td>
+		<td>NYSE</td>
+		<td>VENTA</td>
+		<td>US6701002056</td>
+		<td>NOVO NORDISK A S ADR</td>
+		<td x:num="12">12</td>
+		<td>USD</td>
+		<td x:num="54.9191667">54.9191667</td>
+		<td x:num="659.03">659.03</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-17&nbsp;</td>
+		<td align="center">2025-10-20&nbsp;</td>
+		<td> 233486511</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US0231351067</td>
+		<td>AMAZON</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="213.3633333">213.3633333</td>
+		<td x:num="640.09">640.09</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-17&nbsp;</td>
+		<td align="center">2025-10-20&nbsp;</td>
+		<td> 233483551</td>
+		<td>NYSE</td>
+		<td>VENTA</td>
+		<td>US01609W1027</td>
+		<td>ALIBABA GROUP HOLDING SP ADR</td>
+		<td x:num="4">4</td>
+		<td>USD</td>
+		<td x:num="165.6425000">165.6425000</td>
+		<td x:num="662.57">662.57</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-17&nbsp;</td>
+		<td align="center">2025-10-20&nbsp;</td>
+		<td> 233481098</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US7291321005</td>
+		<td>PLEXUS CP</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="149.7866667">149.7866667</td>
+		<td x:num="449.36">449.36</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-17&nbsp;</td>
+		<td align="center">2025-10-20&nbsp;</td>
+		<td> 233478090</td>
+		<td>NYSE</td>
+		<td>COMPRA</td>
+		<td>US7170811035</td>
+		<td>PFIZER INC</td>
+		<td x:num="20">20</td>
+		<td>USD</td>
+		<td x:num="24.5745000">24.5745000</td>
+		<td x:num="491.49">491.49</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-16&nbsp;</td>
+		<td align="center">2025-10-17&nbsp;</td>
+		<td> 232890931</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US00217D1000</td>
+		<td>AST SPACEMOBILE INC</td>
+		<td x:num="6">6</td>
+		<td>USD</td>
+		<td x:num="91.2666667">91.2666667</td>
+		<td x:num="547.60">547.60</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-16&nbsp;</td>
+		<td align="center">2025-10-17&nbsp;</td>
+		<td> 232622436</td>
+		<td>CONTINUO</td>
+		<td>COMPRA</td>
+		<td>ES0126775008</td>
+		<td>DISTRIBUCION INTERN. DE ALIMEN</td>
+		<td x:num="12">12</td>
+		<td>EUR</td>
+		<td x:num="28.0425000">28.0425000</td>
+		<td x:num="336.51">336.51</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-14&nbsp;</td>
+		<td align="center">2025-10-15&nbsp;</td>
+		<td> 231720304</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US0567521085</td>
+		<td>BAIDU.COM INC</td>
+		<td x:num="6">6</td>
+		<td>USD</td>
+		<td x:num="120.2583333">120.2583333</td>
+		<td x:num="721.55">721.55</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-10-03&nbsp;</td>
+		<td align="center">2025-10-06&nbsp;</td>
+		<td> 227497327</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US00217D1000</td>
+		<td>AST SPACEMOBILE INC</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="66.9700000">66.9700000</td>
+		<td x:num="200.91">200.91</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-09-10&nbsp;</td>
+		<td align="center">2025-09-12&nbsp;</td>
+		<td> 222665110</td>
+		<td>LONDRES-SETS</td>
+		<td>VENTA</td>
+		<td>GB0001500809</td>
+		<td>TULLOW OIL</td>
+		<td x:num="550">550</td>
+		<td>GBP</td>
+		<td x:num="0.0986727">0.0986727</td>
+		<td x:num="54.27">54.27</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-09-08&nbsp;</td>
+		<td align="center">2025-09-09&nbsp;</td>
+		<td> 222297357</td>
+		<td>NASDAQ</td>
+		<td>VENTA</td>
+		<td>US7291321005</td>
+		<td>PLEXUS CP</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="136.5066667">136.5066667</td>
+		<td x:num="409.52">409.52</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-08-01&nbsp;</td>
+		<td align="center">2025-08-04&nbsp;</td>
+		<td> 217787840</td>
+		<td>CONTINUO</td>
+		<td>COMPRA</td>
+		<td>ES0126962069</td>
+		<td>NUEVA EXPRESION TEXTIL</td>
+		<td x:num="1100">1100</td>
+		<td>EUR</td>
+		<td x:num="0.4807364">0.4807364</td>
+		<td x:num="528.81">528.81</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-31&nbsp;</td>
+		<td align="center">2025-08-01&nbsp;</td>
+		<td> 217685888</td>
+		<td>NYSE</td>
+		<td>VENTA</td>
+		<td>US0846707026</td>
+		<td>BERKSHIRE HATHAWAY INC CL-B</td>
+		<td x:num="1">1</td>
+		<td>USD</td>
+		<td x:num="469.9300000">469.9300000</td>
+		<td x:num="469.93">469.93</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-31&nbsp;</td>
+		<td align="center">2025-08-01&nbsp;</td>
+		<td> 217654481</td>
+		<td>NYSE</td>
+		<td>VENTA</td>
+		<td>US7170811035</td>
+		<td>PFIZER INC</td>
+		<td x:num="12">12</td>
+		<td>USD</td>
+		<td x:num="23.2641667">23.2641667</td>
+		<td x:num="279.17">279.17</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-31&nbsp;</td>
+		<td align="center">2025-08-01&nbsp;</td>
+		<td> 217617318</td>
+		<td>CONTINUO</td>
+		<td>COMPRA</td>
+		<td>ES0142090317</td>
+		<td>OHL - OBRASCON HUARTE LAIN</td>
+		<td x:num="1650">1650</td>
+		<td>EUR</td>
+		<td x:num="0.3409939">0.3409939</td>
+		<td x:num="562.64">562.64</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-30&nbsp;</td>
+		<td align="center">2025-07-31&nbsp;</td>
+		<td> 217530810</td>
+		<td>NYSE</td>
+		<td>COMPRA</td>
+		<td>US6701002056</td>
+		<td>NOVO NORDISK A S ADR</td>
+		<td x:num="12">12</td>
+		<td>USD</td>
+		<td x:num="50.4016667">50.4016667</td>
+		<td x:num="604.82">604.82</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-30&nbsp;</td>
+		<td align="center">2025-07-31&nbsp;</td>
+		<td> 217512526</td>
+		<td>NYSE</td>
+		<td>COMPRA</td>
+		<td>US7170811035</td>
+		<td>PFIZER INC</td>
+		<td x:num="12">12</td>
+		<td>USD</td>
+		<td x:num="24.6358333">24.6358333</td>
+		<td x:num="295.63">295.63</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-29&nbsp;</td>
+		<td align="center">2025-07-30&nbsp;</td>
+		<td> 217358483</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US7291321005</td>
+		<td>PLEXUS CP</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="128.4866667">128.4866667</td>
+		<td x:num="385.46">385.46</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-29&nbsp;</td>
+		<td align="center">2025-07-30&nbsp;</td>
+		<td> 217345148</td>
+		<td>VENTURE</td>
+		<td>VENTA</td>
+		<td>CA92865M1023</td>
+		<td>VOLATUS AEROSPACE INC</td>
+		<td x:num="100">100</td>
+		<td>CAD</td>
+		<td x:num="0.5822000">0.5822000</td>
+		<td x:num="58.22">58.22</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-29&nbsp;</td>
+		<td align="center">2025-07-30&nbsp;</td>
+		<td> 217345144</td>
+		<td>VENTURE</td>
+		<td>VENTA</td>
+		<td>CA92865M1023</td>
+		<td>VOLATUS AEROSPACE INC</td>
+		<td x:num="1000">1000</td>
+		<td>CAD</td>
+		<td x:num="0.6352200">0.6352200</td>
+		<td x:num="635.22">635.22</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-21&nbsp;</td>
+		<td align="center">2025-07-22&nbsp;</td>
+		<td> 216454370</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US0567521085</td>
+		<td>BAIDU.COM INC</td>
+		<td x:num="6">6</td>
+		<td>USD</td>
+		<td x:num="88.7816667">88.7816667</td>
+		<td x:num="532.69">532.69</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-18&nbsp;</td>
+		<td align="center">2025-07-21&nbsp;</td>
+		<td> 216288132</td>
+		<td>VENTURE</td>
+		<td>COMPRA</td>
+		<td>CA92865M1023</td>
+		<td>VOLATUS AEROSPACE INC</td>
+		<td x:num="100">100</td>
+		<td>CAD</td>
+		<td x:num="0.7278000">0.7278000</td>
+		<td x:num="72.78">72.78</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-18&nbsp;</td>
+		<td align="center">2025-07-21&nbsp;</td>
+		<td> 216288131</td>
+		<td>VENTURE</td>
+		<td>COMPRA</td>
+		<td>CA92865M1023</td>
+		<td>VOLATUS AEROSPACE INC</td>
+		<td x:num="1000">1000</td>
+		<td>CAD</td>
+		<td x:num="0.6797800">0.6797800</td>
+		<td x:num="679.78">679.78</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-18&nbsp;</td>
+		<td align="center">2025-07-21&nbsp;</td>
+		<td> 216233571</td>
+		<td>CONTINUO</td>
+		<td>COMPRA</td>
+		<td>ES0109260531</td>
+		<td>AMPER</td>
+		<td x:num="5500">5500</td>
+		<td>EUR</td>
+		<td x:num="0.1457473">0.1457473</td>
+		<td x:num="801.61">801.61</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-17&nbsp;</td>
+		<td align="center">2025-07-18&nbsp;</td>
+		<td> 216160569</td>
+		<td>NYSE</td>
+		<td>COMPRA</td>
+		<td>US01609W1027</td>
+		<td>ALIBABA GROUP HOLDING SP ADR</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="119.0233333">119.0233333</td>
+		<td x:num="357.07">357.07</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-10&nbsp;</td>
+		<td align="center">2025-07-11&nbsp;</td>
+		<td> 215310020</td>
+		<td>NYSE</td>
+		<td>COMPRA</td>
+		<td>US0846707026</td>
+		<td>BERKSHIRE HATHAWAY INC CL-B</td>
+		<td x:num="1">1</td>
+		<td>USD</td>
+		<td x:num="479.6300000">479.6300000</td>
+		<td x:num="479.63">479.63</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-10&nbsp;</td>
+		<td align="center">2025-07-11&nbsp;</td>
+		<td> 215302631</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US0079031078</td>
+		<td>ADVANCED MICRO DEVICES</td>
+		<td x:num="3">3</td>
+		<td>USD</td>
+		<td x:num="145.4233333">145.4233333</td>
+		<td x:num="436.27">436.27</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-10&nbsp;</td>
+		<td align="center">2025-07-11&nbsp;</td>
+		<td> 215291648</td>
+		<td>NYSE</td>
+		<td>COMPRA</td>
+		<td>US01609W1027</td>
+		<td>ALIBABA GROUP HOLDING SP ADR</td>
+		<td x:num="4">4</td>
+		<td>USD</td>
+		<td x:num="106.0650000">106.0650000</td>
+		<td x:num="424.26">424.26</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-10&nbsp;</td>
+		<td align="center">2025-07-11&nbsp;</td>
+		<td> 215291591</td>
+		<td>NASDAQ</td>
+		<td>COMPRA</td>
+		<td>US00217D1000</td>
+		<td>AST SPACEMOBILE INC</td>
+		<td x:num="7">7</td>
+		<td>USD</td>
+		<td x:num="43.7800000">43.7800000</td>
+		<td x:num="306.46">306.46</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-10&nbsp;</td>
+		<td align="center">2025-07-11&nbsp;</td>
+		<td> 215268577</td>
+		<td>CONTINUO</td>
+		<td>COMPRA</td>
+		<td>ES0126962069</td>
+		<td>NUEVA EXPRESION TEXTIL</td>
+		<td x:num="500">500</td>
+		<td>EUR</td>
+		<td x:num="0.4682200">0.4682200</td>
+		<td x:num="234.11">234.11</td>
+	  </tr>
+
+	  <tr>
+		<td align="center">2025-07-07&nbsp;</td>
+		<td align="center">2025-07-09&nbsp;</td>
+		<td> 214601643</td>
+		<td>LONDRES-SETS</td>
+		<td>COMPRA</td>
+		<td>GB0001500809</td>
+		<td>TULLOW OIL</td>
+		<td x:num="550">550</td>
+		<td>GBP</td>
+		<td x:num="0.1690909">0.1690909</td>
+		<td x:num="93.00">93.00</td>
+	  </tr>
+
+	</table>
+	
+</body>
+</html>

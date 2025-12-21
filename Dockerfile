@@ -1,62 +1,34 @@
-ARG VITE_API_URL
+# Multi-stage Dockerfile for Pure Bun Stack
 
-# Etapa de construcción
-FROM node:22-alpine AS build
-
-# Configurar timezone española
-RUN apk add --no-cache tzdata && \
-    cp /usr/share/zoneinfo/Europe/Madrid /etc/localtime && \
-    echo "Europe/Madrid" > /etc/timezone && \
-    apk del tzdata
-
+# Stage 1: Build Frontend
+FROM oven/bun:1.2 as builder
 WORKDIR /app
 
-ENV TZ=Europe/Madrid
+# Install dependencies
+COPY package.json bun.lock ./
+RUN bun install
 
-# Copiar archivos de dependencias
-COPY package*.json ./
-
-# Instalar dependencias
-RUN npm install
-
-# Copiar código fuente
+# Copy source code
 COPY . .
 
-# Pasar VITE_API_URL a la fase de construcción de Vite
-ENV VITE_API_URL=${VITE_API_URL:-}
+# Build React
+RUN bun run build:frontend
+# Copy index.html to dist
+RUN cp index.html ./dist/index.html
 
-# Build de la aplicación
-RUN npm run build
+# Stage 2: Production Runtime
+FROM oven/bun:1.2-slim as release
+WORKDIR /app
 
-# Etapa de producción
-FROM nginx:alpine
+# Copy production modules (if any needed for backend) and built assets
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./
+# COPY --from=builder /app/bun.lockb ./
+COPY --from=builder /app/server ./server
+COPY --from=builder /app/node_modules ./node_modules
 
-# Configurar timezone española
-RUN apk add --no-cache tzdata && \
-    cp /usr/share/zoneinfo/Europe/Madrid /etc/localtime && \
-    echo "Europe/Madrid" > /etc/timezone && \
-    apk del tzdata
+# Expose port
+EXPOSE 3000
 
-ENV TZ=Europe/Madrid
-
-# Instalar netcat para verificar conectividad
-RUN apk add --no-cache netcat-openbsd
-
-# Copiar archivos construidos
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Copiar configuración de nginx
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Copiar script de inicio
-COPY entrypoint-frontend.sh /entrypoint-frontend.sh
-RUN apk add --no-cache dos2unix && \
-    dos2unix /entrypoint-frontend.sh && \
-    chmod +x /entrypoint-frontend.sh
-
-# Exponer puerto
-EXPOSE 80
-
-# Usar script de inicio en lugar de iniciar nginx directamente
-ENTRYPOINT ["/entrypoint-frontend.sh"]
-
+# Start Backend Server (which also serves frontend)
+CMD ["bun", "run", "server/index.ts"]
