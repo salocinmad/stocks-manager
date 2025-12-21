@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { Header } from '../components/Header';
 import { TradingViewChart } from '../components/TradingViewChart';
+import { PnLChart } from '../components/PnLChart';
 
 // Interfaces
 interface Position {
@@ -33,9 +34,11 @@ export const Dashboard: React.FC = () => {
   const [totalGain, setTotalGain] = useState<number>(0);
   const [totalGainPercent, setTotalGainPercent] = useState<number>(0);
   const [sectorAllocation, setSectorAllocation] = useState<any[]>([]);
-  const [topAsset, setTopAsset] = useState<string>("NASDAQ:AAPL"); // Default fallback
+  const [topAsset, setTopAsset] = useState<string>("NASDAQ:AAPL");
   const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [pnlHistory, setPnlHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pnlLoading, setPnlLoading] = useState(false); // To track chart loading specifically
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   // AI State
@@ -60,6 +63,8 @@ export const Dashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        setPnlLoading(true);
+
         // 2. Get Portfolios
         const { data: portfoliosList } = await api.get('/portfolios');
         let activeId = selectedPortfolioId;
@@ -75,7 +80,7 @@ export const Dashboard: React.FC = () => {
           }
         }
 
-        // 3. Get Summary (Filtered)
+        // 3. Get Summary, Details (Render these fast)
         if (activeId) {
           const { data: summary } = await api.get(`/portfolios/summary?portfolioId=${activeId}`);
 
@@ -87,7 +92,7 @@ export const Dashboard: React.FC = () => {
             setTotalGainPercent(summary.totalGainPercent || 0);
           }
 
-          // 4. Get Details for Sector Chart & Top Asset
+          // Details for Sector & Watchlist
           const { data: details } = await api.get(`/portfolios/${activeId}`);
 
           if (details && details.positions && details.positions.length > 0) {
@@ -97,7 +102,7 @@ export const Dashboard: React.FC = () => {
             const tickers = positions.map((p: any) => p.ticker);
             setWatchlist(tickers);
 
-            // Find Top Asset (Highest Value)
+            // Find Top Asset
             const sortedByValue = [...positions].sort((a: any, b: any) =>
               (b.quantity * b.average_buy_price) - (a.quantity * a.average_buy_price)
             );
@@ -106,7 +111,9 @@ export const Dashboard: React.FC = () => {
               setTopAsset(sortedByValue[0].ticker);
             }
 
-            // Fetch sector distribution
+            // Fetch sector distribution (Async but fast enough to wait? Or split?)
+            // Let's keep it here for now to ensure layout doesn't jump too much, 
+            // usually sector data is faster than 6 months of history calculations.
             try {
               const { data: sectorData } = await api.post('/market/sector-distribution', { tickers });
 
@@ -151,11 +158,33 @@ export const Dashboard: React.FC = () => {
             setSectorAllocation([]);
             setTopAsset("N/A");
           }
+
+          // CRITICAL: Stop global loading here to show the page
+          setLoading(false);
+
+          // 4. Fetch PnL History (Slow - Async)
+          try {
+            setPnlLoading(true); // Ensure specific loading is set
+            const { data: history } = await api.get(`/portfolios/${activeId}/pnl-history`);
+            if (Array.isArray(history)) {
+              setPnlHistory(history);
+            } else {
+              setPnlHistory([]);
+            }
+          } catch (e) {
+            console.error("Error fetching PnL history", e);
+            setPnlHistory([]);
+          } finally {
+            setPnlLoading(false);
+          }
+        } else {
+          setLoading(false);
+          setPnlLoading(false);
         }
       } catch (e) {
         console.error("Error fetching dashboard data", e);
-      } finally {
         setLoading(false);
+        setPnlLoading(false);
       }
     };
 
@@ -178,7 +207,17 @@ export const Dashboard: React.FC = () => {
     return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(val);
   };
 
-  if (loading) return <div className="p-10 text-center">{t('common.loading')}</div>;
+  if (loading) {
+    return (
+      <main className="flex-1 flex flex-col h-screen bg-background-light dark:bg-background-dark">
+        <Header title={`Hola, ${user?.name || 'Inversor'}`} />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-text-secondary-light font-medium animate-pulse">Cargando dashboard...</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 flex flex-col h-full overflow-y-auto scroll-smooth">
@@ -286,14 +325,33 @@ export const Dashboard: React.FC = () => {
 
         {/* Charts & Distribution */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Chart Placeholder (Future PnL) */}
-          <div className="lg:col-span-9 flex flex-col p-8 rounded-[3rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm h-[400px] items-center justify-center text-center relative overflow-hidden group">
-            <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div className="size-20 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform duration-300">
-              <span className="material-symbols-outlined text-4xl">ssid_chart</span>
+          {/* PnL Chart */}
+          <div className="lg:col-span-9 flex flex-col p-8 rounded-[3rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm h-[400px] relative overflow-hidden group">
+            <div className="flex items-center justify-between mb-4 z-10 relative">
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <span className="material-symbols-outlined text-xl">ssid_chart</span>
+                </div>
+                <h3 className="text-xl font-bold dark:text-white">PnL no realizado</h3>
+              </div>
             </div>
-            <h3 className="text-2xl font-bold dark:text-white mb-2">Gráfico PnL</h3>
-            <p className="text-text-secondary-light">Esta visualización avanzada estará disponible próximamente.</p>
+            <div className="flex-1 w-full h-full z-10">
+              {pnlLoading ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-text-secondary-light">
+                  <div className="size-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p className="text-sm font-medium animate-pulse">Calculando histórico...</p>
+                </div>
+              ) : pnlHistory.length > 0 ? (
+                <PnLChart data={pnlHistory} theme={theme} />
+              ) : (
+                /* Placeholder content using the new PnLChart dependency logic if empty */
+                <div className="w-full h-full flex flex-col items-center justify-center text-text-secondary-light">
+                  <span className="material-symbols-outlined text-4xl mb-2 opacity-50">show_chart</span>
+                  <p>No hay suficientes datos históricos para el gráfico PnL</p>
+                  <p className="text-xs opacity-70 mt-1">Sincronizando datos...</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Sector Distribution */}
@@ -336,6 +394,6 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
-    </main>
+    </main >
   );
 };
