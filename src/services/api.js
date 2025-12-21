@@ -115,7 +115,8 @@ export const pricesAPI = {
     method: 'PUT',
     body: JSON.stringify({ ...data, portfolioId: getCurrentPortfolioId() })
   }),
-  getMarketHistory: (symbol, days = 365) => fetchAPI(`/prices/market/${encodeURIComponent(symbol)}?days=${days}`)
+  getMarketHistory: (symbol, days = 365) => fetchAPI(`/prices/market/${encodeURIComponent(symbol)}?days=${days}`),
+  refreshAll: () => fetchAPI('/prices/refresh-all', { method: 'POST' })
 };
 
 export const notesAPI = {

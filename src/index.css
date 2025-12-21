@@ -56,6 +56,47 @@ body.light {
   background-color: #555555;
 }
 
+/* Estilos para modo OLED (Midnight) */
+.oled {
+  background-color: #000000;
+  color: #eeeeee;
+}
+
+.oled .card {
+  background-color: #000000;
+  border: 1px solid #222222;
+  color: #ffffff;
+}
+
+.oled .input {
+  background-color: #0a0a0a;
+  border: 1px solid #333333;
+  color: #ffffff;
+}
+
+.oled .button {
+  background-color: #111111;
+  color: #ffffff;
+  border: 1px solid #333333;
+}
+
+.oled .button:hover {
+  background-color: #222222;
+}
+
+.oled .stats {
+  background-color: #000000;
+  border: 1px solid #222222;
+}
+
+.oled .table th {
+  background-color: #0a0a0a;
+}
+
+.oled .table td {
+  border-bottom: 1px solid #1a1a1a;
+}
+
 /* Estilos para modo claro - Paleta pastel gris azulada */
 .light {
   background-color: #eef2f5;
@@ -218,7 +259,7 @@ body.light {
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -366,9 +407,119 @@ body.light {
 }
 
 .light .table th {
-  background-color: #f1f5f9;
+  background-color: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 16px 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table th {
+  background-color: rgba(255, 255, 255, 0.02);
+  padding: 16px 12px;
+  color: #888;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.table tbody tr {
+  transition: all 0.2s ease;
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* Badge System */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.badge-success {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.badge-danger {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.dark .badge-success {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.dark .badge-danger {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+/* Action Buttons Minimal */
+.action-btn-minimal {
+  background: transparent;
+  border: 1px solid #444;
+  color: #888;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-btn-minimal:hover {
+  background: #333;
+  color: #eee;
+  border-color: #666;
+}
+
+.light .action-btn-minimal {
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+.light .action-btn-minimal:hover {
+  background: #f1f5f9;
   color: #334155;
-  border-bottom: 2px solid #cbd5e1;
+}
+
+/* Premium Row */
+.premium-row {
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.premium-row:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.light .premium-row:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.symbol-tag {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 10px;
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #aaa;
+  text-transform: uppercase;
+}
+
+.light .symbol-tag {
+  background: rgba(0, 0, 0, 0.05);
+  color: #64748b;
 }
 
 .light .table td {
@@ -478,6 +629,10 @@ body.light {
   background-color: #e2e8f0;
 }
 
+.oled .theme-toggle:hover {
+  background-color: #222222;
+}
+
 .stats {
   display: flex;
   justify-content: space-around;
@@ -485,6 +640,28 @@ body.light {
   padding: 20px;
   background-color: #2d2d2d;
   border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.stats.sticky-stats {
+  position: sticky;
+  top: 10px;
+  z-index: 900;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  margin-top: 0;
+  border: 1px solid #555;
+}
+
+.light .stats.sticky-stats {
+  box-shadow: 0 4px 12px rgba(148, 163, 184, 0.2);
+  background-color: rgba(241, 245, 249, 0.95);
+  backdrop-filter: blur(8px);
+}
+
+.oled .stats.sticky-stats {
+  background-color: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(8px);
+  border: 1px solid #333;
 }
 
 .light .stats {
@@ -563,16 +740,16 @@ body.light {
 }
 
 /* ==== RESPONSIVE: Clases de utilidad para cambio de vista ==== */
-.mobile-view-only {
-  display: none !important;
+@media (min-width: 769px) {
+  .mobile-view-only {
+    display: none !important;
+  }
 }
 
-/* ==== RESPONSIVE: Contenedor de tarjetas móvil ==== */
-.positions-cards-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 0 8px;
+@media (max-width: 768px) {
+  .desktop-view-only {
+    display: none !important;
+  }
 }
 
 /* Grid por defecto para desktop */
@@ -589,6 +766,13 @@ body.light {
   gap: 16px;
 }
 
+.positions-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 8px;
+}
+
 /* ==== RESPONSIVE: Media queries globales ==== */
 @media (max-width: 768px) {
   .positions-header-grid {
@@ -603,19 +787,14 @@ body.light {
     gap: 16px;
   }
 
-  .mobile-view-only {
-    display: block !important;
-  }
-
-  .desktop-view-only {
-    display: none !important;
+  .positions-cards-container {
+    padding: 0 4px;
+    gap: 8px;
   }
 
   .container {
-    padding: 10px;
+    padding: 10px 4px;
   }
-
-  /* ... resto de media query ... */
 
   .header {
     flex-direction: column;
@@ -667,4 +846,33 @@ body.light {
     width: 100%;
     text-align: center;
   }
+}
+
+/* Animaciones Premium */
+@keyframes price-flash-up {
+  0% {
+    background-color: rgba(16, 185, 129, 0.4);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes price-flash-down {
+  0% {
+    background-color: rgba(239, 68, 68, 0.4);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+.price-up-flash {
+  animation: price-flash-up 1.5s ease-out;
+}
+
+.price-down-flash {
+  animation: price-flash-down 1.5s ease-out;
 }

@@ -90,6 +90,16 @@ export async function updateAllActivePrices() {
         }
     }
 
+    // 4. Actualizar marcador de última ejecución para el frontend
+    try {
+        const Config = (await import('../../models/Config.js')).default;
+        const nowIso = new Date().toISOString();
+        await Config.upsert({ key: 'scheduler_last_run', value: nowIso });
+        await Config.upsert({ key: 'last_prices_sync_at', value: nowIso });
+    } catch (configError) {
+        console.error('⚠️ Error actualizando configuración de sincronización:', configError.message);
+    }
+
     return { updated, failed, total: symbols.length };
 }
 

@@ -4,12 +4,70 @@
  */
 
 import { DEFAULT_EXCHANGE_RATES, MARKET_CURRENCIES } from './constants.js';
+import YahooFinance from 'yahoo-finance2';
+import Config from '../models/Config.js';
+
+const yahooFinance = new YahooFinance({
+    suppressNotices: ['yahooSurvey'],
+});
+
+/**
+ * Obtiene un mapa de tipos de cambio (EUR como base)
+ * @returns {Promise<Object>} Mapa { USD: rate, GBP: rate, ... }
+ */
+export async function getFxMapToEUR() {
+    const map = { ...DEFAULT_EXCHANGE_RATES };
+
+    // 1. Intentar con Finnhub si hay API key
+    try {
+        let key = process.env.FINNHUB_API_KEY || '';
+        if (!key) {
+            const row = await Config.findOne({ where: { key: 'finnhub-api-key' } });
+            key = row?.value || '';
+        }
+
+        if (key) {
+            const response = await fetch(`https://finnhub.io/api/v1/forex/rates?base=EUR&token=${encodeURIComponent(key)}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.rates) {
+                    const usdPerEur = Number(data.rates.USD);
+                    const gbpPerEur = Number(data.rates.GBP);
+                    if (usdPerEur && usdPerEur > 0) map.USD = 1 / usdPerEur;
+                    if (gbpPerEur && gbpPerEur > 0) map.GBP = 1 / gbpPerEur;
+                    return map;
+                }
+            }
+        }
+    } catch (e) {
+        // Silencioso, intentar fallback
+    }
+
+    // 2. Fallback Yahoo Finance
+    try {
+        const symbols = ['EURUSD=X', 'EURGBP=X'];
+        const quotes = await yahooFinance.quote(symbols);
+
+        const usdQuote = quotes.find(q => q.symbol === 'EURUSD=X');
+        if (usdQuote) {
+            const r = usdQuote.regularMarketPrice || usdQuote.regularMarketPreviousClose;
+            if (r && r > 0) map.USD = 1 / r;
+        }
+
+        const gbpQuote = quotes.find(q => q.symbol === 'EURGBP=X');
+        if (gbpQuote) {
+            const r = gbpQuote.regularMarketPrice || gbpQuote.regularMarketPreviousClose;
+            if (r && r > 0) map.GBP = 1 / r;
+        }
+    } catch (e) {
+        // Usar defaults si todo falla
+    }
+
+    return map;
+}
 
 /**
  * Obtiene tipo de cambio actual para una moneda
- * TODO: Integrar con API real de tipos de cambio (ej: ECB, Open Exchange Rates)
- * Por ahora usa valores por defecto
- * 
  * @param {string} currency - Código de moneda ('USD', 'EUR', 'GBP')
  * @returns {Promise<number>} Tipo de cambio a EUR
  */
@@ -17,13 +75,10 @@ export async function getExchangeRate(currency) {
     if (!currency) return 1;
 
     const normalized = currency.toUpperCase();
-
-    // EUR siempre es 1
     if (normalized === 'EUR') return 1;
 
-    // POR HACER: Implementar llamada a API real
-    // Por ahora, retornar valores por defecto
-    return DEFAULT_EXCHANGE_RATES[normalized] || 1;
+    const map = await getFxMapToEUR();
+    return map[normalized] || 1;
 }
 
 /**
@@ -113,6 +168,7 @@ export function calculateWeightedExchangeRate(operations) {
 }
 
 export default {
+    getFxMapToEUR,
     getExchangeRate,
     convertToEUR,
     convertFromEUR,
@@ -120,3 +176,4 @@ export default {
     formatCurrency,
     calculateWeightedExchangeRate,
 };
+

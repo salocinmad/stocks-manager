@@ -41,6 +41,7 @@ function App() {
   const [finnhubApiKey, setFinnhubApiKey] = useState('');
   const [showMobileMenu, setShowMobileMenu] = useState(false); // Mobile menu visibility control
 
+
   const [tempDeletePassword, setTempDeletePassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -66,6 +67,8 @@ function App() {
     exchangeRate: '1',
     commission: '0',
     date: new Date().toISOString().split('T')[0],
+    targetPrice: '',
+    stopLossPrice: '',
     externalSymbol1: '',
     externalSymbol2: '',
     externalSymbol3: ''
@@ -234,7 +237,10 @@ function App() {
         try {
           const lastSync = await configAPI.get('last_prices_sync_at');
           if (lastSync && lastSync.value) {
-            setLastUpdatedAt(new Date(lastSync.value));
+            const syncDate = new Date(lastSync.value);
+            if (!lastUpdatedAt || syncDate > lastUpdatedAt) {
+              setLastUpdatedAt(syncDate);
+            }
           }
         } catch (e) {
           console.log('No se pudo cargar last_prices_sync_at');
@@ -410,9 +416,13 @@ function App() {
 
 
 
-  // Cambiar tema
+  // Cambiar tema (Cíclico: Oscuro -> Claro -> OLED)
   const toggleTheme = () => {
-    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    let newTheme = 'dark';
+    if (theme === 'dark') newTheme = 'light';
+    else if (theme === 'light') newTheme = 'oled';
+    else newTheme = 'dark';
+
     setTheme(newTheme);
     document.body.className = newTheme;
     localStorage.setItem('portfolio-theme', newTheme);
@@ -855,6 +865,7 @@ function App() {
         exchangeRate: editExchangeRate,
         commission: operation.commission.toString(),
         targetPrice: operation.targetPrice ? operation.targetPrice.toString() : '',
+        stopLossPrice: operation.stopLossPrice ? operation.stopLossPrice.toString() : '',
         date: formattedDate,
         externalSymbol1: operation.externalSymbol1 || '',
         externalSymbol2: operation.externalSymbol2 || '',
@@ -884,6 +895,7 @@ function App() {
         exchangeRate: '1',
         commission: '0',
         targetPrice: '',
+        stopLossPrice: '',
         date: new Date().toISOString().split('T')[0],
         externalSymbol1: '',
         externalSymbol2: '',
@@ -974,6 +986,7 @@ function App() {
         exchangeRate: finalExchangeRate,
         commission: parseFloat(formData.commission) || 0,
         targetPrice: formData.targetPrice ? parseFloat(formData.targetPrice) : null,
+        stopLossPrice: formData.stopLossPrice ? parseFloat(formData.stopLossPrice) : null,
         date: operationDate,
         totalCost: totalCost,
         externalSymbol1: formData.externalSymbol1 || null,
@@ -1198,14 +1211,19 @@ function App() {
             Stocks Manager
           </h1>
 
-          {/* Botón Hamburguesa (Solo Móvil) */}
-          <button
-            className="mobile-view-only hamburger-button"
-            onClick={() => setShowMobileMenu(!showMobileMenu)}
-            style={{ background: 'transparent', border: '1px solid currentColor' }}
-          >
-            {showMobileMenu ? '✕' : '☰'}
-          </button>
+          {/* Botones Móvil (Directos) */}
+          <div className="mobile-view-only" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+            <button className="theme-toggle" onClick={toggleTheme} title="Cambiar tema" style={{ padding: '4px', fontSize: '20px' }}>
+              {theme === 'dark' ? '☀️' : (theme === 'light' ? '🌑' : '✨')}
+            </button>
+            <button
+              className="hamburger-button"
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              style={{ background: 'transparent', border: '1px solid currentColor', width: '36px', height: '36px', borderRadius: '4px', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              {showMobileMenu ? '✕' : '☰'}
+            </button>
+          </div>
         </div>
 
         {/* Segunda fila: Controles */}
@@ -1291,7 +1309,7 @@ function App() {
             {/* Derecha: Botones de Acción */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button className="theme-toggle" onClick={toggleTheme} title="Cambiar tema">
-                {theme === 'dark' ? '☀️' : '🌙'}
+                {theme === 'dark' ? '☀️' : (theme === 'light' ? '🌑' : '✨')}
               </button>
               <button className="button" onClick={() => {
                 setShowReports(!showReports);
@@ -1335,6 +1353,7 @@ function App() {
                     <img
                       src={profilePictureUrl}
                       alt="Profile"
+                      loading="eager"
                       style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                     />
                   ) : (
@@ -1435,10 +1454,6 @@ function App() {
                 )}
 
 
-                <button className="button" style={{ width: '100%' }} onClick={toggleTheme}>
-                  {theme === 'dark' ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
-                </button>
-
                 {currentUser?.isAdmin && (
                   <button className="button" style={{ width: '100%' }} onClick={() => { navigate('/admin'); setShowMobileMenu(false); }}>
                     🛠️ Admin Panel
@@ -1451,7 +1466,7 @@ function App() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {profilePictureUrl ? (
-                      <img src={profilePictureUrl} alt="Profile" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
+                      <img src={profilePictureUrl} alt="Profile" loading="eager" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
                     ) : (
                       <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#404040', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
                         {getUserInitial()}
@@ -1483,7 +1498,8 @@ function App() {
       ) : !showHistory ? (
         <>
           {/* Estadísticas */}
-          <div className="stats">
+          {/* Estadísticas */}
+          <div className="stats sticky-stats">
             <div className="stat-item">
               <div className="stat-value">€{stats.totalValue.toFixed(2)}</div>
               <div className="stat-label">Valor Total</div>
@@ -1506,16 +1522,18 @@ function App() {
           <div className="card">
             <div className="positions-header-grid" style={{ marginBottom: '15px' }}>
               <div>
-                <h2 style={{ margin: 0 }}>Posiciones Activas</h2>
+                <div className="positions-title-container">
+                  <h2 style={{ margin: 0 }}>Posiciones Activas</h2>
+                </div>
                 {currentEURUSD && (
                   <div style={{ fontSize: '12px', color: '#888', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span>💱 1 USD = {currentEURUSD.toFixed(4)} EUR</span>
                     {(() => {
                       const src = currentEURUSDSource;
                       if (src === 'finnhub') {
-                        return <img src="https://finnhub.io/static/img/webp/finnhub-logo.webp" alt="Finnhub" title="Finnhub" style={{ width: '14px', height: '14px' }} />
+                        return <img src="https://finnhub.io/static/img/webp/finnhub-logo.webp" alt="Finnhub" title="Finnhub" loading="eager" style={{ width: '14px', height: '14px' }} />
                       } else if (src === 'yahoo') {
-                        return <img src="https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg" alt="Yahoo" title="Yahoo" style={{ width: '14px', height: '14px' }} />
+                        return <img src="https://raw.githubusercontent.com/edent/SuperTinyIcons/1ee09df265d2f3764c28b1404dd0d7264c37472d/images/svg/yahoo.svg" alt="Yahoo" title="Yahoo" loading="eager" style={{ width: '14px', height: '14px' }} />
                       }
                       return null;
                     })()}
@@ -1578,6 +1596,7 @@ function App() {
                 currentPortfolioId={currentPortfolioId}
                 userId={currentUser?.id}
                 externalButtons={externalButtons}
+
                 handleDragStart={handleDragStart}
                 handleDragEnd={handleDragEnd}
                 handleDragOver={handleDragOver}

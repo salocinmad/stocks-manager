@@ -29,6 +29,8 @@ function Admin() {
   const [smtpSubject, setSmtpSubject] = useState('Alerta de precios');
   const [smtpTo, setSmtpTo] = useState('');
   const [logLevelEnabled, setLogLevelEnabled] = useState(false); // Nuevo estado para el nivel de log
+  const [dailyCloseTime, setDailyCloseTime] = useState('03:00');
+  const [showDailyCloseConfig, setShowDailyCloseConfig] = useState(false);
 
   const [showPass, setShowPass] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -49,7 +51,17 @@ function Admin() {
     loadApiKey();
     loadSmtp();
     loadLogLevel();
+    loadDailyCloseTime();
   }, []);
+
+  const loadDailyCloseTime = async () => {
+    try {
+      const response = await configAPI.get('daily_close_time');
+      setDailyCloseTime(response.value || '03:00');
+    } catch (err) {
+      console.error('Error cargando hora de cierre diario:', err);
+    }
+  };
 
   const loadLogLevel = async () => {
     try {
@@ -414,8 +426,8 @@ function Admin() {
           </div>
         </div>
 
-          <div className="card">
-            <h3 style={{ borderBottom: '1px solid #404040', paddingBottom: '10px', marginBottom: '15px' }}>🔧 Mantenimiento</h3>
+        <div className="card">
+          <h3 style={{ borderBottom: '1px solid #404040', paddingBottom: '10px', marginBottom: '15px' }}>🔧 Mantenimiento</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               className="button"
@@ -426,19 +438,23 @@ function Admin() {
             </button>
             <button
               className="button"
+              onClick={() => setShowDailyCloseConfig(true)}
+              style={{ justifyContent: 'center' }}
+            >
+              🕒 Configurar Hora Cierre
+            </button>
+            <button
+              className="button"
               onClick={async () => {
+                if (!window.confirm('¿Ejecutar ahora el cierre diario? Se procesarán los últimos 5 días.')) return
                 try {
                   const r = await authenticatedFetch('/api/admin/daily-close/run', { method: 'POST' })
                   const d = await r.json().catch(() => ({}))
                   if (r.ok) {
                     if (d.status === 'already_running') {
                       setSuccess('Cierre diario ya en ejecución')
-                    } else if (d.status === 'partial_failures') {
-                      setSuccess(`Cierre diario con incidencias (${(d.failures || []).length})`)
-                    } else if (d.status === 'no_data') {
-                      setSuccess('Cierre diario sin datos que procesar')
                     } else {
-                      setSuccess(`Cierre diario ejecutado (${d.date || '—'})`)
+                      setSuccess(`Cierre (backfill) iniciado correctamente`)
                     }
                   } else {
                     setError(d?.error || 'Error ejecutando cierre diario')
@@ -449,7 +465,7 @@ function Admin() {
               }}
               style={{ justifyContent: 'center' }}
             >
-              📅 Ejecutar Cierre Diario
+              📅 Ejecutar Cierre Diario (manual)
             </button>
             <button
               className="button warning"
@@ -475,7 +491,7 @@ function Admin() {
               className="button warning"
               disabled={resettingAlerts}
               onClick={async () => {
-                if (!window.confirm('¿Rearmar todas las alertas de precio objetivo?')) return;
+                if (!window.confirm('¿Rearmar todas las alertas de precio? (Objetivo y Stop Loss)')) return;
                 try {
                   setResettingAlerts(true);
                   const r = await authenticatedFetch('/api/admin/reset-alerts', { method: 'POST', body: JSON.stringify({}) })
@@ -495,7 +511,7 @@ function Admin() {
             >
               🔁 Rearmar Alertas
             </button>
-              <button className="button" onClick={() => setShowOperationsEditor(true)}>📊 Generar Reportes</button>
+            <button className="button" onClick={() => setShowOperationsEditor(true)}>📊 Generar Reportes</button>
             <button
               className="button warning"
               onClick={async () => {
@@ -625,6 +641,39 @@ function Admin() {
                 if (r.ok) setSuccess('Ejecución manual realizada'); else setError('Error al ejecutar ahora')
               }}>▶ Ejecutar ahora</button>
               <button className="button" onClick={() => setShowSchedulerConfig(false)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDailyCloseConfig && (
+        <div className="modal" onClick={() => setShowDailyCloseConfig(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <h2>🕒 Hora de Cierre Diario</h2>
+            <p style={{ fontSize: '14px', color: '#888', marginBottom: '15px' }}>
+              Define a qué hora se capturarán los cierres de mercado (Snapshot) cada día.
+              Se recomienda una hora en la que el mercado US ya haya cerrado (ej: 03:00).
+            </p>
+            <div className="form-group">
+              <label>Hora (HH:mm)</label>
+              <input
+                type="time"
+                className="input"
+                value={dailyCloseTime}
+                onChange={(e) => setDailyCloseTime(e.target.value)}
+              />
+            </div>
+            <div className="admin-actions">
+              <button className="button primary" onClick={async () => {
+                try {
+                  await configAPI.set('daily_close_time', dailyCloseTime);
+                  setSuccess('Configuración guardada. Reinicia el servidor para aplicar cambios en el scheduler.');
+                  setShowDailyCloseConfig(false);
+                } catch (err) {
+                  setError('Error al guardar la hora de cierre');
+                }
+              }}>💾 Guardar</button>
+              <button className="button" onClick={() => setShowDailyCloseConfig(false)}>Cerrar</button>
             </div>
           </div>
         </div>

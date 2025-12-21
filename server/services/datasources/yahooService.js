@@ -196,6 +196,42 @@ export async function fetchHistorical(symbol, days = 365) {
 }
 
 /**
+ * Obtiene dividendos históricos de Yahoo Finance
+ * @param {string} symbol - Símbolo bursátil
+ * @param {number} days - Días hacia atrás
+ * @returns {Promise<Array>} Array de dividendos
+ */
+export async function fetchDividends(symbol, days = 180) {
+    try {
+        const parts = symbol.split('|||');
+        let yahooSymbol = parts[parts.length - 1].replace(/:/g, '.');
+        const now = Math.floor(Date.now() / 1000);
+        const start = now - (days * 24 * 60 * 60);
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?period1=${start}&period2=${now}&interval=1d&events=div`;
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+        });
+
+        if (!response.ok) return [];
+
+        const data = await response.json();
+        const divs = data.chart?.result?.[0]?.events?.dividends;
+
+        if (!divs) return [];
+
+        return Object.values(divs).map(d => ({
+            date: new Date(d.date * 1000).toISOString().split('T')[0],
+            amount: d.amount
+        })).sort((a, b) => b.date.localeCompare(a.date));
+    } catch (error) {
+        return [];
+    }
+}
+
+/**
  * Obtiene perfil del activo (Sector, Industria, Beta, Dividendos)
  * @param {string} symbol - Símbolo bursátil
  * @returns {Promise<Object|null>} Datos del perfil
@@ -239,4 +275,4 @@ export async function fetchAssetProfile(symbol) {
     }
 }
 
-export default { fetchQuote, fetchHistorical, fetchAssetProfile };
+export default { fetchQuote, fetchHistorical, fetchAssetProfile, fetchDividends };

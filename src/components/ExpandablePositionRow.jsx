@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { authenticatedFetch } from '../services/auth.js';
 import HistoricalChart from './HistoricalChart.jsx';
 
@@ -36,6 +36,24 @@ function ExpandablePositionRow({
     const [loadingData, setLoadingData] = useState(false);
     const [error, setError] = useState(null);
     const [chartType, setChartType] = useState('line'); // Nuevo estado para el tipo de gráfico
+    const prevPriceRef = useRef(currentPriceData?.price);
+    const [flashClass, setFlashClass] = useState('');
+
+    useEffect(() => {
+        if (currentPriceData?.price !== undefined && prevPriceRef.current !== undefined) {
+            if (currentPriceData.price > prevPriceRef.current) {
+                setFlashClass('price-up-flash');
+            } else if (currentPriceData.price < prevPriceRef.current) {
+                setFlashClass('price-down-flash');
+            }
+            if (currentPriceData.price !== prevPriceRef.current) {
+                const timer = setTimeout(() => setFlashClass(''), 1500);
+                prevPriceRef.current = currentPriceData.price;
+                return () => clearTimeout(timer);
+            }
+        }
+        prevPriceRef.current = currentPriceData?.price;
+    }, [currentPriceData?.price]);
 
     const calculatedChange = useMemo(() => {
         if (!historicalData || historicalData.length < 2) return null;
@@ -83,7 +101,7 @@ function ExpandablePositionRow({
                 onDragEnd={onDragEnd}
                 onDragOver={onDragOver}
                 onDrop={(e) => onDrop(e, positionKey, allPositionKeys)}
-                className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''}`}
+                className={`position-row ${draggedPosition === positionKey ? 'dragging' : ''} ${flashClass}`}
             >
                 <td>
                     <div
@@ -126,15 +144,23 @@ function ExpandablePositionRow({
                                     const title = src ? `${src.toUpperCase()}${currentPriceData.updatedAt ? ` • ${new Date(currentPriceData.updatedAt).toLocaleString('es-ES', { hour12: false })}` : ''}` : '';
                                     if (url) {
                                         return (
-                                            <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="lazy" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
+                                            <img src={url} alt={src} title={title} referrerPolicy="no-referrer" loading="eager" style={{ width: '16px', height: '16px', verticalAlign: 'middle' }} />
                                         );
                                     }
                                     return null;
                                 })()}
                             </div>
-                            {/* Lógica para mostrar el cambio: primero calculatedChange, luego currentPriceData */}
-                        </span>
-                    )}
+                            {currentPriceData.change !== null && (
+                                <div style={{
+                                    fontSize: '12px',
+                                    color: currentPriceData.change >= 0 ? '#10b981' : '#ef4444',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    {currentPriceData.change >= 0 ? '+' : ''}{formatPrice(currentPriceData.change)} ({currentPriceData.changePercent >= 0 ? '+' : ''}{currentPriceData.changePercent.toFixed(2)}%)
+                                </div>
+                            )}
+                        </div>
+                    ) : <span style={{ color: '#888', fontSize: '12px' }}>Sin datos</span>}
                 </td>
                 <td>{currentValueInEUR !== null ? `€${currentValueInEUR.toFixed(2)}` : '-'}</td>
                 <td className={profitLossInEUR >= 0 ? 'gain' : 'loss'}>

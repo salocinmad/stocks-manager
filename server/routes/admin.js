@@ -206,7 +206,10 @@ router.post('/reset-alerts', async (req, res) => {
   try {
     const { userId } = req.body || {}
     const where = userId ? { userId } : {}
-    const [affected] = await PriceCache.update({ targetHitNotifiedAt: null }, { where })
+    const [affected] = await PriceCache.update({
+      targetHitNotifiedAt: null,
+      stopLossHitNotifiedAt: null
+    }, { where })
     res.json({ success: true, affected })
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -597,7 +600,7 @@ router.post('/scheduler/run', async (req, res) => {
 
 router.post('/daily-close/run', async (req, res) => {
   try {
-    const r = await dailyClose.runDailyOnce()
+    const r = await dailyClose.runBackfill(5)
     if (!r.ok) {
       if (r.reason === 'already_running') {
         return res.json({ success: true, status: 'already_running' })
@@ -607,7 +610,13 @@ router.post('/daily-close/run', async (req, res) => {
       }
       return res.status(400).json({ error: r.reason || 'run failed' })
     }
-    res.json({ success: true, date: r.date, processed: r.processed, failures: r.failures || [] })
+    res.json({
+      success: true,
+      date: r.date || (r.results ? r.results[0]?.date : null),
+      processed: r.processed || (r.results ? r.results.filter(x => x.ok).length : 0),
+      failures: r.failures || [],
+      results: r.results || null
+    })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

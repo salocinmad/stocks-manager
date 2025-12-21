@@ -178,11 +178,17 @@ export default function PurchaseSaleModal({
               ))}
             </div>
           )}
-
-          <div className="form-group">
-            <label>Precio Objetivo (Opcional):</label>
-            <input type="number" name="targetPrice" value={formData.targetPrice || ''} onChange={handleInputChange} className="input" step="0.00000001" min="0" placeholder="Precio al que esperas vender" />
-            <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>Ingresa el precio objetivo al que planeas vender esta acción</p>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Precio Objetivo (Opcional):</label>
+              <input type="number" name="targetPrice" value={formData.targetPrice || ''} onChange={handleInputChange} className="input" step="0.00000001" min="0" placeholder="Precio al que esperas vender" />
+              <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>Precio objetivo al que planeas vender la acción</p>
+            </div>
+            <div className="form-group">
+              <label>Precio Stop Loss (Opcional):</label>
+              <input type="number" name="stopLossPrice" value={formData.stopLossPrice || ''} onChange={handleInputChange} className="input" step="0.00000001" min="0" placeholder="Umbral de alerta" />
+              <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>Avisar si el precio cruza este umbral (alza o baja)</p>
+            </div>
           </div>
 
           <div style={{ marginTop: '20px' }}>

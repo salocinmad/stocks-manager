@@ -2,6 +2,7 @@ import Config from '../models/Config.js'
 import Operation from '../models/Operation.js'
 import Portfolio from '../models/Portfolio.js'
 import DailyPrice from '../models/DailyPrice.js'
+import { Op } from 'sequelize'
 import YahooFinance from 'yahoo-finance2';
 import { getLogLevel } from './configService.js';
 
@@ -11,6 +12,7 @@ let dailyRunning = false
 import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
 import DailyPositionSnapshot from '../models/DailyPositionSnapshot.js'
 import scheduler from './scheduler.js'
+import { getFxMapToEUR } from '../utils/exchangeRateService.js'
 
 // Instancia de Yahoo Finance v3
 const yahooFinance = new YahooFinance({
@@ -113,13 +115,12 @@ export const fetchHistoricalClose = async (symbol, targetDateStr) => {
   }
 }
 
-export const runDailyOnce = async () => {
+export const runDailyOnce = async (targetDate = null, forceUpdate = false) => {
   const currentLogLevel = await getLogLevel();
-  if (dailyRunning) return { ok: false, reason: 'already_running' }
-  dailyRunning = true
+  if (dailyRunning && !targetDate) return { ok: false, reason: 'already_running' }
+  if (!targetDate) dailyRunning = true
   try {
-    await scheduler.runOnce().catch(() => { })
-    const date = await getPreviousBusinessDate()
+    const date = targetDate || await getPreviousBusinessDate()
     const fxMap = await getFxMapToEUR()
     const users = await Operation.findAll({ attributes: ['userId'], group: ['userId'] })
     let processed = 0
@@ -132,7 +133,14 @@ export const runDailyOnce = async () => {
         const portfolioId = pf.id
 
         // 1. Calcular Posiciones Activas y Coste Total (Capital Invertido)
-        const ops = await Operation.findAll({ where: { userId, portfolioId }, order: [['date', 'ASC'], ['id', 'ASC']] })
+        const ops = await Operation.findAll({
+          where: {
+            userId,
+            portfolioId,
+            date: { [Op.lte]: date }
+          },
+          order: [['date', 'ASC'], ['id', 'ASC']]
+        })
         const positionsMap = new Map()
 
         for (const o of ops) {
@@ -168,7 +176,7 @@ export const runDailyOnce = async () => {
             // Intentar encontrar precio diario existente primero para evitar re-fetch si ya se ejecutó hoy
             let dailyPrice = await DailyPrice.findOne({ where: { userId, portfolioId, positionKey: pk, date } })
 
-            if (!dailyPrice) {
+            if (!dailyPrice || forceUpdate) {
               // CAMBIO CRÍTICO: Usar fetchHistoricalClose en lugar de fetchPreviousClose
               // Esto asegura que ottenemos el dato histórico OFICIAL de la fecha 'date'
               const prev = await fetchHistoricalClose(p.symbol, date)
@@ -201,13 +209,24 @@ export const runDailyOnce = async () => {
               const existingSnapshot = await DailyPositionSnapshot.findOne({
                 where: { userId, portfolioId, positionKey: pk, date }
               })
-              if (!existingSnapshot && dailyPrice) {
-                const avgCost = p.totalCost / p.shares
-                const currentPrice = dailyPrice.close * (dailyPrice.exchangeRate || 1)
-                const totalValue = currentPrice * p.shares
-                const pnl = totalValue - p.totalCost
-                const pnlPercent = p.totalCost > 0 ? (pnl / p.totalCost) * 100 : 0
+              const avgCost = p.totalCost / p.shares
+              const currentPrice = dailyPrice.close * (dailyPrice.exchangeRate || 1)
+              const totalValue = currentPrice * p.shares
+              const pnl = totalValue - p.totalCost
+              const pnlPercent = p.totalCost > 0 ? (pnl / p.totalCost) * 100 : 0
 
+              if (existingSnapshot && forceUpdate) {
+                existingSnapshot.shares = p.shares
+                existingSnapshot.avgCost = avgCost
+                existingSnapshot.totalInvested = p.totalCost
+                existingSnapshot.currentPrice = currentPrice
+                existingSnapshot.totalValue = totalValue
+                existingSnapshot.pnl = pnl
+                existingSnapshot.pnlPercent = pnlPercent
+                existingSnapshot.currency = dailyPrice.currency
+                existingSnapshot.exchangeRate = dailyPrice.exchangeRate
+                await existingSnapshot.save()
+              } else if (!existingSnapshot && dailyPrice) {
                 await DailyPositionSnapshot.create({
                   userId,
                   portfolioId,
@@ -272,22 +291,36 @@ export const runDailyOnce = async () => {
 
 
           const existing = await DailyPortfolioStats.findOne({ where: { userId, portfolioId, date } })
-          if (!existing) {
-            await DailyPortfolioStats.create({
-              userId,
-              portfolioId,
-              date,
-              totalInvestedEUR,
-              totalValueEUR,
-              pnlEUR,
-              // Nuevos campos de análisis histórico
-              dailyChangeEUR,
-              dailyChangePercent,
-              roi,
-              activePositionsCount,
-              closedOperationsCount
-            })
-            processed++
+          if (!existing || forceUpdate) {
+            if (existing && forceUpdate) {
+              // Si forzamos, actualizamos los valores del existente
+              existing.totalInvestedEUR = totalInvestedEUR
+              existing.totalValueEUR = totalValueEUR
+              existing.pnlEUR = pnlEUR
+              existing.dailyChangeEUR = dailyChangeEUR
+              existing.dailyChangePercent = dailyChangePercent
+              existing.roi = roi
+              existing.activePositionsCount = activePositionsCount
+              existing.closedOperationsCount = closedOperationsCount
+              await existing.save()
+              processed++
+            } else if (!existing) {
+              await DailyPortfolioStats.create({
+                userId,
+                portfolioId,
+                date,
+                totalInvestedEUR,
+                totalValueEUR,
+                pnlEUR,
+                // Nuevos campos de análisis histórico
+                dailyChangeEUR,
+                dailyChangePercent,
+                roi,
+                activePositionsCount,
+                closedOperationsCount
+              })
+              processed++
+            }
           } else {
           }
         } catch (err) {
@@ -311,28 +344,36 @@ export const runDailyOnce = async () => {
         where: { userId: 0, portfolioId: 0, positionKey: sp500PositionKey, date }
       });
 
-      if (!existing) {
+      if (!existing || forceUpdate) {
         // CAMBIO CRÍTICO: Usar fetchHistoricalClose también para SP500
         const sp500Data = await fetchHistoricalClose(sp500Symbol, date);
         if (sp500Data) {
           const { close, currency = 'USD', source = 'yahoo_chart_daily_close' } = sp500Data;
           const exchangeRate = fxMap[currency] ?? 1;
 
-          await DailyPrice.create({
-            userId: 0,
-            portfolioId: 0,
-            positionKey: sp500PositionKey,
-            company: 'S&P 500',
-            symbol: sp500Symbol,
-            date,
-            close,
-            currency,
-            exchangeRate,
-            source,
-            change: 0,
-            changePercent: 0,
-            shares: 0
-          });
+          if (existing) {
+            existing.close = close;
+            existing.currency = currency;
+            existing.exchangeRate = exchangeRate;
+            existing.source = source;
+            await existing.save();
+          } else {
+            await DailyPrice.create({
+              userId: 0,
+              portfolioId: 0,
+              positionKey: sp500PositionKey,
+              company: 'S&P 500',
+              symbol: sp500Symbol,
+              date,
+              close,
+              currency,
+              exchangeRate,
+              source,
+              change: 0,
+              changePercent: 0,
+              shares: 0
+            });
+          }
 
           if (currentLogLevel === 'verbose') {
             console.log(`✅ S&P 500 actualizado: ${close} ${currency}`);
@@ -386,7 +427,40 @@ export const runDailyOnce = async () => {
   } catch (e) {
     return { ok: false, reason: e.message };
   } finally {
-    dailyRunning = false;
+    if (!targetDate) dailyRunning = false;
+  }
+}
+
+export const runBackfill = async (days = 5) => {
+  const currentLogLevel = await getLogLevel();
+  if (dailyRunning) return { ok: false, reason: 'already_running' }
+  dailyRunning = true
+  try {
+    if (currentLogLevel === 'verbose') console.log(`🔄 Iniciando backfill de ${days} días...`)
+    const results = []
+
+    // Ejecutar scheduler una vez al inicio del backfill para tener precios actuales si es posible
+    await scheduler.runOnce().catch(() => { })
+
+    for (let i = 0; i < days; i++) {
+      const d = new Date()
+      // Restar i días a la fecha actual para el backfill
+      d.setDate(d.getDate() - i)
+      const day = d.getDay()
+
+      // Omitir fines de semana (subjetivo, pero Yahoo suele no tener velas nuevas)
+      // Aunque el usuario pide 5 días, así que mejor procesar todos y que fetchHistoricalClose decida
+
+      const iso = d.toISOString().split('T')[0]
+      if (currentLogLevel === 'verbose') console.log(`📅 Procesando ${iso} (${i + 1}/${days})...`)
+      const res = await runDailyOnce(iso, true) // forceUpdate=true para asegurar que se actualizan huecos
+      results.push({ date: iso, ok: res.ok })
+    }
+    return { ok: true, results }
+  } catch (e) {
+    return { ok: false, reason: e.message }
+  } finally {
+    dailyRunning = false
   }
 }
 
@@ -405,9 +479,9 @@ export const startDaily = async () => {
   if (dailyTimer) clearTimeout(dailyTimer)
   const wait = msUntilTime(timeStr)
   dailyTimer = setTimeout(() => {
-    runDailyOnce().then(() => {
+    runBackfill(5).then(() => {
       // programar siguientes ejecuciones cada 24h
-      dailyTimer = setInterval(runDailyOnce, 24 * 60 * 60 * 1000)
+      dailyTimer = setInterval(() => runBackfill(5), 24 * 60 * 60 * 1000)
     })
   }, wait)
   return { ok: true, timeStr }
@@ -426,37 +500,4 @@ export const reloadDaily = async () => {
   return startDaily()
 }
 
-export default { startDaily, stopDaily, reloadDaily, runDailyOnce }
-const getFxMapToEUR = async () => {
-  // Defaults razonables en caso de que todas las APIs fallen
-  const map = { USD: 0.92, EUR: 1.0, GBP: 0.86 }
-  try {
-    let key = process.env.FINNHUB_API_KEY || ''
-    if (!key) {
-      const row = await Config.findOne({ where: { key: 'finnhub_api_key' } })
-      key = row?.value || ''
-    }
-    if (key) {
-      const r1 = await fetch(`https://finnhub.io/api/v1/forex/rates?base=EUR&token=${encodeURIComponent(key)}`)
-      if (r1.ok) {
-        const data = await r1.json()
-        const usdPerEur = Number(data?.rates?.USD)
-        const gbpPerEur = Number(data?.rates?.GBP)
-        if (usdPerEur && usdPerEur > 0) map.USD = 1 / usdPerEur
-        if (gbpPerEur && gbpPerEur > 0) map.GBP = 1 / gbpPerEur
-        return map
-      }
-    }
-  } catch { }
-  try {
-    const eurusd = await yahooFinance.quote('EURUSD=X')
-    const r = eurusd?.regularMarketPrice || eurusd?.regularMarketPreviousClose
-    if (r && r > 0) map.USD = 1 / r
-  } catch { }
-  try {
-    const eurgbp = await yahooFinance.quote('EURGBP=X')
-    const r = eurgbp?.regularMarketPrice || eurgbp?.regularMarketPreviousClose
-    if (r && r > 0) map.GBP = 1 / r
-  } catch { }
-  return map
-}
+export default { startDaily, stopDaily, reloadDaily, runDailyOnce, runBackfill }

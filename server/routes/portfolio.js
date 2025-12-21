@@ -70,8 +70,9 @@ router.get('/timeseries', async (req, res) => {
     // Mapear al contrato del frontend: totalValueEUR representa pnlEUR para el gráfico
     let result = history.map(h => ({ date: h.date, totalValueEUR: h.pnlEUR }))
 
-    // Excluir el día actual
-    const today = new Date().toISOString().slice(0, 10)
+    // Excluir el día actual (usando fecha local)
+    const now = new Date()
+    const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0')
     result = result.filter(item => item.date !== today)
 
     res.json({ days, items: result })

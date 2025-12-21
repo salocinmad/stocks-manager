@@ -2,6 +2,14 @@ import { Op } from 'sequelize'
 import Operation from '../models/Operation.js'
 import DailyPrice from '../models/DailyPrice.js'
 import DailyPortfolioStats from '../models/DailyPortfolioStats.js'
+import { getFxMapToEUR } from '../utils/exchangeRateService.js'
+
+/**
+ * Helper para formatear fecha local a YYYY-MM-DD
+ */
+const toLocalDateStr = (d) => {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+}
 
 /**
  * Calcula el historial del portafolio (PnL, Valor Total, Total Invertido) para un rango de días.
@@ -15,10 +23,10 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - days)
 
-    const startIso = startDate.toISOString().slice(0, 10)
-    const endIso = endDate.toISOString().slice(0, 10)
+    const startIso = toLocalDateStr(startDate)
+    const endIso = toLocalDateStr(endDate)
 
-    // 1. Obtener todas las operaciones (necesitamos el historial completo para conocer las posiciones en cualquier punto)
+    // 1. Obtener todas las operaciones
     const operations = await Operation.findAll({
         where: { userId, portfolioId },
         order: [['date', 'ASC']]
@@ -33,8 +41,7 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
         }
     })
 
-    // Agrupar precios por fecha y positionKey para búsqueda rápida
-    // Map<date, Map<positionKey, priceObj>>
+    // Agrupar precios por fecha y positionKey
     const pricesByDate = new Map()
     for (const p of prices) {
         if (!pricesByDate.has(p.date)) {
@@ -43,97 +50,101 @@ export const calculatePortfolioHistory = async (userId, portfolioId, days = 30) 
         pricesByDate.get(p.date).set(p.positionKey, p)
     }
 
+    const fxMap = await getFxMapToEUR()
     const result = []
 
-    // Rastrear últimos precios conocidos para cada posición (para festivos cuando los mercados están cerrados)
-    const lastKnownPrices = new Map() // key -> { close, exchangeRate }
+    // Rastrear últimos precios conocidos
+    const lastKnownPrices = new Map()
 
     // Iterar día a día
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        const dateIso = d.toISOString().slice(0, 10)
+        const dateIso = toLocalDateStr(d)
 
-        // Saltar fines de semana (0 = Domingo, 6 = Sábado)
+        // Saltar fines de semana
         const dayOfWeek = d.getDay()
         if (dayOfWeek === 0 || dayOfWeek === 6) {
             continue
         }
 
-        // Calcular posiciones mantenidas en esta fecha
+        // Calcular estado del portafolio en esta fecha
         const dayOps = operations.filter(o => {
-            const opDate = new Date(o.date).toISOString().slice(0, 10)
-            return opDate <= dateIso
+            const opDateStr = toLocalDateStr(new Date(o.date))
+            return opDateStr <= dateIso
         })
 
-        // Calcular posiciones con lógica de base de coste adecuada
-        const finalPositions = new Map() // key -> { shares, costBasis }
+        // 1. Calcular Capital Neto Inyectado (Purchases - Sales)
+        // 2. Calcular Posiciones Abiertas (Shares)
+        let netInjectedEUR = 0
+        const currentPositions = new Map() // key -> { shares, currency, symbol }
 
         for (const o of dayOps) {
-            const key = `${o.company}|||${o.symbol || ''}`
-            if (!finalPositions.has(key)) {
-                finalPositions.set(key, { shares: 0, costBasis: 0 })
+            if (o.type === 'purchase') {
+                netInjectedEUR += o.totalCost
+            } else if (o.type === 'sale') {
+                netInjectedEUR -= o.totalCost // Ingreso neto de la venta
             }
-            const pos = finalPositions.get(key)
 
+            const key = `${o.company}|||${o.symbol || ''}`
+            if (!currentPositions.has(key)) {
+                currentPositions.set(key, { shares: 0, currency: o.currency || 'EUR', symbol: o.symbol })
+            }
+            const pos = currentPositions.get(key)
             if (o.type === 'purchase') {
                 pos.shares += o.shares
-                pos.costBasis += o.totalCost
             } else if (o.type === 'sale') {
-                if (pos.shares > 0) {
-                    const avgCost = pos.costBasis / pos.shares
-                    const costRemoved = o.shares * avgCost
-                    pos.shares -= o.shares
-                    pos.costBasis -= costRemoved
-                }
+                pos.shares -= o.shares
             }
         }
 
-        // Calcular Valor Total para este día
-        let dailyTotalValue = 0
-        let dailyTotalInvested = 0
-
+        // 3. Calcular Valor de Mercado de posiciones abiertas
+        let marketValueEUR = 0
         const dayPrices = pricesByDate.get(dateIso) || new Map()
 
-        for (const [key, pos] of finalPositions) {
-            if (pos.shares <= 0.000001) continue // Saltar posiciones cerradas
-
-            dailyTotalInvested += pos.costBasis
+        for (const [key, pos] of currentPositions) {
+            if (pos.shares <= 0.000001) continue
 
             const priceObj = dayPrices.get(key)
             let close = null
             let exchangeRate = null
 
             if (priceObj && priceObj.close > 0) {
-                // Usar el precio de cierre y tipo de cambio de ese día
                 close = priceObj.close
                 exchangeRate = priceObj.exchangeRate
-                // Actualizar último precio conocido para esta posición
                 lastKnownPrices.set(key, { close, exchangeRate })
             } else {
-                // Sin precio o precio es 0 (mercado cerrado, ej: Acción de Gracias)
-                // Usar último precio conocido del día hábil anterior
                 const lastKnown = lastKnownPrices.get(key)
                 if (lastKnown) {
                     close = lastKnown.close
                     exchangeRate = lastKnown.exchangeRate
+                } else {
+                    // Fallback FX
+                    exchangeRate = fxMap[pos.currency] || 1
+                    if (pos.symbol && pos.symbol.endsWith('.L') && (pos.currency === 'GBP' || pos.currency === 'GBp')) {
+                        exchangeRate = (fxMap['GBP'] || 1.17) * 0.01;
+                    }
                 }
             }
 
             if (close && exchangeRate) {
-                const val = close * exchangeRate * pos.shares
-                dailyTotalValue += val
+                marketValueEUR += close * exchangeRate * pos.shares
             }
         }
 
+        // PnL Total = Valor Actual - Capital Neto Inyectado
+        const totalPnL = marketValueEUR - netInjectedEUR
+
         result.push({
             date: dateIso,
-            totalValueEUR: dailyTotalValue,
-            totalInvestedEUR: dailyTotalInvested,
-            pnlEUR: (dailyTotalValue - dailyTotalInvested)
+            totalValueEUR: marketValueEUR,
+            totalInvestedEUR: netInjectedEUR, // Aquí representa el capital neto aportado
+            pnlEUR: totalPnL
         })
     }
 
     return result
 }
+
+
 
 /**
  * Calcula y actualiza el PnL para una fecha específica.

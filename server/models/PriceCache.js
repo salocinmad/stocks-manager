@@ -52,6 +52,11 @@ const PriceCache = sequelize.define('PriceCache', {
     type: DataTypes.DATE,
     allowNull: true,
     defaultValue: null
+  },
+  stopLossHitNotifiedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    defaultValue: null
   }
 }, {
   tableName: 'PriceCaches',
