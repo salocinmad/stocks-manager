@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Header } from '../components/Header';
 import { useAuth } from '../context/AuthContext';
 
-export const NotificationChannelsScreen: React.FC = () => {
+// Shared content component (used in ProfileScreen and standalone)
+export const NotificationChannelsContent: React.FC = () => {
     const { api } = useAuth();
     const [activeTab, setActiveTab] = useState<'telegram' | 'discord' | 'teams' | 'browser' | 'email'>('browser');
     const [channels, setChannels] = useState<any[]>([]);
@@ -26,38 +27,45 @@ export const NotificationChannelsScreen: React.FC = () => {
     const getChannel = (type: string) => channels.find(c => c.channel_type === type);
 
     return (
+        <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {/* Tabs */}
+            <div className="flex flex-wrap gap-2 md:gap-4 border-b border-border-light dark:border-border-dark pb-1">
+                <button onClick={() => setActiveTab('browser')} className={`px-6 py-3 rounded-t-2xl font-bold transition-all flex items-center gap-2 ${activeTab === 'browser' ? 'bg-[#FF9500] text-white shadow-lg' : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}>
+                    <span className="material-symbols-outlined">desktop_windows</span> Push / Web
+                </button>
+                <button onClick={() => setActiveTab('email')} className={`px-6 py-3 rounded-t-2xl font-bold transition-all flex items-center gap-2 ${activeTab === 'email' ? 'bg-[#EA4335] text-white shadow-lg' : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}>
+                    <span className="material-symbols-outlined">mail</span> Email
+                </button>
+                <button onClick={() => setActiveTab('telegram')} className={`px-6 py-3 rounded-t-2xl font-bold transition-all flex items-center gap-2 ${activeTab === 'telegram' ? 'bg-[#2AABEE] text-white shadow-lg' : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}>
+                    <span className="material-symbols-outlined">send</span> Telegram
+                </button>
+                <button onClick={() => setActiveTab('discord')} className={`px-6 py-3 rounded-t-2xl font-bold transition-all flex items-center gap-2 ${activeTab === 'discord' ? 'bg-[#5865F2] text-white shadow-lg' : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}>
+                    <span className="material-symbols-outlined">discord</span> Discord
+                </button>
+                <button onClick={() => setActiveTab('teams')} className={`px-6 py-3 rounded-t-2xl font-bold transition-all flex items-center gap-2 ${activeTab === 'teams' ? 'bg-[#6264A7] text-white shadow-lg' : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}>
+                    <span className="material-symbols-outlined">groups</span> Teams
+                </button>
+            </div>
+
+            {/* Content */}
+            <div className="min-h-[400px]">
+                {activeTab === 'browser' && <BrowserConfig channel={getChannel('browser')} onRefresh={fetchChannels} api={api} />}
+                {activeTab === 'email' && <EmailConfig channel={getChannel('email')} onRefresh={fetchChannels} api={api} />}
+                {activeTab === 'telegram' && <TelegramConfig channel={getChannel('telegram')} onRefresh={fetchChannels} api={api} />}
+                {activeTab === 'discord' && <WebhookConfig type="discord" title="Discord" color="#5865F2" channel={getChannel('discord')} onRefresh={fetchChannels} api={api} />}
+                {activeTab === 'teams' && <WebhookConfig type="teams" title="Microsoft Teams" color="#6264A7" channel={getChannel('teams')} onRefresh={fetchChannels} api={api} />}
+            </div>
+        </div>
+    );
+};
+
+// Full screen version (for backwards compatibility if navigated directly)
+export const NotificationChannelsScreen: React.FC = () => {
+    return (
         <main className="flex-1 overflow-y-auto w-full p-6 md:p-10 lg:px-16 flex flex-col gap-10 bg-background-light dark:bg-background-dark">
             <Header title="Canales de Notificación" />
-
-            <div className="max-w-5xl mx-auto w-full flex flex-col gap-8">
-
-                {/* Tabs */}
-                <div className="flex flex-wrap gap-2 md:gap-4 border-b border-border-light dark:border-border-dark pb-1">
-                    <button onClick={() => setActiveTab('browser')} className={`px-6 py-3 rounded-t-2xl font-bold transition-all flex items-center gap-2 ${activeTab === 'browser' ? 'bg-[#FF9500] text-white shadow-lg' : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}>
-                        <span className="material-symbols-outlined">desktop_windows</span> Push / Web
-                    </button>
-                    <button onClick={() => setActiveTab('email')} className={`px-6 py-3 rounded-t-2xl font-bold transition-all flex items-center gap-2 ${activeTab === 'email' ? 'bg-[#EA4335] text-white shadow-lg' : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}>
-                        <span className="material-symbols-outlined">mail</span> Email
-                    </button>
-                    <button onClick={() => setActiveTab('telegram')} className={`px-6 py-3 rounded-t-2xl font-bold transition-all flex items-center gap-2 ${activeTab === 'telegram' ? 'bg-[#2AABEE] text-white shadow-lg' : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}>
-                        <span className="material-symbols-outlined">send</span> Telegram
-                    </button>
-                    <button onClick={() => setActiveTab('discord')} className={`px-6 py-3 rounded-t-2xl font-bold transition-all flex items-center gap-2 ${activeTab === 'discord' ? 'bg-[#5865F2] text-white shadow-lg' : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}>
-                        <span className="material-symbols-outlined">discord</span> Discord
-                    </button>
-                    <button onClick={() => setActiveTab('teams')} className={`px-6 py-3 rounded-t-2xl font-bold transition-all flex items-center gap-2 ${activeTab === 'teams' ? 'bg-[#6264A7] text-white shadow-lg' : 'opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'}`}>
-                        <span className="material-symbols-outlined">groups</span> Teams
-                    </button>
-                </div>
-
-                {/* Content */}
-                <div className="min-h-[400px]">
-                    {activeTab === 'browser' && <BrowserConfig channel={getChannel('browser')} onRefresh={fetchChannels} api={api} />}
-                    {activeTab === 'email' && <EmailConfig channel={getChannel('email')} onRefresh={fetchChannels} api={api} />}
-                    {activeTab === 'telegram' && <TelegramConfig channel={getChannel('telegram')} onRefresh={fetchChannels} api={api} />}
-                    {activeTab === 'discord' && <WebhookConfig type="discord" title="Discord" color="#5865F2" channel={getChannel('discord')} onRefresh={fetchChannels} api={api} />}
-                    {activeTab === 'teams' && <WebhookConfig type="teams" title="Microsoft Teams" color="#6264A7" channel={getChannel('teams')} onRefresh={fetchChannels} api={api} />}
-                </div>
+            <div className="max-w-5xl mx-auto w-full">
+                <NotificationChannelsContent />
             </div>
         </main>
     );

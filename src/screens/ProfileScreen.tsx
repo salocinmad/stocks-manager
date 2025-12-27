@@ -3,11 +3,12 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Header } from '../components/Header';
 import { TwoFactorSettings } from '../components/TwoFactorSettings';
+import { NotificationChannelsContent } from './NotificationChannelsScreen';
 
 export const ProfileScreen: React.FC = () => {
   const { isAdmin, api, logout } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'general' | 'security'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'security' | 'notifications'>('general');
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -75,6 +76,16 @@ export const ProfileScreen: React.FC = () => {
           >
             <span className="material-symbols-outlined">lock</span>
             Seguridad
+          </button>
+          <button
+            onClick={() => setActiveTab('notifications')}
+            className={`px-8 py-4 rounded-t-2xl font-bold text-base transition-all flex items-center gap-3 ${activeTab === 'notifications'
+              ? 'bg-primary text-black shadow-[0_-4px_15px_rgba(252,233,3,0.15)] translate-y-[1px] z-10'
+              : 'text-text-secondary-light dark:text-text-secondary-dark hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+          >
+            <span className="material-symbols-outlined">hub</span>
+            Canales
           </button>
         </div>
 
@@ -219,6 +230,11 @@ export const ProfileScreen: React.FC = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {/* NOTIFICATIONS TAB */}
+          {activeTab === 'notifications' && (
+            <NotificationChannelsContent />
           )}
         </div>
 

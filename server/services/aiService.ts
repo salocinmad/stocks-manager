@@ -138,22 +138,149 @@ INSTRUCCIONES:
         const currentModel = await getModel();
         if (!currentModel) return "El servicio de IA no está configurado.";
 
-        // Obtener el último mensaje del usuario para responder a él
+        // Obtener el último mensaje del usuario
         const lastUserMessage = messages[messages.length - 1]?.text || "";
 
-        // 1. Detectar tickers en TODA la conversación reciente (para mantener contexto)
-        const conversationContextText = messages.slice(-6).map(m => m.text).join(' ');
+        // 1. Obtener contexto completo del usuario
+        let userContext = "";
 
-        const commonTokens = ['HOLA', 'PARA', 'COMO', 'ESTA', 'TODO', 'BIEN', 'PERO', 'DONDE', 'CUANDO', 'QUE', 'TIENE', 'CREO', 'ESTE', 'ESE', 'POR', 'CON', 'LOS', 'LAS', 'UNA', 'UNO'];
+        try {
+            // Portafolio del usuario
+            const portfolioData = await sql`
+                SELECT 
+                    p.name as portfolio_name,
+                    pos.ticker, 
+                    pos.quantity, 
+                    pos.average_buy_price,
+                    pos.asset_type,
+                    pos.currency
+                FROM portfolios p
+                LEFT JOIN positions pos ON p.id = pos.portfolio_id
+                WHERE p.user_id = ${userId}
+                ORDER BY p.name, pos.ticker
+            `;
+
+            if (portfolioData.length > 0 && portfolioData[0].ticker) {
+                userContext += "\n📊 TU PORTAFOLIO:\n";
+                const grouped: Record<string, any[]> = {};
+                portfolioData.forEach(p => {
+                    if (!grouped[p.portfolio_name]) grouped[p.portfolio_name] = [];
+                    if (p.ticker) grouped[p.portfolio_name].push(p);
+                });
+
+                for (const [name, positions] of Object.entries(grouped)) {
+                    userContext += `• ${name}: `;
+                    userContext += positions.map(p => `${p.ticker} (${p.quantity})`).join(', ');
+                    userContext += '\n';
+                }
+            }
+
+            // Alertas activas
+            const alerts = await sql`
+                SELECT ticker, condition, target_price 
+                FROM alerts 
+                WHERE user_id = ${userId} AND is_active = true
+                LIMIT 5
+            `;
+
+            if (alerts.length > 0) {
+                userContext += "\n🔔 TUS ALERTAS ACTIVAS:\n";
+                alerts.forEach(a => {
+                    userContext += `• ${a.ticker}: ${a.condition} ${a.target_price}\n`;
+                });
+            }
+
+            // Próximos eventos del calendario (7 días)
+            const nextWeek = new Date();
+            nextWeek.setDate(nextWeek.getDate() + 7);
+
+            const events = await sql`
+                SELECT ticker, event_type, event_date, title 
+                FROM calendar_events 
+                WHERE user_id = ${userId} 
+                AND event_date >= CURRENT_DATE 
+                AND event_date <= ${nextWeek.toISOString().split('T')[0]}
+                ORDER BY event_date
+                LIMIT 5
+            `;
+
+            if (events.length > 0) {
+                userContext += "\n📅 PRÓXIMOS EVENTOS (7 días):\n";
+                events.forEach(e => {
+                    const date = new Date(e.event_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                    userContext += `• ${date}: ${e.title} (${e.ticker || e.event_type})\n`;
+                });
+            }
+        } catch (e) {
+            console.error('Error getting user context:', e);
+        }
+
+        // 2. Detectar si pide análisis completo del portafolio
+        const lastMsgLower = lastUserMessage.toLowerCase();
+        const wantsFullAnalysis =
+            lastMsgLower.includes('todas mis posiciones') ||
+            lastMsgLower.includes('todo mi portafolio') ||
+            lastMsgLower.includes('analiza mi portafolio') ||
+            lastMsgLower.includes('analiza mi cartera') ||
+            lastMsgLower.includes('todas las posiciones') ||
+            lastMsgLower.includes('análisis completo') ||
+            lastMsgLower.includes('todos mis activos');
+
+        // 3. Obtener tickers del portafolio del usuario (siempre, para priorizar)
+        let portfolioTickers: string[] = [];
+        try {
+            const portfolioData = await sql`
+                SELECT DISTINCT pos.ticker 
+                FROM positions pos
+                JOIN portfolios p ON pos.portfolio_id = p.id
+                WHERE p.user_id = ${userId} AND pos.ticker IS NOT NULL
+            `;
+            portfolioTickers = portfolioData.map(p => p.ticker);
+        } catch (e) {
+            console.error('Error getting portfolio tickers:', e);
+        }
+
+        // 4. Detectar tickers en la conversación (case-insensitive)
+        const conversationContextText = messages.slice(-6).map(m => m.text).join(' ').toUpperCase();
+        const commonTokens = ['HOLA', 'PARA', 'COMO', 'ESTA', 'TODO', 'BIEN', 'PERO', 'DONDE', 'CUANDO', 'QUE', 'TIENE', 'CREO', 'ESTE', 'ESE', 'POR', 'CON', 'LOS', 'LAS', 'UNA', 'UNO', 'MIS', 'TUS', 'SUS', 'HAY', 'VER', 'DEL'];
+
+        // Match tickers including European format (e.g., DIA.MC, SAP.DE)
         const matches = conversationContextText.match(/\b[A-Z]{2,6}(\.[A-Z]{2,3})?\b/g) || [];
-        const tickersInContext = [...new Set(matches.filter(t => !commonTokens.includes(t)))];
+        let mentionedTickers = [...new Set(matches.filter(t => !commonTokens.includes(t)))];
+
+        // Priorizar tickers del portafolio: si el usuario dice "DIA" y tiene "DIA.MC", usar "DIA.MC"
+        let tickersToAnalyze: string[] = [];
+        console.log('User portfolio tickers:', portfolioTickers);
+        console.log('Mentioned tickers raw:', mentionedTickers);
+
+        for (const mentioned of mentionedTickers) {
+            // Buscar coincidencia exacta o parcial en portafolio
+            const portfolioMatch = portfolioTickers.find(pt =>
+                pt === mentioned || pt.startsWith(mentioned + '.')
+            );
+
+            if (portfolioMatch) {
+                console.log(`Matched ${mentioned} to portfolio ticker ${portfolioMatch}`);
+                tickersToAnalyze.push(portfolioMatch);
+            } else {
+                tickersToAnalyze.push(mentioned);
+            }
+        }
+        tickersToAnalyze = [...new Set(tickersToAnalyze)];
+        console.log('Final tickers to analyze:', tickersToAnalyze);
+
+        // Si pide análisis completo, añadir todos los tickers del portafolio
+        if (wantsFullAnalysis) {
+            tickersToAnalyze = [...new Set([...tickersToAnalyze, ...portfolioTickers])];
+        }
 
         let marketDataStr = "";
 
-        // 2. Obtener datos para los tickers mencionados
-        if (tickersInContext.length > 0) {
-            marketDataStr += "\n--- DATOS DE MERCADO (CONTEXTO) ---\n";
-            for (const ticker of tickersInContext) {
+        // 4. Obtener datos de mercado - más tickers si es análisis completo
+        const maxTickers = wantsFullAnalysis ? 15 : 4;
+        if (tickersToAnalyze.length > 0) {
+            marketDataStr += "\n📈 DATOS DE MERCADO:\n";
+            for (const ticker of tickersToAnalyze.slice(0, maxTickers)) {
                 try {
                     const history = await MarketDataService.getDetailedHistory(ticker, 1);
 
@@ -171,15 +298,7 @@ INSTRUCCIONES:
                         const min = Math.min(...prices).toFixed(2);
                         const max = Math.max(...prices).toFixed(2);
 
-                        marketDataStr += `\nTicker: ${ticker}\n`;
-                        marketDataStr += `- Precio Último: ${Number(last.close).toFixed(2)} (${new Date(last.date).toISOString().split('T')[0]})\n`;
-                        marketDataStr += `- Variación Diaria: ${changeStr}\n`;
-                        marketDataStr += `- Rango Anual: ${min} - ${max}\n`;
-
-                        const last20 = prices.slice(-20);
-                        const support = Math.min(...last20).toFixed(2);
-                        const resistance = Math.max(...last20).toFixed(2);
-                        marketDataStr += `- Soporte CP (20d): ${support}, Resistencia CP (20d): ${resistance}\n`;
+                        marketDataStr += `${ticker}: $${Number(last.close).toFixed(2)} (${changeStr}) | Rango año: ${min}-${max}\n`;
                     }
                 } catch (e) {
                     console.error(`ChatBot: Error fetching data for ${ticker}`, e);
@@ -187,29 +306,41 @@ INSTRUCCIONES:
             }
         }
 
-        const chatHistoryStr = messages.slice(-10).map(m => `${m.role === 'user' ? 'Usuario' : 'Bot'}: ${m.text}`).join('\n');
+        // 4. Historial de conversación (últimos 8 mensajes)
+        const chatHistoryStr = messages.slice(-8).map(m => `${m.role === 'user' ? 'Tú' : 'Bot'}: ${m.text}`).join('\n');
 
-        // 3. Prompt Conversacional desde DB
+        // 5. Prompt mejorado
         let promptTemplate = await SettingsService.get('AI_PROMPT_CHATBOT');
         if (!promptTemplate) {
-            promptTemplate = `Eres "Stocks Bot", un asistente financiero conversacional experto.
-            
-HISTORIAL DE CONVERSACIÓN RECIENTE:
-{{CHAT_HISTORY}}
+            promptTemplate = `Eres un asesor financiero cercano y experto. Tu nombre es Stocks Bot.
 
-DATOS DE MERCADO DISPONIBLES (Contexto):
+ESTILO DE RESPUESTA:
+- Habla como un colega experto, NO como un robot corporativo
+- Tutea al usuario, sé directo y amigable
+- Usa emojis con moderación donde tenga sentido (📈 📉 💡 ⚠️)
+- ADAPTA la longitud de tu respuesta a la pregunta:
+  • Preguntas simples ("¿cómo va AAPL?"): 1-2 oraciones
+  • Preguntas de análisis ("¿qué opinas de mi portafolio?"): 3-5 oraciones  
+  • Explicaciones o consejos detallados: hasta 300 palabras máximo
+- Si no tienes datos sobre algo, dilo brevemente y sugiere alternativas
+- No repitas información que ya dijiste en la conversación
+
+DATOS DEL USUARIO:
+{{USER_CONTEXT}}
+
+DATOS DE MERCADO:
 {{MARKET_DATA}}
 
-Instrucciones:
-1. Tu tarea actual es responder al ÚLTIMO mensaje del usuario (en el historial).
-2. Usa el historial para entender de qué ticker se está hablando si no se menciona explícitamente en el último mensaje.
-3. Si preguntan por soportes/resistencias, usa los datos contextuales proporcionados (Soporte CP / Resistencia CP o Rango Anual).
-4. Mantén tus respuestas conversacionales y útiles.`;
+CONVERSACIÓN:
+{{CHAT_HISTORY}}
+
+Responde al último mensaje del usuario de forma natural y útil.`;
         }
 
         const prompt = promptTemplate
-            .replace('{{CHAT_HISTORY}}', chatHistoryStr)
-            .replace('{{MARKET_DATA}}', marketDataStr);
+            .replace('{{USER_CONTEXT}}', userContext || "No hay datos de portafolio disponibles.")
+            .replace('{{MARKET_DATA}}', marketDataStr || "Sin datos de mercado relevantes.")
+            .replace('{{CHAT_HISTORY}}', chatHistoryStr);
 
         try {
             const result = await currentModel.generateContent(prompt);
@@ -220,7 +351,7 @@ Instrucciones:
                 cachedApiKey = null;
                 model = null;
             }
-            return "Lo siento, tuve un problema interno al procesar tu mensaje.";
+            return "Lo siento, tuve un problema al procesar tu mensaje. Intenta de nuevo.";
         }
     },
 

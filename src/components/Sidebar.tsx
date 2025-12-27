@@ -19,7 +19,7 @@ export const Sidebar: React.FC = () => {
     { path: '/news', icon: 'newspaper', label: t('menu.news') },
     { path: '/reports', icon: 'fact_check', label: t('menu.reports') },
     { path: '/alerts', icon: 'notifications_active', label: t('menu.alerts') },
-    { path: '/notifications', icon: 'hub', label: 'Canales' },
+    { path: '/calendar', icon: 'calendar_month', label: 'Calendario' },
     { path: '/watchlists', icon: 'playlist_play', label: t('menu.watchlists') },
   ];
 

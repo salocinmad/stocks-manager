@@ -205,6 +205,11 @@ export async function initDatabase() {
     // --- Migraciones Manuales (Schema Updates) ---
     console.log('Running schema migrations...');
     try {
+      await sql`ALTER TABLE positions ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0`;
+      console.log('Applied migration: positions.display_order');
+    } catch (e: any) { console.error('Migration error (positions.display_order):', e.message); }
+
+    try {
       await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS triggered BOOLEAN DEFAULT false`;
       console.log('Applied migration: alerts.triggered');
     } catch (e: any) { console.error('Migration error (alerts.triggered):', e.message); }
@@ -213,6 +218,60 @@ export async function initDatabase() {
       await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS last_checked_at TIMESTAMP WITH TIME ZONE`;
       console.log('Applied migration: alerts.last_checked_at');
     } catch (e: any) { console.error('Migration error (alerts.last_checked_at):', e.message); }
+
+    // Advanced Alerts Migrations
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS alert_type VARCHAR(20) DEFAULT 'price'`;
+      console.log('Applied migration: alerts.alert_type');
+    } catch (e: any) { console.error('Migration error (alerts.alert_type):', e.message); }
+
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS is_repeatable BOOLEAN DEFAULT FALSE`;
+      console.log('Applied migration: alerts.is_repeatable');
+    } catch (e: any) { console.error('Migration error (alerts.is_repeatable):', e.message); }
+
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS repeat_cooldown_hours INTEGER DEFAULT 24`;
+      console.log('Applied migration: alerts.repeat_cooldown_hours');
+    } catch (e: any) { console.error('Migration error (alerts.repeat_cooldown_hours):', e.message); }
+
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS last_triggered_at TIMESTAMP WITH TIME ZONE`;
+      console.log('Applied migration: alerts.last_triggered_at');
+    } catch (e: any) { console.error('Migration error (alerts.last_triggered_at):', e.message); }
+
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS percent_threshold DECIMAL(5,2)`;
+      console.log('Applied migration: alerts.percent_threshold');
+    } catch (e: any) { console.error('Migration error (alerts.percent_threshold):', e.message); }
+
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS volume_multiplier DECIMAL(5,2)`;
+      console.log('Applied migration: alerts.volume_multiplier');
+    } catch (e: any) { console.error('Migration error (alerts.volume_multiplier):', e.message); }
+
+    // Financial Events Table (Calendar)
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS financial_events (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          ticker VARCHAR(20),
+          event_type VARCHAR(30) NOT NULL,
+          event_date DATE NOT NULL,
+          title VARCHAR(200) NOT NULL,
+          description TEXT,
+          is_custom BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      console.log('Created table: financial_events');
+    } catch (e: any) { console.error('Migration error (financial_events table):', e.message); }
+
+    try {
+      await sql`CREATE INDEX IF NOT EXISTS idx_events_user_date ON financial_events(user_id, event_date)`;
+      console.log('Created index: idx_events_user_date');
+    } catch (e: any) { console.error('Migration error (idx_events_user_date):', e.message); }
 
     // --- Default AI Prompts ---
     try {

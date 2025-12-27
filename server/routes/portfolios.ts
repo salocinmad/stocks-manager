@@ -266,7 +266,9 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         if (!portfolio) throw new Error('Not found');
 
         const positions = await sql`
-        SELECT * FROM positions WHERE portfolio_id = ${id}
+        SELECT * FROM positions 
+        WHERE portfolio_id = ${id}
+        ORDER BY display_order ASC, ticker ASC
     `;
 
         // Force plain object return
@@ -274,6 +276,49 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             ...portfolio,
             positions: [...positions].map(p => ({ ...p, quantity: Number(p.quantity), average_buy_price: Number(p.average_buy_price) }))
         };
+    })
+    // Reorder Positions
+    .patch('/:id/positions/reorder', async ({ userId, params, body, set }) => {
+        const { id } = params;
+        // @ts-ignore
+        const { orderedIds } = body;
+
+        console.log(`Reordering portfolio ${id}, items: ${orderedIds?.length}`);
+
+        if (!orderedIds || !Array.isArray(orderedIds)) {
+            set.status = 400;
+            return { error: 'Invalid body, expected orderedIds array' };
+        }
+
+        // Verify ownership
+        const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId}`;
+        if (!portfolio) {
+            set.status = 404;
+            return { error: 'Portfolio not found' };
+        }
+
+        // Update orders in a transaction
+        try {
+            await sql.begin(async sql => {
+                for (let i = 0; i < orderedIds.length; i++) {
+                    const positionId = orderedIds[i];
+                    await sql`
+                        UPDATE positions 
+                        SET display_order = ${i} 
+                        WHERE id = ${positionId} AND portfolio_id = ${id}
+                    `;
+                }
+            });
+            return { success: true };
+        } catch (error) {
+            console.error('Error reordering positions:', error);
+            set.status = 500;
+            return { error: 'Failed to reorder positions' };
+        }
+    }, {
+        body: t.Object({
+            orderedIds: t.Array(t.String())
+        })
     })
     // Add/Update Position (Simplified logic: Upsert)
     .post('/:id/positions', async ({ userId, params, body }) => {
