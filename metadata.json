@@ -1,8 +1,0 @@
-{
-  "name": "Stocks Manager Pro",
-  "description": "A high-end investment portfolio manager with real-time market insights, AI-powered analytics, and advanced risk management tools.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ]
-}

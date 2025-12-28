@@ -6,7 +6,7 @@ import { TwoFactorService } from '../services/twoFactorService';
 import { EmailService } from '../services/emailService';
 
 // Store temporary 2FA sessions (in production, use Redis)
-const pending2FASessions = new Map<string, { userId: string; email: string; role: string; name: string; currency: string; securityMode: string; emailCode?: string; expiresAt: number }>();
+const pending2FASessions = new Map<string, { userId: string; email: string; role: string; name: string; currency: string; securityMode: string; rememberMe?: boolean; emailCode?: string; expiresAt: number }>();
 
 // Duración del token: 2 horas en segundos
 const TOKEN_EXPIRATION = 2 * 60 * 60;
@@ -15,8 +15,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     .use(
         jwt({
             name: 'jwt',
-            secret: process.env.JWT_SECRET || 'changeme_in_prod',
-            exp: '2h'
+            secret: process.env.JWT_SECRET || 'changeme_in_prod'
+            // No default exp - we'll set it dynamically per token
         })
     )
     .post('/register', async ({ body, set, jwt }) => {
@@ -65,7 +65,10 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     })
     .post('/login', async ({ body, set, jwt }) => {
         // @ts-ignore
-        const { email, password, totpCode, backupCode, sessionToken } = body;
+        const { email, password, totpCode, backupCode, sessionToken, rememberMe } = body;
+
+        // Token expiration based on rememberMe
+        const tokenExp = rememberMe ? '7d' : '2h';
 
         // Step 2: 2FA verification
         if (sessionToken) {
@@ -105,7 +108,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
             const token = await jwt.sign({
                 sub: user.id,
                 email: user.email,
-                role: user.role || 'user'
+                role: user.role || 'user',
+                exp: Math.floor(Date.now() / 1000) + (session.rememberMe ? 7 * 24 * 60 * 60 : 2 * 60 * 60)
             });
 
             return {
@@ -150,6 +154,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
                 name: user.full_name,
                 currency: user.preferred_currency,
                 securityMode: user.security_mode || 'standard',
+                rememberMe: !!rememberMe,
                 expiresAt: Date.now() + 5 * 60 * 1000
             };
 
@@ -176,7 +181,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         const token = await jwt.sign({
             sub: user.id,
             email: user.email,
-            role: user.role || 'user'
+            role: user.role || 'user',
+            exp: Math.floor(Date.now() / 1000) + (rememberMe ? 7 * 24 * 60 * 60 : 2 * 60 * 60)
         });
 
         return {

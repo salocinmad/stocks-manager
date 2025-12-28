@@ -62,24 +62,38 @@ CREATE TABLE IF NOT EXISTS transactions (
     date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- ALERTS
+-- ALERTS (supports price, percent_change, volume types)
 CREATE TABLE IF NOT EXISTS alerts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     ticker VARCHAR(20) NOT NULL,
-    target_price DECIMAL(20, 8) NOT NULL,
-    condition VARCHAR(10) CHECK (condition IN ('ABOVE', 'BELOW')),
+    target_price DECIMAL(20, 8),  -- nullable for non-price alerts
+    condition VARCHAR(10),  -- nullable for non-price alerts, ABOVE/BELOW
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- CHAT HISTORY (Optional for context)
-CREATE TABLE IF NOT EXISTS chat_sessions (
+-- CHAT CONVERSATIONS (Memory for ChatBot)
+CREATE TABLE IF NOT EXISTS chat_conversations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    title VARCHAR(100),
+    title VARCHAR(255) DEFAULT 'Nueva conversación',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_conversations_user ON chat_conversations(user_id);
+
+-- CHAT MESSAGES (Individual messages within conversations)
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID REFERENCES chat_conversations(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'model')),
+    content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON chat_messages(conversation_id);
 
 -- PNL HISTORY CACHE (For fast dashboard loading)
 CREATE TABLE IF NOT EXISTS pnl_history_cache (

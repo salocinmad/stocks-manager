@@ -39,22 +39,19 @@ export const alertsRoutes = new Elysia({ prefix: '/alerts' })
         const alertsWithPrice = await Promise.all(alerts.map(async (alert) => {
             try {
                 const quote = await MarketDataService.getQuote(alert.ticker);
-                const normalizedCondition = alert.condition.toLowerCase();
+                const normalizedCondition = alert.condition?.toLowerCase() || null;
                 return {
                     ...alert,
                     condition: normalizedCondition,
                     current_price: quote?.c || null,
-                    companyName: quote?.name || alert.ticker,
-                    conditionLabel: normalizedCondition === 'above' ? 'Mayor que' : 'Menor que'
+                    companyName: quote?.name || alert.ticker
                 };
             } catch (e) {
-                const normalizedCondition = alert.condition.toLowerCase();
                 return {
                     ...alert,
-                    condition: normalizedCondition,
+                    condition: alert.condition?.toLowerCase() || null,
                     current_price: null,
-                    companyName: alert.ticker,
-                    conditionLabel: normalizedCondition === 'above' ? 'Mayor que' : 'Menor que'
+                    companyName: alert.ticker
                 };
             }
         }));
@@ -62,13 +59,36 @@ export const alertsRoutes = new Elysia({ prefix: '/alerts' })
         return alertsWithPrice;
     })
 
-    // Crear Alerta
+    // Crear Alerta (supports price, percent_change, volume types)
     .post('/', async ({ userId, body, set }) => {
-        const { ticker, condition, target_price } = body as { ticker: string, condition: 'above' | 'below', target_price: number };
+        const {
+            ticker,
+            alert_type = 'price',
+            condition,
+            target_price,
+            percent_threshold,
+            volume_multiplier,
+            is_repeatable = false,
+            repeat_cooldown_hours = 24
+        } = body as any;
 
-        if (!ticker || !condition || target_price === undefined) {
+        if (!ticker) {
             set.status = 400;
-            throw new Error('Missing fields');
+            throw new Error('Ticker is required');
+        }
+
+        // Validate required fields based on alert type
+        if (alert_type === 'price' && (!condition || target_price === undefined)) {
+            set.status = 400;
+            throw new Error('Price alerts require condition and target_price');
+        }
+        if (alert_type === 'percent_change' && !percent_threshold) {
+            set.status = 400;
+            throw new Error('Percent change alerts require percent_threshold');
+        }
+        if (alert_type === 'volume' && !volume_multiplier) {
+            set.status = 400;
+            throw new Error('Volume alerts require volume_multiplier');
         }
 
         // Validar ticker
@@ -81,14 +101,29 @@ export const alertsRoutes = new Elysia({ prefix: '/alerts' })
         }
 
         const [newAlert] = await sql`
-            INSERT INTO alerts (user_id, ticker, condition, target_price, is_active)
-            VALUES (${userId}, ${ticker.toUpperCase()}, ${condition.toUpperCase()}, ${target_price}, true)
+            INSERT INTO alerts (
+                user_id, ticker, alert_type, condition, target_price, 
+                percent_threshold, volume_multiplier, 
+                is_repeatable, repeat_cooldown_hours, is_active
+            )
+            VALUES (
+                ${userId}, 
+                ${ticker.toUpperCase()}, 
+                ${alert_type},
+                ${condition?.toUpperCase() || null}, 
+                ${target_price || null},
+                ${percent_threshold || null},
+                ${volume_multiplier || null},
+                ${is_repeatable},
+                ${repeat_cooldown_hours},
+                true
+            )
             RETURNING *
         `;
 
         return {
             ...newAlert,
-            condition: newAlert.condition.toLowerCase(),
+            condition: newAlert.condition?.toLowerCase(),
             companyName: quote?.name || ticker.toUpperCase()
         };
     })
@@ -103,11 +138,21 @@ export const alertsRoutes = new Elysia({ prefix: '/alerts' })
         return { success: !!deleted.length };
     })
 
-    // Editar Alerta
+    // Editar Alerta (supports all alert types and fields)
     .put('/:id', async ({ userId, params, body }) => {
-        const { is_active, target_price, condition } = body as any;
+        const {
+            is_active,
+            target_price,
+            condition,
+            percent_threshold,
+            volume_multiplier,
+            is_repeatable,
+            repeat_cooldown_hours
+        } = body as any;
 
-        let updateQuery = sql`UPDATE alerts SET updated_at = NOW()`; // Dummy start
+        // Build dynamic update
+        const updates: string[] = [];
+        const values: any[] = [];
 
         if (is_active !== undefined) {
             await sql`UPDATE alerts SET is_active = ${is_active} WHERE id = ${params.id} AND user_id = ${userId}`;
@@ -118,12 +163,28 @@ export const alertsRoutes = new Elysia({ prefix: '/alerts' })
         }
 
         if (condition !== undefined) {
-            await sql`UPDATE alerts SET condition = ${condition} WHERE id = ${params.id} AND user_id = ${userId}`;
+            await sql`UPDATE alerts SET condition = ${condition?.toUpperCase() || null} WHERE id = ${params.id} AND user_id = ${userId}`;
         }
 
-        // Reactivar si se edita
-        if (target_price !== undefined || condition !== undefined) {
-            await sql`UPDATE alerts SET is_active = true, triggered = false WHERE id = ${params.id} AND user_id = ${userId}`;
+        if (percent_threshold !== undefined) {
+            await sql`UPDATE alerts SET percent_threshold = ${percent_threshold} WHERE id = ${params.id} AND user_id = ${userId}`;
+        }
+
+        if (volume_multiplier !== undefined) {
+            await sql`UPDATE alerts SET volume_multiplier = ${volume_multiplier} WHERE id = ${params.id} AND user_id = ${userId}`;
+        }
+
+        if (is_repeatable !== undefined) {
+            await sql`UPDATE alerts SET is_repeatable = ${is_repeatable} WHERE id = ${params.id} AND user_id = ${userId}`;
+        }
+
+        if (repeat_cooldown_hours !== undefined) {
+            await sql`UPDATE alerts SET repeat_cooldown_hours = ${repeat_cooldown_hours} WHERE id = ${params.id} AND user_id = ${userId}`;
+        }
+
+        // Reactivate and reset triggered on any value change (so alert can fire again)
+        if (target_price !== undefined || condition !== undefined || percent_threshold !== undefined || volume_multiplier !== undefined) {
+            await sql`UPDATE alerts SET is_active = true, triggered = false, last_triggered_at = NULL WHERE id = ${params.id} AND user_id = ${userId}`;
         }
 
         return { success: true };

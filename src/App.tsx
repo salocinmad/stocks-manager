@@ -16,9 +16,12 @@ import { RiskVisualScreen } from './screens/RiskVisualScreen';
 import { AdminScreen } from './screens/AdminScreen';
 import { ImportersScreen } from './screens/ImportersScreen';
 import { NotificationChannelsScreen } from './screens/NotificationChannelsScreen';
+import { CalendarScreen } from './screens/CalendarScreen';
+import { StopAlertScreen } from './screens/StopAlertScreen';
 import { Sidebar } from './components/Sidebar';
 import { ChatBot } from './components/ChatBot';
 import { PrivateRoute } from './components/PrivateRoute';
+import { InactivityMonitor } from './components/InactivityMonitor';
 
 const MainLayout: React.FC = () => {
   return (
@@ -39,9 +42,11 @@ const MainLayout: React.FC = () => {
           <Route path="/admin" element={<AdminScreen />} />
           <Route path="/importers" element={<ImportersScreen />} />
           <Route path="/notifications" element={<NotificationChannelsScreen />} />
+          <Route path="/calendar" element={<CalendarScreen />} />
         </Routes>
         <ChatBot />
       </div>
+      <InactivityMonitor timeoutMinutes={30} warningMinutes={2} />
     </div>
   );
 };
@@ -53,6 +58,7 @@ const App: React.FC = () => {
         {/* Public Routes */}
         <Route path="/login" element={<LoginScreen />} />
         <Route path="/register" element={<RegisterScreen />} />
+        <Route path="/stop-alert/:token" element={<StopAlertScreen />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>

@@ -1,8 +1,18 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Header } from '../components/Header';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { SortableRow, DragHandleCell } from '../components/SortableRow';
 
+type SortKey = 'name' | 'quantity' | 'average_buy_price' | 'currentPrice' | 'currentValue' | 'returnPct';
+type SortDirection = 'asc' | 'desc';
+interface SortConfig {
+  key: SortKey;
+  direction: SortDirection;
+}
 interface Position {
   id: string;
   ticker: string;
@@ -83,6 +93,63 @@ export const PortfolioScreen: React.FC = () => {
   const [alertTargetPrice, setAlertTargetPrice] = useState('');
   const [alertCondition, setAlertCondition] = useState<'above' | 'below'>('below');
   const [isCreatingAlert, setIsCreatingAlert] = useState(false);
+
+  // Estados para ordenación y Drag & Drop
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  // Computed: positions ordenadas (memoizado)
+  const sortedPositions = useMemo(() => {
+    if (!sortConfig) return positions;
+    const sorted = [...positions].sort((a, b) => {
+      const aVal = a[sortConfig.key] ?? 0;
+      const bVal = b[sortConfig.key] ?? 0;
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortConfig.direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return sortConfig.direction === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+    });
+    return sorted;
+  }, [positions, sortConfig]);
+
+  // Handler para cambiar ordenación
+  const handleSort = (key: SortKey) => {
+    setSortConfig(prev => {
+      if (prev?.key === key) {
+        // Alternar dirección o limpiar
+        if (prev.direction === 'asc') return { key, direction: 'desc' };
+        return null; // Tercer clic limpia
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  // Handler para Drag & Drop
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !portfolio) return;
+
+    const oldIndex = positions.findIndex(p => p.id === active.id);
+    const newIndex = positions.findIndex(p => p.id === over.id);
+    const newPositions = arrayMove(positions, oldIndex, newIndex);
+    setPositions(newPositions);
+
+    // Persist to backend
+    try {
+      await api.patch(`/portfolios/${portfolio.id}/positions/reorder`, {
+        orderedIds: newPositions.map(p => p.id)
+      });
+    } catch (err) {
+      console.error('Error saving order:', err);
+      // Revert on error
+      setPositions(positions);
+    }
+  };
 
   const loadPortfolioDetails = useCallback(async (id: string) => {
     try {
@@ -475,90 +542,136 @@ export const PortfolioScreen: React.FC = () => {
               </div>
             ) : (
               <div className="flex flex-col gap-8">
+                {/* Sorting indicator */}
+                {sortConfig && (
+                  <div className="flex items-center gap-2 text-sm text-text-secondary-light">
+                    <span>Ordenado por: <strong>{sortConfig.key}</strong> ({sortConfig.direction === 'asc' ? '↑' : '↓'})</span>
+                    <button
+                      onClick={() => setSortConfig(null)}
+                      className="px-2 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-all"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                )}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-separate border-spacing-0">
-                    <thead>
-                      <tr className="text-xs font-bold uppercase tracking-[0.1em] text-text-secondary-light">
-                        <th className="px-6 py-5 border-b border-border-light dark:border-border-dark">Activo</th>
-                        <th className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right">Cantidad</th>
-                        <th className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right">Precio Medio</th>
-                        <th className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right">Coti. Actual</th>
-                        <th className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right">Valor Mercado</th>
-                        <th className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right">Rentabilidad</th>
-                        <th className="px-6 py-5 border-b border-border-light dark:border-border-dark text-center w-24">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-sm">
-                      {positions.map((pos) => (
-                        <tr key={pos.id} className="group hover:bg-background-light dark:hover:bg-surface-dark-elevated/40 transition-all">
-                          <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30">
-                            <div className="flex flex-col">
-                              <span className="font-bold text-base text-text-primary-light dark:text-white truncate max-w-[180px]" title={pos.name || pos.ticker}>{pos.name || pos.ticker}</span>
-                              <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                    modifiers={[restrictToVerticalAxis]}
+                  >
+                    <table className="w-full text-left border-separate border-spacing-0">
+                      <thead>
+                        <tr className="text-xs font-bold uppercase tracking-[0.1em] text-text-secondary-light">
+                          {/* Drag handle column - only show when not sorting */}
+                          {!sortConfig && (
+                            <th className="px-2 py-5 border-b border-border-light dark:border-border-dark w-8"></th>
+                          )}
+                          <th onClick={() => handleSort('name')} className="px-6 py-5 border-b border-border-light dark:border-border-dark cursor-pointer hover:text-primary transition-colors select-none">
+                            <div className="flex items-center gap-1">
+                              Activo
+                              {sortConfig?.key === 'name' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
                             </div>
-                          </td>
-                          <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right font-mono font-medium">
-                            {pos.quantity.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}
-                          </td>
-                          <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                            {formatPrice(pos.average_buy_price, pos.currency)}
-                          </td>
-                          <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                            <div className="flex flex-col items-end">
-                              <span className="font-bold text-base text-text-primary-light dark:text-white">
-                                {pos.currentPrice ? formatPrice(pos.currentPrice, pos.currency) : '---'}
-                              </span>
-                              {(pos.change !== undefined && pos.changePercent !== undefined) && (
-                                <div className={`flex items-center gap-1 text-xs font-bold leading-none mt-1 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
-                                  <span className="material-symbols-outlined text-[20px] font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>{(pos.change >= 0) ? 'arrow_drop_up' : 'arrow_drop_down'}</span>
-                                  <span>
-                                    {formatChange(pos.change, pos.changePercent)}
+                          </th>
+                          <th onClick={() => handleSort('quantity')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                            <div className="flex items-center justify-end gap-1">
+                              Cantidad
+                              {sortConfig?.key === 'quantity' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                            </div>
+                          </th>
+                          <th onClick={() => handleSort('average_buy_price')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                            <div className="flex items-center justify-end gap-1">
+                              Precio Medio
+                              {sortConfig?.key === 'average_buy_price' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                            </div>
+                          </th>
+                          <th onClick={() => handleSort('currentPrice')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                            <div className="flex items-center justify-end gap-1">
+                              Coti. Actual
+                              {sortConfig?.key === 'currentPrice' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                            </div>
+                          </th>
+                          <th onClick={() => handleSort('currentValue')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                            <div className="flex items-center justify-end gap-1">
+                              Valor Mercado
+                              {sortConfig?.key === 'currentValue' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                            </div>
+                          </th>
+                          <th onClick={() => handleSort('returnPct')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                            <div className="flex items-center justify-end gap-1">
+                              Rentabilidad
+                              {sortConfig?.key === 'returnPct' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                            </div>
+                          </th>
+                          <th className="px-6 py-5 border-b border-border-light dark:border-border-dark text-center w-24">Acciones</th>
+                        </tr>
+                      </thead>
+                      <SortableContext items={sortedPositions.map(p => p.id)} strategy={verticalListSortingStrategy}>
+                        <tbody className="text-sm">
+                          {sortedPositions.map((pos) => (
+                            <SortableRow key={pos.id} id={pos.id} disabled={!!sortConfig}>
+                              {/* Drag handle - only show when not sorting */}
+                              {!sortConfig && (
+                                <DragHandleCell className="px-2 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-text-secondary-light">
+                                  <span className="material-symbols-outlined text-lg">drag_indicator</span>
+                                </DragHandleCell>
+                              )}
+                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30">
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-base text-text-primary-light dark:text-white truncate max-w-[180px]" title={pos.name || pos.ticker}>{pos.name || pos.ticker}</span>
+                                  <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right font-mono font-medium">
+                                {pos.quantity.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}
+                              </td>
+                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                                {formatPrice(pos.average_buy_price, pos.currency)}
+                              </td>
+                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                                <div className="flex flex-col items-end">
+                                  <span className="font-bold text-base text-text-primary-light dark:text-white">
+                                    {pos.currentPrice ? formatPrice(pos.currentPrice, pos.currency) : '---'}
+                                  </span>
+                                  {(pos.change !== undefined && pos.changePercent !== undefined) && (
+                                    <div className={`flex items-center gap-1 text-xs font-bold leading-none mt-1 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
+                                      <span className="material-symbols-outlined text-[20px] font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>{(pos.change >= 0) ? 'arrow_drop_up' : 'arrow_drop_down'}</span>
+                                      <span>{formatChange(pos.change, pos.changePercent)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right font-bold text-base">
+                                {pos.currentValue ? pos.currentValue.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) : '---'}
+                              </td>
+                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                                <div className={`flex flex-col items-end justify-center px-3 py-1.5 rounded-lg border w-fit ml-auto transition-all ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
+                                  <span className="font-bold">{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
+                                  <span className="text-xs opacity-90 font-medium">
+                                    {((pos.currentValue || 0) - (pos.quantity * pos.average_buy_price)).toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
                                   </span>
                                 </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right font-bold text-base">
-                            {pos.currentValue ? pos.currentValue.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) : '---'}
-                          </td>
-                          <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                            <div className={`flex flex-col items-end justify-center px-3 py-1.5 rounded-lg border w-fit ml-auto transition-all ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
-                              <span className="font-bold">{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
-                              <span className="text-xs opacity-90 font-medium">
-                                {((pos.currentValue || 0) - (pos.quantity * pos.average_buy_price)).toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
-                              </span>
-                            </div>
-                          </td>
-                          {/* Columna de Acciones */}
-                          <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => openAlertModal(pos)}
-                                className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all"
-                                title="Crear Alerta de Precio"
-                              >
-                                <span className="material-symbols-outlined text-lg">notifications_active</span>
-                              </button>
-                              <button
-                                onClick={() => openEditModal(pos)}
-                                className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all"
-                                title="Editar posición"
-                              >
-                                <span className="material-symbols-outlined text-lg">edit</span>
-                              </button>
-                              <button
-                                onClick={() => setPositionToDelete(pos)}
-                                className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all"
-                                title="Eliminar posición"
-                              >
-                                <span className="material-symbols-outlined text-lg">delete</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                              </td>
+                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Crear Alerta de Precio">
+                                    <span className="material-symbols-outlined text-lg">notifications_active</span>
+                                  </button>
+                                  <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
+                                    <span className="material-symbols-outlined text-lg">edit</span>
+                                  </button>
+                                  <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar posición">
+                                    <span className="material-symbols-outlined text-lg">delete</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </SortableRow>
+                          ))}
+                        </tbody>
+                      </SortableContext>
+                    </table>
+                  </DndContext>
                 </div>
 
                 {/* Resumen Final Superior */}

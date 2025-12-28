@@ -12,6 +12,9 @@ import { importersRoutes } from './routes/importers';
 import { adminRoutes } from './routes/admin';
 import { alertsRoutes } from './routes/alerts';
 import { notificationRoutes } from './routes/notifications';
+import { calendarRoutes } from './routes/calendar';
+import { publicRoutes } from './routes/public';
+import { chatRoutes } from './routes/chat';
 import { initDatabase } from './init_db';
 import { SettingsService } from './services/settingsService';
 import { AlertService } from './services/alertService';
@@ -106,6 +109,9 @@ const app = new Elysia()
         .use(adminRoutes)
         .use(alertsRoutes)
         .use(notificationRoutes)
+        .use(calendarRoutes)
+        .use(chatRoutes)
+        .use(publicRoutes)
         .get('/health', () => ({ status: 'ok', version: '1.0.0' }))
     )
     // 2. Servir archivos estáticos explícitamente (JS, CSS, recursos)

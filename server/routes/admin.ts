@@ -7,6 +7,29 @@ import { MarketDataService } from '../services/marketData';
 import { AIService } from '../services/aiService';
 import nodemailer from 'nodemailer';
 
+// Helper implementation for consistent table ordering
+const getOrderedTables = (allTables: string[]) => {
+    // Order: Independent -> Roots -> Dependents Level 1 -> Dependents Level 2
+    const desiredOrder = [
+        'system_settings',
+        'historical_data',
+        'users',                 // Root
+        'financial_events',      // Dep: users
+        'notification_channels', // Dep: users
+        'watchlists',            // Dep: users
+        'alerts',                // Dep: users
+        'portfolios',            // Dep: users
+        'positions',             // Dep: portfolios
+        'transactions'           // Dep: portfolios
+    ];
+
+    // Return sorted tables: those in desiredOrder first, then the rest alphabetically
+    return [
+        ...desiredOrder.filter(t => allTables.includes(t)),
+        ...allTables.filter(t => !desiredOrder.includes(t)).sort()
+    ];
+};
+
 export const adminRoutes = new Elysia({ prefix: '/admin' })
     .use(
         jwt({
@@ -415,16 +438,19 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         })
     })
 
+
+
+
     // ===== BACKUP & RESTORE =====
     .get('/backup/tables', async () => {
-        const tables = await sql`
+        const tablesResult = await sql`
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = 'public' 
             AND table_type = 'BASE TABLE'
-            ORDER BY table_name
         `;
-        return tables.map(t => t.table_name);
+        const allTables = tablesResult.map(t => t.table_name);
+        return getOrderedTables(allTables);
     })
     .get('/backup/json', async () => {
         try {
@@ -433,9 +459,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
                 FROM information_schema.tables 
                 WHERE table_schema = 'public' 
                 AND table_type = 'BASE TABLE'
-                ORDER BY table_name
             `;
-            const tableNames = tablesResult.map(t => t.table_name);
+            const allTables = tablesResult.map(t => t.table_name);
+            const tableNames = getOrderedTables(allTables);
 
             const backup: Record<string, any[]> = {};
             const metadata = {
@@ -463,9 +489,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
                 FROM information_schema.tables 
                 WHERE table_schema = 'public' 
                 AND table_type = 'BASE TABLE'
-                ORDER BY table_name
             `;
-            const tableNames = tablesResult.map(t => t.table_name);
+            const allTables = tablesResult.map(t => t.table_name);
+            const tableNames = getOrderedTables(allTables);
 
             let sqlScript = `-- Stocks Manager Backup\n-- Generated: ${new Date().toISOString()}\n-- Tables: ${tableNames.join(', ')}\n\n`;
 
@@ -476,11 +502,11 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             for (const tableName of tableNames) {
                 const rows = await sql.unsafe(`SELECT * FROM "${tableName}"`);
 
-                if (rows.length > 0) {
-                    sqlScript += `-- Table: ${tableName}\n`;
-                    // Use TRUNCATE CASCADE for better cleanup
-                    sqlScript += `TRUNCATE TABLE "${tableName}" CASCADE;\n`;
+                // Always TRUNCATE to ensure clean state, even if table is empty in backup
+                sqlScript += `-- Table: ${tableName}\n`;
+                sqlScript += `TRUNCATE TABLE "${tableName}" CASCADE;\n`;
 
+                if (rows.length > 0) {
                     for (const row of rows) {
                         const cols = Object.keys(row);
                         const vals = Object.values(row).map(v => {
@@ -523,33 +549,33 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         try {
             console.log(`Starting restore from backup created at ${metadata.createdAt}`);
 
-            // Update order: users -> portfolios -> watchlists -> positions -> transactions
-            // This order is safer for insertion if FK checks cannot be disabled
-            const tableOrder = ['users', 'portfolios', 'watchlists', 'positions', 'transactions'];
-            const allTables = Object.keys(data);
-            const orderedTables = [
-                ...tableOrder.filter(t => allTables.includes(t)),
-                ...allTables.filter(t => !tableOrder.includes(t))
-            ];
+            // 1. Get ALL current tables in the DB to ensure we wipe everything
+            const currentTablesResult = await sql`
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_type = 'BASE TABLE'
+            `;
+            const currentTables = currentTablesResult.map(t => t.table_name);
+            // Sort them for safe deletion (Users first -> cascades)
+            const tablesToTruncate = getOrderedTables(currentTables);
 
-            // Try to set replication role (ignore error if not superuser)
-            try {
-                await sql.unsafe('SET session_replication_role = replica;');
-            } catch (e) {
-                console.warn('Could not set session_replication_role (probably not superuser).');
+            // 2. Truncate ALL tables
+            for (const tableName of tablesToTruncate) {
+                await sql.unsafe(`TRUNCATE TABLE "${tableName}" CASCADE`);
             }
 
-            for (const tableName of orderedTables) {
+            // 3. Restore Data
+            // We iterate over the BACKUP's tables, but we respect dependency order for insertion
+            const backupTables = Object.keys(data);
+            const tablesToRestore = getOrderedTables(backupTables);
+
+            for (const tableName of tablesToRestore) {
                 const rows = data[tableName];
-                if (!rows || !Array.isArray(rows)) continue;
+                if (!rows || !Array.isArray(rows) || rows.length === 0) continue;
 
-                const tableExists = await sql`
-                    SELECT 1 FROM information_schema.tables 
-                    WHERE table_schema = 'public' AND table_name = ${tableName}
-                `;
-                if (tableExists.length === 0) continue;
-
-                await sql.unsafe(`TRUNCATE TABLE "${tableName}" CASCADE`);
+                // Check if table still exists (it should)
+                if (!currentTables.includes(tableName)) continue;
 
                 for (const row of rows) {
                     const cols = Object.keys(row);
@@ -574,8 +600,8 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
 
             return {
                 success: true,
-                message: `Base de datos restaurada. ${orderedTables.length} tablas procesadas.`,
-                tablesRestored: orderedTables
+                message: `Base de datos restaurada. ${tablesToRestore.length} tablas procesadas.`,
+                tablesRestored: tablesToRestore
             };
         } catch (error: any) {
             try { await sql.unsafe('SET session_replication_role = DEFAULT;'); } catch (e) { }

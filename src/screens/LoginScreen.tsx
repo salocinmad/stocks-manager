@@ -21,13 +21,16 @@ export const LoginScreen: React.FC = () => {
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [backupCode, setBackupCode] = useState('');
 
+  // Remember Me
+  const [rememberMe, setRememberMe] = useState(true);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post('/auth/login', { email, password, rememberMe });
       const data = response.data;
 
       // Check if 2FA is required
@@ -40,7 +43,7 @@ export const LoginScreen: React.FC = () => {
       }
 
       // Normal login
-      login(data.token, data.user);
+      login(data.token, data.user, rememberMe);
       navigate('/');
     } catch (err: any) {
       console.error('Login error:', err);
@@ -67,7 +70,7 @@ export const LoginScreen: React.FC = () => {
       const response = await api.post('/auth/login', payload);
       const { token, user } = response.data;
 
-      login(token, user);
+      login(token, user, rememberMe);
       navigate('/');
     } catch (err: any) {
       console.error('2FA error:', err);
@@ -161,6 +164,20 @@ export const LoginScreen: React.FC = () => {
                   required
                 />
               </div>
+
+              {/* Remember Me Checkbox */}
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-5 h-5 rounded-lg border-2 border-gray-300 dark:border-gray-600 text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer"
+                />
+                <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark group-hover:text-text-primary-light dark:group-hover:text-white transition-colors">
+                  Mantener sesión iniciada
+                </span>
+              </label>
+
               <button
                 className="mt-4 w-full py-5 rounded-full bg-primary hover:bg-primary-dim text-black font-bold text-xl shadow-xl shadow-primary/20 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                 type="submit"
