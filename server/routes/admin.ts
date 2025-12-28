@@ -635,6 +635,29 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
                 console.warn('Could not set session_replication_role (needs superuser). SQL script might fail if not ordered.');
             }
 
+            // --- FORCE WIPE BEFORE RESTORE (Safe Mode) ---
+            // Just like JSON restore, we ensure the DB is clean before running the script.
+            // This fixes issues where the script might not contain TRUNCATEs for empty tables from the source.
+            try {
+                const currentTablesResult = await sql`
+                    SELECT table_name 
+                    FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_type = 'BASE TABLE'
+                `;
+                const currentTables = currentTablesResult.map(t => t.table_name);
+                const tablesToTruncate = getOrderedTables(currentTables);
+
+                for (const tableName of tablesToTruncate) {
+                    await sql.unsafe(`TRUNCATE TABLE "${tableName}" CASCADE`);
+                }
+                console.log('Pre-restore wipe completed for SQL mode.');
+            } catch (wipeError: any) {
+                console.error('Warning: Pre-restore wipe failed:', wipeError.message);
+                // We continue, hoping the script handles it or it's non-fatal
+            }
+            // ---------------------------------------------
+
             const statements = sqlScript
                 .split(';')
                 .map(s => s.trim())
