@@ -7,6 +7,29 @@ import { MarketDataService } from '../services/marketData';
 import { AIService } from '../services/aiService';
 import nodemailer from 'nodemailer';
 
+// Helper implementation for consistent table ordering
+const getOrderedTables = (allTables: string[]) => {
+    // Order: Independent -> Roots -> Dependents Level 1 -> Dependents Level 2
+    const desiredOrder = [
+        'system_settings',
+        'historical_data',
+        'users',                 // Root
+        'financial_events',      // Dep: users
+        'notification_channels', // Dep: users
+        'watchlists',            // Dep: users
+        'alerts',                // Dep: users
+        'portfolios',            // Dep: users
+        'positions',             // Dep: portfolios
+        'transactions'           // Dep: portfolios
+    ];
+
+    // Return sorted tables: those in desiredOrder first, then the rest alphabetically
+    return [
+        ...desiredOrder.filter(t => allTables.includes(t)),
+        ...allTables.filter(t => !desiredOrder.includes(t)).sort()
+    ];
+};
+
 export const adminRoutes = new Elysia({ prefix: '/admin' })
     .use(
         jwt({
@@ -415,16 +438,19 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         })
     })
 
+
+
+
     // ===== BACKUP & RESTORE =====
     .get('/backup/tables', async () => {
-        const tables = await sql`
+        const tablesResult = await sql`
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = 'public' 
             AND table_type = 'BASE TABLE'
-            ORDER BY table_name
         `;
-        return tables.map(t => t.table_name);
+        const allTables = tablesResult.map(t => t.table_name);
+        return getOrderedTables(allTables);
     })
     .get('/backup/json', async () => {
         try {
@@ -433,9 +459,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
                 FROM information_schema.tables 
                 WHERE table_schema = 'public' 
                 AND table_type = 'BASE TABLE'
-                ORDER BY table_name
             `;
-            const tableNames = tablesResult.map(t => t.table_name);
+            const allTables = tablesResult.map(t => t.table_name);
+            const tableNames = getOrderedTables(allTables);
 
             const backup: Record<string, any[]> = {};
             const metadata = {
@@ -463,9 +489,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
                 FROM information_schema.tables 
                 WHERE table_schema = 'public' 
                 AND table_type = 'BASE TABLE'
-                ORDER BY table_name
             `;
-            const tableNames = tablesResult.map(t => t.table_name);
+            const allTables = tablesResult.map(t => t.table_name);
+            const tableNames = getOrderedTables(allTables);
 
             let sqlScript = `-- Stocks Manager Backup\n-- Generated: ${new Date().toISOString()}\n-- Tables: ${tableNames.join(', ')}\n\n`;
 
@@ -523,14 +549,10 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         try {
             console.log(`Starting restore from backup created at ${metadata.createdAt}`);
 
-            // Update order: users -> portfolios -> watchlists -> positions -> transactions
-            // This order is safer for insertion if FK checks cannot be disabled
-            const tableOrder = ['users', 'portfolios', 'watchlists', 'positions', 'transactions'];
+            // Use the shared ordering logic to ensure dependencies are respected
+            // users -> portfolios -> positions, etc.
             const allTables = Object.keys(data);
-            const orderedTables = [
-                ...tableOrder.filter(t => allTables.includes(t)),
-                ...allTables.filter(t => !tableOrder.includes(t))
-            ];
+            const orderedTables = getOrderedTables(allTables);
 
             // Try to set replication role (ignore error if not superuser)
             try {
