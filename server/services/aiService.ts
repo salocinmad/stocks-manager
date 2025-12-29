@@ -24,7 +24,7 @@ const getModel = async () => {
             genAI = new GoogleGenerativeAI(currentApiKey);
             model = genAI.getGenerativeModel({ model: currentModelName });
         } else {
-            console.log('[AI] No API key available');
+
             genAI = null;
             model = null;
         }
@@ -40,6 +40,7 @@ export const AIService = {
         if (!currentModel) {
             return "El servicio de IA no está configurado (Falta API Key). Ve a Ajustes > Configuración de API para añadir tu Google Gemini API Key.";
         }
+
 
         // 1. Fetch Context
         const portfolios = await sql`
@@ -66,10 +67,13 @@ export const AIService = {
         if (relevantTickers.length > 0) {
             marketContext += "\n--- DATOS DE MERCADO EN TIEMPO REAL E HISTÓRICOS ---\n";
 
+
             for (const ticker of relevantTickers.slice(0, 5)) {
                 try {
                     // Obtener 2 años de historia
-                    const history = await MarketDataService.getDetailedHistory(ticker, 2);
+                    const sanitizedTicker = ticker.trim().toUpperCase();
+                    const history = await MarketDataService.getDetailedHistory(sanitizedTicker, 2);
+
 
                     if (history && history.length > 0) {
                         const last = history[history.length - 1];
@@ -85,6 +89,8 @@ export const AIService = {
                         marketContext += `- Precio Actual (Ref): ${Number(last.close).toFixed(2)} (al ${new Date(last.date).toISOString().split('T')[0]})\n`;
                         marketContext += `- Rendimiento 1 Año: ${change1Y}%\n`;
                         marketContext += `- Curva de Precios (Fecha:Precio): [${sampledPrices}]\n`;
+                    } else {
+                        console.warn(`[AIService] No history found for ${ticker}`);
                     }
                 } catch (err) {
                     console.error(`Error fetching AI context for ${ticker}`, err);
@@ -240,18 +246,47 @@ INSTRUCCIONES:
             console.error('Error getting portfolio tickers:', e);
         }
 
-        // 4. Detectar tickers en la conversación (case-insensitive)
+        // 4. Detectar tickers: Priorizar el último mensaje + Contexto general
         const conversationContextText = messages.slice(-6).map(m => m.text).join(' ').toUpperCase();
-        const commonTokens = ['HOLA', 'PARA', 'COMO', 'ESTA', 'TODO', 'BIEN', 'PERO', 'DONDE', 'CUANDO', 'QUE', 'TIENE', 'CREO', 'ESTE', 'ESE', 'POR', 'CON', 'LOS', 'LAS', 'UNA', 'UNO', 'MIS', 'TUS', 'SUS', 'HAY', 'VER', 'DEL'];
 
-        // Match tickers including European format (e.g., DIA.MC, SAP.DE)
-        const matches = conversationContextText.match(/\b[A-Z]{2,6}(\.[A-Z]{2,3})?\b/g) || [];
-        let mentionedTickers = [...new Set(matches.filter(t => !commonTokens.includes(t)))];
+
+        // 4.1 "Database First" Detection (User Suggestion)
+        let dbMatches: string[] = [];
+        try {
+            const knownTickers = await MarketDataService.getKnownTickers();
+            const upperMsg = lastUserMessage.toUpperCase();
+            // Find any known ticker that appears in the last message
+            dbMatches = knownTickers.filter(k => {
+                // Use word boundary check to avoid partial matches (e.g. "I" in "AI")
+                // but be careful with special chars. simpler: check if word exists
+                // split by non-alphanumeric?
+                const words = upperMsg.split(/[^A-Z0-9.]+/);
+                return words.includes(k.toUpperCase());
+            });
+            if (dbMatches.length > 0) {
+
+            }
+        } catch (e) {
+            console.error('[ChatBot] Error in DB-First detection:', e);
+        }
+
+        const lastMsgTickers = (lastUserMessage.toUpperCase().match(/\b[A-Z]{2,6}(\.[A-Z]{2,3})?\b/g) || []);
+        const contextTickers = (conversationContextText.match(/\b[A-Z]{2,6}(\.[A-Z]{2,3})?\b/g) || []);
+
+        // Merge: DB Matches (Highest Priority) > Last Message (Regex) > Context (Regex)
+        const allMatches = [...dbMatches, ...lastMsgTickers, ...contextTickers];
+
+        const commonTokens = [
+            'HOLA', 'PARA', 'COMO', 'ESTA', 'TODO', 'BIEN', 'PERO', 'DONDE', 'CUANDO', 'QUE', 'TIENE', 'CREO', 'ESTE', 'ESE', 'POR', 'CON', 'LOS', 'LAS', 'UNA', 'UNO', 'MIS', 'TUS', 'SUS', 'HAY', 'VER', 'DEL', 'SOY', 'Tengo', 'PUEDO', 'QUIERO', 'DECIR', 'SOBRE', 'STOCKS', 'BOT', 'RMINOS', 'DARTE', 'ANALIZAR'
+        ];
+
+        let mentionedTickers = [...new Set(allMatches.filter(t => !commonTokens.includes(t)))];
+
 
         // Priorizar tickers del portafolio: si el usuario dice "DIA" y tiene "DIA.MC", usar "DIA.MC"
         let tickersToAnalyze: string[] = [];
-        console.log('User portfolio tickers:', portfolioTickers);
-        console.log('Mentioned tickers raw:', mentionedTickers);
+        // console.log('User portfolio tickers:', portfolioTickers);
+        // console.log('Mentioned tickers raw:', mentionedTickers);
 
         for (const mentioned of mentionedTickers) {
             // Buscar coincidencia exacta o parcial en portafolio
@@ -260,18 +295,18 @@ INSTRUCCIONES:
             );
 
             if (portfolioMatch) {
-                console.log(`Matched ${mentioned} to portfolio ticker ${portfolioMatch}`);
                 tickersToAnalyze.push(portfolioMatch);
             } else {
                 tickersToAnalyze.push(mentioned);
             }
         }
         tickersToAnalyze = [...new Set(tickersToAnalyze)];
-        console.log('Final tickers to analyze:', tickersToAnalyze);
+        console.log('[ChatBot] Final tickers to analyze:', tickersToAnalyze);
 
         // Si pide análisis completo, añadir todos los tickers del portafolio
         if (wantsFullAnalysis) {
             tickersToAnalyze = [...new Set([...tickersToAnalyze, ...portfolioTickers])];
+            console.log('[ChatBot] Full Analysis Requested. Total tickers:', tickersToAnalyze.length);
         }
 
         let marketDataStr = "";
@@ -282,7 +317,9 @@ INSTRUCCIONES:
             marketDataStr += "\n📈 DATOS DE MERCADO:\n";
             for (const ticker of tickersToAnalyze.slice(0, maxTickers)) {
                 try {
+                    console.log(`[ChatBot] Fetching history for ${ticker}...`);
                     const history = await MarketDataService.getDetailedHistory(ticker, 1);
+                    console.log(`[ChatBot] History for ${ticker}: ${history?.length} rows`);
 
                     if (history && history.length > 0) {
                         const last = history[history.length - 1];
@@ -297,13 +334,33 @@ INSTRUCCIONES:
                         const prices = history.map(h => Number(h.close));
                         const min = Math.min(...prices).toFixed(2);
                         const max = Math.max(...prices).toFixed(2);
+                        const lastDate = new Date(last.date).toISOString().split('T')[0];
 
-                        marketDataStr += `${ticker}: $${Number(last.close).toFixed(2)} (${changeStr}) | Rango año: ${min}-${max}\n`;
+                        // Add detailed context for the AI
+                        const last5 = history.slice(-5).map(h => `${new Date(h.date).toLocaleDateString()}: $${Number(h.close).toFixed(2)}`).join(' | ');
+
+                        marketDataStr += `\n📌 ANÁLISIS PARA ${ticker}:\n`;
+                        marketDataStr += `- Precio Actual: $${Number(last.close).toFixed(2)} (${changeStr})\n`;
+                        marketDataStr += `- Fecha Referencia: ${lastDate}\n`;
+                        marketDataStr += `- Rango 52 semanas: $${min} - $${max}\n`;
+                        marketDataStr += `- Últimos 5 cierres: ${last5}\n`;
+
+                        // Add trend context (sampled)
+                        const trend = history
+                            .filter((_, i) => i % 10 === 0 || i === history.length - 1)
+                            .map(h => Number(h.close).toFixed(1))
+                            .join(' -> ');
+                        marketDataStr += `- Tendencia (Muestreo): ${trend}\n`;
+
+                    } else {
+                        console.warn(`[ChatBot] No history returned for ${ticker}`);
                     }
                 } catch (e) {
                     console.error(`ChatBot: Error fetching data for ${ticker}`, e);
                 }
             }
+        } else {
+
         }
 
         // 4. Historial de conversación (últimos 8 mensajes)

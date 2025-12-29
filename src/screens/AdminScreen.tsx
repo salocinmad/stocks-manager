@@ -308,6 +308,24 @@ export const AdminScreen: React.FC = () => {
 
     if (!isAdmin) return null;
 
+    // Descargar backup ZIP
+    const downloadBackupZip = async () => {
+        setBackupLoading(true);
+        try {
+            const { data } = await api.get('/admin/backup/zip', { responseType: 'blob' });
+            const url = URL.createObjectURL(new Blob([data]));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `stocks-manager-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Error al crear backup ZIP');
+        } finally {
+            setBackupLoading(false);
+        }
+    };
+
     // Descargar backup JSON
     const downloadBackupJson = async () => {
         setBackupLoading(true);
@@ -317,15 +335,17 @@ export const AdminScreen: React.FC = () => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `stocks-manager-backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `stocks-manager-data-${new Date().toISOString().split('T')[0]}.json`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (err: any) {
-            alert(err.response?.data?.message || 'Error al crear backup');
+            alert(err.response?.data?.message || 'Error al crear backup JSON');
         } finally {
             setBackupLoading(false);
         }
     };
+
+
 
     // Descargar backup SQL
     const downloadBackupSql = async () => {
@@ -371,41 +391,43 @@ export const AdminScreen: React.FC = () => {
         }
     };
 
-    // Restaurar desde archivo (JSON o SQL)
+    // Restaurar desde archivo (ZIP o SQL)
     const handleRestoreFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        const isZip = file.name.endsWith('.zip');
         const isJson = file.name.endsWith('.json');
         const isSql = file.name.endsWith('.sql');
 
-        if (!isJson && !isSql) {
-            alert('Formato no soportado. Usa un archivo .json o .sql');
+        if (!isZip && !isJson && !isSql) {
+            alert('Formato no soportado. Usa .zip (Completo), .json (Datos) o .sql');
             e.target.value = '';
             return;
         }
 
-        if (!confirm('¿Estás seguro? Esto REEMPLAZARÁ TODOS los datos actuales con los del backup. Esta acción es irreversible.')) {
+        if (!confirm('¿Estás seguro? Esto REEMPLAZARÁ TODOS los datos actuales e imágenes con los del backup. Esta acción es irreversible.')) {
             e.target.value = '';
             return;
         }
 
         setRestoreLoading(true);
         try {
-            const text = await file.text();
+            if (isZip || isJson) {
+                const formData = new FormData();
+                formData.append('file', file);
 
-            if (isJson) {
-                const backup = JSON.parse(text);
-                if (!backup.metadata || !backup.data) {
-                    throw new Error('Formato de backup JSON inválido');
-                }
-                await api.post('/admin/backup/restore', backup);
+                // Enviar como multipart/form-data
+                await api.post('/admin/backup/restore', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
             } else {
-                // SQL
+                // SQL Restore
+                const text = await file.text();
                 await api.post('/admin/backup/restore-sql', { sqlScript: text });
             }
 
-            alert('Base de datos restaurada correctamente. Se recomienda cerrar sesión y volver a entrar.');
+            alert('Sistema restaurado correctamente. Se recomienda cerrar sesión y volver a entrar.');
             await loadStats();
             await loadUsers();
         } catch (err: any) {
@@ -979,7 +1001,7 @@ export const AdminScreen: React.FC = () => {
 
                         {/* Tab: Backup */}
                         {activeTab === 'backup' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-2xl animate-fade-in">
+                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-5xl w-full animate-fade-in">
                                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                                     <span className="material-symbols-outlined">backup</span>
                                     Backup y Restauración
@@ -1006,9 +1028,25 @@ export const AdminScreen: React.FC = () => {
                                         Crear Backup
                                     </h3>
                                     <p className="text-sm text-text-secondary-light mb-4">
-                                        Descarga una copia completa de todos los datos. El backup incluye todas las tablas automáticamente.
+                                        Descarga una copia de seguridad de los datos. Elige el formato que más te convenga.
                                     </p>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <button
+                                            onClick={downloadBackupZip}
+                                            disabled={backupLoading}
+                                            className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
+                                        >
+                                            {backupLoading ? (
+                                                <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
+                                            ) : (
+                                                <span className="material-symbols-outlined text-3xl text-blue-500">folder_zip</span>
+                                            )}
+                                            <div className="text-center">
+                                                <p className="font-bold">Completo (ZIP)</p>
+                                                <p className="text-xs text-text-secondary-light">DB + Imágenes</p>
+                                            </div>
+                                        </button>
+
                                         <button
                                             onClick={downloadBackupJson}
                                             disabled={backupLoading}
@@ -1017,13 +1055,14 @@ export const AdminScreen: React.FC = () => {
                                             {backupLoading ? (
                                                 <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
                                             ) : (
-                                                <span className="material-symbols-outlined text-3xl text-blue-500">data_object</span>
+                                                <span className="material-symbols-outlined text-3xl text-green-500">data_object</span>
                                             )}
                                             <div className="text-center">
-                                                <p className="font-bold">Backup JSON</p>
-                                                <p className="text-xs text-text-secondary-light">Para restaurar en la app</p>
+                                                <p className="font-bold">Datos (JSON)</p>
+                                                <p className="text-xs text-text-secondary-light">Solo Base de Datos</p>
                                             </div>
                                         </button>
+
                                         <button
                                             onClick={downloadBackupSql}
                                             disabled={backupLoading}
@@ -1035,8 +1074,8 @@ export const AdminScreen: React.FC = () => {
                                                 <span className="material-symbols-outlined text-3xl text-orange-500">database</span>
                                             )}
                                             <div className="text-center">
-                                                <p className="font-bold">Backup SQL</p>
-                                                <p className="text-xs text-text-secondary-light">Script para PostgreSQL</p>
+                                                <p className="font-bold">Script SQL</p>
+                                                <p className="text-xs text-text-secondary-light">Para PostgreSQL</p>
                                             </div>
                                         </button>
                                     </div>
@@ -1066,12 +1105,12 @@ export const AdminScreen: React.FC = () => {
                                         ) : (
                                             <>
                                                 <span className="material-symbols-outlined">upload_file</span>
-                                                <span className="font-semibold">Seleccionar archivo de backup (.json o .sql)</span>
+                                                <span className="font-semibold">Arrastra o selecciona un archivo (.zip, .json, .sql)</span>
                                             </>
                                         )}
                                         <input
                                             type="file"
-                                            accept=".json,.sql"
+                                            accept=".json,.sql,.zip"
                                             onChange={handleRestoreFile}
                                             className="hidden"
                                             disabled={restoreLoading}

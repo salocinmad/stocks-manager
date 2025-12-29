@@ -27,14 +27,14 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             throw new Error('Unauthorized: Invalid token');
         }
 
-        console.log('Authenticated user:', profile.sub);
+
         return { userId: profile.sub as string };
     })
     // List Portfolios
     // List Portfolios
     .get('/', async ({ userId }) => {
         try {
-            console.log(`Fetching portfolios for user ${userId}`);
+
             const portfolios = await sql`
                 SELECT id, name, is_public, is_favorite, created_at, 
                 (SELECT COUNT(*) FROM positions WHERE portfolio_id = portfolios.id) as positions_count
@@ -42,7 +42,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
                 WHERE user_id = ${userId}
                 ORDER BY is_favorite DESC, created_at ASC
             `;
-            console.log(`Found ${portfolios.length} portfolios for user ${userId}`);
+
             // Force plain array conversion to avoid serialization issues
             return [...portfolios].map(p => ({
                 id: p.id,
@@ -283,7 +283,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         // @ts-ignore
         const { orderedIds } = body;
 
-        console.log(`Reordering portfolio ${id}, items: ${orderedIds?.length}`);
+
 
         if (!orderedIds || !Array.isArray(orderedIds)) {
             set.status = 400;
@@ -323,9 +323,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
     // Add/Update Position (Simplified logic: Upsert)
     .post('/:id/positions', async ({ userId, params, body }) => {
         const { id } = params;
-        console.log('POST /:id/positions - params:', params);
-        console.log('POST /:id/positions - userId:', userId);
-        console.log('POST /:id/positions - body:', body);
+
 
         if (!id || id === 'undefined' || id === 'null') {
             console.error('Invalid portfolio ID:', id);
@@ -424,7 +422,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         // Eliminar también las transacciones asociadas (eliminación completa por error de entrada)
         await sql`DELETE FROM transactions WHERE portfolio_id = ${id} AND ticker = ${position.ticker}`;
 
-        console.log(`Deleted position ${positionId} (${position.ticker}) and associated transactions from portfolio ${id}`);
+
         return { success: true, message: `Posición ${position.ticker} y sus transacciones eliminadas` };
     })
     // Editar una posición (cantidad y precio medio)
@@ -452,7 +450,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             WHERE id = ${positionId}
         `;
 
-        console.log(`Updated position ${positionId} (${position.ticker}): quantity=${quantity}, avgPrice=${averagePrice}`);
+
         return { success: true, message: `Posición ${position.ticker} actualizada` };
     }, {
         body: t.Object({
@@ -504,7 +502,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             }
 
             // If no cache, trigger initial calculation (runs in background)
-            console.log(`[PnL] No cache for portfolio ${id}. Triggering initial calculation...`);
+
 
             // Don't await - let it run in background
             calculatePnLWeekly().catch(e => console.error('[PnL] Background calc error:', e));

@@ -38,8 +38,7 @@ services:
       - stocks_net
     volumes:
       - ./server:/app/server
-      # NO montar dist - el build ocurre dentro del contenedor
-      # - ./dist:/app/dist
+      - ./uploads:/app/uploads # Persistir imágenes de notas
 
 networks:
   stocks_net:

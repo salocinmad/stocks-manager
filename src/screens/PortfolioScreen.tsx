@@ -6,6 +6,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableRow, DragHandleCell } from '../components/SortableRow';
+import { StockNoteModal } from '../components/StockNoteModal';
 
 type SortKey = 'name' | 'quantity' | 'average_buy_price' | 'currentPrice' | 'currentValue' | 'returnPct';
 type SortDirection = 'asc' | 'desc';
@@ -94,6 +95,9 @@ export const PortfolioScreen: React.FC = () => {
   const [alertTargetPrice, setAlertTargetPrice] = useState('');
   const [alertCondition, setAlertCondition] = useState<'above' | 'below'>('below');
   const [isCreatingAlert, setIsCreatingAlert] = useState(false);
+
+  // Estado para modal de notas
+  const [notePosition, setNotePosition] = useState<Position | null>(null);
 
   // Estados para ordenación y Drag & Drop
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -283,7 +287,7 @@ export const PortfolioScreen: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('[Portfolio] Fetching list...');
+
       const { data: portfoliosList } = await api.get('/portfolios');
 
       if (!portfoliosList || !Array.isArray(portfoliosList) || portfoliosList.length === 0) {
@@ -606,45 +610,45 @@ export const PortfolioScreen: React.FC = () => {
                         <tr className="text-xs font-bold uppercase tracking-[0.1em] text-text-secondary-light">
                           {/* Drag handle column - only show when not sorting */}
                           {!sortConfig && (
-                            <th className="px-2 py-5 border-b border-border-light dark:border-border-dark w-8"></th>
+                            <th className="px-2 py-3 border-b border-border-light dark:border-border-dark w-8"></th>
                           )}
-                          <th onClick={() => handleSort('name')} className="px-6 py-5 border-b border-border-light dark:border-border-dark cursor-pointer hover:text-primary transition-colors select-none">
+                          <th onClick={() => handleSort('name')} className="px-6 py-3 border-b border-border-light dark:border-border-dark cursor-pointer hover:text-primary transition-colors select-none">
                             <div className="flex items-center gap-1">
                               Activo
                               {sortConfig?.key === 'name' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
                             </div>
                           </th>
-                          <th onClick={() => handleSort('quantity')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <th onClick={() => handleSort('quantity')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
                             <div className="flex items-center justify-end gap-1">
                               Cantidad
                               {sortConfig?.key === 'quantity' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
                             </div>
                           </th>
-                          <th onClick={() => handleSort('average_buy_price')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <th onClick={() => handleSort('average_buy_price')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
                             <div className="flex items-center justify-end gap-1">
                               Precio Medio
                               {sortConfig?.key === 'average_buy_price' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
                             </div>
                           </th>
-                          <th onClick={() => handleSort('currentPrice')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <th onClick={() => handleSort('currentPrice')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
                             <div className="flex items-center justify-end gap-1">
                               Coti. Actual
                               {sortConfig?.key === 'currentPrice' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
                             </div>
                           </th>
-                          <th onClick={() => handleSort('currentValue')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <th onClick={() => handleSort('currentValue')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
                             <div className="flex items-center justify-end gap-1">
                               Valor Mercado
                               {sortConfig?.key === 'currentValue' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
                             </div>
                           </th>
-                          <th onClick={() => handleSort('returnPct')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <th onClick={() => handleSort('returnPct')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
                             <div className="flex items-center justify-end gap-1">
                               Rentabilidad
                               {sortConfig?.key === 'returnPct' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
                             </div>
                           </th>
-                          <th className="px-6 py-5 border-b border-border-light dark:border-border-dark text-center w-24">Acciones</th>
+                          <th className="px-6 py-3 border-b border-border-light dark:border-border-dark text-center w-24">Acciones</th>
                         </tr>
                       </thead>
                       <SortableContext items={sortedPositions.map(p => p.id)} strategy={verticalListSortingStrategy}>
@@ -653,23 +657,23 @@ export const PortfolioScreen: React.FC = () => {
                             <SortableRow key={pos.id} id={pos.id} disabled={!!sortConfig}>
                               {/* Drag handle - only show when not sorting */}
                               {!sortConfig && (
-                                <DragHandleCell className="px-2 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-text-secondary-light">
+                                <DragHandleCell className="px-2 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-text-secondary-light">
                                   <span className="material-symbols-outlined text-lg">drag_indicator</span>
                                 </DragHandleCell>
                               )}
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30">
+                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30">
                                 <div className="flex flex-col">
                                   <span className="font-bold text-base text-text-primary-light dark:text-white truncate max-w-[180px]" title={pos.name || pos.ticker}>{pos.name || pos.ticker}</span>
                                   <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
                                 </div>
                               </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right font-mono font-medium">
+                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right font-mono font-medium">
                                 {pos.quantity.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}
                               </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
                                 {formatPrice(pos.average_buy_price, pos.currency)}
                               </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
                                 <div className="flex flex-col items-end">
                                   <span className="font-bold font-mono">{formatPrice(pos.currentPrice || 0, pos.currency)}</span>
                                   {(pos.change !== undefined && pos.changePercent !== undefined) && (
@@ -680,10 +684,10 @@ export const PortfolioScreen: React.FC = () => {
                                   )}
                                 </div>
                               </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right font-bold text-base">
+                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right font-bold text-base">
                                 {pos.currentValue ? pos.currentValue.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) : '---'}
                               </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
                                 <div className={`flex flex-col items-end justify-center px-3 py-1.5 rounded-lg border w-fit ml-auto transition-all ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
                                   <span className="font-bold">{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
                                   <span className="text-xs opacity-90 font-medium">
@@ -691,8 +695,11 @@ export const PortfolioScreen: React.FC = () => {
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30">
+                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30">
                                 <div className="flex items-center justify-center gap-1">
+                                  <button onClick={() => setNotePosition(pos)} className="p-2 rounded-lg hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all" title="Ver/Editar Nota">
+                                    <span className="material-symbols-outlined text-lg">description</span>
+                                  </button>
                                   <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Crear Alerta de Precio">
                                     <span className="material-symbols-outlined text-lg">notifications_active</span>
                                   </button>
@@ -992,6 +999,15 @@ export const PortfolioScreen: React.FC = () => {
           </div>
         )
       }
+
+      {/* Modal de Notas */}
+      {notePosition && (
+        <StockNoteModal
+          positionId={notePosition.id}
+          ticker={notePosition.ticker}
+          onClose={() => setNotePosition(null)}
+        />
+      )}
     </main >
   );
 };

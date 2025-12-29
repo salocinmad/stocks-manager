@@ -5,6 +5,9 @@ import bcrypt from 'bcryptjs';
 import { SettingsService } from '../services/settingsService';
 import { MarketDataService } from '../services/marketData';
 import { AIService } from '../services/aiService';
+import AdmZip from 'adm-zip';
+import * as fs from 'fs';
+import * as path from 'path';
 import nodemailer from 'nodemailer';
 
 // Helper implementation for consistent table ordering
@@ -452,6 +455,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         const allTables = tablesResult.map(t => t.table_name);
         return getOrderedTables(allTables);
     })
+    // Backup JSON (Restaurado)
     .get('/backup/json', async () => {
         try {
             const tablesResult = await sql`
@@ -463,7 +467,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             const allTables = tablesResult.map(t => t.table_name);
             const tableNames = getOrderedTables(allTables);
 
-            const backup: Record<string, any[]> = {};
+            const backupData: Record<string, any[]> = {};
             const metadata = {
                 version: '1.0',
                 createdAt: new Date().toISOString(),
@@ -472,13 +476,70 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
 
             for (const tableName of tableNames) {
                 const rows = await sql.unsafe(`SELECT * FROM "${tableName}"`);
-                backup[tableName] = rows;
+                backupData[tableName] = rows;
             }
 
             console.log(`Backup JSON created with ${tableNames.length} tables`);
-            return { metadata, data: backup };
+            return { metadata, data: backupData };
         } catch (error: any) {
             console.error('Backup JSON failed:', error);
+            throw new Error(`Error al crear backup: ${error.message}`);
+        }
+    })
+    // Modificado: Backup ahora devuelve un ZIP con el JSON t las imagenes
+    .get('/backup/zip', async () => {
+        try {
+            // 1. Generar JSON con los datos de la DB
+            const tablesResult = await sql`
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_type = 'BASE TABLE'
+            `;
+            const allTables = tablesResult.map(t => t.table_name);
+            const tableNames = getOrderedTables(allTables);
+
+            const backupData: Record<string, any[]> = {};
+            const metadata = {
+                version: '1.0',
+                createdAt: new Date().toISOString(),
+                tables: tableNames
+            };
+
+            for (const tableName of tableNames) {
+                const rows = await sql.unsafe(`SELECT * FROM "${tableName}"`);
+                backupData[tableName] = rows;
+            }
+
+            const backupJson = { metadata, data: backupData };
+
+            // 2. Crear ZIP
+            const zip = new AdmZip();
+
+            // Añadir JSON al ZIP
+            zip.addFile("database_dump.json", Buffer.from(JSON.stringify(backupJson, null, 2), "utf8"));
+
+            // Añadir carpeta de uploads/notes al ZIP
+            const uploadsNotesPath = path.join(process.cwd(), 'uploads', 'notes');
+            if (fs.existsSync(uploadsNotesPath)) {
+                zip.addLocalFolder(uploadsNotesPath, "uploads/notes");
+            }
+
+            // 3. Generar buffer
+            const zipBuffer = zip.toBuffer();
+            const fileName = `stocks-manager-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+
+
+
+            return new Response(zipBuffer, {
+                headers: {
+                    'Content-Type': 'application/zip',
+                    'Content-Disposition': `attachment; filename="${fileName}"`
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Backup ZIP failed:', error);
             throw new Error(`Error al crear backup: ${error.message}`);
         }
     })
@@ -538,15 +599,58 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             throw new Error(`Error al crear backup SQL: ${error.message}`);
         }
     })
-    .post('/backup/restore', async ({ body }) => {
-        // @ts-ignore
-        const { metadata, data } = body;
-
-        if (!metadata || !data) {
-            throw new Error('Formato de backup inválido');
-        }
-
+    // Modificado: Restore ahora acepta ZIP o JSON (multipart/form-data)
+    .post('/backup/restore', async ({ request }) => {
         try {
+            const formData = await request.formData();
+            const file = formData.get('file');
+
+            if (!file || !(file instanceof Blob)) {
+                throw new Error('Se requiere un archivo válido (ZIP o JSON)');
+            }
+
+            // Convertir Blob a Buffer
+            const arrayBuffer = await file.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+
+            let metadata, data;
+            let isZip = false;
+
+            // Intentar detectar si es ZIP (pk signature) o JSON
+            // ZIP magic number: PK.. (0x50 0x4B 0x03 0x04)
+            if (buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04) {
+                isZip = true;
+            }
+
+            const zip = isZip ? new AdmZip(buffer) : null;
+            const zipEntries = zip ? zip.getEntries() : [];
+
+            if (isZip && zip) {
+                // Modo ZIP
+                const dumpEntry = zipEntries.find(entry => entry.entryName === 'database_dump.json');
+                if (!dumpEntry) {
+                    throw new Error('El archivo ZIP no contiene database_dump.json');
+                }
+                const dumpContent = dumpEntry.getData().toString('utf8');
+                const parsed = JSON.parse(dumpContent);
+                metadata = parsed.metadata;
+                data = parsed.data;
+            } else {
+                // Modo JSON (asumimos que es texto plano JSON)
+                try {
+                    const content = buffer.toString('utf8');
+                    const parsed = JSON.parse(content);
+                    metadata = parsed.metadata;
+                    data = parsed.data;
+                } catch (e) {
+                    throw new Error('El archivo no es un JSON válido ni un ZIP válido.');
+                }
+            }
+
+            if (!metadata || !data) {
+                throw new Error('Estructura de backup inválida (faltan metadatos o datos)');
+            }
+
             console.log(`Starting restore from backup created at ${metadata.createdAt}`);
 
             // 1. Get ALL current tables in the DB to ensure we wipe everything
@@ -562,7 +666,11 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
 
             // 2. Truncate ALL tables
             for (const tableName of tablesToTruncate) {
-                await sql.unsafe(`TRUNCATE TABLE "${tableName}" CASCADE`);
+                try {
+                    await sql.unsafe(`TRUNCATE TABLE "${tableName}" CASCADE`);
+                } catch (e: any) {
+                    console.warn(`Could not truncate ${tableName}: ${e.message}`);
+                }
             }
 
             // 3. Restore Data
@@ -570,53 +678,52 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             const backupTables = Object.keys(data);
             const tablesToRestore = getOrderedTables(backupTables);
 
+            // Insert data in order (parents first)
             for (const tableName of tablesToRestore) {
                 const rows = data[tableName];
-                if (!rows || !Array.isArray(rows) || rows.length === 0) continue;
+                if (rows && rows.length > 0) {
+                    console.log(`Restoring ${tableName}: ${rows.length} rows`);
+                    // Insert in chunks to avoid query size limits
+                    const chunkSize = 1000;
+                    for (let i = 0; i < rows.length; i += chunkSize) {
+                        const chunk = rows.slice(i, i + chunkSize);
 
-                // Check if table still exists (it should)
-                if (!currentTables.includes(tableName)) continue;
-
-                for (const row of rows) {
-                    const cols = Object.keys(row);
-                    const placeholders = cols.map((_, i) => `$${i + 1}`);
-                    const values = Object.values(row);
-
-                    try {
-                        await sql.unsafe(
-                            `INSERT INTO "${tableName}" (${cols.map(c => `"${c}"`).join(', ')}) VALUES (${placeholders.join(', ')})`,
-                            // @ts-ignore
-                            values
-                        );
-                    } catch (insertError: any) {
-                        console.warn(`Warning inserting into ${tableName}:`, insertError.message);
+                        // We must ensure columns match exactly what's in the rows
+                        // Since we are restoring, we can assume all rows in a table have the same structure (from backup)
+                        if (chunk.length > 0) {
+                            const columns = Object.keys(chunk[0]);
+                            await sql`
+                                INSERT INTO ${sql(tableName)} ${sql(chunk, columns)}
+                            `;
+                        }
                     }
                 }
             }
 
+            // 2. Extraer imágenes (SOLO SI ES ZIP)
+            if (isZip && zip) {
+                // El ZIP contiene "uploads/notes/..." como estructura de carpetas.
+                // Al extraer en process.cwd() (/app), se colocarán en /app/uploads/notes/...
+                // database_dump.json también se extraerá en /app, pero no molesta.
+                console.log(`Extracting ZIP contents to ${process.cwd()}...`);
+                try {
+                    zip.extractAllTo(process.cwd(), true);
+                    console.log('Images restored successfully');
+                } catch (e: any) {
+                    console.error('Error extracting ZIP images:', e);
+                }
+            }
+            console.log('Restore completed successfully');
             try {
                 await sql.unsafe('SET session_replication_role = DEFAULT;');
             } catch (e) { }
 
-            return {
-                success: true,
-                message: `Base de datos restaurada. ${tablesToRestore.length} tablas procesadas.`,
-                tablesRestored: tablesToRestore
-            };
+            return { success: true, message: 'Restauración completada con éxito' };
+
         } catch (error: any) {
-            try { await sql.unsafe('SET session_replication_role = DEFAULT;'); } catch (e) { }
             console.error('Restore failed:', error);
-            throw new Error(`Error al restaurar: ${error.message}`);
+            throw new Error(`Error en la restauración: ${error.message}`);
         }
-    }, {
-        body: t.Object({
-            metadata: t.Object({
-                version: t.String(),
-                createdAt: t.String(),
-                tables: t.Array(t.String())
-            }),
-            data: t.Record(t.String(), t.Array(t.Any()))
-        })
     })
     .post('/backup/restore-sql', async ({ body }) => {
         // @ts-ignore

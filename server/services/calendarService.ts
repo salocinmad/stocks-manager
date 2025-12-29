@@ -39,7 +39,7 @@ export const CalendarService = {
 
     // Sync financial events for all tickers in user's portfolio
     async syncUserEvents(userId: string): Promise<number> {
-        console.log(`[Calendar] Syncing events for user ${userId}`);
+
         let synced = 0;
 
         // Get all tickers from user's portfolios
@@ -91,7 +91,7 @@ export const CalendarService = {
             }
         }
 
-        console.log(`[Calendar] Synced ${synced} events for user ${userId}`);
+
         return synced;
     },
 

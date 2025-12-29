@@ -26,8 +26,8 @@ export const aiRoutes = new Elysia({ prefix: '/ai' })
     .post('/chat', async ({ userId, body }) => {
         // @ts-ignore
         const { messages } = body;
-        const answer = await AIService.chatWithBot(userId, messages);
-        return { answer };
+        const response = await AIService.chatWithBot(userId, messages);
+        return { answer: response };
     }, {
         body: t.Object({
             messages: t.Array(t.Object({

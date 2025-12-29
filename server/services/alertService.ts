@@ -7,11 +7,11 @@ import { NotificationService } from './notificationService';
 export const AlertService = {
     // Check all active alerts (supports price, percent_change, volume types)
     checkAlerts: async () => {
-        console.log('Running Alert Service check...');
+
 
         // Fetch active alerts (include repeatable ones that may have been triggered before)
         const alerts = await sql`
-            SELECT a.*, a.deactivation_token, u.email 
+            SELECT a.*, u.email 
             FROM alerts a
             JOIN users u ON a.user_id = u.id
             WHERE a.is_active = true 
@@ -25,7 +25,7 @@ export const AlertService = {
         `;
 
         if (alerts.length > 0) {
-            console.log(`Checking ${alerts.length} active alerts...`);
+
         } else {
             return;
         }
@@ -89,7 +89,7 @@ export const AlertService = {
             }
 
             if (conditionMet) {
-                console.log(`Alert triggered for ${alert.ticker} (type: ${alertType})`);
+
 
                 const companyName = quote.name || alert.ticker;
 
@@ -187,7 +187,7 @@ export const AlertService = {
 
         try {
             await transporter.sendMail(mailOptions);
-            console.log(`Email sent to ${to} for ${alert.ticker}`);
+
         } catch (error) {
             console.error('Error sending alert email:', error);
         }

@@ -106,7 +106,7 @@ export const SettingsService = {
     // Cargar todo a process.env (Boot Loader)
     loadToEnv: async () => {
         try {
-            console.log('Loading settings from DB to process.env...');
+
             const settings = await sql`SELECT key, value, is_encrypted FROM system_settings`;
 
             for (const s of settings) {
@@ -120,7 +120,7 @@ export const SettingsService = {
                     process.env[s.key] = val;
                 }
             }
-            console.log(`Loaded ${settings.length} settings to environment.`);
+
         } catch (error) {
             console.error('Error loading settings to env:', error);
             // No lanzar throw para no detener el arranque si la tabla está vacía

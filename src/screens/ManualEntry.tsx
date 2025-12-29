@@ -50,9 +50,7 @@ export const ManualEntry: React.FC = () => {
   const loadPortfolios = useCallback(async () => {
     setLoadingPortfolios(true);
     try {
-      console.log('Loading portfolios...');
-      const { data } = await api.get('/portfolios');
-      console.log('Portfolios loaded:', data);
+
 
       if (Array.isArray(data)) {
         setPortfolios(data);

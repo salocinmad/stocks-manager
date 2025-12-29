@@ -153,6 +153,18 @@ export async function initDatabase() {
     // Crear índice para búsquedas rápidas por ticker y rango de fechas
     await sql`CREATE INDEX IF NOT EXISTS idx_historical_ticker_date ON historical_data(ticker, date)`;
 
+    // 9. Position Notes (Rich Markdown notes for positions)
+    await sql`
+      CREATE TABLE IF NOT EXISTS position_notes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        position_id UUID NOT NULL REFERENCES positions(id) ON DELETE CASCADE,
+        content TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(position_id)
+      )
+    `;
+
     console.log('Database schema is ready.');
 
     // 6. Asegurar que los usuarios existentes tengan al menos un portfolio

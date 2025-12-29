@@ -15,6 +15,7 @@ import { notificationRoutes } from './routes/notifications';
 import { calendarRoutes } from './routes/calendar';
 import { publicRoutes } from './routes/public';
 import { chatRoutes } from './routes/chat';
+import { notesRoutes } from './routes/notes';
 import { initDatabase } from './init_db';
 import { SettingsService } from './services/settingsService';
 import { AlertService } from './services/alertService';
@@ -22,6 +23,7 @@ import { MarketDataService } from './services/marketData';
 import { schedulePnLJob, calculatePnLForAllPortfolios } from './jobs/pnlJob';
 
 // Initialize DB and load settings
+console.log("!!! SERVER STARTUP CHECK - v1 !!!");
 await initDatabase();
 await SettingsService.loadToEnv();
 
@@ -89,7 +91,11 @@ const getMimeType = (path: string): string => {
     return mimeTypes[ext] || 'application/octet-stream';
 };
 
-const app = new Elysia()
+const app = new Elysia({
+    serve: {
+        maxRequestBodySize: 1024 * 1024 * 100 // 100MB
+    }
+})
     .use(cors())
     .use(swagger())
     .onError(({ code, error }) => {
@@ -111,10 +117,21 @@ const app = new Elysia()
         .use(notificationRoutes)
         .use(calendarRoutes)
         .use(chatRoutes)
+        .use(notesRoutes)
         .use(publicRoutes)
         .get('/health', () => ({ status: 'ok', version: '1.0.0' }))
     )
-    // 2. Servir archivos estáticos explícitamente (JS, CSS, recursos)
+    // 2. Servir imágenes de notas desde /uploads
+    .get('/api/uploads/notes/:filename', async ({ params }) => {
+        const file = Bun.file(`uploads/notes/${params.filename}`);
+        if (await file.exists()) {
+            const ext = params.filename.split('.').pop() || 'png';
+            const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
+            return new Response(file, { headers: { 'Content-Type': mimeMap[ext] || 'application/octet-stream' } });
+        }
+        return new Response('Not found', { status: 404 });
+    })
+    // 3. Servir archivos estáticos explícitamente (JS, CSS, recursos)
     .get('/:filename', async ({ params }) => {
         const filename = params.filename;
         const filePath = `dist/${filename}`;

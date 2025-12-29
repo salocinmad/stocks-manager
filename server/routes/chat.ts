@@ -29,7 +29,7 @@ export const chatRoutes = new Elysia({ prefix: '/chat' })
 
     // Get all conversations for user (sorted by most recent)
     .get('/conversations', async ({ userId }) => {
-        console.log('Fetching conversations for userId:', userId);
+
         const conversations = await sql`
             SELECT 
                 c.id, 
@@ -146,7 +146,8 @@ export const chatRoutes = new Elysia({ prefix: '/chat' })
         // Get AI response
         let aiResponse: string;
         try {
-            aiResponse = await AIService.chatWithBot(userId, history);
+            const response = await AIService.chatWithBot(userId, body.messages);
+            aiResponse = response; // Assign response to aiResponse
         } catch (error) {
             console.error('AI Error:', error);
             aiResponse = 'Lo siento, hubo un problema al procesar tu mensaje. Intenta de nuevo.';

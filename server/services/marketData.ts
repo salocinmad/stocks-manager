@@ -522,21 +522,48 @@ export const MarketDataService = {
     },
 
     // Obtener historial detallado (caché en DB) para IA
-    async getDetailedHistory(ticker: string, years: number = 2): Promise<any[]> {
-        const symbol = ticker.toUpperCase();
+    // ESTRATEGIA: "Fresh or Fallback"
+    // 1. Intentar DB Fresca
+    // 2. Si falla/viejo -> Yahoo
+    // 3. Si falla Yahoo -> DB (Last Resort)
+    async getKnownTickers(): Promise<string[]> {
         try {
-            // 1. Verificar frescura de datos en DB
+            // Fetch distinct tickers from all relevant tables
+            // We use UNION to combine and remove duplicates automatically
+            const result = await sql`
+                SELECT DISTINCT ticker FROM historical_data WHERE ticker IS NOT NULL
+                UNION
+                SELECT DISTINCT ticker FROM positions WHERE ticker IS NOT NULL
+                UNION
+                SELECT DISTINCT symbol as ticker FROM watchlists WHERE symbol IS NOT NULL
+                UNION
+                SELECT DISTINCT ticker FROM alerts WHERE ticker IS NOT NULL
+            `;
+            const tickers = result.map(r => r.ticker as string);
+
+            return tickers;
+        } catch (error) {
+            console.error('Error fetching known tickers:', error);
+            return [];
+        }
+    },
+
+    async getDetailedHistory(ticker: string, years: number = 1): Promise<any[]> {
+        const symbol = ticker.trim().toUpperCase();
+
+
+        try {
+            // 1. Check DB Freshness
             const lastUpdateResult = await sql`
                 SELECT MAX(date) as last_date FROM historical_data WHERE ticker = ${symbol}
             `;
             const lastDate = lastUpdateResult[0]?.last_date ? new Date(lastUpdateResult[0].last_date) : null;
 
+
             const thresholdDate = new Date();
             thresholdDate.setDate(thresholdDate.getDate() - 2);
 
             if (lastDate && lastDate >= thresholdDate) {
-                // Datos frescos, leer de DB
-                // Calcular fecha de corte en JS para evitar problemas de tipos con INTERVAL $2
                 const msInYear = 365.25 * 24 * 60 * 60 * 1000;
                 const cutoffDate = new Date(Date.now() - (years * msInYear));
 
@@ -547,12 +574,18 @@ export const MarketDataService = {
                     AND date >= ${cutoffDate}
                     ORDER BY date ASC
                 `;
-                if (dataFromDb.length > 0) return dataFromDb;
+
+                if (dataFromDb.length > 0) {
+
+                    return dataFromDb;
+                }
+                console.warn(`[MarketData] DB appeared fresh but returned 0 rows. Falling through to Yahoo.`);
+            } else {
+
             }
 
-            // 2. Si no hay datos o son viejos, descargar de Yahoo
+            // 2. Fetch Yahoo
             const period1 = new Date();
-            // Calcular fecha de inicio restando 'years' en milisegundos (para soportar decimales como 1/12)
             const msInYear = 365.25 * 24 * 60 * 60 * 1000;
             period1.setTime(Date.now() - (years * msInYear));
 
@@ -563,9 +596,12 @@ export const MarketDataService = {
             });
             const results = chartResult?.quotes || [];
 
-            if (!results || results.length === 0) return [];
 
-            // 3. Guardar en DB (Upsert) - Inserción fila por fila para compatibilidad de tipos
+            if (!results || results.length === 0) {
+                throw new Error("Yahoo returned empty results");
+            }
+
+            // 3. Upsert DB
             const rowsToInsert = results.map((r: any) => ({
                 ticker: symbol,
                 date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : new Date(r.date).toISOString().split('T')[0],
@@ -576,11 +612,9 @@ export const MarketDataService = {
                 volume: Math.round(Number(r.volume) || 0)
             }));
 
-            // Insertar en bloques pequeños usando transacción
             const batchSize = 100;
             for (let i = 0; i < rowsToInsert.length; i += batchSize) {
                 const batch = rowsToInsert.slice(i, i + batchSize);
-                // Usar Promise.all para insertar en paralelo dentro del batch
                 await Promise.all(batch.map(row =>
                     sql`
                         INSERT INTO historical_data (ticker, date, open, high, low, close, volume)
@@ -599,15 +633,27 @@ export const MarketDataService = {
             return rowsToInsert;
 
         } catch (e) {
-            console.error(`Error en getDetailedHistory para ${symbol}:`, e);
+            console.error(`[MarketData] Primary fetch failed for ${symbol}:`, e);
+
+            // 4. LAST RESORT FALLBACK
             try {
-                return await sql`
+                const fallbackData = await sql`
                     SELECT date, open, high, low, close, volume 
                     FROM historical_data 
                     WHERE ticker = ${symbol} 
                     ORDER BY date ASC
                 `;
+
+                if (fallbackData.length > 0) {
+
+                    return fallbackData;
+                }
+
+                console.warn(`[MarketData] SAFETY NET FAILED: No local data found for ${symbol}`);
+                return [];
+
             } catch (dbErr) {
+                console.error(`[MarketData] CRITICAL: Fallback DB query failed for ${symbol}`, dbErr);
                 return [];
             }
         }

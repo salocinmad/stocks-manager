@@ -108,7 +108,7 @@ export const NotificationService = {
 
             if (channels.length === 0) return;
 
-            console.log(`Dispatching notification for users ${userId} via ${channels.length} channels.`);
+
 
             // 2. Formatting
             // Telegram supports basic HTML. Discord Markdown. Teams HTML-ish.
