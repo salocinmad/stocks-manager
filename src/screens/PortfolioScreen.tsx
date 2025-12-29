@@ -28,6 +28,7 @@ interface Position {
   name?: string;
   currentValueEUR?: number;
   costBasisEUR?: number;
+  lastUpdated?: number;
 }
 
 interface Portfolio {
@@ -194,7 +195,9 @@ export const PortfolioScreen: React.FC = () => {
               const changePercent = quote?.dp || 0;
               const qty = Number(pos.quantity) || 0;
               const avgPrice = Number(pos.average_buy_price) || 0;
+
               const name = quote?.name || pos.ticker;
+              const lastUpdated = quote?.lastUpdated || 0;
               const currency = pos.currency || 'USD'; // Fallback a USD si no hay moneda
 
               const rate = currency === 'EUR' ? 1 : (exchangeRates[currency] || 1);
@@ -219,7 +222,10 @@ export const PortfolioScreen: React.FC = () => {
                 returnPct,
                 change,
                 changePercent,
-                name
+                change,
+                changePercent,
+                name,
+                lastUpdated
               };
             } catch (e) {
               console.error(`[Portfolio] Error fetching quote for ${pos.ticker}:`, e);
@@ -630,320 +636,328 @@ export const PortfolioScreen: React.FC = () => {
                                 {formatPrice(pos.average_buy_price, pos.currency)}
                               </td>
                               <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                                <div className="flex flex-col items-end">
-                                  <span className="font-bold text-base text-text-primary-light dark:text-white">
-                                    {pos.currentPrice ? formatPrice(pos.currentPrice, pos.currency) : '---'}
-                                  </span>
+                              </div>
+                            </td>
                                   {(pos.change !== undefined && pos.changePercent !== undefined) && (
-                                    <div className={`flex items-center gap-1 text-xs font-bold leading-none mt-1 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
-                                      <span className="material-symbols-outlined text-[20px] font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>{(pos.change >= 0) ? 'arrow_drop_up' : 'arrow_drop_down'}</span>
-                                      <span>{formatChange(pos.change, pos.changePercent)}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right font-bold text-base">
-                                {pos.currentValue ? pos.currentValue.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) : '---'}
-                              </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                                <div className={`flex flex-col items-end justify-center px-3 py-1.5 rounded-lg border w-fit ml-auto transition-all ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
-                                  <span className="font-bold">{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
-                                  <span className="text-xs opacity-90 font-medium">
-                                    {((pos.currentValue || 0) - (pos.quantity * pos.average_buy_price)).toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30">
-                                <div className="flex items-center justify-center gap-1">
-                                  <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Crear Alerta de Precio">
-                                    <span className="material-symbols-outlined text-lg">notifications_active</span>
-                                  </button>
-                                  <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
-                                    <span className="material-symbols-outlined text-lg">edit</span>
-                                  </button>
-                                  <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar posición">
-                                    <span className="material-symbols-outlined text-lg">delete</span>
-                                  </button>
-                                </div>
-                              </td>
-                            </SortableRow>
+                              <div className={`flex items-center gap-1 text-xs font-bold leading-none mt-1 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
+                                <span className="material-symbols-outlined text-[20px] font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>{(pos.change >= 0) ? 'arrow_drop_up' : 'arrow_drop_down'}</span>
+                                <span>{formatChange(pos.change, pos.changePercent)}</span>
+                              </div>
+                            )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right font-bold text-base">
+                        {pos.currentValue ? pos.currentValue.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) : '---'}
+                      </td>
+                      <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                        <div className={`flex flex-col items-end justify-center px-3 py-1.5 rounded-lg border w-fit ml-auto transition-all ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
+                          <span className="font-bold">{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
+                          <span className="text-xs opacity-90 font-medium">
+                            {((pos.currentValue || 0) - (pos.quantity * pos.average_buy_price)).toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30">
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Crear Alerta de Precio">
+                            <span className="material-symbols-outlined text-lg">notifications_active</span>
+                          </button>
+                          <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
+                            <span className="material-symbols-outlined text-lg">edit</span>
+                          </button>
+                          <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar posición">
+                            <span className="material-symbols-outlined text-lg">delete</span>
+                          </button>
+                        </div>
+                      </td>
+                    </SortableRow>
                           ))}
-                        </tbody>
-                      </SortableContext>
-                    </table>
+                  </tbody>
+                </SortableContext>
+              </table>
                   </DndContext>
-                </div>
+        </div>
 
-                {/* Resumen Final Superior */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-                  <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
-                    <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Valor Total</p>
-                    <p className="text-3xl font-black text-text-primary-light dark:text-white">
-                      {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
-                    </p>
-                  </div>
-                  <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
-                    <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Inversión Coste</p>
-                    <p className="text-3xl font-black text-text-primary-light dark:text-white">
-                      {positions.reduce((sum, p) => sum + (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
-                    </p>
-                  </div>
-                  <div className={`p-6 rounded-3xl border ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
-                    ? 'bg-green-500/5 border-green-500/20'
-                    : 'bg-red-500/5 border-red-500/20'
-                    }`}>
-                    <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Ganancia Total</p>
-                    <div className="flex flex-col">
-                      <p className={`text-3xl font-black ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
-                        ? 'text-green-500'
-                        : 'text-red-500'
-                        }`}>
-                        {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+        {/* Resumen Final Superior */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+          <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
+            <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Valor Total</p>
+            <p className="text-3xl font-black text-text-primary-light dark:text-white">
+              {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+            </p>
+          </div>
+          <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
+            <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Inversión Coste</p>
+            <p className="text-3xl font-black text-text-primary-light dark:text-white">
+              {positions.reduce((sum, p) => sum + (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+            </p>
+          </div>
+          <div className={`p-6 rounded-3xl border ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
+            ? 'bg-green-500/5 border-green-500/20'
+            : 'bg-red-500/5 border-red-500/20'
+            }`}>
+            <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Ganancia Total</p>
+            <div className="flex flex-col">
+              <p className={`text-3xl font-black ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
+                ? 'text-green-500'
+                : 'text-red-500'
+                }`}>
+                {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+              </p>
+            </div>
           </div>
         </div>
       </div>
-      {/* Modal de Confirmación de Borrado */}
-      {portfolioToDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200">
-            <div className="size-16 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-6">
-              <span className="material-symbols-outlined text-4xl">warning</span>
-            </div>
-            <h3 className="text-2xl font-bold mb-3 tracking-tight">¿Eliminar cartera?</h3>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark mb-8 leading-relaxed">
-              Estás a punto de eliminar <strong>"{portfolioToDelete.name}"</strong>. Esta acción borrará permanentemente todos los activos y operaciones asociados a esta cartera.
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setPortfolioToDelete(null)}
-                className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-6 py-4 rounded-2xl bg-red-500 text-white font-bold hover:bg-red-600 transition-all active:scale-95 shadow-lg shadow-red-500/20"
-              >
-                Eliminar todo
-              </button>
-            </div>
-          </div>
+            )}
+    </div>
+        </div >
+      </div >
+  {/* Modal de Confirmación de Borrado */ }
+{
+  portfolioToDelete && (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
+      <div className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+        <div className="size-16 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-6">
+          <span className="material-symbols-outlined text-4xl">warning</span>
         </div>
-      )}
-      {/* Modal de Creación de Cartera */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
-          <form
-            onSubmit={handleCreatePortfolio}
-            className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200"
+        <h3 className="text-2xl font-bold mb-3 tracking-tight">¿Eliminar cartera?</h3>
+        <p className="text-text-secondary-light dark:text-text-secondary-dark mb-8 leading-relaxed">
+          Estás a punto de eliminar <strong>"{portfolioToDelete.name}"</strong>. Esta acción borrará permanentemente todos los activos y operaciones asociados a esta cartera.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={() => setPortfolioToDelete(null)}
+            className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
           >
-            <div className="size-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6">
-              <span className="material-symbols-outlined text-4xl">add_business</span>
-            </div>
-            <h3 className="text-2xl font-bold mb-2 tracking-tight">Nueva Cartera</h3>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark mb-8 text-sm leading-relaxed">
-              Organiza tus activos en diferentes carteras para un mejor seguimiento.
-            </p>
-
-            <div className="flex flex-col gap-2 mb-8">
-              <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4">Nombre de la Cartera</label>
-              <input
-                autoFocus
-                type="text"
-                placeholder="Ej: Inversión a Largo Plazo"
-                className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all"
-                value={newPortfolioName}
-                onChange={(e) => setNewPortfolioName(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isCreating || !newPortfolioName.trim()}
-                className="px-6 py-4 rounded-2xl bg-primary text-black font-bold hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-primary/20 disabled:opacity-50"
-              >
-                {isCreating ? 'Creando...' : 'Crear Cartera'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Modal Confirmar Eliminar Posición */}
-      {positionToDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-red-500 text-2xl">delete</span>
-              </div>
-              <h3 className="text-xl font-bold">Eliminar Posición</h3>
-            </div>
-            <p className="text-text-secondary-light mb-6">
-              ¿Estás seguro de eliminar <strong className="text-text-primary-light dark:text-white">{positionToDelete.ticker}</strong>?
-              Esta acción eliminará la posición <strong>y todas sus transacciones</strong> de forma permanente.
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setPositionToDelete(null)}
-                className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeletePosition}
-                className="px-6 py-4 rounded-2xl bg-red-500 text-white font-bold hover:bg-red-600 transition-all shadow-lg"
-              >
-                Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Editar Posición */}
-      {positionToEdit && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-primary text-2xl">edit</span>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold">Editar Posición</h3>
-                <p className="text-sm text-text-secondary-light">{positionToEdit.ticker}</p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 mb-6">
-              <div>
-                <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                  Cantidad
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={editQuantity}
-                  onChange={(e) => setEditQuantity(e.target.value)}
-                  className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
-                  placeholder="Cantidad de acciones"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                  Precio Medio de Compra ({positionToEdit.currency})
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={editPrice}
-                  onChange={(e) => setEditPrice(e.target.value)}
-                  className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
-                  placeholder="Precio medio"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => {
-                  setPositionToEdit(null);
-                  setEditQuantity('');
-                  setEditPrice('');
-                }}
-                className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleUpdatePosition}
-                className="px-6 py-4 rounded-2xl bg-primary text-black font-bold hover:opacity-90 transition-all shadow-lg shadow-primary/20"
-              >
-                Guardar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Crear Alerta */}
-      {positionToAlert && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
-          <form
-            onSubmit={handleCreateAlert}
-            className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200"
+            Cancelar
+          </button>
+          <button
+            onClick={handleDelete}
+            className="px-6 py-4 rounded-2xl bg-red-500 text-white font-bold hover:bg-red-600 transition-all active:scale-95 shadow-lg shadow-red-500/20"
           >
-            <div className="size-16 rounded-2xl bg-yellow-500/10 text-yellow-500 flex items-center justify-center mb-6">
-              <span className="material-symbols-outlined text-4xl font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
-            </div>
-            <h3 className="text-2xl font-bold mb-2 tracking-tight">Crear Alerta</h3>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark mb-6 text-sm">
-              Recibirás una notificación cuando <strong>{positionToAlert.ticker}</strong> cumpla la condición.
-            </p>
-
-            <div className="flex flex-col gap-4 mb-8">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4 mb-2 block">Condición</label>
-                <select
-                  value={alertCondition}
-                  onChange={e => setAlertCondition(e.target.value as 'above' | 'below')}
-                  className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all appearance-none cursor-pointer"
-                >
-                  <option value="below">Precio menor que</option>
-                  <option value="above">Precio mayor que</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4 mb-2 block">Precio Objetivo ({positionToAlert.currency})</label>
-                <input
-                  autoFocus
-                  type="number"
-                  step="any"
-                  placeholder="0.00"
-                  className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all"
-                  value={alertTargetPrice}
-                  onChange={(e) => setAlertTargetPrice(e.target.value)}
-                />
-                <p className="text-xs text-text-secondary-light mt-2 ml-4">
-                  Precio actual: <strong>{positionToAlert.currentPrice ? formatPrice(positionToAlert.currentPrice, positionToAlert.currency) : '---'}</strong>
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setPositionToAlert(null)}
-                className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isCreatingAlert || !alertTargetPrice}
-                className="px-6 py-4 rounded-2xl bg-yellow-400 text-black font-bold hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-yellow-400/20 disabled:opacity-50"
-              >
-                {isCreatingAlert ? 'Creando...' : 'Crear Alerta'}
-              </button>
-            </div>
-          </form>
+            Eliminar todo
+          </button>
         </div>
-      )}
-    </main>
+      </div>
+    </div>
+  )
+}
+{/* Modal de Creación de Cartera */ }
+{
+  showCreateModal && (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
+      <form
+        onSubmit={handleCreatePortfolio}
+        className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200"
+      >
+        <div className="size-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6">
+          <span className="material-symbols-outlined text-4xl">add_business</span>
+        </div>
+        <h3 className="text-2xl font-bold mb-2 tracking-tight">Nueva Cartera</h3>
+        <p className="text-text-secondary-light dark:text-text-secondary-dark mb-8 text-sm leading-relaxed">
+          Organiza tus activos en diferentes carteras para un mejor seguimiento.
+        </p>
+
+        <div className="flex flex-col gap-2 mb-8">
+          <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4">Nombre de la Cartera</label>
+          <input
+            autoFocus
+            type="text"
+            placeholder="Ej: Inversión a Largo Plazo"
+            className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all"
+            value={newPortfolioName}
+            onChange={(e) => setNewPortfolioName(e.target.value)}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(false)}
+            className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={isCreating || !newPortfolioName.trim()}
+            className="px-6 py-4 rounded-2xl bg-primary text-black font-bold hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-primary/20 disabled:opacity-50"
+          >
+            {isCreating ? 'Creando...' : 'Crear Cartera'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+{/* Modal Confirmar Eliminar Posición */ }
+{
+  positionToDelete && (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+            <span className="material-symbols-outlined text-red-500 text-2xl">delete</span>
+          </div>
+          <h3 className="text-xl font-bold">Eliminar Posición</h3>
+        </div>
+        <p className="text-text-secondary-light mb-6">
+          ¿Estás seguro de eliminar <strong className="text-text-primary-light dark:text-white">{positionToDelete.ticker}</strong>?
+          Esta acción eliminará la posición <strong>y todas sus transacciones</strong> de forma permanente.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={() => setPositionToDelete(null)}
+            className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleDeletePosition}
+            className="px-6 py-4 rounded-2xl bg-red-500 text-white font-bold hover:bg-red-600 transition-all shadow-lg"
+          >
+            Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+{/* Modal Editar Posición */ }
+{
+  positionToEdit && (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <span className="material-symbols-outlined text-primary text-2xl">edit</span>
+          </div>
+          <div>
+            <h3 className="text-xl font-bold">Editar Posición</h3>
+            <p className="text-sm text-text-secondary-light">{positionToEdit.ticker}</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4 mb-6">
+          <div>
+            <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
+              Cantidad
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={editQuantity}
+              onChange={(e) => setEditQuantity(e.target.value)}
+              className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+              placeholder="Cantidad de acciones"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
+              Precio Medio de Compra ({positionToEdit.currency})
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={editPrice}
+              onChange={(e) => setEditPrice(e.target.value)}
+              className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+              placeholder="Precio medio"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={() => {
+              setPositionToEdit(null);
+              setEditQuantity('');
+              setEditPrice('');
+            }}
+            className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleUpdatePosition}
+            className="px-6 py-4 rounded-2xl bg-primary text-black font-bold hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+{/* Modal Crear Alerta */ }
+{
+  positionToAlert && (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
+      <form
+        onSubmit={handleCreateAlert}
+        className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200"
+      >
+        <div className="size-16 rounded-2xl bg-yellow-500/10 text-yellow-500 flex items-center justify-center mb-6">
+          <span className="material-symbols-outlined text-4xl font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
+        </div>
+        <h3 className="text-2xl font-bold mb-2 tracking-tight">Crear Alerta</h3>
+        <p className="text-text-secondary-light dark:text-text-secondary-dark mb-6 text-sm">
+          Recibirás una notificación cuando <strong>{positionToAlert.ticker}</strong> cumpla la condición.
+        </p>
+
+        <div className="flex flex-col gap-4 mb-8">
+          <div>
+            <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4 mb-2 block">Condición</label>
+            <select
+              value={alertCondition}
+              onChange={e => setAlertCondition(e.target.value as 'above' | 'below')}
+              className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all appearance-none cursor-pointer"
+            >
+              <option value="below">Precio menor que</option>
+              <option value="above">Precio mayor que</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4 mb-2 block">Precio Objetivo ({positionToAlert.currency})</label>
+            <input
+              autoFocus
+              type="number"
+              step="any"
+              placeholder="0.00"
+              className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all"
+              value={alertTargetPrice}
+              onChange={(e) => setAlertTargetPrice(e.target.value)}
+            />
+            <p className="text-xs text-text-secondary-light mt-2 ml-4">
+              Precio actual: <strong>{positionToAlert.currentPrice ? formatPrice(positionToAlert.currentPrice, positionToAlert.currency) : '---'}</strong>
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => setPositionToAlert(null)}
+            className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={isCreatingAlert || !alertTargetPrice}
+            className="px-6 py-4 rounded-2xl bg-yellow-400 text-black font-bold hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-yellow-400/20 disabled:opacity-50"
+          >
+            {isCreatingAlert ? 'Creando...' : 'Crear Alerta'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+    </main >
   );
 };

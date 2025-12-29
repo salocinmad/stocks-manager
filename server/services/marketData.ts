@@ -66,6 +66,7 @@ export interface QuoteResult {
     industry?: string;   // Industria específica
     volume?: number;     // Current volume
     averageVolume?: number; // Average volume (10-day or 3-month)
+    lastUpdated?: number; // Timestamp of the data
 }
 
 export const MarketDataService = {
@@ -162,7 +163,8 @@ export const MarketDataService = {
                 currency: quote.currency || 'USD',
                 name: quote.longName || quote.shortName || ticker,
                 volume: quote.regularMarketVolume || 0,
-                averageVolume: quote.averageDailyVolume10Day || quote.averageDailyVolume3Month || 0
+                averageVolume: quote.averageDailyVolume10Day || quote.averageDailyVolume3Month || 0,
+                lastUpdated: Date.now()
             };
 
             setCache(cacheKey, result, TTL.QUOTE);
