@@ -231,109 +231,114 @@ export const MarketDataService = {
         }
     },
 
-    // Obtener noticias en español usando Yahoo Finance
+    // Obtener noticias combinadas de Investing.com (Bolsa, Tecnología, Titulares)
     async getNews(ticker: string) {
         try {
-            // Usar yahoo-finance2 search con configuración regional española
-            const results = await yahooFinance.search(ticker, {
-                quotesCount: 1,
-                newsCount: 15,
-                // @ts-ignore - Las opciones de región existen pero pueden no estar tipadas
-                region: 'ES',
-                lang: 'es-ES'
+            const feeds = [
+                { url: 'https://es.investing.com/rss/news_25.rss', label: 'Bolsa' },
+                { url: 'https://es.investing.com/rss/news.rss', label: 'Titulares' }, // "Todas las noticias" as Headlines fallback
+                { url: 'https://es.investing.com/rss/news_288.rss', label: 'Tecnología' }
+            ];
+
+            const promises = feeds.map(async (feed) => {
+                try {
+                    const response = await fetch(feed.url, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                        }
+                    });
+
+                    if (!response.ok) return [];
+                    const xmlText = await response.text();
+
+                    const items: any[] = [];
+                    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+                    const matches = xmlText.match(itemRegex);
+
+                    if (matches) {
+                        for (let i = 0; i < matches.length; i++) {
+                            const itemXml = matches[i];
+
+                            const titleMatch = itemXml.match(/<title>(.*?)<\/title>/);
+                            const linkMatch = itemXml.match(/<link>(.*?)<\/link>/);
+                            const pubDateMatch = itemXml.match(/<pubDate>(.*?)<\/pubDate>/);
+                            const sourceMatch = itemXml.match(/<author>(.*?)<\/author>/);
+                            const enclosureMatch = itemXml.match(/<enclosure[^>]*url="([^"]+)"/);
+
+                            let title = titleMatch ? titleMatch[1] : '';
+                            title = title.replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '');
+
+                            const url = linkMatch ? linkMatch[1] : '';
+                            const pubDateStr = pubDateMatch ? pubDateMatch[1] : '';
+                            let source = sourceMatch ? sourceMatch[1] : 'Investing.com';
+
+                            let image = '';
+                            if (enclosureMatch && enclosureMatch[1]) {
+                                image = enclosureMatch[1];
+                            }
+
+                            // Use raw string for sorting as requested (works for YYYY-MM-DD HH:mm:ss)
+                            const rawDate = pubDateStr || '';
+
+                            // Best-effort timestamp for frontend display
+                            let datetime = Math.floor(Date.now() / 1000);
+                            if (rawDate) {
+                                // Simple parse attempt, fallback to now
+                                const millis = Date.parse(rawDate.replace(' ', 'T'));
+                                if (!isNaN(millis)) datetime = Math.floor(millis / 1000);
+                            }
+
+                            if (title && url) {
+                                items.push({
+                                    id: Date.now() + Math.random(),
+                                    headline: title,
+                                    url: url,
+                                    datetime: datetime, // For frontend display
+                                    rawDate: rawDate,   // For backend sorting
+                                    source: source,
+                                    summary: title,
+                                    image: image,
+                                    category: 'finance',
+                                    related: feed.label
+                                });
+                            }
+                        }
+                    }
+                    return items;
+                } catch (err) {
+                    console.error(`Error fetching feed ${feed.label}:`, err);
+                    return [];
+                }
             });
 
-            // Mapear las noticias al formato esperado
-            const newsItems = (results.news || []).map((article: any, index: number) => {
-                // Yahoo Finance incluye thumbnail en las noticias
-                // Solo usamos imagen si viene de Yahoo Finance, sino dejamos vacío
-                // para que el frontend muestre el ticker como fallback visual
-                let image = '';
-                if (article.thumbnail?.resolutions?.length > 0) {
-                    const resolutions = article.thumbnail.resolutions;
-                    // Preferir resolución media o alta
-                    image = resolutions[Math.min(1, resolutions.length - 1)]?.url || '';
+            // Wait for all feeds
+            const results = await Promise.all(promises);
+            const allItems = results.flat();
+
+            // Deduplicate by URL
+            const uniqueItems: any[] = [];
+            const seenUrls = new Set();
+
+            for (const item of allItems) {
+                if (!seenUrls.has(item.url)) {
+                    seenUrls.add(item.url);
+                    uniqueItems.push(item);
                 }
-
-                return {
-                    id: Date.now() + index,
-                    headline: article.title || '',
-                    url: article.link || '',
-                    datetime: article.providerPublishTime || Math.floor(Date.now() / 1000),
-                    source: article.publisher || 'Yahoo Finance',
-                    summary: article.title || '',
-                    image, // Vacío si no hay thumbnail real
-                    category: 'finance',
-                    related: ticker
-                };
-            });
-
-            // Ordenar por fecha (más recientes primero)
-            newsItems.sort((a: any, b: any) => b.datetime - a.datetime);
-
-            return newsItems;
-        } catch (e) {
-            console.error('Yahoo Finance News Error', e);
-
-            // Fallback a Google News en español si Yahoo falla
-            try {
-                const searchQuery = encodeURIComponent(`${ticker} bolsa acciones`);
-                const rssUrl = `https://news.google.com/rss/search?q=${searchQuery}&hl=es&gl=ES&ceid=ES:es`;
-
-                const response = await fetch(rssUrl, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    }
-                });
-
-                const xmlText = await response.text();
-                const items: any[] = [];
-                const itemMatches = xmlText.match(/<item>([\s\S]*?)<\/item>/g) || [];
-
-                for (let i = 0; i < Math.min(itemMatches.length, 10); i++) {
-                    const itemXml = itemMatches[i];
-
-                    const titleMatch = itemXml.match(/<title>([\s\S]*?)<\/title>/);
-                    const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/);
-                    const pubDateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
-                    const sourceMatch = itemXml.match(/<source[^>]*>([\s\S]*?)<\/source>/);
-
-                    const cleanText = (text: string | undefined) => {
-                        if (!text) return '';
-                        return text
-                            .replace(/<!\[CDATA\[/g, '')
-                            .replace(/\]\]>/g, '')
-                            .replace(/<[^>]*>/g, '')
-                            .trim();
-                    };
-
-                    const headline = cleanText(titleMatch?.[1]);
-                    const url = linkMatch?.[1]?.trim() || '';
-                    const pubDate = pubDateMatch?.[1]?.trim() || '';
-                    const source = cleanText(sourceMatch?.[1]) || 'Google News';
-
-                    if (headline && url) {
-                        items.push({
-                            id: Date.now() + i,
-                            headline,
-                            url,
-                            datetime: Math.floor(new Date(pubDate).getTime() / 1000),
-                            source,
-                            summary: headline,
-                            image: '', // Dejar vacío para que frontend muestre ticker
-                            category: 'finance',
-                            related: ticker
-                        });
-                    }
-                }
-
-                // Ordenar cronológicamente
-                items.sort((a, b) => b.datetime - a.datetime);
-                return items;
-            } catch (e2) {
-                console.error('Google News Fallback Error', e2);
-                return [];
             }
+
+            // Sort by RAW DATE STRING (chronological)
+            // YYYY-MM-DD HH:mm:ss sorts correctly lexicographically
+            uniqueItems.sort((a, b) => {
+                if (!a.rawDate) return 1;
+                if (!b.rawDate) return -1;
+                return b.rawDate.localeCompare(a.rawDate);
+            });
+
+            return uniqueItems;
+
+        } catch (e) {
+            console.error('Investing RSS Consolidated Error', e);
+            return [];
         }
     },
 
