@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import MDEditor from '@uiw/react-md-editor';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { Header } from '../components/Header';
@@ -23,7 +24,7 @@ interface Portfolio {
 
 export const Dashboard: React.FC = () => {
   const { t } = useTranslation();
-  const { user, api } = useAuth();
+  const { user, api, token } = useAuth();
 
   const [portfolios, setPortfolios] = useState<any[]>([]);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('');
@@ -195,12 +196,37 @@ export const Dashboard: React.FC = () => {
     if (user) fetchData();
   }, [user, api, selectedPortfolioId]);
 
+
+
+  // ...
+
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
+    setInsight(''); // Clear previous insight
     try {
-      const { data } = await api.post('/ai/chat', { message: "Analiza mi portafolio actual y dame recomendaciones estratégicas." });
-      setInsight(data.answer);
+      const response = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ message: "Analiza mi portafolio actual y dame recomendaciones estratégicas." })
+      });
+
+      if (!response.body) throw new Error("No response body");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value, { stream: true });
+        setInsight(prev => (prev || '') + text);
+      }
+
     } catch (e) {
+      console.error(e);
       setInsight('Error al conectar con la IA.');
     } finally {
       setIsAnalyzing(false);
@@ -319,11 +345,17 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
+
         {/* AI Insight Result */}
         {insight && (
-          <div className="p-6 rounded-[2rem] bg-[#1a1a14] text-white border border-primary/20">
-            <h3 className="font-bold text-primary mb-2">Gemini Insight</h3>
-            <p className="whitespace-pre-wrap text-sm text-gray-300">{insight}</p>
+          <div className="p-6 rounded-[2rem] bg-[#1a1a14] text-white border border-primary/20 pb-8">
+            <h3 className="font-bold text-primary mb-4 text-lg">Gemini Insight</h3>
+            <div data-color-mode="dark">
+              <MDEditor.Markdown
+                source={insight}
+                style={{ backgroundColor: 'transparent', color: '#d1d5db', fontSize: '0.95rem' }}
+              />
+            </div>
           </div>
         )}
 

@@ -41,8 +41,7 @@ export const chatRoutes = new Elysia({ prefix: '/chat' })
             WHERE c.user_id = ${userId}
             ORDER BY c.updated_at DESC
         `;
-        console.log(`Found ${conversations.length} conversations`);
-        return conversations;
+        return [...conversations];
     })
 
     // Create new conversation
@@ -112,7 +111,7 @@ export const chatRoutes = new Elysia({ prefix: '/chat' })
         return { success: true, message: 'All conversations deleted' };
     })
 
-    // Send message and get AI response
+    // Send message and get AI response (STREAMING)
     .post('/conversations/:id/messages', async ({ userId, params, body, set }) => {
         // Verify ownership
         const [conversation] = await sql`
@@ -128,13 +127,14 @@ export const chatRoutes = new Elysia({ prefix: '/chat' })
         // @ts-ignore
         const { message } = body;
 
-        // Save user message
+        // Save user message (Synchronous)
         const [userMsg] = await sql`
             INSERT INTO chat_messages (conversation_id, role, content)
             VALUES (${params.id}, 'user', ${message})
             RETURNING id, role, content, created_at
         `;
 
+        // Get conversation history for AI context
         // Get conversation history for AI context
         const history = await sql`
             SELECT role, content as text
@@ -143,47 +143,88 @@ export const chatRoutes = new Elysia({ prefix: '/chat' })
             ORDER BY created_at ASC
         `;
 
-        // Get AI response
-        let aiResponse: string;
+        // Start AI Stream
+        let geminiStream;
         try {
-            const response = await AIService.chatWithBot(userId, body.messages);
-            aiResponse = response; // Assign response to aiResponse
-        } catch (error) {
-            console.error('AI Error:', error);
-            aiResponse = 'Lo siento, hubo un problema al procesar tu mensaje. Intenta de nuevo.';
+            geminiStream = await AIService.chatWithBotStream(userId, history);
+        } catch (error: any) {
+            console.error('[Chat] Stream start error:', error);
+
+            // Check for 429/Quota or generic error
+            const isQuota = error.message?.includes('429') || error.status === 429;
+            const errorMsg = isQuota
+                ? "⚠️ El sistema de IA está saturado momentáneamente (Límite de cuota gratuito). Por favor espera 30 segundos y vuelve a intentar."
+                : "⚠️ Error al conectar con el cerebro de la IA. Inténtalo de nuevo.";
+
+            // Return error as a simulated stream or just a 503 status
+            // Better to return status so frontend handles it, BUT frontend expects stream.
+            // Let's mimic a stream with the error message to display it in the bubble.
+
+            // return new Response(errorMsg, { status: 200 }); // Return as plain text, frontend might just display it?
+            // Actually frontend expects chunks. Let's send a fake stream.
+
+            const iterator = (async function* () {
+                yield { text: () => errorMsg };
+            })();
+            geminiStream = iterator;
         }
 
-        // Save AI response
-        const [aiMsg] = await sql`
-            INSERT INTO chat_messages (conversation_id, role, content)
-            VALUES (${params.id}, 'model', ${aiResponse})
-            RETURNING id, role, content, created_at
-        `;
+        let fullResponse = "";
 
-        // Update conversation title if it's the first user message
-        const messageCount = await sql`
-            SELECT COUNT(*) as count FROM chat_messages 
-            WHERE conversation_id = ${params.id} AND role = 'user'
-        `;
+        const stream = new ReadableStream({
+            async start(controller) {
+                try {
+                    // Send User Message metadata first as a special JSON chunk (or header-like)? 
+                    // No, frontend expects JSON OR stream. We will send ONLY text stream content.
+                    // Frontend will assume successful user msg insertion.
 
-        if (parseInt(messageCount[0].count) === 1) {
-            // Generate title from first message (first 50 chars)
-            const title = message.length > 50 ? message.substring(0, 47) + '...' : message;
-            await sql`
-                UPDATE chat_conversations 
-                SET title = ${title}, updated_at = NOW()
-                WHERE id = ${params.id}
-            `;
-        } else {
-            // Just update the timestamp
-            await sql`
-                UPDATE chat_conversations 
-                SET updated_at = NOW()
-                WHERE id = ${params.id}
-            `;
-        }
+                    for await (const chunk of geminiStream) {
+                        if (typeof chunk.text === 'function') {
+                            const text = chunk.text();
+                            fullResponse += text;
+                            controller.enqueue(new TextEncoder().encode(text));
+                        } else {
+                            console.warn('[Chat] Invalid chunk received', chunk);
+                        }
+                    }
 
-        return { userMessage: userMsg, aiMessage: aiMsg };
+                    // After stream finished, save to DB
+                    if (fullResponse) {
+                        await sql`
+                            INSERT INTO chat_messages (conversation_id, role, content)
+                            VALUES (${params.id}, 'model', ${fullResponse})
+                        `;
+
+                        // Update Conversation Meta
+                        await sql`
+                            UPDATE chat_conversations 
+                            SET updated_at = NOW()
+                            WHERE id = ${params.id}
+                        `;
+
+                        // Update Title if it was the first message
+                        const messageCount = await sql`SELECT COUNT(*) as count FROM chat_messages WHERE conversation_id = ${params.id} AND role = 'user'`;
+                        if (parseInt(messageCount[0].count) === 1) {
+                            const title = message.length > 50 ? message.substring(0, 47) + '...' : message;
+                            await sql`UPDATE chat_conversations SET title = ${title} WHERE id = ${params.id}`;
+                        }
+                    }
+
+                } catch (e) {
+                    console.error("Stream Error", e);
+                    controller.enqueue(new TextEncoder().encode("\n[Error de conexión con IA]"));
+                } finally {
+                    controller.close();
+                }
+            }
+        });
+
+        // Return raw text stream. 
+        // Note: Frontend needs to verify success of User Msg via seeing the stream start.
+        return new Response(stream, {
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
+
     }, {
         body: t.Object({
             message: t.String()

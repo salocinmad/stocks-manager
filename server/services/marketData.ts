@@ -318,7 +318,6 @@ export const MarketDataService = {
             // Deduplicate by URL
             const uniqueItems: any[] = [];
             const seenUrls = new Set();
-
             for (const item of allItems) {
                 if (!seenUrls.has(item.url)) {
                     seenUrls.add(item.url);
@@ -326,21 +325,53 @@ export const MarketDataService = {
                 }
             }
 
-            // Sort by RAW DATE STRING (chronological)
-            // YYYY-MM-DD HH:mm:ss sorts correctly lexicographically
-            uniqueItems.sort((a, b) => {
-                if (!a.rawDate) return 1;
-                if (!b.rawDate) return -1;
-                return b.rawDate.localeCompare(a.rawDate);
-            });
-
-            return uniqueItems;
-
+            // Sort by date desc
+            return uniqueItems.sort((a, b) => b.datetime - a.datetime).slice(0, 30); // Return top 30
         } catch (e) {
-            console.error('Investing RSS Consolidated Error', e);
+            console.error('Error fetching generic news:', e);
             return [];
         }
     },
+
+    // Buscar noticias específicas de una empresa/símbolo en Internet (Yahoo Search)
+    async getCompanyNews(query: string) {
+        if (!query) return [];
+        try {
+            // Usamos quotesCount: 1 para asegurar que Yahoo nos da contexto si es un ticker,
+            // pero lo importante es newsCount.
+            const result = await yahooFinance.search(query, { newsCount: 8, quotesCount: 1 });
+
+            if (!result.news || result.news.length === 0) return [];
+
+            return result.news.map((n: any) => {
+                let datetime = Date.now();
+                // providerPublishTime suele ser unix timestamp en segundos, pero a veces viene en ms
+                if (n.providerPublishTime) {
+                    // Si es menor a 3000000000 (año 2065), asumimos segundos y multiplicamos por 1000
+                    if (n.providerPublishTime < 3000000000) {
+                        datetime = n.providerPublishTime * 1000;
+                    } else {
+                        datetime = n.providerPublishTime;
+                    }
+                }
+
+                return {
+                    title: n.title,
+                    link: n.link,
+                    publisher: n.publisher,
+                    time: datetime, // ms
+                    timeStr: new Date(datetime).toLocaleString('es-ES', {
+                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                    })
+                };
+            }).sort((a, b) => b.time - a.time);
+
+        } catch (e) {
+            console.error(`Error searching news for ${query}:`, e);
+            return [];
+        }
+    },
+
 
     // Estado de mercados usando yahoo-finance2
     async getMarketStatus(indices: string[]) {
@@ -540,7 +571,7 @@ export const MarketDataService = {
                 UNION
                 SELECT DISTINCT ticker FROM positions WHERE ticker IS NOT NULL
                 UNION
-                SELECT DISTINCT symbol as ticker FROM watchlists WHERE symbol IS NOT NULL
+                SELECT DISTINCT ticker FROM watchlists WHERE ticker IS NOT NULL
                 UNION
                 SELECT DISTINCT ticker FROM alerts WHERE ticker IS NOT NULL
             `;
@@ -668,7 +699,6 @@ export const MarketDataService = {
     // Parametro 'months' para definir cuanto tiempo atrás buscar (default 24 meses = 2 años)
     async syncPortfolioHistory(months: number = 24) {
         try {
-            console.log(`Starting portfolio history sync (last ${months} months)...`);
             const tickers = await sql`
                 SELECT DISTINCT ticker FROM (
                     SELECT ticker FROM positions
@@ -677,8 +707,6 @@ export const MarketDataService = {
                 ) as all_tickers
                 WHERE ticker IS NOT NULL AND ticker != ''
             `;
-
-            console.log(`Syncing history for ${tickers.length} tickers...`);
 
             const years = months / 12;
 
@@ -693,7 +721,6 @@ export const MarketDataService = {
                 await this.getDetailedHistory(t.ticker, years);
                 await new Promise(resolve => setTimeout(resolve, 300)); // Rate limit pause
             }
-            console.log('Portfolio history sync completed.');
         } catch (e) {
             console.error('Error syncing portfolio history:', e);
         }
@@ -702,7 +729,6 @@ export const MarketDataService = {
     // Sincronizar historial de divisas (Divisa -> EUR)
     async syncCurrencyHistory(months: number = 24) {
         try {
-            console.log(`Starting currency history sync (last ${months} months)...`);
             // Obtener divisas únicas distintas de EUR
             const currencies = await sql`
                 SELECT DISTINCT currency FROM (
@@ -712,8 +738,6 @@ export const MarketDataService = {
                 ) as all_currencies
                 WHERE currency IS NOT NULL AND currency != ''
             `;
-
-            console.log(`Syncing history for ${currencies.length} currencies: ${currencies.map(c => c.currency).join(', ')}`);
 
             const period1 = new Date();
             period1.setMonth(period1.getMonth() - months);
@@ -760,14 +784,12 @@ export const MarketDataService = {
                                 `
                             ));
                         }
-                        console.log(`Synced ${dbTicker} (${rowsToInsert.length} days)`);
                     }
                 } catch (err) {
                     console.error(`Error syncing currency ${dbTicker}:`, err);
                 }
                 await new Promise(resolve => setTimeout(resolve, 300));
             }
-            console.log('Currency history sync completed.');
         } catch (e) {
             console.error('Error syncing currency history:', e);
         }

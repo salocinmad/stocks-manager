@@ -52,6 +52,7 @@ export const ManualEntry: React.FC = () => {
     try {
 
 
+      const { data } = await api.get('/portfolios');
       if (Array.isArray(data)) {
         setPortfolios(data);
         // Seleccionar el primero por defecto si no hay nada seleccionado
@@ -187,7 +188,6 @@ export const ManualEntry: React.FC = () => {
     setLoading(true);
 
     try {
-      console.log(`Submitting operation to portfolio ${selectedPortfolioId}`);
       await api.post(`/portfolios/${selectedPortfolioId}/positions`, {
         ticker: formData.symbol,
         amount: parseFloat(formData.quantity),

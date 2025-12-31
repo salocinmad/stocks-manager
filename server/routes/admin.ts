@@ -127,7 +127,6 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             WHERE id = ${userId}
         `;
 
-        console.log(`User ${userId} ${blocked ? 'blocked' : 'unblocked'}`);
         return { success: true, message: blocked ? 'Usuario bloqueado' : 'Usuario desbloqueado' };
     }, {
         body: t.Object({
@@ -153,7 +152,6 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             WHERE id = ${userId}
         `;
 
-        console.log(`User ${userId} role changed to ${role}`);
         return { success: true, message: `Rol cambiado a ${role}` };
     }, {
         body: t.Object({
@@ -177,7 +175,6 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             WHERE id = ${userId}
         `;
 
-        console.log(`Password changed for user ${userId}`);
         return { success: true, message: 'Contraseña actualizada' };
     }, {
         body: t.Object({
@@ -194,7 +191,6 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
 
         await sql`DELETE FROM users WHERE id = ${userId}`;
 
-        console.log(`User ${userId} deleted`);
         return { success: true, message: 'Usuario eliminado' };
     })
     // ===== 2FA ADMIN CONTROLS =====
@@ -213,7 +209,6 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             WHERE id = ${userId}
         `;
 
-        console.log(`Admin reset 2FA for user ${userId}`);
         return { success: true, message: '2FA desactivado para el usuario' };
     })
     // Reset security mode to standard
@@ -230,7 +225,6 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             UPDATE users SET security_mode = ${mode} WHERE id = ${userId}
         `;
 
-        console.log(`Admin changed security mode to ${mode} for user ${userId}`);
         return { success: true, message: `Modo de seguridad cambiado a ${mode}` };
     }, {
         body: t.Object({
@@ -380,12 +374,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             await SettingsService.set('SMTP_FROM', from);
 
             // Actualizar process.env
-            process.env.SMTP_HOST = host;
-            process.env.SMTP_PORT = port;
             process.env.SMTP_USER = user;
             process.env.SMTP_FROM = from;
 
-            console.log("SMTP settings updated in DB");
             return { success: true, message: 'Configuración SMTP guardada correctamente en base de datos' };
         } catch (error: any) {
             console.error('Error saving SMTP settings:', error);

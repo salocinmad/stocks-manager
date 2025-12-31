@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
+import { Stream } from '@elysiajs/stream';
 import { AIService } from '../services/aiService';
 
 export const aiRoutes = new Elysia({ prefix: '/ai' })
@@ -34,5 +35,28 @@ export const aiRoutes = new Elysia({ prefix: '/ai' })
                 role: t.String(),
                 text: t.String()
             }))
+        })
+    })
+
+
+    .post('/analyze', async ({ userId, body }) => {
+        const { message } = body;
+        const geminiStream = await AIService.analyzePortfolioStream(userId, message);
+
+        const stream = new ReadableStream({
+            async start(controller) {
+                for await (const chunk of geminiStream) {
+                    controller.enqueue(new TextEncoder().encode(chunk.text()));
+                }
+                controller.close();
+            }
+        });
+
+        return new Response(stream, {
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
+    }, {
+        body: t.Object({
+            message: t.String()
         })
     });

@@ -34,14 +34,7 @@ const getModel = async () => {
 };
 
 export const AIService = {
-    async analyzePortfolio(userId: string, userMessage: string) {
-        const currentModel = await getModel();
-
-        if (!currentModel) {
-            return "El servicio de IA no está configurado (Falta API Key). Ve a Ajustes > Configuración de API para añadir tu Google Gemini API Key.";
-        }
-
-
+    async _buildPortfolioAnalysisPrompt(userId: string, userMessage: string) {
         // 1. Fetch Context
         const portfolios = await sql`
         SELECT p.name, pos.ticker, pos.quantity, pos.average_buy_price, pos.asset_type 
@@ -63,17 +56,26 @@ export const AIService = {
 
         let marketContext = "";
 
-        // Procesar máximo 5 tickers para no exceder contexto
+        // Procesar máximo 20 tickers para no exceder contexto (pero cubrir portafolio típico)
         if (relevantTickers.length > 0) {
             marketContext += "\n--- DATOS DE MERCADO EN TIEMPO REAL E HISTÓRICOS ---\n";
 
+            // DETECT UPDATE: Check if user wants NEWS
+            const newsKeywords = ['NOTICIAS', 'NEWS', 'NOVEDADES', 'QUE PASO', 'ULTIMA HORA', 'PASANDO'];
+            const userMsgUpper = userMessage.toUpperCase();
+            const wantsNews = newsKeywords.some(kw => userMsgUpper.includes(kw));
 
-            for (const ticker of relevantTickers.slice(0, 5)) {
+            for (const ticker of relevantTickers.slice(0, 20)) {
                 try {
                     // Obtener 2 años de historia
                     const sanitizedTicker = ticker.trim().toUpperCase();
-                    const history = await MarketDataService.getDetailedHistory(sanitizedTicker, 2);
 
+                    // Parallelize data fetching
+                    const [history, quote, news] = await Promise.all([
+                        MarketDataService.getDetailedHistory(sanitizedTicker, 2),
+                        MarketDataService.getQuote(sanitizedTicker),
+                        wantsNews ? MarketDataService.getCompanyNews(sanitizedTicker) : Promise.resolve([])
+                    ]);
 
                     if (history && history.length > 0) {
                         const last = history[history.length - 1];
@@ -86,9 +88,25 @@ export const AIService = {
                             .join(', ');
 
                         marketContext += `\nTicker: ${ticker}\n`;
-                        marketContext += `- Precio Actual (Ref): ${Number(last.close).toFixed(2)} (al ${new Date(last.date).toISOString().split('T')[0]})\n`;
+
+                        // Add Real-Time Quote info
+                        if (quote) {
+                            const quoteTime = new Date(quote.lastUpdated || Date.now()).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                            marketContext += `⚡ PRECIO TIEMPO REAL (aprox ${quoteTime}): $${quote.c.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)\n`;
+                        }
+
+                        marketContext += `- Precio Cierre (Ref ${new Date(last.date).toISOString().split('T')[0]}): ${Number(last.close).toFixed(2)}\n`;
                         marketContext += `- Rendimiento 1 Año: ${change1Y}%\n`;
                         marketContext += `- Curva de Precios (Fecha:Precio): [${sampledPrices}]\n`;
+
+                        // Add News if requested
+                        if (news && news.length > 0) {
+                            marketContext += `\n📰 ÚLTIMAS NOTICIAS (${ticker}):\n`;
+                            news.slice(0, 5).forEach((n: any) => {
+                                marketContext += `- [${n.timeStr}] ${n.title} (${n.publisher})\n`;
+                            });
+                        }
+
                     } else {
                         console.warn(`[AIService] No history found for ${ticker}`);
                     }
@@ -112,38 +130,59 @@ Pregunta del usuario: "{{USER_MESSAGE}}"
 
 INSTRUCCIONES:
 - Responde en español, de forma profesional, concisa y basada en los DATOS proporcionados arriba.
+- IMPORTANTE: Si ves una sección "📰 ÚLTIMAS NOTICIAS", **DEBES resumir o listar los titulares más relevantes** al usuario. No ignores esta información.
 - Si ves una "Curva de Precios", analízala brevemente (tendencia alcista/bajista, volatilidad).
 - Da consejos estratégicos sobre diversificación y riesgo si aplica.
 - Si te preguntan por una acción cuyos datos acabas de recibir (arriba), úsalos para opinar.
 - Identifícate siempre como Stocks Bot.`;
         }
 
+        // Debug Context (Temporary)
+        console.log('[AI PROMPT CONTEXT]', marketContext);
+
         const prompt = promptTemplate
             .replace('{{PORTFOLIO_CONTEXT}}', portfolioSummary || "Portafolio vacío por el momento.")
             .replace('{{MARKET_CONTEXT}}', marketContext)
+            .replace('{{MARKET_DATA}}', marketContext) // Support user's custom placeholder
             .replace('{{USER_MESSAGE}}', userMessage);
+
+        return prompt;
+    },
+
+    async analyzePortfolio(userId: string, userMessage: string) {
+        const currentModel = await getModel();
+        if (!currentModel) return "Error de configuración IA";
+
+        const prompt = await this._buildPortfolioAnalysisPrompt(userId, userMessage);
 
         try {
             const result = await currentModel.generateContent(prompt);
             return result.response.text();
         } catch (e: any) {
-            console.error("AI Error Detailed:", e);
-            console.error("AI Error Message:", e.message);
-
-            if (e.message?.includes('API key') || e.message?.includes('401') || e.message?.includes('403')) {
-                cachedApiKey = null;
-                model = null;
-            }
-
-            return `Lo siento, hubo un error al procesar tu consulta financiera: ${e.message || 'Error desconocido'}`;
+            console.error("AI Error:", e);
+            return `Error: ${e.message}`;
         }
     },
 
-    // Método específico para el ChatBot (Conversacional con Memoria)
-    async chatWithBot(userId: string, messages: { role: string, text: string }[]) {
+    async analyzePortfolioStream(userId: string, userMessage: string) {
         const currentModel = await getModel();
-        if (!currentModel) return "El servicio de IA no está configurado.";
+        if (!currentModel) {
+            // Return a generator that yields the error message
+            return async function* () { yield "Error: Servicio IA no configurado." }();
+        }
 
+        const prompt = await this._buildPortfolioAnalysisPrompt(userId, userMessage);
+
+        try {
+            const result = await currentModel.generateContentStream(prompt);
+            return result.stream;
+        } catch (e: any) {
+            console.error("AI Stream Error:", e);
+            return async function* () { yield `Error: ${e.message}`; }();
+        }
+    },
+
+    async _buildChatPrompt(userId: string, messages: { role: string, text: string }[]) {
         // Obtener el último mensaje del usuario
         const lastUserMessage = messages[messages.length - 1]?.text || "";
 
@@ -301,25 +340,31 @@ INSTRUCCIONES:
             }
         }
         tickersToAnalyze = [...new Set(tickersToAnalyze)];
-        console.log('[ChatBot] Final tickers to analyze:', tickersToAnalyze);
 
         // Si pide análisis completo, añadir todos los tickers del portafolio
         if (wantsFullAnalysis) {
             tickersToAnalyze = [...new Set([...tickersToAnalyze, ...portfolioTickers])];
-            console.log('[ChatBot] Full Analysis Requested. Total tickers:', tickersToAnalyze.length);
         }
 
         let marketDataStr = "";
 
         // 4. Obtener datos de mercado - más tickers si es análisis completo
         const maxTickers = wantsFullAnalysis ? 15 : 4;
+
+        // DETECT NEWS INTENT
+        const newsKeywords = ['NOTICIAS', 'NEWS', 'NOVEDADES', 'QUE PASO', 'ULTIMA HORA', 'PASANDO'];
+        const userMsgUpper = lastUserMessage.toUpperCase();
+        const wantsNews = newsKeywords.some(kw => userMsgUpper.includes(kw));
+
         if (tickersToAnalyze.length > 0) {
             marketDataStr += "\n📈 DATOS DE MERCADO:\n";
             for (const ticker of tickersToAnalyze.slice(0, maxTickers)) {
                 try {
-                    console.log(`[ChatBot] Fetching history for ${ticker}...`);
-                    const history = await MarketDataService.getDetailedHistory(ticker, 1);
-                    console.log(`[ChatBot] History for ${ticker}: ${history?.length} rows`);
+                    const [history, quote, news] = await Promise.all([
+                        MarketDataService.getDetailedHistory(ticker, 1),
+                        MarketDataService.getQuote(ticker),
+                        wantsNews ? MarketDataService.getCompanyNews(ticker) : Promise.resolve([])
+                    ]);
 
                     if (history && history.length > 0) {
                         const last = history[history.length - 1];
@@ -340,8 +385,14 @@ INSTRUCCIONES:
                         const last5 = history.slice(-5).map(h => `${new Date(h.date).toLocaleDateString()}: $${Number(h.close).toFixed(2)}`).join(' | ');
 
                         marketDataStr += `\n📌 ANÁLISIS PARA ${ticker}:\n`;
-                        marketDataStr += `- Precio Actual: $${Number(last.close).toFixed(2)} (${changeStr})\n`;
-                        marketDataStr += `- Fecha Referencia: ${lastDate}\n`;
+
+                        // Add Real-Time Quote info (Fetched in parallel)
+                        if (quote) {
+                            const quoteTime = new Date(quote.lastUpdated || Date.now()).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                            marketDataStr += `⚡ PRECIO TIEMPO REAL (aprox ${quoteTime}): $${quote.c.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)\n`;
+                        }
+
+                        marketDataStr += `- Cierre Día Anterior (${lastDate}): $${Number(last.close).toFixed(2)} (${changeStr})\n`;
                         marketDataStr += `- Rango 52 semanas: $${min} - $${max}\n`;
                         marketDataStr += `- Últimos 5 cierres: ${last5}\n`;
 
@@ -351,6 +402,14 @@ INSTRUCCIONES:
                             .map(h => Number(h.close).toFixed(1))
                             .join(' -> ');
                         marketDataStr += `- Tendencia (Muestreo): ${trend}\n`;
+
+                        // Add News if requested
+                        if (news && news.length > 0) {
+                            marketDataStr += `\n📰 ÚLTIMAS NOTICIAS (${ticker}):\n`;
+                            news.slice(0, 5).forEach((n: any) => {
+                                marketDataStr += `- [${n.timeStr}] ${n.title} (${n.publisher})\n`;
+                            });
+                        }
 
                     } else {
                         console.warn(`[ChatBot] No history returned for ${ticker}`);
@@ -388,27 +447,67 @@ DATOS DEL USUARIO:
 DATOS DE MERCADO:
 {{MARKET_DATA}}
 
+ÚLTIMO MENSAJE DEL USUARIO:
+{{USER_MESSAGE}}
+
 CONVERSACIÓN:
 {{CHAT_HISTORY}}
 
 Responde al último mensaje del usuario de forma natural y útil.`;
         }
 
+        // DYNAMIC OVERRIDE: If user specificially asks for news, override technical analysis structure
+        let finalUserMessage = lastUserMessage;
+        if (wantsNews && !wantsFullAnalysis) {
+            finalUserMessage += `\n\n(SISTEMA: El usuario ha preguntado EXPLÍCITAMENTE por NOTICIAS. IGNORA la "Estructura Obligatoria" de análisis técnico (Soportes, Resistencias, etc) para esta respuesta. Tu ÚNICO objetivo es resumir las noticias listadas en DATOS DE MERCADO y dar una breve conclusión de impacto. ¡SÉ DIRECTO!)`;
+        }
+
         const prompt = promptTemplate
             .replace('{{USER_CONTEXT}}', userContext || "No hay datos de portafolio disponibles.")
             .replace('{{MARKET_DATA}}', marketDataStr || "Sin datos de mercado relevantes.")
+            .replace('{{USER_MESSAGE}}', finalUserMessage)
             .replace('{{CHAT_HISTORY}}', chatHistoryStr);
+
+        return prompt;
+    },
+
+    async chatWithBot(userId: string, messages: { role: string, text: string }[]) {
+        const currentModel = await getModel();
+        if (!currentModel) {
+            console.error('[ChatBot] Model initialization failed (No API Key?).');
+            return "El servicio de IA no está configurado.";
+        }
+
+        const prompt = await this._buildChatPrompt(userId, messages);
 
         try {
             const result = await currentModel.generateContent(prompt);
             return result.response.text();
         } catch (e: any) {
             console.error("AI Chat Error:", e);
+            console.error("AI Chat Error Body:", JSON.stringify(e, Object.getOwnPropertyNames(e))); // Force full error logging
             if (e.message?.includes('API key') || e.message?.includes('401')) {
                 cachedApiKey = null;
                 model = null;
             }
             return "Lo siento, tuve un problema al procesar tu mensaje. Intenta de nuevo.";
+        }
+    },
+
+    async chatWithBotStream(userId: string, messages: { role: string, text: string }[]) {
+        const currentModel = await getModel();
+        if (!currentModel) {
+            return async function* () { yield "Error: Servicio IA no configurado." }();
+        }
+
+        const prompt = await this._buildChatPrompt(userId, messages);
+
+        try {
+            const result = await currentModel.generateContentStream(prompt);
+            return result.stream;
+        } catch (e: any) {
+            console.error("AI Chat Stream Error:", e);
+            return async function* () { yield `Error: ${e.message}`; }();
         }
     },
 

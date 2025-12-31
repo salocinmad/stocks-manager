@@ -11,6 +11,7 @@
   "dependencies": {
     "@elysiajs/cors": "latest",
     "@elysiajs/jwt": "latest",
+    "@elysiajs/stream": "latest",
     "@elysiajs/static": "latest",
     "@elysiajs/swagger": "latest",
     "@google/generative-ai": "latest",

@@ -183,7 +183,6 @@ export const PortfolioScreen: React.FC = () => {
 
   const loadPortfolioDetails = useCallback(async (id: string) => {
     try {
-      console.log(`[Portfolio] Fetching details for ID: ${id}`);
       const { data: portfolioDetails } = await api.get(`/portfolios/${id}`);
 
       if (!portfolioDetails) {

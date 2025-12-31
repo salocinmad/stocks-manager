@@ -38,6 +38,8 @@ services:
       - stocks_net
     volumes:
       - ./server:/app/server
+      - ./src:/app/src
+      - ./index.html:/app/index.html
       - ./uploads:/app/uploads # Persistir imágenes de notas
 
 networks:
