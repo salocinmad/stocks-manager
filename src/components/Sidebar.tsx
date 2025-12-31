@@ -112,7 +112,7 @@ export const Sidebar: React.FC = () => {
         <div onClick={handleLogout} className="flex items-center justify-center lg:justify-start gap-0 lg:gap-3 px-0 lg:px-4 py-2 hover:bg-red-500/10 hover:text-red-500 rounded-full transition-colors cursor-pointer group">
           <div
             className="flex-shrink-0 size-10 rounded-full bg-gray-200 dark:bg-gray-700 bg-cover bg-center border-2 border-white dark:border-gray-600"
-            style={{ backgroundImage: "url('https://ui-avatars.com/api/?name=" + (user?.name || 'User') + "&background=random')" }}
+            style={{ backgroundImage: user?.avatar_url ? `url('${user.avatar_url}')` : "url('https://ui-avatars.com/api/?name=" + (user?.name || 'User') + "&background=random')" }}
           ></div>
           <div className="hidden lg:flex flex-col overflow-hidden">
             <p className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark truncate">

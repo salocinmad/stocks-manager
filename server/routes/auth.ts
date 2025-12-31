@@ -35,27 +35,39 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const [user] = await sql`
-            INSERT INTO users (email, password_hash, full_name, role)
-            VALUES (${email}, ${hashedPassword}, ${fullName}, ${role})
-            RETURNING id, email, full_name, role
-        `;
+        try {
+            const [user] = await sql`
+                INSERT INTO users (email, password_hash, full_name, role)
+                VALUES (${email}, ${hashedPassword}, ${fullName}, ${role})
+                RETURNING id, email, full_name, role, avatar_url
+            `;
 
-        await sql`
-            INSERT INTO portfolios (user_id, name, is_public)
-            VALUES (${user.id}, 'Portafolio Principal', false)
-        `;
+            await sql`
+                INSERT INTO portfolios (user_id, name, is_public)
+                VALUES (${user.id}, 'Portafolio Principal', false)
+            `;
 
-        const token = await jwt.sign({
-            sub: user.id,
-            email: user.email,
-            role: user.role
-        });
+            const token = await jwt.sign({
+                sub: user.id,
+                email: user.email,
+                role: user.role
+            });
 
-        return {
-            token,
-            user: { id: user.id, email: user.email, name: user.full_name, role: user.role }
-        };
+            return {
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.full_name,
+                    role: user.role,
+                    avatar_url: user.avatar_url
+                }
+            };
+        } catch (error: any) {
+            console.error('Registration error:', error);
+            set.status = 500;
+            return { error: 'Error creating account: ' + error.message };
+        }
     }, {
         body: t.Object({
             email: t.String(),
@@ -119,7 +131,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
                     email: user.email,
                     name: user.full_name,
                     currency: user.preferred_currency,
-                    role: user.role || 'user'
+                    role: user.role || 'user',
+                    avatar_url: user.avatar_url
                 }
             };
         }

@@ -76,6 +76,7 @@ interface User {
     email: string;
     name: string;
     role?: 'admin' | 'user';
+    avatar_url?: string;
     currency?: string;
 }
 
@@ -97,6 +98,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(() => getInitialUser());
     const [token, setToken] = useState<string | null>(() => getInitialToken());
     const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('rememberMe') === 'true');
+
+    // Refresh user data on mount to ensure sync with DB (e.g. after restore)
+    React.useEffect(() => {
+        if (token) {
+            api.get('/user/profile')
+                .then(res => {
+                    if (res.data.success) {
+                        const newUser = {
+                            ...res.data.user,
+                            name: res.data.user.full_name // Ensure mapping
+                        };
+                        // Update state
+                        setUser(newUser);
+                        // Update storage silently
+                        const storage = rememberMe ? localStorage : sessionStorage;
+                        storage.setItem('user', JSON.stringify(newUser));
+                    }
+                })
+                .catch(err => {
+                    console.error('Error refreshing user profile:', err);
+                });
+        }
+    }, [token, rememberMe]);
 
     const login = useCallback((newToken: string, newUser: User, remember: boolean = false) => {
         // Store rememberMe preference in localStorage (always)

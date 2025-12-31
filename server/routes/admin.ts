@@ -510,10 +510,10 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             // Añadir JSON al ZIP
             zip.addFile("database_dump.json", Buffer.from(JSON.stringify(backupJson, null, 2), "utf8"));
 
-            // Añadir carpeta de uploads/notes al ZIP
-            const uploadsNotesPath = path.join(process.cwd(), 'uploads', 'notes');
-            if (fs.existsSync(uploadsNotesPath)) {
-                zip.addLocalFolder(uploadsNotesPath, "uploads/notes");
+            // Añadir carpeta uploads completa al ZIP
+            const uploadsPath = path.join(process.cwd(), 'uploads');
+            if (fs.existsSync(uploadsPath)) {
+                zip.addLocalFolder(uploadsPath, "uploads");
             }
 
             // 3. Generar buffer

@@ -1,6 +1,8 @@
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
+import * as fs from 'fs';
+import * as path from 'path';
 import { authRoutes } from './routes/auth';
 import { portfolioRoutes } from './routes/portfolios';
 import { aiRoutes } from './routes/ai';
@@ -15,7 +17,9 @@ import { notificationRoutes } from './routes/notifications';
 import { calendarRoutes } from './routes/calendar';
 import { publicRoutes } from './routes/public';
 import { chatRoutes } from './routes/chat';
+import { chatRoutes } from './routes/chat';
 import { notesRoutes } from './routes/notes';
+import { userRoutes } from './routes/user';
 import { initDatabase } from './init_db';
 import { SettingsService } from './services/settingsService';
 import { AlertService } from './services/alertService';
@@ -23,7 +27,8 @@ import { MarketDataService } from './services/marketData';
 import { schedulePnLJob, calculatePnLForAllPortfolios } from './jobs/pnlJob';
 
 // Initialize DB and load settings
-console.log("!!! SERVER STARTUP CHECK - v1 !!!");
+// Initialize DB and load settings
+
 await initDatabase();
 await SettingsService.loadToEnv();
 
@@ -96,7 +101,6 @@ const app = new Elysia({
         maxRequestBodySize: 1024 * 1024 * 100 // 100MB
     }
 })
-    .use(cors())
     .use(swagger())
     .onError(({ code, error }) => {
         console.error(`Elysia Error [${code}]:`, error);
@@ -118,6 +122,7 @@ const app = new Elysia({
         .use(calendarRoutes)
         .use(chatRoutes)
         .use(notesRoutes)
+        .use(userRoutes)
         .use(publicRoutes)
         .get('/health', () => ({ status: 'ok', version: '1.0.0' }))
     )
@@ -129,6 +134,25 @@ const app = new Elysia({
             const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
             return new Response(file, { headers: { 'Content-Type': mimeMap[ext] || 'application/octet-stream' } });
         }
+        return new Response('Not found', { status: 404 });
+    })
+    // 2.1 Servir avatares de usuario desde /uploads/avatars
+    // 2.1 Servir avatares de usuario desde /uploads/avatars
+    .get('/api/uploads/avatars/:filename', async ({ params }) => {
+        const absolutePath = path.join(process.cwd(), 'uploads', 'avatars', params.filename);
+        console.log(`[Avatar Request] CWD: ${process.cwd()}`);
+        console.log(`[Avatar Request] Looking for: ${absolutePath}`);
+
+        const file = Bun.file(absolutePath);
+
+        if (await file.exists()) {
+            console.log(`[Avatar Request] Found: ${absolutePath}, size: ${file.size}`);
+            const ext = params.filename.split('.').pop() || 'png';
+            const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
+            console.log(`[Avatar Request] Check ext: ${ext}, mime: ${mimeMap[ext]}`);
+            return new Response(file, { headers: { 'Content-Type': mimeMap[ext] || 'application/octet-stream' } });
+        }
+        console.error(`[Avatar Request] NOT FOUND: ${absolutePath}`);
         return new Response('Not found', { status: 404 });
     })
     // 3. Servir archivos estáticos explícitamente (JS, CSS, recursos)

@@ -40,7 +40,7 @@ services:
       - ./server:/app/server
       - ./src:/app/src
       - ./index.html:/app/index.html
-      - ./uploads:/app/uploads # Persistir imágenes de notas
+      - stock_uploads:/app/uploads # Persistir imágenes y avatares
 
 networks:
   stocks_net:
@@ -48,3 +48,4 @@ networks:
 
 volumes:
   postgres_data:
+  stock_uploads:
