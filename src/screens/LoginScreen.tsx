@@ -88,7 +88,7 @@ export const LoginScreen: React.FC = () => {
 
     try {
       const response = await api.post('/auth/forgot-password', { email });
-      setSuccessMessage(response.data.message || 'Si el correo existe, recibirás una nueva contraseña.');
+      setSuccessMessage(response.data.message || 'Si el correo existe, recibirás un enlace de recuperación.');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Error al solicitar recuperación.');
     } finally {

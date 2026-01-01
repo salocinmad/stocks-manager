@@ -30,6 +30,7 @@ interface Position {
   currentValueEUR?: number;
   costBasisEUR?: number;
   lastUpdated?: number;
+  commission?: number;
 }
 
 interface Portfolio {
@@ -89,6 +90,7 @@ export const PortfolioScreen: React.FC = () => {
   const [positionToEdit, setPositionToEdit] = useState<Position | null>(null);
   const [editQuantity, setEditQuantity] = useState('');
   const [editPrice, setEditPrice] = useState('');
+  const [editCommission, setEditCommission] = useState('');
 
   // Estados para alerta rápida
   const [positionToAlert, setPositionToAlert] = useState<Position | null>(null);
@@ -230,8 +232,10 @@ export const PortfolioScreen: React.FC = () => {
 
               const rate = currency === 'EUR' ? 1 : (exchangeRates[currency] || 1);
 
+              const commission = Number(pos.commission) || 0;
               const currentValue = qty * currentPrice;
-              const costBasis = qty * avgPrice;
+              // Cost Basis = (Quantity * Average Price) + Commission
+              const costBasis = (qty * avgPrice) + commission;
 
               // Valores en EUR para totales
               const currentValueEUR = currentValue * rate;
@@ -389,8 +393,9 @@ export const PortfolioScreen: React.FC = () => {
 
     const quantity = parseFloat(editQuantity);
     const averagePrice = parseFloat(editPrice);
+    const commission = parseFloat(editCommission);
 
-    if (isNaN(quantity) || isNaN(averagePrice) || quantity <= 0 || averagePrice <= 0) {
+    if (isNaN(quantity) || isNaN(averagePrice) || quantity <= 0 || averagePrice <= 0 || isNaN(commission) || commission < 0) {
       alert('Por favor, introduce valores válidos');
       return;
     }
@@ -398,11 +403,13 @@ export const PortfolioScreen: React.FC = () => {
     try {
       await api.put(`/portfolios/${portfolio.id}/positions/${positionToEdit.id}`, {
         quantity,
-        averagePrice
+        averagePrice,
+        commission
       });
       setPositionToEdit(null);
       setEditQuantity('');
       setEditPrice('');
+      setEditCommission('');
       // Recargar portfolio
       await loadPortfolioDetails(portfolio.id);
     } catch (err: any) {
@@ -413,8 +420,10 @@ export const PortfolioScreen: React.FC = () => {
   // Abrir modal de edición
   const openEditModal = (pos: Position) => {
     setPositionToEdit(pos);
-    setEditQuantity(pos.quantity.toString());
-    setEditPrice(pos.average_buy_price.toString());
+    // Convert to Number first to strip trailing zeros (e.g. "2.510000" -> 2.51), then to string for input
+    setEditQuantity(Number(pos.quantity).toString());
+    setEditPrice(Number(pos.average_buy_price).toString());
+    setEditCommission(Number(pos.commission || 0).toString());
   };
 
   // Abrir modal de alerta
@@ -907,6 +916,19 @@ export const PortfolioScreen: React.FC = () => {
                     placeholder="Precio medio"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
+                    Comisión Total ({positionToEdit.currency})
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editCommission}
+                    onChange={(e) => setEditCommission(e.target.value)}
+                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+                    placeholder="Comisión"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -915,6 +937,7 @@ export const PortfolioScreen: React.FC = () => {
                     setPositionToEdit(null);
                     setEditQuantity('');
                     setEditPrice('');
+                    setEditCommission('');
                   }}
                   className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
                 >

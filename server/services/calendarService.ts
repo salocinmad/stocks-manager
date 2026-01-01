@@ -1,21 +1,26 @@
 import sql from '../db';
-import YahooFinance from 'yahoo-finance2';
-
-const yahooFinance = new YahooFinance();
 
 export const CalendarService = {
     // Get earnings dates for a ticker
     async getEarningsDates(ticker: string): Promise<{ date: Date; type: string }[]> {
         try {
-            const result = await yahooFinance.quoteSummary(ticker, { modules: ['calendarEvents'] });
+            const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents`;
+            const response = await fetch(url);
+            if (!response.ok) return [];
+
+            const data = await response.json();
+            const result = data.quoteSummary?.result?.[0];
             const events: { date: Date; type: string }[] = [];
 
             if (result?.calendarEvents?.earnings?.earningsDate) {
                 for (const date of result.calendarEvents.earnings.earningsDate) {
-                    events.push({ date: new Date(date), type: 'earnings' });
+                    // Yahoo raw date might be object { raw: 123, fmt: '...' } or just number/string
+                    const d = date.raw ? new Date(date.raw * 1000) : new Date(date);
+                    if (!isNaN(d.getTime())) {
+                        events.push({ date: d, type: 'earnings' });
+                    }
                 }
             }
-
             return events;
         } catch (e) {
             console.error(`Failed to get earnings for ${ticker}:`, e);
@@ -26,9 +31,17 @@ export const CalendarService = {
     // Get ex-dividend date for a ticker
     async getExDividendDate(ticker: string): Promise<Date | null> {
         try {
-            const result = await yahooFinance.quoteSummary(ticker, { modules: ['summaryDetail'] });
+            const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=summaryDetail`;
+            const response = await fetch(url);
+            if (!response.ok) return null;
+
+            const data = await response.json();
+            const result = data.quoteSummary?.result?.[0];
+
             if (result?.summaryDetail?.exDividendDate) {
-                return new Date(result.summaryDetail.exDividendDate);
+                const d = result.summaryDetail.exDividendDate;
+                const date = d.raw ? new Date(d.raw * 1000) : new Date(d);
+                return isNaN(date.getTime()) ? null : date;
             }
             return null;
         } catch (e) {

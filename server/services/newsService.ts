@@ -25,7 +25,7 @@ export const NewsService = {
     /**
      * Get news for a specific ticker using Investing.com (Priority) + Google News RSS (Backfill)
      */
-    async getNews(ticker: string): Promise<NewsItem[]> {
+    async getNews(ticker: string, companyName?: string): Promise<NewsItem[]> {
         // 1. Check Cache
         const now = Date.now();
         const cacheKey = `news:${ticker.toUpperCase()}`;
@@ -41,7 +41,7 @@ export const NewsService = {
             // 2. Fetch from Multiple Sources in Parallel
             const [investingNews, googleNews] = await Promise.all([
                 this.fetchInvestingRSS(ticker),
-                this.fetchGoogleNewsRSS(ticker)
+                this.fetchGoogleNewsRSS(ticker, companyName)
             ]);
 
             // Merge results: Investing.com FIRST as requested
@@ -52,11 +52,12 @@ export const NewsService = {
         }
 
         // 3. Filter & Sort
-        const sevenDaysAgoSeconds = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
+        // FIX: Increased from 7 to 30 days to ensure we find news for less liquid stocks (like ASTS)
+        const cutoffSeconds = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
 
         items = items.filter(item => {
             // Filter by date
-            if (item.datetime < sevenDaysAgoSeconds) return false;
+            if (item.datetime < cutoffSeconds) return false;
             return true;
         });
 
@@ -118,7 +119,7 @@ export const NewsService = {
         }
     },
 
-    async fetchGoogleNewsRSS(ticker: string): Promise<NewsItem[]> {
+    async fetchGoogleNewsRSS(ticker: string, companyName?: string): Promise<NewsItem[]> {
         // Smart Query Construction
         let query = '';
         let lang = 'es-ES';
@@ -128,17 +129,29 @@ export const NewsService = {
         const t = ticker.toUpperCase();
 
         if (t.endsWith('.MC') || t.endsWith('.MAD')) {
-            const symbol = t.replace(/\.MC$|\.MAD$/, '');
-            // Boost investing.com results via query explicitly
-            query = `${symbol} acciones (site:es.investing.com OR site:eleconomista.es OR site:expansion.com OR source:google)`;
+            // SPANISH STOCKS
+            if (companyName) {
+                // If we have the name (e.g. "Amper"), search "Name acciones" as requested by user
+                query = `${companyName} acciones`;
+            } else {
+                const symbol = t.replace(/\.MC$|\.MAD$/, '');
+                query = `${symbol} acciones (site:es.investing.com OR site:eleconomista.es OR site:expansion.com OR source:google)`;
+            }
         } else if (t.endsWith('.DE') || t.includes('FRA')) {
-            query = `${t} acciones bolsa`;
+            // GERMAN STOCKS
+            if (companyName) {
+                query = `${companyName} arkcie`; // Poner "acciones" o buscar solo nombre? mejor internacional
+            } else {
+                query = `${t} acciones bolsa`;
+            }
         } else {
             // US / Global / Crypto
             if (t.includes('-USD')) {
                 query = `${t.replace('-USD', '')} criptomonedas noticias`;
             } else {
-                query = `${t} finanzas acciones`;
+                // User Correction: Searching just the ticker symbol yields better results in Google News RSS
+                // especially for tickers like ASTS.
+                query = t;
             }
         }
 

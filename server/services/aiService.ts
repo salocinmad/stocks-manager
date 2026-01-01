@@ -1,36 +1,19 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import sql from '../db';
-import { MarketDataService } from './marketData';
+import { MarketDataService } from './marketData'; // Keep imports
 import { SettingsService } from './settingsService';
+import { NotificationService } from './notificationService';
+import { AIProviderFactory } from './ai/AIProviderFactory';
 
-// Cache del cliente de IA para evitar recrearlo en cada llamada si la config no cambió
-let cachedApiKey: string | null = null;
-let cachedModelName: string | null = null;
-let genAI: GoogleGenerativeAI | null = null;
-let model: any = null;
+// Cache for the active provider instance usually managed within Factory or just re-fetched lightly
+// For now, we fetch fresh to ensure config updates apply immediately.
 
-// Función asíncrona para obtener o recrear el modelo con la configuración actual
-const getModel = async () => {
-    const currentApiKey = process.env.GOOGLE_GENAI_API_KEY;
-    const currentModelName = process.env.AI_MODEL || "gemini-1.5-flash";
-
-    // Si la API key cambió, el modelo cambió, o no existe instancia, recrear
-    if (currentApiKey !== cachedApiKey || currentModelName !== cachedModelName || !model) {
-        cachedApiKey = currentApiKey || null;
-        cachedModelName = currentModelName;
-
-        if (currentApiKey) {
-            // console.log(`[AI] Initializing with Model: ${currentModelName} & Key length: ${currentApiKey.length}`);
-            genAI = new GoogleGenerativeAI(currentApiKey);
-            model = genAI.getGenerativeModel({ model: currentModelName });
-        } else {
-
-            genAI = null;
-            model = null;
-        }
+const getProvider = async () => {
+    try {
+        return await AIProviderFactory.getActiveProvider();
+    } catch (e: any) {
+        console.error("Error getting AI Provider:", e);
+        return null; // Handle gracefully
     }
-
-    return model;
 };
 
 export const AIService = {
@@ -55,60 +38,70 @@ export const AIService = {
         const relevantTickers = Array.from(new Set([...potentialTickersInMessage, ...portfolioTickers]));
 
         let marketContext = "";
+        let newsDataStr = ""; // Block for {{NEWS_CONTEXT}}
 
         // Procesar máximo 20 tickers para no exceder contexto (pero cubrir portafolio típico)
         if (relevantTickers.length > 0) {
             marketContext += "\n--- DATOS DE MERCADO EN TIEMPO REAL E HISTÓRICOS ---\n";
 
-            // DETECT UPDATE: Check if user wants NEWS
-            const newsKeywords = ['NOTICIAS', 'NEWS', 'NOVEDADES', 'QUE PASO', 'ULTIMA HORA', 'PASANDO'];
-            const userMsgUpper = userMessage.toUpperCase();
-            const wantsNews = newsKeywords.some(kw => userMsgUpper.includes(kw));
-
             for (const ticker of relevantTickers.slice(0, 20)) {
                 try {
-                    // Obtener 2 años de historia
+                    // Obtener 2 años de historia para análisis profundo
                     const sanitizedTicker = ticker.trim().toUpperCase();
 
-                    // Parallelize data fetching
-                    const [history, quote, news] = await Promise.all([
+                    // Parallelize data fetching (Full Pack)
+                    const [history, quote, news, analysts, peers, insider] = await Promise.all([
                         MarketDataService.getDetailedHistory(sanitizedTicker, 2),
                         MarketDataService.getQuote(sanitizedTicker),
-                        wantsNews ? MarketDataService.getCompanyNews(sanitizedTicker) : Promise.resolve([])
+                        MarketDataService.getCompanyNews(sanitizedTicker),
+                        MarketDataService.getAnalystRecommendations(sanitizedTicker),
+                        MarketDataService.getPeers(sanitizedTicker),
+                        MarketDataService.getInsiderSentiment(sanitizedTicker)
                     ]);
 
-                    if (history && history.length > 0) {
-                        const last = history[history.length - 1];
-                        const oneYearAgo = history.find(h => new Date(h.date) <= new Date(Date.now() - 365 * 24 * 3600 * 1000)) || history[0];
-                        const change1Y = ((last.close - oneYearAgo.close) / oneYearAgo.close * 100).toFixed(2);
+                    if (quote) {
+                        const currencySymbol = quote?.currency === 'EUR' ? '€' : quote?.currency === 'GBP' ? '£' : '$';
+                        const quoteTime = new Date(quote.lastUpdated || Date.now()).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
-                        const sampledPrices = history
-                            .filter((_, index) => index % 20 === 0 || index === history.length - 1)
-                            .map(h => `${new Date(h.date).toISOString().split('T')[0]}:${Number(h.close).toFixed(2)}`)
-                            .join(', ');
+                        marketContext += `\nTicker: ${ticker} (${quote.name})\n`;
+                        marketContext += `PRECIO: ${currencySymbol}${quote.c.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)\n`;
 
-                        marketContext += `\nTicker: ${ticker}\n`;
-
-                        // Add Real-Time Quote info
-                        if (quote) {
-                            const quoteTime = new Date(quote.lastUpdated || Date.now()).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                            marketContext += `⚡ PRECIO TIEMPO REAL (aprox ${quoteTime}): $${quote.c.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)\n`;
+                        // FUNDAMENTALES
+                        marketContext += `- Market Cap: ${quote.marketCap || 'N/A'} | Beta: ${quote.beta || 'N/A'} | PER: ${quote.peRatio || 'N/A'}\n`;
+                        marketContext += `- Prox. Resultados: ${quote.earningsDate || 'N/A'}\n`;
+                        if (quote.targetMeanPrice) {
+                            marketContext += `- Precio Objetivo: ${currencySymbol}${quote.targetMeanPrice} (${quote.recommendationKey || 'N/A'})\n`;
                         }
 
-                        marketContext += `- Precio Cierre (Ref ${new Date(last.date).toISOString().split('T')[0]}): ${Number(last.close).toFixed(2)}\n`;
-                        marketContext += `- Rendimiento 1 Año: ${change1Y}%\n`;
-                        marketContext += `- Curva de Precios (Fecha:Precio): [${sampledPrices}]\n`;
+                        // TÉCNICO
+                        if (history && history.length > 15) {
+                            const prices = history.map(h => Number(h.close));
+                            const tech = MarketDataService.getTechnicalIndicators(prices);
+                            if (tech) {
+                                marketContext += `- RSI(14): ${tech.rsi} | SMA50: ${tech.sma50} | SMA200: ${tech.sma200} | Tendencia: ${tech.trend}\n`;
+                            }
 
-                        // Add News if requested
+                            // Calculated YoY
+                            const last = history[history.length - 1];
+                            const oneYearAgo = history.find(h => new Date(h.date) <= new Date(Date.now() - 365 * 24 * 3600 * 1000)) || history[0];
+                            const change1Y = ((last.close - oneYearAgo.close) / oneYearAgo.close * 100).toFixed(2);
+                            marketContext += `- Rendimiento 1 Año: ${change1Y}%\n`;
+                        }
+
+                        // INSIGHTS
+                        if (peers && peers.length > 0) marketContext += `- Competencia: ${peers.slice(0, 3).join(', ')}\n`;
+                        if (insider) marketContext += `- Insider (3m): ${insider.label}\n`;
+
+                        // Add News to NEWS BLOCK
                         if (news && news.length > 0) {
-                            marketContext += `\n📰 ÚLTIMAS NOTICIAS (${ticker}):\n`;
-                            news.slice(0, 5).forEach((n: any) => {
-                                marketContext += `- [${n.timeStr}] ${n.title} (${n.publisher})\n`;
+                            newsDataStr += `\n📰 NOTICIAS (${ticker}):\n`;
+                            news.slice(0, 4).forEach((n: any) => {
+                                newsDataStr += `- ${n.title}\n`;
                             });
                         }
 
                     } else {
-                        console.warn(`[AIService] No history found for ${ticker}`);
+                        console.warn(`[AIService] No quote found for ${ticker}`);
                     }
                 } catch (err) {
                     console.error(`Error fetching AI context for ${ticker}`, err);
@@ -116,68 +109,121 @@ export const AIService = {
             }
         }
 
-        // 3. Construct Prompt using Template from DB
-        let promptTemplate = await SettingsService.get('AI_PROMPT_ANALYSIS');
+
+        if (!newsDataStr) {
+            newsDataStr = "No hay noticias recientes relevantes.";
+        }
+
+        // 3. Construct Prompt using Template from DB (Active Prompt)
+        let promptTemplate = "";
+        try {
+            const [activePrompt] = await sql`
+                SELECT content FROM ai_prompts 
+                WHERE prompt_type = 'ANALYSIS' AND is_active = true 
+                LIMIT 1
+            `;
+            if (activePrompt) {
+                promptTemplate = activePrompt.content;
+            }
+        } catch (e) {
+            console.error('Error fetching active analysis prompt:', e);
+        }
+
         if (!promptTemplate) {
             promptTemplate = `Actúa como "Stocks Bot", un Analista Financiero Senior experto de Wall Street creado para esta plataforma.
 
 CONTEXTO DEL PORTAFOLIO DEL CLIENTE:
 {{PORTFOLIO_CONTEXT}}
 
+DATOS DE MERCADO:
 {{MARKET_CONTEXT}}
+
+NOTICIAS RELACIONADAS:
+{{NEWS_CONTEXT}}
 
 Pregunta del usuario: "{{USER_MESSAGE}}"
 
 INSTRUCCIONES:
 - Responde en español, de forma profesional, concisa y basada en los DATOS proporcionados arriba.
-- IMPORTANTE: Si ves una sección "📰 ÚLTIMAS NOTICIAS", **DEBES resumir o listar los titulares más relevantes** al usuario. No ignores esta información.
+- Si ves una sección "📰 NOTICIAS", **DEBES resumir o listar los titulares más relevantes** al usuario.
 - Si ves una "Curva de Precios", analízala brevemente (tendencia alcista/bajista, volatilidad).
 - Da consejos estratégicos sobre diversificación y riesgo si aplica.
-- Si te preguntan por una acción cuyos datos acabas de recibir (arriba), úsalos para opinar.
 - Identifícate siempre como Stocks Bot.`;
         }
 
         // Debug Context (Temporary)
-        console.log('[AI PROMPT CONTEXT]', marketContext);
+        // console.log('[AI PROMPT CONTEXT]', marketContext);
 
         const prompt = promptTemplate
             .replace('{{PORTFOLIO_CONTEXT}}', portfolioSummary || "Portafolio vacío por el momento.")
             .replace('{{MARKET_CONTEXT}}', marketContext)
             .replace('{{MARKET_DATA}}', marketContext) // Support user's custom placeholder
+            .replace('{{NEWS_CONTEXT}}', newsDataStr)
             .replace('{{USER_MESSAGE}}', userMessage);
 
         return prompt;
     },
 
     async analyzePortfolio(userId: string, userMessage: string) {
-        const currentModel = await getModel();
-        if (!currentModel) return "Error de configuración IA";
+        const provider = await getProvider();
+        if (!provider) return "Error: Servicio IA no configurado (Proveedor no encontrado).";
+        // removed validate call, provider factory handles base config, but we could add provider.validateConfig()
 
         const prompt = await this._buildPortfolioAnalysisPrompt(userId, userMessage);
 
         try {
-            const result = await currentModel.generateContent(prompt);
-            return result.response.text();
+            const result = await provider.generateContent(prompt);
+            return result;
         } catch (e: any) {
             console.error("AI Error:", e);
+            const errorMessage = e.message || JSON.stringify(e);
+
+            if (errorMessage.includes('API key') || errorMessage.includes('expired') || errorMessage.includes('401')) {
+                console.error('🚨 [ADMIN ALERT] AI PROVIDER API KEY EXPIRED OR INVALID (Portfolio).');
+                NotificationService.notifyAdmin('AI API KEY ERROR', 'La API Key del proveedor de IA ha fallado. El análisis de portafolio ha fallado.');
+                return "⚠️ **Error Crítico**: La API Key de IA ha fallado. Por favor avisa al administrador del sistema.";
+            }
+
+            // Handle Quota/Rate Limit Errors
+            if (errorMessage.includes('429') || errorMessage.includes('Quota') || errorMessage.includes('exhausted')) {
+                console.error('🚨 [ADMIN ALERT] AI QUOTA EXCEEDED.');
+                NotificationService.notifyAdmin('AI QUOTA EXCEEDED', 'El modelo de IA seleccionado ha superado el límite de cuota.');
+                return "⚠️ **Límite de Cuota Excedido** ⚠️\n\nEl proveedor de IA ha superado su límite de uso.\n\n👉 **Solución**: Contacta al administrador.";
+            }
+
             return `Error: ${e.message}`;
         }
     },
 
     async analyzePortfolioStream(userId: string, userMessage: string) {
-        const currentModel = await getModel();
-        if (!currentModel) {
-            // Return a generator that yields the error message
+        const provider = await getProvider();
+        if (!provider) {
             return async function* () { yield "Error: Servicio IA no configurado." }();
         }
 
         const prompt = await this._buildPortfolioAnalysisPrompt(userId, userMessage);
 
         try {
-            const result = await currentModel.generateContentStream(prompt);
-            return result.stream;
+            const stream = await provider.generateStream(prompt);
+            return stream;
         } catch (e: any) {
             console.error("AI Stream Error:", e);
+            const errorMessage = e.message || JSON.stringify(e);
+
+            if (errorMessage.includes('API key') || errorMessage.includes('expired') || errorMessage.includes('401')) {
+                console.error('🚨 [ADMIN ALERT] AI PROVIDER API KEY INVALID (Portfolio Stream).');
+                return async function* () {
+                    yield "⚠️ **Error Crítico**: Problema con la API Key del proveedor de IA.";
+                }();
+            }
+
+            if (errorMessage.includes('429') || errorMessage.includes('Quota') || errorMessage.includes('exhausted')) {
+                console.error('🚨 [ADMIN ALERT] AI QUOTA EXCEEDED (Stream).');
+                return async function* () {
+                    yield "⚠️ **Límite de Cuota Excedido**: El proveedor está saturado.";
+                }();
+            }
+
             return async function* () { yield `Error: ${e.message}`; }();
         }
     },
@@ -236,6 +282,7 @@ INSTRUCCIONES:
             }
 
             // Próximos eventos del calendario (7 días)
+            /* 
             const nextWeek = new Date();
             nextWeek.setDate(nextWeek.getDate() + 7);
 
@@ -256,6 +303,7 @@ INSTRUCCIONES:
                     userContext += `• ${date}: ${e.title} (${e.ticker || e.event_type})\n`;
                 });
             }
+            */
         } catch (e) {
             console.error('Error getting user context:', e);
         }
@@ -316,7 +364,18 @@ INSTRUCCIONES:
         const allMatches = [...dbMatches, ...lastMsgTickers, ...contextTickers];
 
         const commonTokens = [
-            'HOLA', 'PARA', 'COMO', 'ESTA', 'TODO', 'BIEN', 'PERO', 'DONDE', 'CUANDO', 'QUE', 'TIENE', 'CREO', 'ESTE', 'ESE', 'POR', 'CON', 'LOS', 'LAS', 'UNA', 'UNO', 'MIS', 'TUS', 'SUS', 'HAY', 'VER', 'DEL', 'SOY', 'Tengo', 'PUEDO', 'QUIERO', 'DECIR', 'SOBRE', 'STOCKS', 'BOT', 'RMINOS', 'DARTE', 'ANALIZAR'
+            'HOLA', 'PARA', 'COMO', 'ESTA', 'TODO', 'BIEN', 'PERO', 'DONDE', 'CUANDO', 'QUE', 'TIENE', 'CREO', 'ESTE', 'ESE', 'POR', 'CON', 'LOS', 'LAS', 'UNA', 'UNO', 'MIS', 'TUS', 'SUS', 'HAY', 'VER', 'DEL', 'SOY', 'TENGO', 'PUEDO', 'QUIERO', 'DECIR', 'SOBRE', 'STOCKS', 'BOT', 'RMINOS', 'DARTE', 'ANALIZAR',
+            'CUALES', 'SON', 'LAS', 'DE', 'DEL', 'EL', 'LA', 'UN', 'UNA', 'UNOS', 'UNAS', 'YO', 'TU', 'SU', 'NOS', 'OS', 'LES', 'MI', 'TI', 'SI', 'NO', 'Y', 'O', 'U', 'A', 'E',
+            'DICEN', 'DICE', 'HABLAN', 'HABLA', 'OPINAN', 'OPINA', 'ANALISTAS', 'EXPERTOS', 'GURUS', 'INVERSORES', 'TRADERS',
+            'NOTICIAS', 'NOVEDADES', 'SUCESOS', 'EVENTOS', 'HECHOS', 'DATOS', 'INFO', 'INFORMACION',
+            'PRECIO', 'VALOR', 'COTIZACION', 'COSTE', 'COSTO', 'DINERO', 'EUROS', 'DOLARES', 'USD', 'EUR',
+            'MERCADO', 'BOLSA', 'WALL', 'STREET', 'IBEX', 'NASDAQ', 'DOW', 'JONES', 'SP500',
+            'ACCION', 'ACCIONES', 'TITULO', 'TITULOS', 'VALORES', 'ACTIVOS', 'EMPRESAS', 'COMPAÑIAS',
+            'COMPRAR', 'VENDER', 'MANTENER', 'SUBIR', 'BAJAR', 'GANAR', 'PERDER', 'INVERTIR', 'OPERAR',
+            'AHORA', 'HOY', 'AYER', 'MAÑANA', 'ANTES', 'DESPUES', 'SIEMPRE', 'NUNCA', 'TARDE', 'PRONTO',
+            'GRACIAS', 'PORFAVOR', 'HOLA', 'ADIOS', 'HASTA', 'LUEGO', 'SALUDOS',
+            'ALGO', 'NADA', 'MUCHO', 'POCO', 'BASTANTE', 'DEMASIADO', 'MAS', 'MENOS', 'TOTAL', 'IGUAL',
+            'BUENO', 'MALO', 'MEJOR', 'PEOR', 'GRAN', 'PEQUEÑO', 'ALTO', 'BAJO'
         ];
 
         let mentionedTickers = [...new Set(allMatches.filter(t => !commonTokens.includes(t)))];
@@ -347,86 +406,109 @@ INSTRUCCIONES:
         }
 
         let marketDataStr = "";
+        let newsDataStr = ""; // Block for {{NEWS_CONTEXT}}
 
         // 4. Obtener datos de mercado - más tickers si es análisis completo
         const maxTickers = wantsFullAnalysis ? 15 : 4;
 
-        // DETECT NEWS INTENT
-        const newsKeywords = ['NOTICIAS', 'NEWS', 'NOVEDADES', 'QUE PASO', 'ULTIMA HORA', 'PASANDO'];
-        const userMsgUpper = lastUserMessage.toUpperCase();
-        const wantsNews = newsKeywords.some(kw => userMsgUpper.includes(kw));
-
         if (tickersToAnalyze.length > 0) {
             marketDataStr += "\n📈 DATOS DE MERCADO:\n";
+            // We fetch keys for all analyzed tickers
             for (const ticker of tickersToAnalyze.slice(0, maxTickers)) {
                 try {
-                    const [history, quote, news] = await Promise.all([
+                    // Parallelize data fetching (Full Pack)
+                    const [history, quote, news, analysts, peers, insider] = await Promise.all([
                         MarketDataService.getDetailedHistory(ticker, 1),
                         MarketDataService.getQuote(ticker),
-                        wantsNews ? MarketDataService.getCompanyNews(ticker) : Promise.resolve([])
+                        MarketDataService.getCompanyNews(ticker),
+                        MarketDataService.getAnalystRecommendations(ticker),
+                        MarketDataService.getPeers(ticker),
+                        MarketDataService.getInsiderSentiment(ticker)
                     ]);
 
-                    if (history && history.length > 0) {
-                        const last = history[history.length - 1];
-                        const prev = history[history.length - 2];
-                        let changeStr = "";
+                    if (quote) {
+                        const currencySymbol = quote?.currency === 'EUR' ? '€' : quote?.currency === 'GBP' ? '£' : '$';
+                        const quoteTime = new Date(quote.lastUpdated || Date.now()).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
-                        if (prev && prev.close > 0) {
-                            const change = ((last.close - prev.close) / prev.close * 100);
-                            changeStr = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+                        marketDataStr += `\n📌 ANÁLISIS PARA ${ticker} (${quote.name}):\n`;
+                        marketDataStr += `PRECIO (aprox ${quoteTime}): ${currencySymbol}${quote.c.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)\n`;
+
+                        // FUNDAMENTALES
+                        marketDataStr += `FUNDAMENTALES:\n`;
+                        marketDataStr += `- Cap: ${quote.marketCap || 'N/A'} | Beta: ${quote.beta || 'N/A'}\n`;
+                        marketDataStr += `- PER: ${quote.peRatio || 'N/A'} | EPS: N/A\n`; // EPS not yet in QuoteResult but handy
+                        marketDataStr += `- Próx. Resultados: ${quote.earningsDate || 'N/A'}\n`;
+
+                        if (quote.targetMeanPrice) {
+                            marketDataStr += `- Objetivo Analistas: ${currencySymbol}${quote.targetMeanPrice} (Consenso: ${quote.recommendationKey || 'N/A'})\n`;
+                        } else if (analysts) {
+                            // Fallback to Finnhub Analysts
+                            const buy = analysts.buy + analysts.strongBuy;
+                            const sell = analysts.sell + analysts.strongSell;
+                            marketDataStr += `- Consenso Analistas (Finnhub): ${buy} Comprar / ${analysts.hold} Mantener / ${sell} Vender\n`;
                         }
 
-                        const prices = history.map(h => Number(h.close));
-                        const min = Math.min(...prices).toFixed(2);
-                        const max = Math.max(...prices).toFixed(2);
-                        const lastDate = new Date(last.date).toISOString().split('T')[0];
+                        // TÉCNICO
+                        if (history && history.length > 15) {
+                            const prices = history.map(h => Number(h.close));
+                            const tech = MarketDataService.getTechnicalIndicators(prices);
 
-                        // Add detailed context for the AI
-                        const last5 = history.slice(-5).map(h => `${new Date(h.date).toLocaleDateString()}: $${Number(h.close).toFixed(2)}`).join(' | ');
-
-                        marketDataStr += `\n📌 ANÁLISIS PARA ${ticker}:\n`;
-
-                        // Add Real-Time Quote info (Fetched in parallel)
-                        if (quote) {
-                            const quoteTime = new Date(quote.lastUpdated || Date.now()).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-                            marketDataStr += `⚡ PRECIO TIEMPO REAL (aprox ${quoteTime}): $${quote.c.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)\n`;
+                            if (tech) {
+                                marketDataStr += `TÉCNICO (Calculado):\n`;
+                                marketDataStr += `- RSI (14): ${tech.rsi} (${tech.rsi > 70 ? '⚠️ SOBRECOMPRA' : tech.rsi < 30 ? '⚠️ SOBREVENTA' : 'Neutral'})\n`;
+                                marketDataStr += `- Tendencia: ${tech.trend}\n`;
+                                marketDataStr += `- Medias: SMA50 ${currencySymbol}${tech.sma50 || 'N/A'} | SMA200 ${currencySymbol}${tech.sma200 || 'N/A'}\n`;
+                            }
                         }
 
-                        marketDataStr += `- Cierre Día Anterior (${lastDate}): $${Number(last.close).toFixed(2)} (${changeStr})\n`;
-                        marketDataStr += `- Rango 52 semanas: $${min} - $${max}\n`;
-                        marketDataStr += `- Últimos 5 cierres: ${last5}\n`;
+                        // INSIGHTS (Finnhub)
+                        let insights = "";
+                        if (peers && peers.length > 0) insights += `- Competencia: ${peers.slice(0, 5).join(', ')}\n`;
+                        if (insider) insights += `- Insider Sentiment (3m): ${insider.label} (MSPR: ${insider.mspr.toFixed(2)})\n`;
 
-                        // Add trend context (sampled)
-                        const trend = history
-                            .filter((_, i) => i % 10 === 0 || i === history.length - 1)
-                            .map(h => Number(h.close).toFixed(1))
-                            .join(' -> ');
-                        marketDataStr += `- Tendencia (Muestreo): ${trend}\n`;
-
-                        // Add News if requested
-                        if (news && news.length > 0) {
-                            marketDataStr += `\n📰 ÚLTIMAS NOTICIAS (${ticker}):\n`;
-                            news.slice(0, 5).forEach((n: any) => {
-                                marketDataStr += `- [${n.timeStr}] ${n.title} (${n.publisher})\n`;
-                            });
+                        if (insights) {
+                            marketDataStr += `INSIGHTS:\n${insights}`;
                         }
 
-                    } else {
-                        console.warn(`[ChatBot] No history returned for ${ticker}`);
+                        marketDataStr += `- Rango 52sem: ${currencySymbol}${quote.yearLow || 'N/A'} - ${currencySymbol}${quote.yearHigh || 'N/A'}\n`;
                     }
+
+                    // Add News to NEWS BLOCK
+                    if (news && news.length > 0) {
+                        newsDataStr += `\n📰 NOTICIAS RECIENTES (${ticker}):\n`;
+                        news.slice(0, 6).forEach((n: any) => {
+                            newsDataStr += `- [${n.timeStr}] ${n.title} (${n.publisher})\n`;
+                        });
+                    }
+
                 } catch (e) {
                     console.error(`ChatBot: Error fetching data for ${ticker}`, e);
                 }
             }
-        } else {
+        }
 
+        if (!newsDataStr) {
+            newsDataStr = "No hay noticias recientes relevantes para los activos mencionados.";
         }
 
         // 4. Historial de conversación (últimos 8 mensajes)
         const chatHistoryStr = messages.slice(-8).map(m => `${m.role === 'user' ? 'Tú' : 'Bot'}: ${m.text}`).join('\n');
 
-        // 5. Prompt mejorado
-        let promptTemplate = await SettingsService.get('AI_PROMPT_CHATBOT');
+        // 5. Prompt mejorado (Active Prompt from DB)
+        let promptTemplate = "";
+        try {
+            const [activePrompt] = await sql`
+                SELECT content FROM ai_prompts 
+                WHERE prompt_type = 'CHATBOT' AND is_active = true 
+                LIMIT 1
+            `;
+            if (activePrompt) {
+                promptTemplate = activePrompt.content;
+            }
+        } catch (e) {
+            console.error('Error fetching active chatbot prompt:', e);
+        }
+
         if (!promptTemplate) {
             promptTemplate = `Eres un asesor financiero cercano y experto. Tu nombre es Stocks Bot.
 
@@ -447,6 +529,9 @@ DATOS DEL USUARIO:
 DATOS DE MERCADO:
 {{MARKET_DATA}}
 
+NOTICIAS (Contexto Adicional):
+{{NEWS_CONTEXT}}
+
 ÚLTIMO MENSAJE DEL USUARIO:
 {{USER_MESSAGE}}
 
@@ -456,109 +541,116 @@ CONVERSACIÓN:
 Responde al último mensaje del usuario de forma natural y útil.`;
         }
 
-        // DYNAMIC OVERRIDE: If user specificially asks for news, override technical analysis structure
-        let finalUserMessage = lastUserMessage;
-        if (wantsNews && !wantsFullAnalysis) {
-            finalUserMessage += `\n\n(SISTEMA: El usuario ha preguntado EXPLÍCITAMENTE por NOTICIAS. IGNORA la "Estructura Obligatoria" de análisis técnico (Soportes, Resistencias, etc) para esta respuesta. Tu ÚNICO objetivo es resumir las noticias listadas en DATOS DE MERCADO y dar una breve conclusión de impacto. ¡SÉ DIRECTO!)`;
-        }
-
         const prompt = promptTemplate
             .replace('{{USER_CONTEXT}}', userContext || "No hay datos de portafolio disponibles.")
             .replace('{{MARKET_DATA}}', marketDataStr || "Sin datos de mercado relevantes.")
-            .replace('{{USER_MESSAGE}}', finalUserMessage)
+            .replace('{{NEWS_CONTEXT}}', newsDataStr)
+            .replace('{{USER_MESSAGE}}', lastUserMessage)
             .replace('{{CHAT_HISTORY}}', chatHistoryStr);
 
         return prompt;
     },
 
     async chatWithBot(userId: string, messages: { role: string, text: string }[]) {
-        const currentModel = await getModel();
-        if (!currentModel) {
-            console.error('[ChatBot] Model initialization failed (No API Key?).');
+        const provider = await getProvider();
+        if (!provider) {
+            console.error('[ChatBot] Provider init failed.');
             return "El servicio de IA no está configurado.";
         }
 
         const prompt = await this._buildChatPrompt(userId, messages);
 
         try {
-            const result = await currentModel.generateContent(prompt);
-            return result.response.text();
+            const result = await provider.generateContent(prompt);
+            return result;
         } catch (e: any) {
             console.error("AI Chat Error:", e);
-            console.error("AI Chat Error Body:", JSON.stringify(e, Object.getOwnPropertyNames(e))); // Force full error logging
-            if (e.message?.includes('API key') || e.message?.includes('401')) {
-                cachedApiKey = null;
-                model = null;
+            const errorMessage = e.message || JSON.stringify(e);
+
+            // Handle API Key specific errors
+            if (errorMessage.includes('API key') || errorMessage.includes('expired') || errorMessage.includes('401')) {
+                console.error('🚨 [ADMIN ALERT] AI TOKEN EXPIRED.');
+                NotificationService.notifyAdmin('AI API KEY ERROR', 'La API Key de Inteligencia Artificial ha fallado.');
+                return "⚠️ **Problema Técnico Crítico** ⚠️\n\nFallo de autenticación con el proveedor de IA.\n\n👉 **Contacta al administrador**.";
             }
-            return "Lo siento, tuve un problema al procesar tu mensaje. Intenta de nuevo.";
+
+            // Handle Quota/Rate Limit Errors (429)
+            if (errorMessage.includes('429') || errorMessage.includes('Quota') || errorMessage.includes('exhausted')) {
+                console.error('🚨 [ADMIN ALERT] AI QUOTA EXCEEDED.');
+                NotificationService.notifyAdmin('AI QUOTA EXCEEDED', 'Límite de cuota excedido en ChatBot.');
+                return "⚠️ **Límite de Cuota Excedido** ⚠️\n\nEl proveedor de IA ha superado su límite. Intenta más tarde.";
+            }
+
+            // General Fallback
+            return "Lo siento, tuve un problema técnico al procesar tu mensaje. Intenta de nuevo en unos momentos.";
         }
     },
 
     async chatWithBotStream(userId: string, messages: { role: string, text: string }[]) {
-        const currentModel = await getModel();
-        if (!currentModel) {
+        const provider = await getProvider();
+        if (!provider) {
             return async function* () { yield "Error: Servicio IA no configurado." }();
         }
 
         const prompt = await this._buildChatPrompt(userId, messages);
 
         try {
-            const result = await currentModel.generateContentStream(prompt);
-            return result.stream;
+            const stream = await provider.generateStream(prompt);
+            return stream;
         } catch (e: any) {
             console.error("AI Chat Stream Error:", e);
+            const errorMessage = e.message || JSON.stringify(e);
+
+            if (errorMessage.includes('API key') || errorMessage.includes('expired') || errorMessage.includes('401')) {
+                console.error('🚨 [ADMIN ALERT] AI API KEY ERROR (Stream).');
+                return async function* () {
+                    yield "⚠️ **Problema Técnico**: Error de autenticación IA.";
+                }();
+            }
+
+            if (errorMessage.includes('429') || errorMessage.includes('Quota') || errorMessage.includes('exhausted')) {
+                console.error('🚨 [ADMIN ALERT] AI QUOTA EXCEEDED (Stream).');
+                return async function* () {
+                    yield "⚠️ **Límite de Cuota Excedido** ⚠️\n\nEl proveedor está saturado.";
+                }();
+            }
+
             return async function* () { yield `Error: ${e.message}`; }();
         }
     },
 
     async fetchAvailableModels() {
-        let apiKey = await SettingsService.get('GOOGLE_GENAI_API_KEY') || process.env.GOOGLE_GENAI_API_KEY;
-        if (!apiKey) throw new Error('No hay API Key configurada');
-
-        apiKey = apiKey.trim(); // Sanitize key
-
+        // Now delegates to the active provider
         try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-            // Manejar errores de API limpiamente para no crashear
-            if (!response.ok) {
-                const errText = await response.text();
-                console.warn(`[AI] Google API Error fetching models: ${response.status} ${response.statusText} - ${errText}`);
-                throw new Error(`Google API: ${response.statusText}`);
+            const provider = await getProvider();
+            if (provider) {
+                const models = await provider.getModels();
+                // Cache if needed? The provider likely doesn't cache, but we can relies on frontend caching or simple re-fetch.
+                // For now, let's store in DB as fallback or just return it.
+                // The original method updated 'AI_AVAILABLE_MODELS' setting.
+                if (models.length > 0) {
+                    await SettingsService.set('AI_AVAILABLE_MODELS', JSON.stringify(models), false);
+                }
+                return models;
             }
-
-            const data = await response.json();
-            const models = (data.models || [])
-                .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
-                .map((m: any) => ({
-                    id: m.name.replace('models/', ''),
-                    name: `${m.displayName} (${m.version})`
-                }))
-                .sort((a: any, b: any) => b.id.localeCompare(a.id));
-
-            await SettingsService.set('AI_AVAILABLE_MODELS', JSON.stringify(models), false);
-            return models;
         } catch (e: any) {
-            console.error('Error fetching models:', e.message);
-            throw new Error('No se pudieron obtener los modelos de Google: ' + e.message);
+            console.error('Error fetching models from provider:', e);
         }
+        return [];
     },
 
     async getAvailableModels() {
+        // Try fetching fresh first (to ensure provider switch is reflected)
+        const fresh = await this.fetchAvailableModels();
+        if (fresh && fresh.length > 0) return fresh;
+
         const stored = await SettingsService.get('AI_AVAILABLE_MODELS');
         if (stored) {
-            try {
-                return JSON.parse(stored);
-            } catch (e) { console.error('Error parsing stored models', e); }
+            try { return JSON.parse(stored); } catch (e) { }
         }
-        try {
-            return await this.fetchAvailableModels();
-        } catch (e) {
-            console.warn('[AI] Using fallback models due to fetch error');
-            return [
-                { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Fallback)' },
-                { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Fallback)' },
-                { id: 'gemini-pro', name: 'Gemini Pro (Fallback)' }
-            ];
-        }
+
+        return [
+            { id: 'default', name: 'Default Model (Fallback)' }
+        ];
     }
 };

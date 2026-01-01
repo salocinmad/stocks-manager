@@ -4,6 +4,7 @@ import sql from '../db';
 import bcrypt from 'bcryptjs';
 import { TwoFactorService } from '../services/twoFactorService';
 import { EmailService } from '../services/emailService';
+import { SettingsService } from '../services/settingsService';
 
 // Store temporary 2FA sessions (in production, use Redis)
 const pending2FASessions = new Map<string, { userId: string; email: string; role: string; name: string; currency: string; securityMode: string; rememberMe?: boolean; emailCode?: string; expiresAt: number }>();
@@ -217,24 +218,94 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
 
         if (users.length > 0) {
             const user = users[0];
-            const newPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-4).toUpperCase();
-            const hashedPassword = await bcrypt.hash(newPassword, 10);
-            await sql`UPDATE users SET password_hash = ${hashedPassword} WHERE id = ${user.id}`;
+
+            // 1. Generate secure token
+            const resetToken = crypto.randomUUID();
+            const tokenHash = Bun.hash(resetToken).toString(); // Using Bun.hash (argon2) or simple SHA256?
+            // Actually, for simple tokens, let's use Web Crypto API for generation and simple storage
+            // But to be consistent with Node/Generic TS:
+            const rawToken = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+            // Simple SHA256 hash for storage
+            const hash = new Bun.CryptoHasher("sha256").update(rawToken).digest("hex");
+
+            // 2. Save hash to DB (expires in 1 hour)
+            const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+            await sql`
+                INSERT INTO password_resets (user_id, token_hash, expires_at)
+                VALUES (${user.id}, ${hash}, ${expiresAt.toISOString()})
+            `;
+
+            // 3. Send Email
+            const appUrl = await SettingsService.get('APP_URL');
+            const baseUrl = appUrl || process.env.FRONTEND_URL || 'http://localhost:3000';
+
+            // Ensure no double slashes if user added trailing slash
+            const curretBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+            // Frontend uses HashRouter, so we must explicitly include /#/
+            const resetLink = `${curretBase}/#/reset-password?token=${rawToken}`;
 
             const emailHtml = `
                 <div style="font-family: Arial, sans-serif; padding: 20px;">
-                    <h2>Stocks Manager - Recuperación</h2>
-                    <p>Tu nueva contraseña temporal es: <strong>${newPassword}</strong></p>
-                    <p>Cámbiala lo antes posible.</p>
+                    <h2>Restablecer Contraseña</h2>
+                    <p>Has solicitado restablecer tu contraseña.</p>
+                    <p>Haz clic en el siguiente enlace (válido por 1 hora):</p>
+                    <p><a href="${resetLink}" style="padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Restablecer Password</a></p>
+                    <p>Si no fuiste tú, ignora este correo.</p>
                 </div>
             `;
 
-            await EmailService.sendEmail(email, 'Nueva contraseña', emailHtml);
+            await EmailService.sendEmail(email, 'Restablecer Contraseña - Stocks Manager', emailHtml);
         }
 
+        // Always return success to prevent user enumeration
         return { success: true, message: 'Si el correo existe, recibirás instrucciones.' };
     }, {
         body: t.Object({ email: t.String() })
+    })
+    .post('/reset-password', async ({ body, set }) => {
+        // @ts-ignore
+        const { token, newPassword } = body;
+
+        if (!token || !newPassword) {
+            set.status = 400;
+            return { error: 'Token y nueva contraseña requeridos' };
+        }
+
+        // 1. Hash received token to look it up
+        const hash = new Bun.CryptoHasher("sha256").update(token).digest("hex");
+
+        // 2. Find valid token
+        const resets = await sql`
+            SELECT * FROM password_resets 
+            WHERE token_hash = ${hash} 
+            AND used = false 
+            AND expires_at > NOW()
+        `;
+
+        if (resets.length === 0) {
+            set.status = 400;
+            return { error: 'Token inválido o expirado' };
+        }
+
+        const resetRecord = resets[0];
+
+        // 3. Update Password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await sql`UPDATE users SET password_hash = ${hashedPassword} WHERE id = ${resetRecord.user_id}`;
+
+        // 4. Mark token as used
+        await sql`UPDATE password_resets SET used = true WHERE id = ${resetRecord.id}`;
+
+        // 5. Invalidate ALL other tokens for this user (security best practice)
+        await sql`UPDATE password_resets SET used = true WHERE user_id = ${resetRecord.user_id} AND id != ${resetRecord.id}`;
+
+        return { success: true, message: 'Contraseña actualizada correctamente' };
+    }, {
+        body: t.Object({
+            token: t.String(),
+            newPassword: t.String()
+        })
     })
     .post('/change-password', async ({ headers, body, set, jwt }) => {
         const auth = headers['authorization'];

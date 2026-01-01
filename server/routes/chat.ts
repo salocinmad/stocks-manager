@@ -143,10 +143,16 @@ export const chatRoutes = new Elysia({ prefix: '/chat' })
             ORDER BY created_at ASC
         `;
 
+        // Map to expected format explicitly to avoid TS errors
+        const historyMapped = history.map(h => ({
+            role: h.role as string,
+            text: h.text as string
+        }));
+
         // Start AI Stream
         let geminiStream;
         try {
-            geminiStream = await AIService.chatWithBotStream(userId, history);
+            geminiStream = await AIService.chatWithBotStream(userId, historyMapped);
         } catch (error: any) {
             console.error('[Chat] Stream start error:', error);
 
@@ -179,12 +185,19 @@ export const chatRoutes = new Elysia({ prefix: '/chat' })
                     // Frontend will assume successful user msg insertion.
 
                     for await (const chunk of geminiStream) {
-                        if (typeof chunk.text === 'function') {
-                            const text = chunk.text();
+                        let text = "";
+
+                        if (typeof chunk === 'string') {
+                            text = chunk;
+                        } else if (chunk && typeof chunk.text === 'function') {
+                            text = chunk.text();
+                        }
+
+                        if (text) {
                             fullResponse += text;
                             controller.enqueue(new TextEncoder().encode(text));
                         } else {
-                            console.warn('[Chat] Invalid chunk received', chunk);
+                            // console.warn('[Chat] Invalid or empty chunk received', chunk);
                         }
                     }
 

@@ -8,51 +8,7 @@
 
 import sql from '../db';
 import { MarketDataService } from '../services/marketData';
-
-// Get positions that were open on a specific date based on transactions
-async function getPositionsOnDate(portfolioId: string, dateStr: string): Promise<Map<string, { qty: number, avgPrice: number, currency: string }>> {
-    const positionsMap = new Map<string, { qty: number, avgPrice: number, currency: string }>();
-
-    // Get all BUY/SELL transactions up to and including this date
-    const transactions = await sql`
-        SELECT ticker, type, amount, price_per_unit, currency, date
-        FROM transactions
-        WHERE portfolio_id = ${portfolioId}
-        AND date::date <= ${dateStr}::date
-        ORDER BY date ASC
-    `;
-
-    // Calculate running totals per ticker
-    for (const tx of transactions) {
-        const ticker = (tx.ticker || '').toUpperCase();
-        const type = tx.type;
-        const amount = Number(tx.amount) || 0;
-        const price = Number(tx.price_per_unit) || 0;
-        const currency = (tx.currency || 'EUR').toUpperCase();
-
-        const current = positionsMap.get(ticker) || { qty: 0, avgPrice: 0, currency };
-
-        if (type === 'BUY') {
-            // Recalculate average price
-            const totalCost = (current.qty * current.avgPrice) + (amount * price);
-            const newQty = current.qty + amount;
-            current.qty = newQty;
-            current.avgPrice = newQty > 0 ? totalCost / newQty : 0;
-            current.currency = currency;
-        } else if (type === 'SELL') {
-            current.qty = Math.max(0, current.qty - amount);
-            // avgPrice stays the same for remaining shares
-        }
-
-        if (current.qty > 0) {
-            positionsMap.set(ticker, current);
-        } else {
-            positionsMap.delete(ticker); // Position fully closed
-        }
-    }
-
-    return positionsMap;
-}
+import { PnLService } from '../services/pnlService';
 
 // Calculate PnL for a specific date range (uses only trading days)
 async function calculatePnLForDateRange(portfolioId: string, startDate: Date, endDate: Date): Promise<void> {
@@ -161,23 +117,23 @@ async function calculatePnLForDateRange(portfolioId: string, startDate: Date, en
 
     // Calculate PnL for each date
     for (const dateStr of dates) {
-        // Get positions that were open on this date
-        const positionsOnDate = await getPositionsOnDate(portfolioId, dateStr);
+        // Reconstruct portfolio state for this date using the Service
+        const positionsMap = await PnLService.getPositionsOnDate(portfolioId, dateStr);
+        const positions = Array.from(positionsMap.values());
 
-        if (positionsOnDate.size === 0) continue;
+        if (positions.length === 0) continue;
 
-        let dailyPnl = 0;
+        // Prepare price and rate maps for the service
+        const prices: Record<string, number> = {};
+        const rates: Record<string, number> = { 'EUR': 1.0 };
 
-        for (const [ticker, pos] of positionsOnDate) {
-            const price = getPriceAtDate(ticker, dateStr);
-            const rate = getRateAtDate(pos.currency, dateStr);
-
-            if (price > 0) {
-                const valueEur = pos.qty * price * rate;
-                const costEur = pos.qty * pos.avgPrice * rate;
-                dailyPnl += (valueEur - costEur);
-            }
+        for (const pos of positions) {
+            prices[pos.ticker] = getPriceAtDate(pos.ticker, dateStr);
+            rates[pos.currency] = getRateAtDate(pos.currency, dateStr);
         }
+
+        // Calculate pure math via Service
+        const dailyPnl = PnLService.calculateDailyUnrealizedPnL(positions, prices, rates);
 
         // Upsert into cache
         await sql`
@@ -270,4 +226,33 @@ export function schedulePnLJob(): void {
 export async function calculatePnLForAllPortfolios(): Promise<void> {
     console.log('[PnL Job] Manual trigger: Full calculation...');
     await calculatePnLWeekly();
+}
+
+// For admin-triggered FULL recalculation (from first transaction date)
+export async function recalculateAllHistory(): Promise<void> {
+    console.log('[PnL Job] Recalculating FULL PnL history for ALL portfolios...');
+
+    const portfolios = await sql`SELECT id FROM portfolios`;
+    const endDate = new Date();
+
+    for (const portfolio of portfolios) {
+        // Find the earliest transaction date for this portfolio
+        const firstTx = await sql`
+            SELECT MIN(date) as first_date FROM transactions WHERE portfolio_id = ${portfolio.id}
+        `;
+
+        let startDate: Date;
+        if (firstTx[0]?.first_date) {
+            startDate = new Date(firstTx[0].first_date);
+        } else {
+            // No transactions - skip or use 6 months back
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            startDate = sixMonthsAgo;
+        }
+
+        await calculatePnLForDateRange(portfolio.id, startDate, endDate);
+    }
+
+    console.log('[PnL Job] Full history recalculation completed.');
 }

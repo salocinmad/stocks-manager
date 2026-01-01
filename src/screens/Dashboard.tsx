@@ -125,32 +125,72 @@ export const Dashboard: React.FC = () => {
               if (sectorData && !sectorData.error) {
                 const sectorValues: Record<string, number> = {};
 
+                // Normalization map: Map specific industries/variants to standard GICS sectors
+                const sectorMap: Record<string, string> = {
+                  'Semiconductors': 'Technology',
+                  'Software': 'Technology',
+                  'Biotechnology': 'Healthcare',
+                  'Health Care': 'Healthcare',
+                  'Telecommunication': 'Communication Services',
+                  'Building': 'Industrials',
+                  'Construction': 'Industrials',
+                  'Online Media': 'Communication Services',
+                  'Banks': 'Financial Services',
+                  'Insurance': 'Financial Services'
+                };
+
                 for (const pos of positions) {
                   const info = sectorData[pos.ticker];
-                  const sector = info?.sector || 'Desconocido';
+                  let sector = info?.sector || 'Desconocido';
+
+                  // Normalize sector name
+                  if (sectorMap[sector]) {
+                    sector = sectorMap[sector];
+                  }
+
                   const value = pos.quantity * pos.average_buy_price;
                   sectorValues[sector] = (sectorValues[sector] || 0) + value;
                 }
 
                 const sectorColors: Record<string, string> = {
-                  'Technology': '#60a5fa',
-                  'Healthcare': '#34d399',
-                  'Financial Services': '#fbbf24',
-                  'Consumer Cyclical': '#f472b6',
-                  'Consumer Defensive': '#fb923c',
-                  'Industrials': '#a78bfa',
-                  'Energy': '#ef4444',
-                  'Basic Materials': '#c084fc',
-                  'Communication Services': '#22d3ee',
-                  'Real Estate': '#14b8a6',
-                  'Utilities': '#6366f1',
+                  'Technology': '#3b82f6', // Bright Blue
+                  'Semiconductors': '#8b5cf6', // Violet
+                  'Healthcare': '#34d399', // Emerald
+                  'Health Care': '#34d399', // Emerald (Alternative)
+                  'Financial Services': '#fbbf24', // Amber
+                  'Consumer Cyclical': '#f472b6', // Pink
+                  'Consumer Defensive': '#fb923c', // Orange
+                  'Industrials': '#a78bfa', // Purple
+                  'Energy': '#ef4444', // Red
+                  'Basic Materials': '#c084fc', // Fuchsia
+                  'Communication Services': '#22d3ee', // Cyan
+                  'Telecommunication': '#22d3ee', // Cyan (Alternative)
+                  'Real Estate': '#14b8a6', // Teal
+                  'Utilities': '#6366f1', // Indigo
+                  'Building': '#78716c', // Stone
+                  'Professional Services': '#0ea5e9', // Sky
+                  'Media': '#ec4899', // Pink
+                  'Retail': '#f97316', // Orange
                   'Desconocido': '#6b7280'
+                };
+
+                // Fallback color generator logic
+                const getSectorColor = (name: string) => {
+                  if (sectorColors[name]) return sectorColors[name];
+
+                  // Generate consistent pastel color from string
+                  let hash = 0;
+                  for (let i = 0; i < name.length; i++) {
+                    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+                  }
+                  const h = hash % 360;
+                  return `hsl(${h}, 70%, 50%)`;
                 };
 
                 const sectorArray = Object.entries(sectorValues).map(([name, value]) => ({
                   name,
                   value,
-                  color: sectorColors[name] || '#6b7280'
+                  color: getSectorColor(name)
                 }));
 
                 sectorArray.sort((a, b) => b.value - a.value);

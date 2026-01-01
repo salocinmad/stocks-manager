@@ -1,18 +1,13 @@
-import YahooFinance from 'yahoo-finance2';
 import sql from '../db';
+import { NewsService } from './newsService';
 
-// Crear instancia de yahoo-finance2
-const yahooFinance = new YahooFinance();
 
 // ============================================================
 // CACHE SYSTEM WITH TTL
 // ============================================================
-interface CacheEntry<T> {
-    data: T;
-    expiry: number;
-}
-
-const cache = new Map<string, CacheEntry<any>>();
+// ============================================================
+// CACHE SYSTEM WITH TTL (DB PERSISTED)
+// ============================================================
 
 // TTL Configuration (in milliseconds)
 const TTL = {
@@ -22,33 +17,50 @@ const TTL = {
     HISTORY: 24 * 60 * 60 * 1000  // 24 hours - Historical data is static
 };
 
-function getFromCache<T>(key: string): T | null {
-    const entry = cache.get(key);
-    if (!entry) return null;
-    if (Date.now() > entry.expiry) {
-        cache.delete(key);
+async function getFromCache<T>(key: string): Promise<T | null> {
+    try {
+        const result = await sql`
+            SELECT data FROM market_cache 
+            WHERE key = ${key} AND expires_at > NOW()
+        `;
+        if (result.length > 0) {
+            return result[0].data as T;
+        }
+        // If exists but expired, it's cleaned up by the cron job, 
+        // or we could delete it here on read-miss, but let's keep it simple.
+        return null;
+    } catch (e) {
+        console.error('Cache Read Error:', e);
         return null;
     }
-    return entry.data;
 }
 
-function setCache<T>(key: string, data: T, ttlMs: number): void {
-    cache.set(key, { data, expiry: Date.now() + ttlMs });
-}
-
-// Clear expired entries periodically (every 5 minutes)
-setInterval(() => {
-    const now = Date.now();
-    for (const [key, entry] of cache.entries()) {
-        if (now > entry.expiry) {
-            cache.delete(key);
-        }
+async function setCache<T>(key: string, data: T, ttlMs: number): Promise<void> {
+    try {
+        const expiresAt = new Date(Date.now() + ttlMs);
+        await sql`
+            INSERT INTO market_cache (key, data, expires_at)
+            VALUES (${key}, ${data as any}, ${expiresAt})
+            ON CONFLICT (key) DO UPDATE 
+            SET data = EXCLUDED.data, expires_at = EXCLUDED.expires_at, created_at = NOW()
+        `;
+    } catch (e) {
+        console.error('Cache Write Error:', e);
     }
-}, 5 * 60 * 1000);
+}
+
+// Clear expired entries periodically (every 10 minutes)
+setInterval(async () => {
+    try {
+        await sql`DELETE FROM market_cache WHERE expires_at < NOW()`;
+    } catch (e) {
+        console.error('Cache Cleanup Error:', e);
+    }
+}, 10 * 60 * 1000);
 
 // ============================================================
 
-interface SymbolSearchResult {
+export interface SymbolSearchResult {
     symbol: string;
     name: string;
     exchange: string;
@@ -67,36 +79,49 @@ export interface QuoteResult {
     volume?: number;     // Current volume
     averageVolume?: number; // Average volume (10-day or 3-month)
     lastUpdated?: number; // Timestamp of the data
+    state?: string;      // Market state (REGULAR, CLOSED, etc)
+    exchange?: string;   // Exchange name
+
+    // Fundamental Data (New)
+    marketCap?: string;  // Market Capitalization (Fmt)
+    peRatio?: string;    // Price-to-Earnings (Fmt)
+    beta?: string;       // Beta (Volatility)
+    earningsDate?: string; // Next Earnings Date
+    targetMeanPrice?: string; // Analyst Target Price
+    recommendationKey?: string; // Analyst Recommendation (buy, hold, sell)
+    shortRatio?: string; // Short Interest Ratio
+    yearLow?: number;    // 52 Week Low
+    yearHigh?: number;   // 52 Week High
 }
 
 export const MarketDataService = {
-    // Buscar símbolos usando yahoo-finance2
+    // provider: removed
+
+
+    // Buscar símbolos usando fetch directo
     async searchSymbols(query: string): Promise<SymbolSearchResult[]> {
         if (!query || query.length < 1) return [];
 
         try {
-            const results = await yahooFinance.search(query, { quotesCount: 10, newsCount: 0 });
+            const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=10&newsCount=0&enableFuzzyQuery=false`;
+            const response = await fetch(url);
 
-            if (!results.quotes) return [];
+            if (!response.ok) return [];
 
-            // Función de prioridad para ordenar
+            const data = await response.json();
+            const quotes = data.quotes || [];
+
+            // Same sorting logic
             const getPriority = (q: any) => {
                 const symbol = (q.symbol || '').toUpperCase();
                 const exc = (q.exchange || '').toUpperCase();
-
-                // 1. España (.MC, MCE, MAD)
                 if (symbol.endsWith('.MC') || exc === 'MCE' || exc === 'MAD' || exc === 'BME') return 3;
-
-                // 2. USA (NMS, NYQ, etc, o sin punto)
-                // En Yahoo, los tickers de USA no suelen llevar sufijo (AAPL vs TEF.MC)
                 const usaExchanges = ['NMS', 'NYQ', 'NGM', 'ASE', 'PNK', 'NCM', 'NYE', 'NAS'];
                 if (usaExchanges.includes(exc) || !symbol.includes('.')) return 2;
-
-                // 3. Resto
                 return 1;
             };
 
-            const sortedQuotes = results.quotes.sort((a: any, b: any) => {
+            const sortedQuotes = quotes.sort((a: any, b: any) => {
                 return getPriority(b) - getPriority(a);
             });
 
@@ -114,23 +139,24 @@ export const MarketDataService = {
         }
     },
 
-    // Obtener tipo de cambio usando yahoo-finance2 (CACHED)
+    // Obtener tipo de cambio usando fetch directo
     async getExchangeRate(fromCurrency: string, toCurrency: string): Promise<number | null> {
         if (fromCurrency === toCurrency) return 1.0;
 
         const cacheKey = `rate:${fromCurrency}:${toCurrency}`;
-        const cached = getFromCache<number>(cacheKey);
+        const cached = await getFromCache<number>(cacheKey);
         if (cached !== null) {
             return cached;
         }
 
         try {
             const symbol = `${fromCurrency}${toCurrency}=X`;
-            const quote = await yahooFinance.quote(symbol);
+            // Reuse getQuote logic since it fetches the same chart data
+            const quote = await this.getQuote(symbol);
 
-            if (quote && quote.regularMarketPrice) {
-                setCache(cacheKey, quote.regularMarketPrice, TTL.EXCHANGE_RATE);
-                return quote.regularMarketPrice;
+            if (quote && quote.c) {
+                await setCache(cacheKey, quote.c, TTL.EXCHANGE_RATE);
+                return quote.c;
             }
             return null;
         } catch (e) {
@@ -139,35 +165,113 @@ export const MarketDataService = {
         }
     },
 
-    // Obtener cotización usando yahoo-finance2 (CACHED)
+    // Obtener cotización usando fetch directo a Yahoo API V8 (bypass library)
     async getQuote(ticker: string): Promise<QuoteResult | null> {
         const cacheKey = `quote:${ticker.toUpperCase()}`;
-        const cached = getFromCache<QuoteResult>(cacheKey);
+        const cached = await getFromCache<QuoteResult>(cacheKey);
         if (cached !== null) {
             return cached;
         }
 
         try {
-            const quote = await yahooFinance.quote(ticker);
+            // Yahoo Finance V8 Chart API is robust for current price stats
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+            const response = await fetch(url, {
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                }
+            });
 
-            if (!quote) {
-                console.error(`No quote data for ${ticker}`);
+            if (!response.ok) {
+                console.error(`Yahoo API Fetch Error ${response.status} for ${ticker}: ${response.statusText}`);
                 return null;
             }
 
+            const data = await response.json();
+            const meta = data.chart?.result?.[0]?.meta;
+
+            if (!meta) {
+                console.error(`No meta data in Yahoo response for ${ticker}`);
+                return null;
+            }
+
+            // Determine market state: prefer marketState, fallback to currentTradingPeriod
+            let marketState = 'CLOSED';
+            if (meta.marketState) {
+                marketState = meta.marketState.toUpperCase();
+            } else if (meta.currentTradingPeriod) {
+                // Calculate state from trading period timestamps
+                const now = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
+                const ctp = meta.currentTradingPeriod;
+
+                const preStart = ctp.pre?.start || 0;
+                const preEnd = ctp.pre?.end || 0;
+                const regStart = ctp.regular?.start || 0;
+                const regEnd = ctp.regular?.end || 0;
+                const postStart = ctp.post?.start || 0;
+                const postEnd = ctp.post?.end || 0;
+
+                if (now >= regStart && now <= regEnd) {
+                    marketState = 'REGULAR';
+                } else if (now >= preStart && now < regStart) {
+                    marketState = 'PRE';
+                } else if (now > regEnd && now <= postEnd) {
+                    marketState = 'POST';
+                } else {
+                    marketState = 'CLOSED';
+                }
+            }
+
+            // NEW: Fetch Fundamental Data (Parallel)
+            let fundamentals: any = {};
+            try {
+                // Modules: financialData, defaultKeyStatistics, calendarEvents, summaryDetail
+                const funUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=financialData,defaultKeyStatistics,calendarEvents,summaryDetail`;
+                const funResp = await fetch(funUrl);
+                if (funResp.ok) {
+                    const funJson = await funResp.json();
+                    const res = funJson.quoteSummary?.result?.[0];
+                    if (res) {
+                        fundamentals = {
+                            marketCap: res.summaryDetail?.marketCap?.fmt,
+                            peRatio: res.summaryDetail?.forwardPE?.fmt || res.summaryDetail?.trailingPE?.fmt,
+                            beta: res.summaryDetail?.beta?.fmt,
+                            earningsDate: res.calendarEvents?.earnings?.earningsDate?.[0]?.fmt,
+                            targetMeanPrice: res.financialData?.targetMeanPrice?.fmt,
+                            recommendationKey: res.financialData?.recommendationKey,
+                            shortRatio: res.defaultKeyStatistics?.shortRatio?.fmt
+                        };
+                    }
+                }
+            } catch (ignored) {
+                console.warn(`[MarketData] Fundamentals fetch warning for ${ticker}:`, ignored);
+            }
+
             const result: QuoteResult = {
-                c: quote.regularMarketPrice || 0,
-                pc: quote.regularMarketPreviousClose || 0,
-                d: quote.regularMarketChange || 0,
-                dp: quote.regularMarketChangePercent || 0,
-                currency: quote.currency || 'USD',
-                name: quote.longName || quote.shortName || ticker,
-                volume: quote.regularMarketVolume || 0,
-                averageVolume: quote.averageDailyVolume10Day || quote.averageDailyVolume3Month || 0,
-                lastUpdated: Date.now()
+                c: meta.regularMarketPrice || 0,
+                pc: meta.chartPreviousClose || meta.previousClose || 0,
+                d: (meta.regularMarketPrice || 0) - (meta.chartPreviousClose || 0),
+                dp: 0, // calculate percentage manually
+                currency: meta.currency || 'USD',
+                name: meta.longName || meta.shortName || meta.symbol, // FIXED: Use real name from V8
+                volume: meta.regularMarketVolume || 0,
+                lastUpdated: Date.now(),
+                state: marketState,
+                exchange: meta.exchangeName || 'UNKNOWN',
+                yearLow: meta.fiftyTwoWeekLow,
+                yearHigh: meta.fiftyTwoWeekHigh,
+
+                // Add Fundamentals
+                ...fundamentals
             };
 
-            setCache(cacheKey, result, TTL.QUOTE);
+            // Calculate change percent
+            if (result.pc !== 0) {
+                result.dp = (result.d / result.pc) * 100;
+            }
+
+            await setCache(cacheKey, result, TTL.QUOTE);
             return result;
         } catch (e) {
             console.error(`Quote Error for ${ticker}:`, e);
@@ -175,32 +279,108 @@ export const MarketDataService = {
         }
     },
 
-    // Obtener perfil del activo (sector/industria) usando quoteSummary (CACHED)
+    // Obtener perfil del activo (sector/industria) - Finnhub primario, Yahoo fallback
     async getAssetProfile(ticker: string) {
         const cacheKey = `profile:${ticker.toUpperCase()}`;
-        const cached = getFromCache<any>(cacheKey);
+        const cached = await getFromCache<any>(cacheKey);
         if (cached !== null) {
             return cached;
         }
 
+        const finnhubKey = process.env.FINNHUB_API_KEY;
+
+        // Try Finnhub first (more reliable)
+        if (finnhubKey) {
+            try {
+                const url = `https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${finnhubKey}`;
+                const response = await fetch(url);
+
+                if (response.ok) {
+                    const data = await response.json();
+
+                    if (data && data.finnhubIndustry) {
+                        const profile = {
+                            sector: data.finnhubIndustry || 'Desconocido',
+                            industry: data.finnhubIndustry || 'Desconocido',
+                            country: data.country || 'Desconocido',
+                            website: data.weburl || null,
+                            longBusinessSummary: null,
+                            fullTimeEmployees: data.employeeTotal || null,
+                            name: data.name || ticker,
+                            logo: data.logo || null
+                        };
+
+                        await setCache(cacheKey, profile, TTL.PROFILE);
+                        return profile;
+                    }
+                }
+            } catch (e) {
+                console.warn(`[Finnhub Profile] Error for ${ticker}:`, e);
+            }
+        }
+
+        // Fallback to Yahoo V10 quoteSummary
         try {
-            const result = await yahooFinance.quoteSummary(ticker, {
-                modules: ['summaryProfile', 'price']
+            const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=summaryProfile,price`;
+            const response = await fetch(url, {
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    "Accept": "application/json;q=0.9,*/*;q=0.8"
+                }
             });
+            if (!response.ok) throw new Error('Fetch failed ' + response.status);
+
+            const data = await response.json();
+            const result = data.quoteSummary?.result?.[0];
 
             const profile = {
-                sector: result.summaryProfile?.sector || 'Desconocido',
-                industry: result.summaryProfile?.industry || 'Desconocido',
-                country: result.summaryProfile?.country || 'Desconocido',
-                website: result.summaryProfile?.website || null,
-                longBusinessSummary: result.summaryProfile?.longBusinessSummary || null,
-                fullTimeEmployees: result.summaryProfile?.fullTimeEmployees || null
+                sector: result?.summaryProfile?.sector || 'Desconocido',
+                industry: result?.summaryProfile?.industry || 'Desconocido',
+                country: result?.summaryProfile?.country || 'Desconocido',
+                website: result?.summaryProfile?.website || null,
+                longBusinessSummary: result?.summaryProfile?.longBusinessSummary || null,
+                fullTimeEmployees: result?.summaryProfile?.fullTimeEmployees || null,
+                name: result?.price?.longName || result?.price?.shortName || ticker, // Added name
+                logo: null
             };
 
-            setCache(cacheKey, profile, TTL.PROFILE);
+            await setCache(cacheKey, profile, TTL.PROFILE);
             return profile;
         } catch (e) {
             console.error(`Asset Profile Error for ${ticker}:`, e);
+
+            // EMERGENCY FALLBACK: Manual mapping for common stocks (IBEX/Continuous/US)
+            // This ensures "Desconocido" is avoided for popular assets when API fails
+            const manualMap: Record<string, string> = {
+                // IBEX 35 / Spanish
+                'DIA.MC': 'Consumer Defensive', 'OHLA.MC': 'Industrials', 'AMP.MC': 'Industrials',
+                'ITX.MC': 'Consumer Cyclical', 'SAN.MC': 'Financial Services', 'BBVA.MC': 'Financial Services',
+                'TEF.MC': 'Communication Services', 'IBE.MC': 'Utilities', 'REP.MC': 'Energy',
+                'ACS.MC': 'Industrials', 'FER.MC': 'Industrials', 'AENA.MC': 'Industrials',
+                'AMS.MC': 'Technology', 'MRL.MC': 'Real Estate', 'CLNX.MC': 'Communication Services',
+                'GRF.MC': 'Healthcare', 'IAG.MC': 'Industrials', 'ANA.MC': 'Industrials',
+                'ENG.MC': 'Utilities', 'ELE.MC': 'Utilities', 'NTGY.MC': 'Utilities',
+                'REE.MC': 'Utilities', 'MAP.MC': 'Financial Services', 'BKT.MC': 'Financial Services',
+                'SAB.MC': 'Financial Services', 'CABK.MC': 'Financial Services',
+                'MEL.MC': 'Consumer Cyclical', 'ACX.MC': 'Basic Materials', 'MTS.MC': 'Basic Materials',
+                'VIG.MC': 'Real Estate',
+
+                // US / Global
+                'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology', 'AMZN': 'Consumer Cyclical',
+                'NVDA': 'Technology', 'TSLA': 'Consumer Cyclical', 'META': 'Communication Services',
+                'BRK.B': 'Financial Services', 'JPM': 'Financial Services', 'V': 'Financial Services',
+                'JNJ': 'Healthcare', 'PG': 'Consumer Defensive', 'XOM': 'Energy', 'CVX': 'Energy'
+            };
+
+            const knownSector = manualMap[ticker.toUpperCase()];
+            if (knownSector) {
+                return {
+                    sector: knownSector,
+                    industry: 'Manual Fallback',
+                    country: ticker.includes('.MC') ? 'ES' : 'US'
+                };
+            }
+
             return {
                 sector: 'Desconocido',
                 industry: 'Desconocido',
@@ -333,39 +513,37 @@ export const MarketDataService = {
         }
     },
 
-    // Buscar noticias específicas de una empresa/símbolo en Internet (Yahoo Search)
     async getCompanyNews(query: string) {
         if (!query) return [];
         try {
-            // Usamos quotesCount: 1 para asegurar que Yahoo nos da contexto si es un ticker,
-            // pero lo importante es newsCount.
-            const result = await yahooFinance.search(query, { newsCount: 8, quotesCount: 1 });
-
-            if (!result.news || result.news.length === 0) return [];
-
-            return result.news.map((n: any) => {
-                let datetime = Date.now();
-                // providerPublishTime suele ser unix timestamp en segundos, pero a veces viene en ms
-                if (n.providerPublishTime) {
-                    // Si es menor a 3000000000 (año 2065), asumimos segundos y multiplicamos por 1000
-                    if (n.providerPublishTime < 3000000000) {
-                        datetime = n.providerPublishTime * 1000;
-                    } else {
-                        datetime = n.providerPublishTime;
+            // 1. Try to get Company Name for better search (especially for .MC, .DE)
+            let companyName = "";
+            try {
+                // Use getQuote (V8) instead of getAssetProfile (V10, flaky)
+                const quote = await this.getQuote(query);
+                if (quote && quote.name && quote.name !== query) {
+                    // Clean legal suffixes for better news search
+                    // e.g. "Amper, S.A." -> "Amper"
+                    let clean = quote.name.split(',')[0].trim(); // Remove ", S.A."
+                    clean = clean.replace(/\b(S\.?A\.?|S\.?L\.?|S\.?A\.?U\.?|PLC|N\.?V\.?|AG|SE|INC\.?|CORP\.?|LTD\.?|CO\.?|B\.?V\.?|GMBH|S\.?R\.?L\.?|S\.?P\.?A\.?)\b/gi, '').trim();
+                    if (clean.length > 2) {
+                        companyName = clean;
                     }
                 }
+            } catch (ignore) { }
 
-                return {
-                    title: n.title,
-                    link: n.link,
-                    publisher: n.publisher,
-                    time: datetime, // ms
-                    timeStr: new Date(datetime).toLocaleString('es-ES', {
-                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                    })
-                };
-            }).sort((a, b) => b.time - a.time);
+            // 2. Use the robust NewsService
+            const newsItems = await NewsService.getNews(query, companyName);
 
+            return newsItems.map(n => ({
+                title: n.headline,
+                link: n.url,
+                publisher: n.source,
+                time: n.datetime * 1000,
+                timeStr: new Date(n.datetime * 1000).toLocaleString('es-ES', {
+                    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                })
+            }));
         } catch (e) {
             console.error(`Error searching news for ${query}:`, e);
             return [];
@@ -373,56 +551,116 @@ export const MarketDataService = {
     },
 
 
-    // Estado de mercados usando yahoo-finance2
+    // Estado de mercados usando Finnhub API (más preciso para festivos y horarios)
     async getMarketStatus(indices: string[]) {
-        const results = await Promise.all(indices.map(async (symbol) => {
-            try {
-                const quote = await yahooFinance.quote(symbol);
+        const finnhubKey = process.env.FINNHUB_API_KEY;
 
-                if (quote) {
-                    return {
-                        symbol,
-                        name: quote.shortName || quote.symbol,
-                        state: quote.marketState || 'UNKNOWN',
-                        exchangeName: quote.fullExchangeName || quote.exchange
+        // Mapeo de símbolos Yahoo a códigos de exchange de Finnhub
+        const exchangeMap: Record<string, { exchange: string, name: string }> = {
+            '^IBEX': { exchange: 'MC', name: 'Ibex 35' },      // Madrid
+            '^IXIC': { exchange: 'US', name: 'Nasdaq' },       // US (Nasdaq)
+            '^NYA': { exchange: 'US', name: 'NYSE' },          // US (NYSE)
+            '^GDAXI': { exchange: 'DE', name: 'DAX' },         // Frankfurt
+            '^FTSE': { exchange: 'L', name: 'FTSE 100' }       // London
+        };
+
+        // Si no hay API key de Finnhub, fallback a CLOSED
+        if (!finnhubKey) {
+            console.warn('[MarketStatus] No Finnhub API key, defaulting to CLOSED');
+            return indices.map(symbol => ({
+                symbol,
+                name: exchangeMap[symbol]?.name || symbol,
+                state: 'CLOSED',
+                exchangeName: exchangeMap[symbol]?.exchange || 'UNKNOWN'
+            }));
+        }
+
+        // Obtener estados únicos por exchange (evitar llamadas duplicadas)
+        const uniqueExchanges = [...new Set(indices.map(s => exchangeMap[s]?.exchange).filter(Boolean))];
+        const statusCache: Record<string, { isOpen: boolean, session: string | null, holiday: string | null }> = {};
+
+        await Promise.all(uniqueExchanges.map(async (exchange) => {
+            try {
+                const url = `https://finnhub.io/api/v1/stock/market-status?exchange=${exchange}&token=${finnhubKey}`;
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    statusCache[exchange] = {
+                        isOpen: data.isOpen === true,
+                        session: data.session || null, // 'pre-market', 'regular', 'post-market' o null
+                        holiday: data.holiday || null
                     };
                 }
-                return { symbol, state: 'UNKNOWN' };
             } catch (e) {
-                return { symbol, state: 'ERROR' };
+                console.error(`[MarketStatus] Error fetching ${exchange}:`, e);
             }
         }));
-        return results;
+
+        // Construir resultado para cada índice
+        return indices.map(symbol => {
+            const mapping = exchangeMap[symbol];
+            if (!mapping) {
+                return { symbol, name: symbol, state: 'UNKNOWN', exchangeName: 'UNKNOWN' };
+            }
+
+            const status = statusCache[mapping.exchange];
+            let state = 'CLOSED';
+
+            if (status) {
+                if (status.holiday) {
+                    state = 'CLOSED'; // Es festivo
+                } else if (status.isOpen) {
+                    // Mapear session de Finnhub a nuestro formato
+                    if (status.session === 'pre-market') state = 'PRE';
+                    else if (status.session === 'post-market') state = 'POST';
+                    else state = 'REGULAR';
+                } else {
+                    state = 'CLOSED';
+                }
+            }
+
+            return {
+                symbol,
+                name: mapping.name,
+                state,
+                exchangeName: mapping.exchange
+            };
+        });
     },
 
-    // Historial de precios usando yahoo-finance2
+    // Historial de precios usando fetch directo
     async getHistory(ticker: string, range: string = '1mo') {
         try {
-            // Mapear rangos a períodos para yahoo-finance2
-            const periodMap: Record<string, { period1: Date; period2: Date; interval: '1d' | '1wk' | '1mo' }> = {
-                '1d': { period1: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), period2: new Date(), interval: '1d' },
-                '5d': { period1: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), period2: new Date(), interval: '1d' },
-                '1mo': { period1: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), period2: new Date(), interval: '1d' },
-                '3mo': { period1: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000), period2: new Date(), interval: '1d' },
-                '6mo': { period1: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000), period2: new Date(), interval: '1wk' },
-                '1y': { period1: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), period2: new Date(), interval: '1wk' },
-                '5y': { period1: new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000), period2: new Date(), interval: '1mo' }
-            };
+            // range: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
+            // interval: 1d, 1wk, 1mo
+            let interval = '1d';
+            if (['6mo', '1y', '2y', '5y', '10y', 'max'].includes(range)) {
+                if (range === '6mo' || range === '1y') interval = '1wk'; // Match previous logic
+                else interval = '1mo';
+            }
 
-            const config = periodMap[range] || periodMap['1mo'];
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=${interval}&range=${range}`;
+            const response = await fetch(url);
+            if (!response.ok) return [];
 
-            const result = await yahooFinance.chart(ticker, {
-                period1: config.period1,
-                period2: config.period2,
-                interval: config.interval
-            });
+            const data = await response.json();
+            const result = data.chart?.result?.[0];
 
-            if (!result.quotes) return [];
+            if (!result || !result.timestamp || !result.indicators?.quote?.[0]) return [];
 
-            return result.quotes.map((q: any) => ({
-                date: new Date(q.date).toISOString().split('T')[0],
-                price: q.close
-            })).filter((item: any) => item.price !== null);
+            const timestamps = result.timestamp;
+            const quotes = result.indicators.quote[0];
+
+            const history: any[] = [];
+            for (let i = 0; i < timestamps.length; i++) {
+                if (quotes.close[i] !== null) {
+                    history.push({
+                        date: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
+                        price: quotes.close[i]
+                    });
+                }
+            }
+            return history;
         } catch (e) {
             console.error('History Fetch Error', e);
             return [];
@@ -433,11 +671,15 @@ export const MarketDataService = {
     async getTickerByISIN(isin: string): Promise<string | null> {
         if (!isin) return null;
         try {
-            const results = await yahooFinance.search(isin);
-            if (results.quotes && results.quotes.length > 0) {
-                // Preferir EQUITY
-                const equity = results.quotes.find((q: any) => q.quoteType === 'EQUITY' || q.quoteType === 'ETF');
-                return equity ? equity.symbol : results.quotes[0].symbol;
+            const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${isin}&quotesCount=1`;
+            const response = await fetch(url);
+            if (!response.ok) return null;
+            const data = await response.json();
+            const quotes = data.quotes || [];
+
+            if (quotes.length > 0) {
+                const equity = quotes.find((q: any) => q.quoteType === 'EQUITY' || q.quoteType === 'ETF');
+                return equity ? equity.symbol : quotes[0].symbol;
             }
             return null;
         } catch (e) {
@@ -450,23 +692,28 @@ export const MarketDataService = {
     async getTickerDetailsByISIN(isin: string): Promise<{ symbol: string; currency: string; name: string } | null> {
         if (!isin) return null;
         try {
-            const results = await yahooFinance.search(isin);
-            if (results.quotes && results.quotes.length > 0) {
-                const equity = results.quotes.find((q: any) => q.quoteType === 'EQUITY' || q.quoteType === 'ETF') || results.quotes[0];
+            const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${isin}&quotesCount=1`;
+            const response = await fetch(url);
+            if (!response.ok) return null;
+            const data = await response.json();
+            const quotes = data.quotes || [];
+
+            if (quotes.length > 0) {
+                const equity = quotes.find((q: any) => q.quoteType === 'EQUITY' || q.quoteType === 'ETF') || quotes[0];
 
                 let currency = (equity as any).currency;
 
-                // Si search no devuelve currency, probar con quote ligero
+                // Si no hay currency (search a veces no lo da), fetch quote
                 if (!currency) {
                     try {
-                        const q = await yahooFinance.quote(equity.symbol);
-                        currency = q?.currency;
+                        const q = await this.getQuote(equity.symbol);
+                        if (q) currency = q.currency;
                     } catch (err) { }
                 }
 
                 return {
                     symbol: equity.symbol,
-                    currency: currency || 'USD', // Fallback
+                    currency: currency || 'USD',
                     name: (equity as any).longname || (equity as any).shortname || equity.symbol
                 };
             }
@@ -481,55 +728,46 @@ export const MarketDataService = {
     async getHistoricalExchangeRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
         if (fromCurrency === toCurrency) return 1.0;
 
-        // Yahoo symbols: EURUSD=X (1 EUR = x USD). 
-        // Si quiero pasar de USD a EUR: necesito USD/EUR. O 1 / (EUR/USD).
-        // Normalmente usamos pares "Major".
-
         let symbol = `${fromCurrency}${toCurrency}=X`;
         let invert = false;
 
-        // Yahoo tiene pares standard. Intentamos directo.
-        // Pero para USD -> EUR, Yahoo suele usar EURUSD=X (Value in USD of 1 EUR).
-        // Entonces si tengo USD y quiero EUR: Cantidad USD / (EURUSD Rate) => EUR.
-        // Si el usuario da "USD" y "EUR". Pido "EURUSD=X". El precio es "dolares por euro".
-        // Entonces retorno el rate DIRECTO de conversión `from -> to`.
-
         if (toCurrency === 'EUR' && fromCurrency === 'USD') {
             symbol = 'EURUSD=X';
-            invert = true; // El rate es USD/EUR. Yo quiero EUR/USD. (1/rate)
+            invert = true;
         } else if (toCurrency === 'USD' && fromCurrency === 'EUR') {
-            symbol = 'EURUSD=X'; // Rate es USD/EUR. Directo es 1 EUR = x USD.
+            symbol = 'EURUSD=X';
             invert = false;
         }
 
         try {
-            // Pedimos rango de 3 días alrededor de la fecha por si es finde
-            const startDate = new Date(date);
-            startDate.setDate(startDate.getDate() - 2);
-            const endDate = new Date(date);
-            endDate.setDate(endDate.getDate() + 2); // quoteSummary necesita margen
+            // Rango de 5d alrededor de la fecha (period1/period2 en segundos)
+            const targetTime = Math.floor(date.getTime() / 1000);
+            const period1 = targetTime - (3 * 86400);
+            const period2 = targetTime + (3 * 86400);
 
-            const result = await yahooFinance.chart(symbol, {
-                period1: startDate,
-                period2: endDate,
-                interval: '1d'
-            });
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1d`;
+            const response = await fetch(url);
 
-            if (!result.quotes || result.quotes.length === 0) return 1.0;
+            if (!response.ok) return 1.0;
+            const data = await response.json();
+            const result = data.chart?.result?.[0];
 
-            // Buscar la fecha más cercana sin pasarse (o la misma)
-            const targetTime = date.getTime();
-            // quotes tiene "date"
-            // Encontramos el quote del dia exacto o el immediately previous
-            let bestRate = result.quotes[0].close;
+            if (!result || !result.timestamp || !result.indicators?.quote?.[0]) return 1.0;
+
+            const timestamps = result.timestamp;
+            const quotes = result.indicators.quote[0];
+
+            let bestRate = quotes.close[0];
             let minDiff = Number.MAX_VALUE;
 
-            for (const q of result.quotes) {
-                const qDate = new Date(q.date).getTime();
-                const diff = Math.abs(targetTime - qDate);
-                if (diff < minDiff) {
-                    minDiff = diff;
-                    bestRate = q.close;
+            // Find closest date
+            for (let i = 0; i < timestamps.length; i++) {
+                if (quotes.close[i]) {
+                    const diff = Math.abs(targetTime - timestamps[i]);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        bestRate = quotes.close[i];
+                    }
                 }
             }
 
@@ -538,7 +776,7 @@ export const MarketDataService = {
 
         } catch (e) {
             console.error(`Error fetching historical rate for ${fromCurrency}/${toCurrency} on ${date}:`, e);
-            return 1.0; // Fallback
+            return 1.0;
         }
     },
 
@@ -562,6 +800,135 @@ export const MarketDataService = {
     // 1. Intentar DB Fresca
     // 2. Si falla/viejo -> Yahoo
     // 3. Si falla Yahoo -> DB (Last Resort)
+    // CALCULAR INDICADORES TÉCNICOS (RSI, SMA)
+    getTechnicalIndicators(prices: number[]) {
+        if (!prices || prices.length < 15) return null;
+
+        // prices[0] is oldest, prices[last] is newest (assumed db/yahoo order)
+        // Ensure we work with newest at the end
+
+        // 1. RSI (14)
+        const rsiPeriod = 14;
+        let gains = 0;
+        let losses = 0;
+
+        // Calculate initial avg gain/loss
+        for (let i = 1; i <= rsiPeriod; i++) {
+            const change = prices[i] - prices[i - 1];
+            if (change > 0) gains += change;
+            else losses += Math.abs(change);
+        }
+
+        let avgGain = gains / rsiPeriod;
+        let avgLoss = losses / rsiPeriod;
+
+        // Smooth rest
+        for (let i = rsiPeriod + 1; i < prices.length; i++) {
+            const change = prices[i] - prices[i - 1];
+            const currentGain = change > 0 ? change : 0;
+            const currentLoss = change < 0 ? Math.abs(change) : 0;
+
+            avgGain = ((avgGain * 13) + currentGain) / 14;
+            avgLoss = ((avgLoss * 13) + currentLoss) / 14;
+        }
+
+        const rs = avgGain / avgLoss;
+        const rsi = 100 - (100 / (1 + rs));
+
+        // 2. SMA (50, 200)
+        const lastPrice = prices[prices.length - 1];
+
+        const calcSMA = (period: number) => {
+            if (prices.length < period) return null;
+            const slice = prices.slice(-period);
+            const sum = slice.reduce((a, b) => a + b, 0);
+            return sum / period;
+        };
+
+        const sma50 = calcSMA(50);
+        const sma200 = calcSMA(200);
+
+        // 3. Trend
+        let trend = 'NEUTRAL';
+        if (sma50 && sma200) {
+            if (lastPrice > sma50 && sma50 > sma200) trend = 'ALCISTA (Fuerte)';
+            else if (lastPrice > sma50) trend = 'ALCISTA (Moderada)';
+            else if (lastPrice < sma50 && sma50 < sma200) trend = 'BAJISTA (Fuerte)';
+            else if (lastPrice < sma50) trend = 'BAJISTA (Moderada)';
+        }
+
+        return {
+            rsi: parseFloat(rsi.toFixed(2)),
+            sma50: sma50 ? parseFloat(sma50.toFixed(2)) : null,
+            sma200: sma200 ? parseFloat(sma200.toFixed(2)) : null,
+            trend
+        };
+    },
+
+    // --- FINNHUB INTEGRATION (ADVANCED INSIGHTS) ---
+    async getAnalystRecommendations(ticker: string) {
+        const apiKey = process.env.FINNHUB_API_KEY;
+        if (!apiKey) return null;
+        const cacheKey = `analyst:${ticker.toUpperCase()}`;
+        const cached = await getFromCache(cacheKey);
+        if (cached) return cached;
+
+        try {
+            const url = `https://finnhub.io/api/v1/stock/recommendation?symbol=${ticker}&token=${apiKey}`;
+            const res = await fetch(url);
+            if (!res.ok) return null;
+            const data = await res.json();
+            const latest = data[0]; // Most recent month
+            if (latest) {
+                await setCache(cacheKey, latest, TTL.PROFILE); // Cache 24h
+                return latest;
+            }
+        } catch (e) { console.error('Finnhub Rec Error', e); }
+        return null;
+    },
+
+    async getPeers(ticker: string) {
+        const apiKey = process.env.FINNHUB_API_KEY;
+        if (!apiKey) return [];
+        const cacheKey = `peers:${ticker.toUpperCase()}`;
+        const cached = await getFromCache<string[]>(cacheKey);
+        if (cached) return cached;
+
+        try {
+            const url = `https://finnhub.io/api/v1/stock/peers?symbol=${ticker}&token=${apiKey}`;
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                await setCache(cacheKey, data, TTL.PROFILE);
+                return data;
+            }
+        } catch (e) { console.error('Finnhub Peers Error', e); }
+        return [];
+    },
+
+    async getInsiderSentiment(ticker: string) {
+        const apiKey = process.env.FINNHUB_API_KEY;
+        if (!apiKey) return null;
+        // Check cache? Sentiment changes monthly
+        try {
+            const from = new Date();
+            from.setMonth(from.getMonth() - 3); // Last 3 months
+            const fromStr = from.toISOString().split('T')[0];
+
+            const url = `https://finnhub.io/api/v1/stock/insider-sentiment?symbol=${ticker}&from=${fromStr}&token=${apiKey}`;
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.data && data.data.length > 0) {
+                    // Aggregate last 3 months
+                    const mspr = data.data.reduce((acc: number, curr: any) => acc + curr.mspr, 0);
+                    return { mspr, label: mspr > 0 ? 'Positivo' : mspr < 0 ? 'Negativo' : 'Neutral' };
+                }
+            }
+        } catch (e) { console.error('Finnhub Insider Error', e); }
+        return null;
+    },
+
     async getKnownTickers(): Promise<string[]> {
         try {
             // Fetch distinct tickers from all relevant tables
@@ -587,14 +954,12 @@ export const MarketDataService = {
     async getDetailedHistory(ticker: string, years: number = 1): Promise<any[]> {
         const symbol = ticker.trim().toUpperCase();
 
-
         try {
             // 1. Check DB Freshness
             const lastUpdateResult = await sql`
                 SELECT MAX(date) as last_date FROM historical_data WHERE ticker = ${symbol}
             `;
             const lastDate = lastUpdateResult[0]?.last_date ? new Date(lastUpdateResult[0].last_date) : null;
-
 
             const thresholdDate = new Date();
             thresholdDate.setDate(thresholdDate.getDate() - 2);
@@ -612,42 +977,45 @@ export const MarketDataService = {
                 `;
 
                 if (dataFromDb.length > 0) {
-
                     return dataFromDb;
                 }
                 console.warn(`[MarketData] DB appeared fresh but returned 0 rows. Falling through to Yahoo.`);
-            } else {
-
             }
 
-            // 2. Fetch Yahoo
-            const period1 = new Date();
-            const msInYear = 365.25 * 24 * 60 * 60 * 1000;
-            period1.setTime(Date.now() - (years * msInYear));
+            // 2. Fetch Yahoo Direct
+            const period1 = Math.floor((Date.now() - (years * 365.25 * 86400 * 1000)) / 1000);
+            const period2 = Math.floor(Date.now() / 1000);
 
-            const chartResult = await yahooFinance.chart(symbol, {
-                period1: period1,
-                period2: new Date(),
-                interval: '1d'
-            });
-            const results = chartResult?.quotes || [];
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${period1}&period2=${period2}&interval=1d`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Yahoo status ${response.status}`);
 
+            const data = await response.json();
+            const result = data.chart?.result?.[0];
 
-            if (!results || results.length === 0) {
+            if (!result || !result.timestamp || !result.indicators?.quote?.[0]) {
                 throw new Error("Yahoo returned empty results");
             }
 
-            // 3. Upsert DB
-            const rowsToInsert = results.map((r: any) => ({
-                ticker: symbol,
-                date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : new Date(r.date).toISOString().split('T')[0],
-                open: Number(r.open) || 0,
-                high: Number(r.high) || 0,
-                low: Number(r.low) || 0,
-                close: Number(r.close) || 0,
-                volume: Math.round(Number(r.volume) || 0)
-            }));
+            const timestamps = result.timestamp;
+            const quotes = result.indicators.quote[0];
 
+            const rowsToInsert: any[] = [];
+            for (let i = 0; i < timestamps.length; i++) {
+                if (quotes.close[i] !== null) {
+                    rowsToInsert.push({
+                        ticker: symbol,
+                        date: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
+                        open: Number(quotes.open[i]) || 0,
+                        high: Number(quotes.high[i]) || 0,
+                        low: Number(quotes.low[i]) || 0,
+                        close: Number(quotes.close[i]) || 0,
+                        volume: Math.round(Number(quotes.volume[i]) || 0)
+                    });
+                }
+            }
+
+            // 3. Upsert DB
             const batchSize = 100;
             for (let i = 0; i < rowsToInsert.length; i += batchSize) {
                 const batch = rowsToInsert.slice(i, i + batchSize);
@@ -681,7 +1049,6 @@ export const MarketDataService = {
                 `;
 
                 if (fallbackData.length > 0) {
-
                     return fallbackData;
                 }
 
@@ -696,8 +1063,8 @@ export const MarketDataService = {
     },
 
     // Sincronizar historial de TODAS las acciones conocidas (cartera + historial)
-    // Parametro 'months' para definir cuanto tiempo atrás buscar (default 24 meses = 2 años)
-    async syncPortfolioHistory(months: number = 24) {
+    // Parametro 'months' para definir cuanto tiempo atrás buscar (default 60 meses = 5 años)
+    async syncPortfolioHistory(months: number = 60) {
         try {
             const tickers = await sql`
                 SELECT DISTINCT ticker FROM (
@@ -739,8 +1106,8 @@ export const MarketDataService = {
                 WHERE currency IS NOT NULL AND currency != ''
             `;
 
-            const period1 = new Date();
-            period1.setMonth(period1.getMonth() - months);
+            const period1 = Math.floor((Date.now() - (months * 30 * 86400 * 1000)) / 1000);
+            const period2 = Math.floor(Date.now() / 1000);
 
             for (const c of currencies) {
                 const currency = c.currency;
@@ -748,30 +1115,38 @@ export const MarketDataService = {
                 const dbTicker = `${currency}/EUR`; // Formato solicitado para guardar en BD
 
                 try {
-                    const chartResult = await yahooFinance.chart(tickerYahoo, {
-                        period1: period1,
-                        period2: new Date(),
-                        interval: '1d'
-                    });
-                    const results = chartResult?.quotes || [];
+                    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${tickerYahoo}?period1=${period1}&period2=${period2}&interval=1d`;
+                    const response = await fetch(url);
+                    if (!response.ok) continue;
 
-                    if (results && results.length > 0) {
-                        const rowsToInsert = results.map((r: any) => ({
-                            ticker: dbTicker,
-                            date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : new Date(r.date).toISOString().split('T')[0],
-                            open: Number(r.open) || 0,
-                            high: Number(r.high) || 0,
-                            low: Number(r.low) || 0,
-                            close: Number(r.close) || 0,
-                            volume: Math.round(Number(r.volume) || 0)
-                        }));
+                    const data = await response.json();
+                    const result = data.chart?.result?.[0];
+                    if (!result || !result.timestamp || !result.indicators?.quote?.[0]) continue;
 
-                        // Insertar en bloques pequeños
-                        const batchSize = 100;
-                        for (let i = 0; i < rowsToInsert.length; i += batchSize) {
-                            const batch = rowsToInsert.slice(i, i + batchSize);
-                            await Promise.all(batch.map(row =>
-                                sql`
+                    const timestamps = result.timestamp;
+                    const quotes = result.indicators.quote[0];
+
+                    const rowsToInsert: any[] = [];
+                    for (let i = 0; i < timestamps.length; i++) {
+                        if (quotes.close[i]) {
+                            rowsToInsert.push({
+                                ticker: dbTicker,
+                                date: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
+                                open: Number(quotes.open[i]) || 0,
+                                high: Number(quotes.high[i]) || 0,
+                                low: Number(quotes.low[i]) || 0,
+                                close: Number(quotes.close[i]) || 0,
+                                volume: Math.round(Number(quotes.volume[i]) || 0)
+                            });
+                        }
+                    }
+
+                    // Insertar en bloques pequeños
+                    const batchSize = 100;
+                    for (let i = 0; i < rowsToInsert.length; i += batchSize) {
+                        const batch = rowsToInsert.slice(i, i + batchSize);
+                        await Promise.all(batch.map(row =>
+                            sql`
                                     INSERT INTO historical_data (ticker, date, open, high, low, close, volume)
                                     VALUES (${row.ticker}, ${row.date}::date, ${row.open}, ${row.high}, ${row.low}, ${row.close}, ${row.volume})
                                     ON CONFLICT (ticker, date) DO UPDATE SET
@@ -782,8 +1157,7 @@ export const MarketDataService = {
                                         volume = EXCLUDED.volume,
                                         updated_at = NOW()
                                 `
-                            ));
-                        }
+                        ));
                     }
                 } catch (err) {
                     console.error(`Error syncing currency ${dbTicker}:`, err);
@@ -795,4 +1169,3 @@ export const MarketDataService = {
         }
     }
 };
-

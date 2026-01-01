@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import sql from '../db';
 import { MarketDataService } from '../services/marketData';
+import { PortfolioService } from '../services/portfolioService';
 import { calculatePnLWeekly } from '../jobs/pnlJob';
 
 export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
@@ -321,7 +322,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         })
     })
     // Add/Update Position (Simplified logic: Upsert)
-    .post('/:id/positions', async ({ userId, params, body }) => {
+    .post('/:id/positions', async ({ userId, params, body, set }) => {
         const { id } = params;
 
 
@@ -342,50 +343,20 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
 
         const exchangeRate = exchangeRateToEur || 1.0;
 
-        // 1. Record Transaction (con tipo de cambio y comisión)
-        await sql`
-        INSERT INTO transactions (portfolio_id, ticker, type, amount, price_per_unit, currency, exchange_rate_to_eur, fees)
-        VALUES (${id}, ${ticker}, ${type}, ${amount}, ${price}, ${currency}, ${exchangeRate}, ${commission})
-    `;
-
-        // 2. Update Position
-        // Incluir comisión en el cálculo del precio medio efectivo
-        const [existing] = await sql`SELECT * FROM positions WHERE portfolio_id = ${id} AND ticker = ${ticker}`;
-
-        if (!existing) {
-            if (type === 'SELL') throw new Error('Cannot sell asset you do not own');
-            // Para compra inicial: precio efectivo = (cantidad * precio + comisión) / cantidad
-            const effectivePrice = (Number(amount) * Number(price) + Number(commission)) / Number(amount);
-            await sql`
-            INSERT INTO positions (portfolio_id, ticker, asset_type, quantity, average_buy_price, currency)
-            VALUES (${id}, ${ticker}, 'STOCK', ${amount}, ${effectivePrice}, ${currency})
-        `;
-        } else {
-            let newQty = Number(existing.quantity);
-            let newAvg = Number(existing.average_buy_price);
-
-            if (type === 'BUY') {
-                // Coste total = inversión actual + nueva inversión (incluyendo comisión)
-                const currentCost = newQty * newAvg;
-                const newCost = Number(amount) * Number(price) + Number(commission);
-                const totalCost = currentCost + newCost;
-                newQty += Number(amount);
-                newAvg = totalCost / newQty;
-            } else {
-                // Venta: solo reduce cantidad (comisión se registra para reporting)
-                newQty -= Number(amount);
-                if (newQty < 0) throw new Error('Insufficient balance');
-            }
-
-            if (newQty === 0) {
-                await sql`DELETE FROM positions WHERE id = ${existing.id}`;
-            } else {
-                await sql`
-                UPDATE positions 
-                SET quantity = ${newQty}, average_buy_price = ${newAvg}, updated_at = NOW()
-                WHERE id = ${existing.id}
-            `;
-            }
+        try {
+            await PortfolioService.addTransaction(
+                id,
+                ticker,
+                type as 'BUY' | 'SELL',
+                Number(amount),
+                Number(price),
+                currency,
+                Number(commission),
+                Number(exchangeRate)
+            );
+        } catch (error: any) {
+            set.status = 400;
+            return { error: error.message || 'Failed to process transaction' };
         }
 
         return { success: true };
@@ -429,7 +400,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
     .put('/:id/positions/:positionId', async ({ userId, params, body }) => {
         const { id, positionId } = params;
         // @ts-ignore
-        const { quantity, averagePrice } = body;
+        const { quantity, averagePrice, commission } = body;
 
         // Verificar propiedad del portfolio
         const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId}`;
@@ -446,7 +417,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         // Actualizar la posición
         await sql`
             UPDATE positions 
-            SET quantity = ${quantity}, average_buy_price = ${averagePrice}, updated_at = NOW()
+            SET quantity = ${quantity}, average_buy_price = ${averagePrice}, commission = ${commission || 0}, updated_at = NOW()
             WHERE id = ${positionId}
         `;
 
@@ -455,15 +426,11 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
     }, {
         body: t.Object({
             quantity: t.Number(),
-            averagePrice: t.Number()
-        })
-    }, {
-        body: t.Object({
-            quantity: t.Number(),
-            averagePrice: t.Number()
+            averagePrice: t.Number(),
+            commission: t.Optional(t.Number())
         })
     })
-    // PnL History for Chart (Reads from pre-calculated cache, updated daily at 4:00 AM)
+    // PnL History for Chart (Reads from pre-calculated cache + TODAY's live value)
     .get('/:id/pnl-history', async ({ userId, params, query }) => {
         const { id } = params;
         const period = (query as any)?.period || '3M'; // Default 3 months
@@ -477,8 +444,12 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
         const cutoffStr = cutoffDate.toISOString().split('T')[0];
 
+        // Format for today
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
         try {
-            // Read from cache (pre-calculated by job at 4:00 AM)
+            // 1. Read historical from cache (pre-calculated by job at 4:00 AM)
             const cachedData = await sql`
                 SELECT date, pnl_eur 
                 FROM pnl_history_cache 
@@ -487,27 +458,80 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
                 ORDER BY date ASC
             `;
 
-            if (cachedData && cachedData.length > 0) {
-                // Format for lightweight-charts (YYYY-MM-DD)
-                return cachedData.map(row => {
-                    const d = new Date(row.date);
-                    const day = String(d.getDate()).padStart(2, '0');
-                    const month = String(d.getMonth() + 1).padStart(2, '0');
-                    const year = d.getFullYear();
-                    return {
-                        time: `${year}-${month}-${day}`,
-                        value: Number(row.pnl_eur) || 0
-                    };
+            // Format historical data
+            const result = cachedData.map(row => {
+                const d = new Date(row.date);
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                return {
+                    time: `${year}-${month}-${day}`,
+                    value: Number(row.pnl_eur) || 0
+                };
+            });
+
+            // 2. Calculate TODAY's live PnL using real-time quotes
+            const positions = await sql`
+                SELECT ticker, quantity, average_buy_price, currency, asset_type 
+                FROM positions 
+                WHERE portfolio_id = ${id} AND quantity > 0
+            `;
+
+            if (positions.length > 0) {
+                // Get live quotes
+                const quotes: Record<string, any> = {};
+                const tickers = positions.map(p => p.ticker);
+                await Promise.all(tickers.map(async (ticker) => {
+                    quotes[ticker] = await MarketDataService.getQuote(ticker);
+                }));
+
+                // Get exchange rates
+                const currencies = [...new Set(positions.map(p => p.currency))];
+                const rates: Record<string, number> = { 'EUR': 1.0 };
+                await Promise.all(currencies.map(async (curr) => {
+                    if (curr !== 'EUR') {
+                        const rate = await MarketDataService.getExchangeRate(curr, 'EUR');
+                        rates[curr] = rate || 1.0;
+                    }
+                }));
+
+                // Calculate live PnL (same as summary)
+                let totalValueEur = 0;
+                let totalCostEur = 0;
+
+                positions.forEach(p => {
+                    const quote = quotes[p.ticker];
+                    const rate = rates[p.currency || 'EUR'] || 1.0;
+                    const qty = Number(p.quantity);
+                    const avgPrice = Number(p.average_buy_price) || 0;
+
+                    const costEur = qty * avgPrice * rate;
+                    totalCostEur += costEur;
+
+                    if (quote && quote.c) {
+                        totalValueEur += qty * quote.c * rate;
+                    } else {
+                        totalValueEur += qty * avgPrice * rate;
+                    }
                 });
+
+                const livePnl = Number((totalValueEur - totalCostEur).toFixed(2));
+
+                // 3. Add or replace today's entry
+                const existingTodayIndex = result.findIndex(r => r.time === todayStr);
+                if (existingTodayIndex >= 0) {
+                    result[existingTodayIndex].value = livePnl;
+                } else {
+                    result.push({ time: todayStr, value: livePnl });
+                }
             }
 
-            // If no cache, trigger initial calculation (runs in background)
+            if (result.length === 0) {
+                // If no cache, trigger initial calculation (runs in background)
+                calculatePnLWeekly().catch(e => console.error('[PnL] Background calc error:', e));
+            }
 
-
-            // Don't await - let it run in background
-            calculatePnLWeekly().catch(e => console.error('[PnL] Background calc error:', e));
-
-            return []; // Return empty for now, will have data after background job finishes
+            return result;
         } catch (error) {
             console.error('[PnL History] Error:', error);
             return [];

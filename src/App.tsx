@@ -22,6 +22,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatBot } from './components/ChatBot';
 import { PrivateRoute } from './components/PrivateRoute';
 import { InactivityMonitor } from './components/InactivityMonitor';
+import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 
 const MainLayout: React.FC = () => {
   return (
@@ -58,6 +59,7 @@ const App: React.FC = () => {
         {/* Public Routes */}
         <Route path="/login" element={<LoginScreen />} />
         <Route path="/register" element={<RegisterScreen />} />
+        <Route path="/reset-password" element={<ResetPasswordScreen />} />
         <Route path="/stop-alert/:token" element={<StopAlertScreen />} />
 
         {/* Protected Routes */}

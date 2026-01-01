@@ -37,6 +37,22 @@ export async function initDatabase() {
       console.log('User columns may already exist');
     }
 
+    // 2. Table users (updated)
+    // ... (users table setup remains) ...
+
+    // 2.1 Table password_resets (Secure Recovery)
+    await sql`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        used BOOLEAN DEFAULT false,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_pwd_resets_token ON password_resets(token_hash)`;
+
     // 2. Table portfolios
     await sql`
       CREATE TABLE IF NOT EXISTS portfolios (
@@ -65,6 +81,7 @@ export async function initDatabase() {
         asset_type TEXT DEFAULT 'STOCK',
         quantity DECIMAL NOT NULL DEFAULT 0,
         average_buy_price DECIMAL NOT NULL DEFAULT 0,
+        commission DECIMAL(15, 6) DEFAULT 0,
         currency TEXT DEFAULT 'EUR',
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(portfolio_id, ticker)
@@ -81,8 +98,10 @@ export async function initDatabase() {
         amount DECIMAL NOT NULL,
         price_per_unit DECIMAL NOT NULL,
         currency TEXT NOT NULL,
+        fees DECIMAL DEFAULT 0,
         exchange_rate_to_eur DECIMAL DEFAULT 1.0,
-        date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `;
 
@@ -167,6 +186,17 @@ export async function initDatabase() {
       )
     `;
 
+    // 10. Market Data Cache (Persistent)
+    await sql`
+      CREATE TABLE IF NOT EXISTS market_cache (
+        key TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_market_cache_expiry ON market_cache(expires_at)`;
+
     console.log('Database schema is ready.');
 
     // 6. Asegurar que los usuarios existentes tengan al menos un portfolio
@@ -233,6 +263,16 @@ export async function initDatabase() {
       console.log('Applied migration: alerts.last_checked_at');
     } catch (e: any) { console.error('Migration error (alerts.last_checked_at):', e.message); }
 
+    try {
+      await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS fees DECIMAL DEFAULT 0`;
+      console.log('Applied migration: transactions.fees');
+    } catch (e: any) { console.error('Migration error (transactions.fees):', e.message); }
+
+    try {
+      await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
+      console.log('Applied migration: transactions.created_at');
+    } catch (e: any) { console.error('Migration error (transactions.created_at):', e.message); }
+
     // Advanced Alerts Migrations
     try {
       await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS alert_type VARCHAR(20) DEFAULT 'price'`;
@@ -289,48 +329,307 @@ export async function initDatabase() {
 
     // --- Default AI Prompts ---
     try {
-      const chatPrompt = await sql`SELECT value FROM system_settings WHERE key = 'AI_PROMPT_CHATBOT'`;
-      if (chatPrompt.length === 0) {
-        const defaultChatPrompt = `Eres "Stocks Bot", un asistente financiero conversacional experto.
+      // 1. Create Table
+      await sql`
+            CREATE TABLE IF NOT EXISTS ai_prompts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name TEXT NOT NULL,
+                prompt_type TEXT NOT NULL, -- 'CHATBOT' | 'ANALYSIS'
+                content TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT false,
+                is_system BOOLEAN DEFAULT false, -- If true, cannot be deleted
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
+      await sql`CREATE INDEX IF NOT EXISTS idx_prompts_type_active ON ai_prompts(prompt_type, is_active)`;
+      console.log('Created table: ai_prompts');
 
-HISTORIAL DE CONVERSACIÓN RECIENTE:
-{{CHAT_HISTORY}}
+      // ----------------------------------------------------
+      // NEW: AI Providers Table (Multi-Provider Support V6)
+      // ----------------------------------------------------
+      await sql`
+        CREATE TABLE IF NOT EXISTS ai_providers (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            slug TEXT UNIQUE NOT NULL,          -- 'gemini', 'ollama', 'custom-xyz'
+            name TEXT NOT NULL,                 -- 'Google Gemini', 'Ollama Local'
+            base_url TEXT DEFAULT '',           -- 'https://api.openai.com/v1' OR '' (for locals)
+            models_endpoint TEXT DEFAULT '',    -- '/models'
+            api_key_config_key TEXT,            -- 'GOOGLE_GENAI_API_KEY', 'OPENROUTER_API_KEY', etc.
+            type TEXT DEFAULT 'openai',         -- 'google', 'openai'
+            requires_api_key BOOLEAN DEFAULT true, 
+            is_system BOOLEAN DEFAULT false,    -- true = cannot delete
+            is_active BOOLEAN DEFAULT false,     -- active in selector
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS idx_ai_providers_slug ON ai_providers(slug)`;
+      console.log('Created table: ai_providers');
 
-DATOS DE MERCADO DISPONIBLES (Contexto):
+      // 2. Initial Migration: If table is empty, Seed Defaults
+      const promptCount = await sql`SELECT count(*) as count FROM ai_prompts`;
+
+      if (Number(promptCount[0].count) === 0) {
+        console.log('Seeding default AI Prompts...');
+
+        // --- CHATBOT PROMPTS ---
+
+        // 1. Asistente Estándar (El que estaba en system_settings o el default hardcoded)
+        // Intentar recuperar el de system_settings si existía
+        const oldChatSetting = await sql`SELECT value FROM system_settings WHERE key = 'AI_PROMPT_CHATBOT'`;
+        let standardChatContent = oldChatSetting.length > 0 ? oldChatSetting[0].value : `Eres un asesor financiero cercano y experto. Tu nombre es Stocks Bot.
+
+ESTILO DE RESPUESTA:
+- Habla como un colega experto, NO como un robot corporativo
+- Tutea al usuario, sé directo y amigable
+- Usa emojis con moderación donde tenga sentido (📈 📉 💡 ⚠️)
+- ADAPTA la longitud de tu respuesta a la pregunta:
+  • Preguntas simples ("¿cómo va AAPL?"): 1-2 oraciones
+  • Preguntas de análisis ("¿qué opinas de mi portafolio?"): 3-5 oraciones  
+  • Explicaciones o consejos detallados: hasta 300 palabras máximo
+- Si no tienes datos sobre algo, dilo brevemente y sugiere alternativas
+- No repitas información que ya dijiste en la conversación
+
+DATOS DEL USUARIO:
+{{USER_CONTEXT}}
+
+DATOS DE MERCADO:
 {{MARKET_DATA}}
 
-Instrucciones:
-1. Tu tarea actual es responder al ÚLTIMO mensaje del usuario (en el historial).
-2. Usa el historial para entender de qué ticker se está hablando si no se menciona explícitamente en el último mensaje.
-3. Si preguntan por soportes/resistencias, usa los datos contextuales proporcionados (Soporte CP / Resistencia CP o Rango Anual).
-4. Mantén tus respuestas conversacionales y útiles.`;
-        await sql`INSERT INTO system_settings (key, value) VALUES ('AI_PROMPT_CHATBOT', ${defaultChatPrompt})`;
-        console.log('Initialized AI_PROMPT_CHATBOT');
-      }
+NOTICIAS (Contexto Adicional):
+{{NEWS_CONTEXT}}
 
-      const analysisPrompt = await sql`SELECT value FROM system_settings WHERE key = 'AI_PROMPT_ANALYSIS'`;
-      if (analysisPrompt.length === 0) {
-        const defaultAnalysisPrompt = `Actúa como "Stocks Bot", un Analista Financiero Senior experto de Wall Street creado para esta plataforma.
+ÚLTIMO MENSAJE DEL USUARIO:
+{{USER_MESSAGE}}
 
-CONTEXTO DEL PORTAFOLIO DEL CLIENTE:
+CONVERSACIÓN:
+{{CHAT_HISTORY}}
+
+Responde al último mensaje del usuario de forma natural y útil.`;
+
+        await sql`
+                INSERT INTO ai_prompts (name, prompt_type, content, is_active, is_system)
+                VALUES ('Asistente Estándar', 'CHATBOT', ${standardChatContent}, true, true)
+            `;
+
+        // 2. El Lobo de Wall Street
+        const wolfPrompt = `Eres "El Lobo", un broker agresivo, exitoso y directo de Wall Street.
+TU PERFIL:
+- Tono: Sarcástico, extremadamente confiado (casi arrogante), usas jerga financiera (bullish, bearish, to the moon, bag holder).
+- Objetivo: Hacer dinero. Odias las pérdidas y la debilidad.
+- Estilo: Respuestas cortas, impactantes. Si el usuario pierde dinero, sé duro con él ("¿Te gusta perder dinero?"). Si gana, celébralo como un rey.
+- NUNCA des consejos legales, pero habla como si fueras el dueño del mercado.
+
+DATOS DE MERCADO:
+{{MARKET_DATA}}
+
+NOTICIAS:
+{{NEWS_CONTEXT}}
+
+HISTORIAL:
+{{CHAT_HISTORY}}
+
+USUARIO DICE: "{{USER_MESSAGE}}"
+
+Dime qué hacer, crack.`;
+        await sql`
+                INSERT INTO ai_prompts (name, prompt_type, content, is_active, is_system)
+                VALUES ('El Lobo de Wall Street', 'CHATBOT', ${wolfPrompt}, false, true)
+            `;
+
+        // 3. Profesor Paciente (ELI5)
+        const teacherPrompt = `Eres el Profesor Finanzas, un educador paciente y amable.
+TU PERFIL:
+- Asumes que el usuario es PRINCIPIANTE.
+- Explicas todo con analogías sencillas (ELI5 - Explain Like I'm 5).
+- Evitas jerga técnica sin explicarla primero.
+- Tu objetivo es que el usuario APRENDA, no solo que gane dinero.
+- Tono: Calmado, alentador, educativo.
+
+DATOS:
+{{MARKET_DATA}}
+
+NOTICIAS RECIENTES:
+{{NEWS_CONTEXT}}
+
+CHAT:
+{{CHAT_HISTORY}}
+
+PREGUNTA: "{{USER_MESSAGE}}"
+
+Responde con paciencia y claridad prof.`;
+        await sql`
+                INSERT INTO ai_prompts (name, prompt_type, content, is_active, is_system)
+                VALUES ('Profesor Paciente', 'CHATBOT', ${teacherPrompt}, false, true)
+            `;
+
+
+        // --- ANALYSIS PROMPTS ---
+
+        // 1. Analista Institucional (Standard)
+        const oldAnalysisSetting = await sql`SELECT value FROM system_settings WHERE key = 'AI_PROMPT_ANALYSIS'`;
+        let standardAnalysisContent = oldAnalysisSetting.length > 0 ? oldAnalysisSetting[0].value : `Actúa como "Stocks Bot", un Analista Financiero Senior experto de Wall Street.
+
+CONTEXTO DEL PORTAFOLIO:
 {{PORTFOLIO_CONTEXT}}
 
 DATOS DE MERCADO:
 {{MARKET_CONTEXT}}
 
-Pregunta del usuario: "{{USER_MESSAGE}}"
+NOTICIAS RELACIONADAS:
+{{NEWS_CONTEXT}}
+
+Pregunta: "{{USER_MESSAGE}}"
 
 INSTRUCCIONES:
-- Responde en español, de forma profesional, concisa y basada en los DATOS proporcionados arriba.
-- Si ves una "Curva de Precios", analízala brevemente (tendencia alcista/bajista, volatilidad).
-- Da consejos estratégicos sobre diversificación y riesgo si aplica.
-- Si te preguntan por una acción cuyos datos acabas de recibir (arriba), úsalos para opinar.
-- Identifícate siempre como Stocks Bot.`;
-        await sql`INSERT INTO system_settings (key, value) VALUES ('AI_PROMPT_ANALYSIS', ${defaultAnalysisPrompt})`;
-        console.log('Initialized AI_PROMPT_ANALYSIS');
+- Responde en español, profesional y conciso.
+- Analiza brevemente la curva de precios si hay datos.
+- Da consejos estratégicos sobre diversificación y riesgo.
+- Identifícate como Stocks Bot.`;
+
+        await sql`
+                INSERT INTO ai_prompts (name, prompt_type, content, is_active, is_system)
+                VALUES ('Analista Institucional', 'ANALYSIS', ${standardAnalysisContent}, true, true)
+            `;
+
+        // 2. Gestor de Riesgos (Bearish / Pessimistic)
+        const riskManagerPrompt = `Eres el "Director de Riesgos" (Risk Manager). Tu trabajo es encontrar PROBLEMAS.
+ACTITUD:
+- Extremadamente conservador y pesimista.
+- Tu foco NO es cuánto puede ganar el usuario, sino CUÁNTO PUEDE PERDER.
+- Busca: Falta de diversificación, concentración en un solo sector, activos volátiles, burbujas.
+- Sé crítico. Si el portafolio se ve bien, busca el "pero". "Todo sube hasta que deja de subir".
+
+PORTAFOLIO:
+{{PORTFOLIO_CONTEXT}}
+
+MERCADO:
+{{MARKET_CONTEXT}}
+
+NOTICIAS DEL MERCADO:
+{{NEWS_CONTEXT}}
+
+MENSAJE: "{{USER_MESSAGE}}"
+
+Haz tu reporte de riesgos brutalmente honesto.`;
+        await sql`
+                INSERT INTO ai_prompts (name, prompt_type, content, is_active, is_system)
+                VALUES ('Gestor de Riesgos (Bearish)', 'ANALYSIS', ${riskManagerPrompt}, false, true)
+            `;
+
+        // 3. Venture Capitalist (Bullish / Aggressive)
+        const vcPrompt = `Eres un Venture Capitalist de Silicon Valley.
+ACTITUD:
+- Visionario, optimista, enfocado en el CRECIMIENTO EXPONENCIAL (10x).
+- La volatilidad a corto plazo no te importa. Te importa el futuro a 5-10 años.
+- Buscas tecnología, disrupción, innovación.
+- Si ves acciones defensivas o aburridas (bonos, utilidades), critícalas por "falta de ambición".
+- Anima al usuario a tomar riesgos calculados. "Go big or go home".
+
+PORTAFOLIO:
+{{PORTFOLIO_CONTEXT}}
+
+MERCADO:
+{{MARKET_CONTEXT}}
+
+NEWS / HYPE:
+{{NEWS_CONTEXT}}
+
+MENSAJE: "{{USER_MESSAGE}}"
+
+Danos tu visión de futuro.`;
+        await sql`
+                INSERT INTO ai_prompts (name, prompt_type, content, is_active, is_system)
+                VALUES ('Venture Capitalist (Aggressive)', 'ANALYSIS', ${vcPrompt}, false, true)
+            `;
+
+        console.log('Default AI Prompts seeded successfully.');
       }
+
     } catch (e: any) {
       console.error('Error initializing AI Prompts:', e.message);
+    }
+
+    // ----------------------------------------------------
+    // Seed AI Providers
+    // ----------------------------------------------------
+    try {
+      const providerCount = await sql`SELECT count(*) as count FROM ai_providers`;
+      if (Number(providerCount[0].count) === 0) {
+        console.log('Seeding default AI Providers...');
+
+        const defaultProviders = [
+          // 1. Google Gemini (System Default)
+          {
+            slug: 'gemini',
+            name: 'Google Gemini',
+            base_url: 'https://generativelanguage.googleapis.com',
+            models_endpoint: '/models',
+            api_key_config_key: 'GOOGLE_GENAI_API_KEY',
+            type: 'google',
+            requires_api_key: true,
+            is_system: true,
+            is_active: true
+          },
+          // 2. OpenRouter
+          {
+            slug: 'openrouter',
+            name: 'OpenRouter',
+            base_url: 'https://openrouter.ai/api/v1',
+            models_endpoint: '/models',
+            api_key_config_key: 'OPENROUTER_API_KEY',
+            type: 'openai',
+            requires_api_key: true,
+            is_system: true,
+            is_active: false // User must activate
+          },
+          // 3. Groq
+          {
+            slug: 'groq',
+            name: 'Groq Cloud',
+            base_url: 'https://api.groq.com/openai/v1',
+            models_endpoint: '/models',
+            api_key_config_key: 'GROQ_API_KEY',
+            type: 'openai',
+            requires_api_key: true,
+            is_system: true,
+            is_active: false
+          },
+          // 4. Ollama (Local) - Empty URL by default (V6 Plan)
+          {
+            slug: 'ollama',
+            name: 'Ollama (Local)',
+            base_url: '', // User must configure: http://localhost:11434/v1
+            models_endpoint: '/api/tags', // Ollama uses /api/tags to list models
+            api_key_config_key: null,
+            type: 'openai', // We can use openai compatibility or custom
+            requires_api_key: false,
+            is_system: true,
+            is_active: false
+          },
+          // 5. LM Studio (Local) - Empty URL by default
+          {
+            slug: 'lm-studio',
+            name: 'LM Studio (Local)',
+            base_url: '', // User must configure: http://localhost:1234/v1
+            models_endpoint: '/models',
+            api_key_config_key: null,
+            type: 'openai',
+            requires_api_key: false,
+            is_system: true,
+            is_active: false
+          }
+        ];
+
+        for (const p of defaultProviders) {
+          await sql`
+                INSERT INTO ai_providers (slug, name, base_url, models_endpoint, api_key_config_key, type, requires_api_key, is_system, is_active)
+                VALUES (${p.slug}, ${p.name}, ${p.base_url}, ${p.models_endpoint}, ${p.api_key_config_key}, ${p.type}, ${p.requires_api_key}, ${p.is_system}, ${p.is_active})
+            `;
+        }
+        console.log('Default AI Providers seeded.');
+      }
+    } catch (e: any) {
+      console.error('Error seeding AI Providers:', e.message);
     }
 
   } catch (error) {

@@ -9,6 +9,7 @@ import AdmZip from 'adm-zip';
 import * as fs from 'fs';
 import * as path from 'path';
 import nodemailer from 'nodemailer';
+import { recalculateAllHistory } from '../jobs/pnlJob';
 
 // Helper implementation for consistent table ordering
 const getOrderedTables = (allTables: string[]) => {
@@ -26,11 +27,39 @@ const getOrderedTables = (allTables: string[]) => {
         'transactions'           // Dep: portfolios
     ];
 
-    // Return sorted tables: those in desiredOrder first, then the rest alphabetically
     return [
         ...desiredOrder.filter(t => allTables.includes(t)),
         ...allTables.filter(t => !desiredOrder.includes(t)).sort()
     ];
+};
+
+// Helper: Update .env file
+const updateEnvFile = async (updates: Record<string, string>) => {
+    try {
+        const envPath = path.join(process.cwd(), '.env');
+        let fileContent = '';
+        if (fs.existsSync(envPath)) {
+            fileContent = fs.readFileSync(envPath, 'utf-8');
+        }
+
+        let newContent = fileContent;
+        for (const [key, value] of Object.entries(updates)) {
+            // Escape values if needed, but for keys usually raw is fine unless special chars
+            const regex = new RegExp(`^${key}=.*`, 'm');
+            if (newContent.match(regex)) {
+                newContent = newContent.replace(regex, `${key}=${value}`);
+            } else {
+                // Ensure newline before append if not empty
+                const prefix = newContent.length > 0 && !newContent.endsWith('\n') ? '\n' : '';
+                newContent += `${prefix}${key}=${value}`;
+            }
+        }
+
+        fs.writeFileSync(envPath, newContent);
+        console.log('[Admin] Updated .env file with:', Object.keys(updates));
+    } catch (e) {
+        console.error('[Admin] Failed to update .env file:', e);
+    }
 };
 
 export const adminRoutes = new Elysia({ prefix: '/admin' })
@@ -91,6 +120,21 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             months: t.Numeric(),
             type: t.String()
         })
+    })
+
+    // Recalcular PnL para todos los portfolios (desde primera transacción)
+    .post('/pnl/recalculate', async () => {
+        try {
+            // Fire and forget - this can take a while
+            recalculateAllHistory().catch(e => console.error('[Admin] PnL Recalculation Error:', e));
+
+            return {
+                success: true,
+                message: 'Recálculo de PnL iniciado en segundo plano. Verifica los logs del servidor para el progreso.'
+            };
+        } catch (error: any) {
+            return { success: false, message: error.message };
+        }
     })
 
     // Listar todos los usuarios
@@ -292,7 +336,13 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             process.env.FINNHUB_API_KEY = finnhub;
             process.env.GOOGLE_GENAI_API_KEY = google;
 
-            return { success: true, message: 'Claves API guardadas correctamente' };
+            // Sync to .env file
+            await updateEnvFile({
+                FINNHUB_API_KEY: finnhub,
+                GOOGLE_GENAI_API_KEY: google
+            });
+
+            return { success: true, message: 'Claves API guardadas correctamente (DB + .env)' };
         } catch (error: any) {
             console.error('Error saving API keys:', error);
             throw new Error(`Error al guardar: ${error.message}`);
@@ -307,7 +357,8 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     // === AI SETTINGS ===
     .get('/settings/ai', async () => {
         const model = await SettingsService.get('AI_MODEL') || 'gemini-1.5-flash';
-        return { model };
+        const provider = await SettingsService.get('AI_PROVIDER') || 'gemini';
+        return { model, provider };
     })
     .get('/settings/ai/models', async () => {
         return await AIService.getAvailableModels();
@@ -325,28 +376,219 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         const { model } = body;
         await SettingsService.set('AI_MODEL', model, false);
         process.env.AI_MODEL = model;
+        await updateEnvFile({ AI_MODEL: model });
         return { success: true, message: 'Modelo de IA actualizado correctamente' };
     }, {
         body: t.Object({
             model: t.String()
         })
     })
-    // Prompts
-    .get('/settings/ai/prompts', async () => {
-        const chat = await SettingsService.get('AI_PROMPT_CHATBOT') || '';
-        const analysis = await SettingsService.get('AI_PROMPT_ANALYSIS') || '';
-        return { chat, analysis };
+    // === AI PROVIDER MANAGEMENT (V6) ===
+
+    // List all providers
+    .get('/ai/providers', async () => {
+        const providers = await sql`
+            SELECT * FROM ai_providers 
+            ORDER BY is_system DESC, name ASC
+        `;
+        return [...providers];
     })
-    .post('/settings/ai/prompts', async ({ body }) => {
+
+    // Create custom provider
+    .post('/ai/providers', async ({ body }) => {
         // @ts-ignore
-        const { chat, analysis } = body;
-        await SettingsService.set('AI_PROMPT_CHATBOT', chat, false);
-        await SettingsService.set('AI_PROMPT_ANALYSIS', analysis, false);
-        return { success: true, message: 'Prompts de IA actualizados correctamente' };
+        const { name, slug, base_url, models_endpoint, requires_api_key, api_key } = body;
+
+        if (!name || !slug) throw new Error('Nombre y ID (slug) son requeridos');
+
+        // Check if slug exists
+        const [existing] = await sql`SELECT id FROM ai_providers WHERE slug = ${slug}`;
+        if (existing) throw new Error('Este identificador ya existe');
+
+        const apiKeyConfigKey = requires_api_key ? `${slug.toUpperCase().replace(/-/g, '_')}_API_KEY` : null;
+
+        await sql`
+            INSERT INTO ai_providers (
+                slug, name, base_url, models_endpoint, api_key_config_key, 
+                type, requires_api_key, is_system, is_active
+            )
+            VALUES (
+                ${slug}, ${name}, ${base_url || ''}, ${models_endpoint || '/models'}, ${apiKeyConfigKey}, 
+                'openai', ${requires_api_key}, false, false
+            )
+        `;
+
+        // Save key if provided
+        if (requires_api_key && api_key && apiKeyConfigKey) {
+            await SettingsService.set(apiKeyConfigKey, api_key, true);
+        }
+
+        return { success: true, message: 'Proveedor creado correctamente' };
     }, {
         body: t.Object({
-            chat: t.String(),
-            analysis: t.String()
+            name: t.String(),
+            slug: t.String(),
+            base_url: t.Optional(t.String()),
+            models_endpoint: t.Optional(t.String()),
+            requires_api_key: t.Boolean(),
+            api_key: t.Optional(t.String())
+        })
+    })
+
+    // Update provider
+    .put('/ai/providers/:id', async ({ params, body }) => {
+        const { id } = params;
+        // @ts-ignore
+        const { name, base_url, models_endpoint, is_active, api_key } = body;
+
+        const [provider] = await sql`SELECT is_system, slug, api_key_config_key, requires_api_key FROM ai_providers WHERE id = ${id}`;
+        if (!provider) throw new Error('Proveedor no encontrado');
+
+        await sql`
+            UPDATE ai_providers
+            SET name = ${name}, 
+                base_url = ${base_url}, 
+                models_endpoint = ${models_endpoint}, 
+                is_active = ${is_active}
+            WHERE id = ${id}
+        `;
+
+        if (provider.requires_api_key && api_key && provider.api_key_config_key) {
+            if (api_key.trim().length > 0) {
+                await SettingsService.set(provider.api_key_config_key, api_key, true);
+            }
+        }
+
+        return { success: true, message: 'Proveedor actualizado' };
+    }, {
+        body: t.Object({
+            name: t.String(),
+            base_url: t.String(),
+            models_endpoint: t.String(),
+            is_active: t.Boolean(),
+            api_key: t.Optional(t.String())
+        })
+    })
+
+
+    // Delete provider
+    .delete('/ai/providers/:id', async ({ params }) => {
+        const { id } = params;
+        const [provider] = await sql`SELECT is_system FROM ai_providers WHERE id = ${id}`;
+
+        if (!provider) throw new Error('Proveedor no encontrado');
+        if (provider.is_system) throw new Error('No se pueden eliminar proveedores del sistema');
+
+        await sql`DELETE FROM ai_providers WHERE id = ${id}`;
+        return { success: true, message: 'Proveedor eliminado' };
+    })
+
+    // Set Active Provider (Selection)
+    .post('/settings/ai/provider', async ({ body }) => {
+        // @ts-ignore
+        const { providerSlug } = body;
+        await SettingsService.set('AI_PROVIDER', providerSlug);
+        return { success: true, message: 'Proveedor activo actualizado' };
+    }, {
+        body: t.Object({
+            providerSlug: t.String()
+        })
+    })
+
+    // === NEW AI PROMPT MANAGEMENT ===
+
+    // List all prompts
+    .get('/ai/prompts', async () => {
+        const prompts = await sql`
+            SELECT id, name, prompt_type, content, is_active, is_system, created_at 
+            FROM ai_prompts 
+            ORDER BY prompt_type, created_at DESC
+        `;
+        return [...prompts];
+    })
+
+    // Create new prompt
+    .post('/ai/prompts', async ({ body }) => {
+        // @ts-ignore
+        const { name, prompt_type, content } = body;
+
+        if (!name || !content || !['CHATBOT', 'ANALYSIS'].includes(prompt_type)) {
+            throw new Error('Datos inválidos');
+        }
+
+        await sql`
+            INSERT INTO ai_prompts (name, prompt_type, content, is_active, is_system)
+            VALUES (${name}, ${prompt_type}, ${content}, false, false)
+        `;
+
+        return { success: true, message: 'Prompt creado correctamente' };
+    }, {
+        body: t.Object({
+            name: t.String(),
+            prompt_type: t.String(),
+            content: t.String()
+        })
+    })
+
+    // Activate a prompt (and deactivate others of same type)
+    .put('/ai/prompts/:id/activate', async ({ params }) => {
+        const { id } = params;
+
+        // 1. Get the type of the target prompt
+        const [target] = await sql`SELECT prompt_type FROM ai_prompts WHERE id = ${id}`;
+        if (!target) throw new Error('Prompt no encontrado');
+
+        // 2. Transaction: Deactivate all of that type, Activate target
+        await sql.begin(async sql => {
+            await sql`UPDATE ai_prompts SET is_active = false WHERE prompt_type = ${target.prompt_type}`;
+            await sql`UPDATE ai_prompts SET is_active = true WHERE id = ${id}`;
+        });
+
+        return { success: true, message: 'Prompt activado correctamente' };
+    })
+
+    // Delete a prompt
+    .delete('/ai/prompts/:id', async ({ params }) => {
+        const { id } = params;
+
+        const [target] = await sql`SELECT is_system, is_active FROM ai_prompts WHERE id = ${id}`;
+        if (!target) throw new Error('Prompt no encontrado');
+
+        if (target.is_system) throw new Error('No se pueden eliminar los prompts del sistema');
+        if (target.is_active) throw new Error('No se puede eliminar el prompt activo. Activa otro primero.');
+
+        await sql`DELETE FROM ai_prompts WHERE id = ${id}`;
+
+        return { success: true, message: 'Prompt eliminado' };
+    })
+
+    // Update a prompt content
+    .put('/ai/prompts/:id', async ({ params, body }) => {
+        const { id } = params;
+        // @ts-ignore
+        const { content, name } = body;
+
+        const [target] = await sql`SELECT is_system FROM ai_prompts WHERE id = ${id}`;
+        if (!target) throw new Error('Prompt no encontrado');
+
+        // Allow updating content even if system? Maybe just name/content but not type.
+        // Let's allow updating content for system prompts too, why not? Or maybe restrict.
+        // For now, allow fully editing custom prompts, and editing content of system prompts (if user wants to tweak default)
+        // Actually, system prompts usually implies "Factory Reset" capable. 
+        // But let's allow editing them for now as requested "default options" but user might want to tweak.
+        // The implementation plan didn't specify locking edits, only deletion.
+
+        await sql`
+            UPDATE ai_prompts 
+            SET content = ${content}, name = ${name}, created_at = NOW()
+            WHERE id = ${id}
+        `;
+
+        return { success: true, message: 'Prompt actualizado' };
+    }, {
+        body: t.Object({
+            content: t.String(),
+            name: t.String()
         })
     })
 
@@ -376,8 +618,16 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             // Actualizar process.env
             process.env.SMTP_USER = user;
             process.env.SMTP_FROM = from;
+            // Note: We don't save password to .env for security, or maybe we should? 
+            // Usually .env contains secrets. Let's save standard fields.
+            await updateEnvFile({
+                SMTP_HOST: host,
+                SMTP_PORT: port,
+                SMTP_USER: user,
+                SMTP_FROM: from
+            });
 
-            return { success: true, message: 'Configuración SMTP guardada correctamente en base de datos' };
+            return { success: true, message: 'Configuración SMTP guardada correctamente (DB + .env)' };
         } catch (error: any) {
             console.error('Error saving SMTP settings:', error);
             throw new Error(`Error al guardar: ${error.message}`);
@@ -522,7 +772,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
 
 
 
-            return new Response(zipBuffer, {
+            return new Response(zipBuffer as any, {
                 headers: {
                     'Content-Type': 'application/zip',
                     'Content-Disposition': `attachment; filename="${fileName}"`

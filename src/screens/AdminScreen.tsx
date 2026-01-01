@@ -2,6 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Header } from '../components/Header';
 import { useNavigate } from 'react-router-dom';
+import { PromptEditor } from '../components/PromptEditor';
+import { X } from 'lucide-react';
+import { AIGeneral } from '../components/admin/AIGeneral';
+import { AIProviders } from '../components/admin/AIProviders';
+import { AdminSMTP } from '../components/admin/AdminSMTP';
 
 interface User {
     id: string;
@@ -29,21 +34,23 @@ interface SmtpConfig {
     from: string;
 }
 
-type Tab = 'general' | 'market' | 'users' | 'api' | 'smtp' | 'backup' | 'stats' | 'ai';
+type Tab = 'general' | 'market' | 'users' | 'api' | 'backup' | 'stats' | 'ai';
 
 export const AdminScreen: React.FC = () => {
     const { api, isAdmin, user: currentUser } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<Tab>('general');
+    const [generalSubTab, setGeneralSubTab] = useState<'config' | 'smtp'>('config');
     const [users, setUsers] = useState<User[]>([]);
     const [stats, setStats] = useState<SystemStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [apiKeys, setApiKeys] = useState({ finnhub: '', google: '' });
     // AI Model
-    const [aiModel, setAiModel] = useState('gemini-1.5-flash');
-    const [aiModels, setAiModels] = useState<{ id: string, name: string }[]>([]);
-    const [aiPrompts, setAiPrompts] = useState({ chat: '', analysis: '' });
-    const [refreshingModels, setRefreshingModels] = useState(false);
+    const [aiSubTab, setAiSubTab] = useState<'general' | 'providers'>('general');
+
+    // Legacy AI State removed (moved to components)
+
+    // AI Prompts State removed (moved to components)
 
     const [generalConfig, setGeneralConfig] = useState({ appUrl: '' });
     const [saving, setSaving] = useState(false);
@@ -51,13 +58,11 @@ export const AdminScreen: React.FC = () => {
     // Market Sync
     const [syncPeriod, setSyncPeriod] = useState(1); // meses
     const [syncing, setSyncing] = useState(false);
+    const [pnlRecalculating, setPnlRecalculating] = useState(false);
 
     // SMTP config
-    const [smtpConfig, setSmtpConfig] = useState<SmtpConfig>({
-        host: '', port: '587', user: '', password: '', from: ''
-    });
-    const [testEmail, setTestEmail] = useState('');
-    const [sendingTest, setSendingTest] = useState(false);
+    // SMTP config moved to AdminSMTP component
+    // const [smtpConfig, setSmtpConfig] = useState...
 
     // Backup/Restore
     const [backupLoading, setBackupLoading] = useState(false);
@@ -69,6 +74,7 @@ export const AdminScreen: React.FC = () => {
     const [newPassword, setNewPassword] = useState('');
 
     // Cargar config general
+    // SMTP Handlers moved to AdminSMTP
     const loadGeneralConfig = useCallback(async () => {
         try {
             const { data } = await api.get('/admin/settings/general');
@@ -88,6 +94,33 @@ export const AdminScreen: React.FC = () => {
             alert(err.response?.data?.message || 'Error al guardar');
         } finally {
             setSaving(false);
+        }
+    };
+
+    // Sincronizar Mercado
+    const handleSync = async (type: 'portfolio' | 'currencies' | 'all') => {
+        setSyncing(true);
+        try {
+            await api.post('/admin/market/sync', { months: syncPeriod, type });
+            alert(`Sincronización ${type} iniciada en segundo plano.`);
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Error al sincronizar');
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    // Recalcular PnL
+    const handleRecalculatePnL = async () => {
+        if (!confirm('¿Recalcular el historial de PnL para TODOS los portafolios? Este proceso puede tardar varios minutos.')) return;
+        setPnlRecalculating(true);
+        try {
+            const { data } = await api.post('/admin/pnl/recalculate');
+            alert(data.message || 'Proceso de recálculo de PnL iniciado.');
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Error al iniciar recálculo de PnL');
+        } finally {
+            setPnlRecalculating(false);
         }
     };
 
@@ -121,33 +154,14 @@ export const AdminScreen: React.FC = () => {
         }
     }, [api]);
 
-    // Cargar config IA y Prompts
+    // Cargar config IA (providers handled by component now)
+    // We might still want to load something? No, components handle it.
     const loadAiConfig = useCallback(async () => {
-        try {
-            const [configRes, modelsRes, promptsRes] = await Promise.all([
-                api.get('/admin/settings/ai'),
-                api.get('/admin/settings/ai/models'),
-                api.get('/admin/settings/ai/prompts')
-            ]);
-            if (configRes.data?.model) setAiModel(configRes.data.model);
-            if (modelsRes.data) setAiModels(modelsRes.data);
-            if (promptsRes.data) setAiPrompts(promptsRes.data);
-        } catch (e) { console.error('Error loading AI config:', e); }
-    }, [api]);
+        // Placeholder if needed, or remove call
+    }, []);
 
-    // Cargar SMTP config
-    const loadSmtpConfig = useCallback(async () => {
-        try {
-            const { data } = await api.get('/admin/settings/smtp');
-            setSmtpConfig(data);
-            // Pre-rellenar email de prueba con el email del admin
-            if (currentUser?.email) {
-                setTestEmail(currentUser.email);
-            }
-        } catch (err) {
-            console.error('Error loading SMTP config:', err);
-        }
-    }, [api, currentUser?.email]);
+    // Cargar SMTP config - Moved to AdminSMTP component
+    // const loadSmtpConfig = useCallback(async () => { ... }, []);
 
     useEffect(() => {
         if (!isAdmin) {
@@ -157,11 +171,11 @@ export const AdminScreen: React.FC = () => {
 
         const loadData = async () => {
             setLoading(true);
-            await Promise.all([loadGeneralConfig(), loadUsers(), loadStats(), loadApiKeys(), loadAiConfig(), loadSmtpConfig()]);
+            await Promise.all([loadGeneralConfig(), loadUsers(), loadStats(), loadApiKeys(), loadAiConfig()]);
             setLoading(false);
         };
         loadData();
-    }, [isAdmin, navigate, loadGeneralConfig, loadUsers, loadStats, loadApiKeys, loadAiConfig, loadSmtpConfig]);
+    }, [isAdmin, navigate, loadGeneralConfig, loadUsers, loadStats, loadApiKeys, loadAiConfig]);
 
     // Bloquear/Desbloquear usuario
     const toggleBlock = async (userId: string, blocked: boolean) => {
@@ -237,38 +251,19 @@ export const AdminScreen: React.FC = () => {
         }
     };
 
-    // Guardar config IA (modelo)
-    const handleSaveAiConfig = async () => {
-        try {
-            await api.post('/admin/settings/ai', { model: aiModel });
-            await api.post('/admin/settings/ai/prompts', aiPrompts);
-        } catch (error: any) {
-            console.error('Error saving AI settings:', error);
-            throw error;
-        }
-    };
+    // Guardar config IA (modelo) - Moved to AIGeneral
 
-    // Refresh AI Models
-    const refreshAiModels = async () => {
-        setRefreshingModels(true);
-        try {
-            const { data } = await api.post('/admin/settings/ai/models/refresh');
-            if (data.models) setAiModels(data.models);
-            alert(data.message || 'Modelos actualizados');
-        } catch (e: any) {
-            alert(e.response?.data?.message || 'Error actualizando modelos');
-        } finally {
-            setRefreshingModels(false);
-        }
-    };
+    // Prompt Handlers
+    // Logic moved to AIGeneral
 
     // Guardar API keys y configuración IA
     const saveApiKeys = async () => {
         setSaving(true);
         try {
             await api.post('/admin/settings/api', apiKeys);
-            await handleSaveAiConfig();
-            alert('Claves API y configuración de IA actualizadas. Los cambios se aplicarán inmediatamente.');
+            await api.post('/admin/settings/api', apiKeys);
+            // AI Config saved individually
+            alert('Claves API actualizadas.');
         } catch (err: any) {
             alert(err.response?.data?.message || 'Error al guardar');
         } finally {
@@ -276,35 +271,11 @@ export const AdminScreen: React.FC = () => {
         }
     };
 
-    // Guardar SMTP config
-    const saveSmtpConfig = async () => {
-        setSaving(true);
-        try {
-            await api.post('/admin/settings/smtp', smtpConfig);
-            alert('Configuración SMTP guardada.');
-        } catch (err: any) {
-            alert(err.response?.data?.message || 'Error al guardar');
-        } finally {
-            setSaving(false);
-        }
-    };
+    // Guardar SMTP config - Moved to AdminSMTP component
+    // const saveSmtpConfig = async () => { ... };
 
-    // Enviar email de prueba
-    const sendTestEmail = async () => {
-        if (!testEmail) {
-            alert('Introduce un email de destino');
-            return;
-        }
-        setSendingTest(true);
-        try {
-            await api.post('/admin/settings/smtp/test', { testEmail });
-            alert(`Email de prueba enviado a ${testEmail}`);
-        } catch (err: any) {
-            alert(err.response?.data?.message || 'Error al enviar email de prueba');
-        } finally {
-            setSendingTest(false);
-        }
-    };
+    // Enviar email de prueba - Moved to AdminSMTP component
+    // const sendTestEmail = async () => { ... };
 
     if (!isAdmin) return null;
 
@@ -377,20 +348,6 @@ export const AdminScreen: React.FC = () => {
         }
     };
 
-    // Sincronizar Mercado
-    const handleSync = async (type: 'portfolio' | 'currencies' | 'all') => {
-        if (!confirm(`¿Iniciar sincronización de ${type === 'all' ? 'TODO' : type} para los últimos ${syncPeriod} meses?`)) return;
-        setSyncing(true);
-        try {
-            const { data } = await api.post('/admin/market/sync', { months: syncPeriod, type });
-            alert(data.message);
-        } catch (err: any) {
-            alert(err.response?.data?.message || 'Error al iniciar sincronización');
-        } finally {
-            setSyncing(false);
-        }
-    };
-
     // Restaurar desde archivo (ZIP o SQL)
     const handleRestoreFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -451,7 +408,6 @@ export const AdminScreen: React.FC = () => {
         { id: 'market' as Tab, label: 'Mercado', icon: 'monitoring' },
         { id: 'users' as Tab, label: 'Usuarios', icon: 'group' },
         { id: 'api' as Tab, label: 'Claves API', icon: 'key' },
-        { id: 'smtp' as Tab, label: 'SMTP', icon: 'mail' },
         { id: 'backup' as Tab, label: 'Backup', icon: 'backup' },
         { id: 'stats' as Tab, label: 'Estadísticas', icon: 'analytics' },
     ];
@@ -486,37 +442,66 @@ export const AdminScreen: React.FC = () => {
                     <>
                         {/* Tab: General */}
                         {activeTab === 'general' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-2xl animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                    <span className="material-symbols-outlined">settings</span>
-                                    Configuración General
-                                </h2>
-
-                                <div className="flex flex-col gap-6">
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                                            URL Pública de la Aplicación
-                                        </label>
-                                        <input
-                                            type="url"
-                                            value={generalConfig.appUrl}
-                                            onChange={e => setGeneralConfig({ ...generalConfig, appUrl: e.target.value })}
-                                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary font-mono text-sm"
-                                            placeholder="https://stocks.salodev.ovh"
-                                        />
-                                        <p className="text-xs text-text-secondary-light mt-2">
-                                            Esta URL se utilizará en las notificaciones (Teams, Email, etc.) para redirigir a los usuarios.
-                                        </p>
-                                    </div>
-
+                            <div className="animate-fade-in w-full max-w-2xl">
+                                <div className="flex gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-1">
                                     <button
-                                        onClick={saveGeneralConfig}
-                                        disabled={saving}
-                                        className="px-6 py-4 bg-primary text-black font-bold rounded-2xl hover:opacity-90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 mt-4"
+                                        onClick={() => setGeneralSubTab('config')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${generalSubTab === 'config'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
                                     >
-                                        {saving ? 'Guardando...' : 'Guardar Configuración'}
+                                        Configuración
+                                    </button>
+                                    <button
+                                        onClick={() => setGeneralSubTab('smtp')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${generalSubTab === 'smtp'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
+                                    >
+                                        SMTP (Correo)
                                     </button>
                                 </div>
+
+                                {generalSubTab === 'config' && (
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 animate-fade-in">
+                                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                            <span className="material-symbols-outlined">settings</span>
+                                            Configuración General
+                                        </h2>
+
+                                        <div className="flex flex-col gap-6">
+                                            <div>
+                                                <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
+                                                    URL Pública de la Aplicación
+                                                </label>
+                                                <input
+                                                    type="url"
+                                                    value={generalConfig.appUrl}
+                                                    onChange={e => setGeneralConfig({ ...generalConfig, appUrl: e.target.value })}
+                                                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                                                    placeholder="https://stocks.salodev.ovh"
+                                                />
+                                                <p className="text-xs text-text-secondary-light mt-2">
+                                                    Esta URL se utilizará en las notificaciones (Teams, Email, etc.) para redirigir a los usuarios.
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                onClick={saveGeneralConfig}
+                                                disabled={saving}
+                                                className="px-6 py-4 bg-primary text-black font-bold rounded-2xl hover:opacity-90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 mt-4"
+                                            >
+                                                {saving ? 'Guardando...' : 'Guardar Configuración'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {generalSubTab === 'smtp' && (
+                                    <AdminSMTP />
+                                )}
                             </div>
                         )}
 
@@ -586,6 +571,25 @@ export const AdminScreen: React.FC = () => {
                                         Solo Divisas
                                     </button>
                                 </div>
+
+                                {/* Sección: Recalcular PnL */}
+                                <hr className="border-border-light dark:border-border-dark my-8" />
+                                <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+                                    <span className="material-symbols-outlined">show_chart</span>
+                                    Recalcular Gráfico de PnL
+                                </h3>
+                                <p className="text-sm text-text-secondary-light mb-4">
+                                    Si el gráfico de Ganancias/Pérdidas muestra datos incorrectos o desactualizados,
+                                    puedes forzar un recálculo completo desde la primera transacción de cada portafolio.
+                                </p>
+                                <button
+                                    onClick={handleRecalculatePnL}
+                                    disabled={pnlRecalculating}
+                                    className="py-3 px-6 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                                >
+                                    {pnlRecalculating ? <span className="animate-spin material-symbols-outlined">sync</span> : <span className="material-symbols-outlined">refresh</span>}
+                                    {pnlRecalculating ? 'Recalculando...' : 'Recalcular PnL Global'}
+                                </button>
                             </div>
                         )}
 
@@ -742,95 +746,31 @@ export const AdminScreen: React.FC = () => {
                                     Configuración de IA
                                 </h2>
 
-                                {/* Config Basics */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                                            Google Gemini API Key
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={apiKeys.google}
-                                            onChange={e => setApiKeys({ ...apiKeys, google: e.target.value })}
-                                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary font-mono text-sm"
-                                            placeholder="Tu API key de Google AI Studio"
-                                        />
-                                        <p className="text-xs text-text-secondary-light mt-1">
-                                            Necesario para ChatBot y Análisis.
-                                        </p>
-                                    </div>
-
-                                    <div>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="block text-xs font-bold uppercase text-text-secondary-light">
-                                                Modelo (Gemini)
-                                            </label>
-                                            <button
-                                                onClick={refreshAiModels}
-                                                disabled={refreshingModels || !apiKeys.google}
-                                                className="text-xs text-primary hover:text-primary-dark transition-colors flex items-center gap-1 disabled:opacity-50"
-                                            >
-                                                <span className={`material-symbols-outlined text-sm ${refreshingModels ? 'animate-spin' : ''}`}>sync</span>
-                                                Refrescar
-                                            </button>
-                                        </div>
-                                        <select
-                                            value={aiModel}
-                                            onChange={e => setAiModel(e.target.value)}
-                                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary font-sans text-sm"
-                                        >
-                                            {aiModels.map(m => (
-                                                <option key={m.id} value={m.id}>{m.name}</option>
-                                            ))}
-                                            {aiModels.length === 0 && <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {/* Prompts Editors */}
-                                <h3 className="font-bold text-lg mb-4 text-text-primary-light dark:text-gray-200">Personalidad y Prompts</h3>
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div className="flex flex-col h-full">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="block text-xs font-bold uppercase text-text-secondary-light">ChatBot (Conversacional)</label>
-                                            <span className="text-[10px] bg-primary/20 text-primary px-2 py-1 rounded">Memoria Activada</span>
-                                        </div>
-                                        <p className="text-xs text-text-secondary-light mb-2">Variables: <code>{`{{CHAT_HISTORY}}`}</code>, <code>{`{{MARKET_DATA}}`}</code></p>
-                                        <textarea
-                                            value={aiPrompts.chat}
-                                            onChange={e => setAiPrompts({ ...aiPrompts, chat: e.target.value })}
-                                            className="w-full flex-1 min-h-[300px] px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary font-mono text-xs leading-relaxed resize-y"
-                                            placeholder="System prompt for ChatBot..."
-                                        />
-                                    </div>
-
-                                    <div className="flex flex-col h-full">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <label className="block text-xs font-bold uppercase text-text-secondary-light">Análisis Estratégico (Reporte)</label>
-                                            <span className="text-[10px] bg-blue-500/20 text-blue-500 px-2 py-1 rounded">Reporte Estático</span>
-                                        </div>
-                                        <p className="text-xs text-text-secondary-light mb-2">Variables: <code>{`{{PORTFOLIO_CONTEXT}}`}</code>, <code>{`{{MARKET_CONTEXT}}`}</code>, <code>{`{{USER_MESSAGE}}`}</code></p>
-                                        <textarea
-                                            value={aiPrompts.analysis}
-                                            onChange={e => setAiPrompts({ ...aiPrompts, analysis: e.target.value })}
-                                            className="w-full flex-1 min-h-[300px] px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary font-mono text-xs leading-relaxed resize-y"
-                                            placeholder="System prompt for Analysis..."
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="mt-8 flex justify-end">
+                                <div className="flex gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-1">
                                     <button
-                                        onClick={saveApiKeys}
-                                        disabled={saving}
-                                        className="px-8 py-4 bg-primary text-black font-bold rounded-2xl hover:opacity-90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center gap-2"
+                                        onClick={() => setAiSubTab('general')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${aiSubTab === 'general'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
                                     >
-                                        <span className="material-symbols-outlined">save</span>
-                                        {saving ? 'Guardando...' : 'Guardar Configuración de IA'}
+                                        General y Prompts
+                                    </button>
+                                    <button
+                                        onClick={() => setAiSubTab('providers')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${aiSubTab === 'providers'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
+                                    >
+                                        Proveedores
                                     </button>
                                 </div>
+
+                                {aiSubTab === 'general' ? <AIGeneral /> : <AIProviders />}
                             </div>
                         )}
+
 
                         {/* Tab: API Keys (Reducido) */}
                         {activeTab === 'api' && (
@@ -866,341 +806,236 @@ export const AdminScreen: React.FC = () => {
                                     >
                                         {saving ? 'Guardando...' : 'Guardar Claves API'}
                                     </button>
-                                </div>
-                            </div>
-                        )}
 
-                        {/* Tab: SMTP */}
-                        {activeTab === 'smtp' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-2xl animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                    <span className="material-symbols-outlined">mail</span>
-                                    Configuración SMTP
-                                </h2>
-                                <p className="text-sm text-text-secondary-light mb-6">
-                                    Configura el servidor SMTP para enviar notificaciones de alertas de precio, stop loss y otras notificaciones por email.
-                                </p>
-
-                                <div className="flex flex-col gap-5">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                                                Host SMTP
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={smtpConfig.host}
-                                                onChange={e => setSmtpConfig({ ...smtpConfig, host: e.target.value })}
-                                                className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
-                                                placeholder="smtp.gmail.com"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                                                Puerto
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={smtpConfig.port}
-                                                onChange={e => setSmtpConfig({ ...smtpConfig, port: e.target.value })}
-                                                className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
-                                                placeholder="587"
-                                            />
-                                            <p className="text-xs text-text-secondary-light mt-1">
-                                                587 (TLS) o 465 (SSL)
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                                            Usuario SMTP
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={smtpConfig.user}
-                                            onChange={e => setSmtpConfig({ ...smtpConfig, user: e.target.value })}
-                                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
-                                            placeholder="tu-email@gmail.com"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                                            Contraseña / App Password
-                                        </label>
-                                        <input
-                                            type="password"
-                                            value={smtpConfig.password}
-                                            onChange={e => setSmtpConfig({ ...smtpConfig, password: e.target.value })}
-                                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
-                                            placeholder="••••••••"
-                                        />
-                                        <p className="text-xs text-text-secondary-light mt-1">
-                                            Para Gmail, usa una <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">App Password</a>
-                                        </p>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                                            Email Remitente (From)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={smtpConfig.from}
-                                            onChange={e => setSmtpConfig({ ...smtpConfig, from: e.target.value })}
-                                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
-                                            placeholder="Stocks Manager <noreply@tudominio.com>"
-                                        />
-                                    </div>
-
-                                    <button
-                                        onClick={saveSmtpConfig}
-                                        disabled={saving}
-                                        className="px-6 py-4 bg-primary text-black font-bold rounded-2xl hover:opacity-90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
-                                    >
-                                        {saving ? 'Guardando...' : 'Guardar Configuración SMTP'}
-                                    </button>
-
-                                    {/* Prueba de envío */}
-                                    <div className="border-t border-border-light dark:border-border-dark pt-6 mt-2">
-                                        <h3 className="font-bold mb-4 flex items-center gap-2">
-                                            <span className="material-symbols-outlined text-lg">send</span>
-                                            Probar Configuración
+                                    <div className="mt-6 p-4 bg-background-light dark:bg-surface-dark-elevated rounded-xl border border-border-light dark:border-border-dark">
+                                        <h3 className="font-bold mb-2 flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-primary">psychology</span>
+                                            Claves de IA (Gemini, OpenAI, etc.)
                                         </h3>
-                                        <div className="flex gap-3">
-                                            <input
-                                                type="email"
-                                                value={testEmail}
-                                                onChange={e => setTestEmail(e.target.value)}
-                                                className="flex-1 px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
-                                                placeholder="Email de destino para la prueba"
-                                            />
-                                            <button
-                                                onClick={sendTestEmail}
-                                                disabled={sendingTest || !smtpConfig.host}
-                                                className="px-6 py-3 bg-blue-500 text-white font-bold rounded-xl hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center gap-2"
-                                            >
-                                                {sendingTest ? (
-                                                    <>
-                                                        <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                                        Enviando...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <span className="material-symbols-outlined text-lg">send</span>
-                                                        Enviar Prueba
-                                                    </>
-                                                )}
-                                            </button>
-                                        </div>
+                                        <p className="text-sm text-text-secondary-light mb-3">
+                                            Las claves de API para servicios de IA ahora se gestionan en su propia sección para mayor seguridad y soporte multi-proveedor.
+                                        </p>
+                                        <button
+                                            onClick={() => setActiveTab('ai')}
+                                            className="text-primary hover:underline text-sm font-bold"
+                                        >
+                                            Ir a Configuración de IA &rarr;
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         )}
 
                         {/* Tab: Backup */}
-                        {activeTab === 'backup' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-5xl w-full animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                    <span className="material-symbols-outlined">backup</span>
-                                    Backup y Restauración
-                                </h2>
+                        {
+                            activeTab === 'backup' && (
+                                <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-5xl w-full animate-fade-in">
+                                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                        <span className="material-symbols-outlined">backup</span>
+                                        Backup y Restauración
+                                    </h2>
 
-                                {/* Info de tablas */}
-                                <div className="mb-6 p-4 bg-background-light dark:bg-surface-dark-elevated rounded-xl">
-                                    <p className="text-sm text-text-secondary-light mb-2">
-                                        <strong>{tables.length}</strong> tablas detectadas en la base de datos:
-                                    </p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {tables.map(t => (
-                                            <span key={t} className="px-2 py-1 bg-primary/10 text-primary text-xs font-mono rounded">
-                                                {t}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Crear Backup */}
-                                <div className="mb-8">
-                                    <h3 className="font-bold mb-4 flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-green-500">download</span>
-                                        Crear Backup
-                                    </h3>
-                                    <p className="text-sm text-text-secondary-light mb-4">
-                                        Descarga una copia de seguridad de los datos. Elige el formato que más te convenga.
-                                    </p>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <button
-                                            onClick={downloadBackupZip}
-                                            disabled={backupLoading}
-                                            className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
-                                        >
-                                            {backupLoading ? (
-                                                <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
-                                            ) : (
-                                                <span className="material-symbols-outlined text-3xl text-blue-500">folder_zip</span>
-                                            )}
-                                            <div className="text-center">
-                                                <p className="font-bold">Completo (ZIP)</p>
-                                                <p className="text-xs text-text-secondary-light">DB + Imágenes</p>
-                                            </div>
-                                        </button>
-
-                                        <button
-                                            onClick={downloadBackupJson}
-                                            disabled={backupLoading}
-                                            className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
-                                        >
-                                            {backupLoading ? (
-                                                <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
-                                            ) : (
-                                                <span className="material-symbols-outlined text-3xl text-green-500">data_object</span>
-                                            )}
-                                            <div className="text-center">
-                                                <p className="font-bold">Datos (JSON)</p>
-                                                <p className="text-xs text-text-secondary-light">Solo Base de Datos</p>
-                                            </div>
-                                        </button>
-
-                                        <button
-                                            onClick={downloadBackupSql}
-                                            disabled={backupLoading}
-                                            className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
-                                        >
-                                            {backupLoading ? (
-                                                <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
-                                            ) : (
-                                                <span className="material-symbols-outlined text-3xl text-orange-500">database</span>
-                                            )}
-                                            <div className="text-center">
-                                                <p className="font-bold">Script SQL</p>
-                                                <p className="text-xs text-text-secondary-light">Para PostgreSQL</p>
-                                            </div>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Restaurar */}
-                                <div className="border-t border-border-light dark:border-border-dark pt-6">
-                                    <h3 className="font-bold mb-4 flex items-center gap-2">
-                                        <span className="material-symbols-outlined text-red-500">restore</span>
-                                        Restaurar Backup
-                                    </h3>
-                                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl mb-4">
-                                        <p className="text-sm text-red-400 flex items-start gap-2">
-                                            <span className="material-symbols-outlined text-lg">warning</span>
-                                            <span>
-                                                <strong>¡Atención!</strong> Restaurar un backup REEMPLAZARÁ todos los datos actuales.
-                                                Esta acción es irreversible. Crea un backup antes de continuar.
-                                            </span>
+                                    {/* Info de tablas */}
+                                    <div className="mb-6 p-4 bg-background-light dark:bg-surface-dark-elevated rounded-xl">
+                                        <p className="text-sm text-text-secondary-light mb-2">
+                                            <strong>{tables.length}</strong> tablas detectadas en la base de datos:
                                         </p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {tables.map(t => (
+                                                <span key={t} className="px-2 py-1 bg-primary/10 text-primary text-xs font-mono rounded">
+                                                    {t}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <label className={`flex items-center justify-center gap-3 px-6 py-4 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${restoreLoading ? 'border-primary bg-primary/10' : 'border-border-light dark:border-border-dark hover:border-primary hover:bg-primary/5'}`}>
-                                        {restoreLoading ? (
-                                            <>
-                                                <span className="size-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
-                                                <span className="font-semibold">Restaurando...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span className="material-symbols-outlined">upload_file</span>
-                                                <span className="font-semibold">Arrastra o selecciona un archivo (.zip, .json, .sql)</span>
-                                            </>
-                                        )}
-                                        <input
-                                            type="file"
-                                            accept=".json,.sql,.zip"
-                                            onChange={handleRestoreFile}
-                                            className="hidden"
-                                            disabled={restoreLoading}
-                                        />
-                                    </label>
+
+                                    {/* Crear Backup */}
+                                    <div className="mb-8">
+                                        <h3 className="font-bold mb-4 flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-green-500">download</span>
+                                            Crear Backup
+                                        </h3>
+                                        <p className="text-sm text-text-secondary-light mb-4">
+                                            Descarga una copia de seguridad de los datos. Elige el formato que más te convenga.
+                                        </p>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <button
+                                                onClick={downloadBackupZip}
+                                                disabled={backupLoading}
+                                                className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
+                                            >
+                                                {backupLoading ? (
+                                                    <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
+                                                ) : (
+                                                    <span className="material-symbols-outlined text-3xl text-blue-500">folder_zip</span>
+                                                )}
+                                                <div className="text-center">
+                                                    <p className="font-bold">Completo (ZIP)</p>
+                                                    <p className="text-xs text-text-secondary-light">DB + Imágenes</p>
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                onClick={downloadBackupJson}
+                                                disabled={backupLoading}
+                                                className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
+                                            >
+                                                {backupLoading ? (
+                                                    <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
+                                                ) : (
+                                                    <span className="material-symbols-outlined text-3xl text-green-500">data_object</span>
+                                                )}
+                                                <div className="text-center">
+                                                    <p className="font-bold">Datos (JSON)</p>
+                                                    <p className="text-xs text-text-secondary-light">Solo Base de Datos</p>
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                onClick={downloadBackupSql}
+                                                disabled={backupLoading}
+                                                className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
+                                            >
+                                                {backupLoading ? (
+                                                    <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
+                                                ) : (
+                                                    <span className="material-symbols-outlined text-3xl text-orange-500">database</span>
+                                                )}
+                                                <div className="text-center">
+                                                    <p className="font-bold">Script SQL</p>
+                                                    <p className="text-xs text-text-secondary-light">Para PostgreSQL</p>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Restaurar */}
+                                    <div className="border-t border-border-light dark:border-border-dark pt-6">
+                                        <h3 className="font-bold mb-4 flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-red-500">restore</span>
+                                            Restaurar Backup
+                                        </h3>
+                                        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl mb-4">
+                                            <p className="text-sm text-red-400 flex items-start gap-2">
+                                                <span className="material-symbols-outlined text-lg">warning</span>
+                                                <span>
+                                                    <strong>¡Atención!</strong> Restaurar un backup REEMPLAZARÁ todos los datos actuales.
+                                                    Esta acción es irreversible. Crea un backup antes de continuar.
+                                                </span>
+                                            </p>
+                                        </div>
+                                        <label className={`flex items-center justify-center gap-3 px-6 py-4 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${restoreLoading ? 'border-primary bg-primary/10' : 'border-border-light dark:border-border-dark hover:border-primary hover:bg-primary/5'}`}>
+                                            {restoreLoading ? (
+                                                <>
+                                                    <span className="size-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+                                                    <span className="font-semibold">Restaurando...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="material-symbols-outlined">upload_file</span>
+                                                    <span className="font-semibold">Arrastra o selecciona un archivo (.zip, .json, .sql)</span>
+                                                </>
+                                            )}
+                                            <input
+                                                type="file"
+                                                accept=".json,.sql,.zip"
+                                                onChange={handleRestoreFile}
+                                                className="hidden"
+                                                disabled={restoreLoading}
+                                            />
+                                        </label>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )
+                        }
 
                         {/* Tab: Estadísticas */}
-                        {activeTab === 'stats' && stats && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
-                                <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-blue-500 text-2xl">group</span>
+                        {
+                            activeTab === 'stats' && stats && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                                <span className="material-symbols-outlined text-blue-500 text-2xl">group</span>
+                                            </div>
+                                            <span className="text-sm font-semibold text-text-secondary-light">Usuarios</span>
                                         </div>
-                                        <span className="text-sm font-semibold text-text-secondary-light">Usuarios</span>
+                                        <p className="text-3xl font-black">{stats.users.total}</p>
+                                        <p className="text-sm text-text-secondary-light">{stats.users.blocked} bloqueados</p>
                                     </div>
-                                    <p className="text-3xl font-black">{stats.users.total}</p>
-                                    <p className="text-sm text-text-secondary-light">{stats.users.blocked} bloqueados</p>
-                                </div>
 
-                                <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-green-500 text-2xl">account_balance_wallet</span>
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                                                <span className="material-symbols-outlined text-green-500 text-2xl">account_balance_wallet</span>
+                                            </div>
+                                            <span className="text-sm font-semibold text-text-secondary-light">Carteras</span>
                                         </div>
-                                        <span className="text-sm font-semibold text-text-secondary-light">Carteras</span>
+                                        <p className="text-3xl font-black">{stats.portfolios}</p>
                                     </div>
-                                    <p className="text-3xl font-black">{stats.portfolios}</p>
-                                </div>
 
-                                <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-purple-500 text-2xl">trending_up</span>
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                                                <span className="material-symbols-outlined text-purple-500 text-2xl">trending_up</span>
+                                            </div>
+                                            <span className="text-sm font-semibold text-text-secondary-light">Posiciones</span>
                                         </div>
-                                        <span className="text-sm font-semibold text-text-secondary-light">Posiciones</span>
+                                        <p className="text-3xl font-black">{stats.positions}</p>
                                     </div>
-                                    <p className="text-3xl font-black">{stats.positions}</p>
-                                </div>
 
-                                <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-orange-500 text-2xl">receipt_long</span>
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
+                                                <span className="material-symbols-outlined text-orange-500 text-2xl">receipt_long</span>
+                                            </div>
+                                            <span className="text-sm font-semibold text-text-secondary-light">Transacciones</span>
                                         </div>
-                                        <span className="text-sm font-semibold text-text-secondary-light">Transacciones</span>
+                                        <p className="text-3xl font-black">{stats.transactions}</p>
                                     </div>
-                                    <p className="text-3xl font-black">{stats.transactions}</p>
                                 </div>
-                            </div>
-                        )}
+                            )
+                        }
                     </>
                 )}
-            </div>
+            </div >
 
             {/* Modal: Cambiar contraseña */}
-            {passwordModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl animate-scale-in">
-                        <h3 className="text-xl font-bold mb-2">Cambiar Contraseña</h3>
-                        <p className="text-sm text-text-secondary-light mb-6">{passwordModal.email}</p>
+            {
+                passwordModal && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl animate-scale-in">
+                            <h3 className="text-xl font-bold mb-2">Cambiar Contraseña</h3>
+                            <p className="text-sm text-text-secondary-light mb-6">{passwordModal.email}</p>
 
-                        <input
-                            type="password"
-                            value={newPassword}
-                            onChange={e => setNewPassword(e.target.value)}
-                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary mb-6"
-                            placeholder="Nueva contraseña (mín. 6 caracteres)"
-                        />
+                            <input
+                                type="password"
+                                value={newPassword}
+                                onChange={e => setNewPassword(e.target.value)}
+                                className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary mb-6"
+                                placeholder="Nueva contraseña (mín. 6 caracteres)"
+                            />
 
-                        <div className="flex justify-end gap-2">
-                            <button
-                                onClick={() => setPasswordModal(null)}
-                                className="px-4 py-2 text-text-secondary-light hover:text-text-primary transition-colors"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={changePassword}
-                                className="px-6 py-2 bg-primary text-black font-bold rounded-xl hover:opacity-90 transition-all"
-                            >
-                                Cambiar
-                            </button>
+                            <div className="flex justify-end gap-2">
+                                <button
+                                    onClick={() => setPasswordModal(null)}
+                                    className="px-4 py-2 text-text-secondary-light hover:text-text-primary transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={changePassword}
+                                    className="px-6 py-2 bg-primary text-black font-bold rounded-xl hover:opacity-90 transition-all"
+                                >
+                                    Cambiar
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </main>
+                )
+            }
+
+
+        </main >
     );
 };
