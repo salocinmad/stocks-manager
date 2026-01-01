@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS positions (
     asset_type VARCHAR(20) NOT NULL, -- STOCK, CRYPTO, ETF
     quantity DECIMAL(20, 8) NOT NULL DEFAULT 0,
     average_buy_price DECIMAL(20, 8) NOT NULL DEFAULT 0, -- In original currency
+    commission DECIMAL(15, 6) DEFAULT 0,
     currency VARCHAR(3) NOT NULL, -- USD, EUR
     current_stop_loss DECIMAL(20, 8),
     current_take_profit DECIMAL(20, 8),

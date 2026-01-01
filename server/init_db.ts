@@ -72,7 +72,7 @@ export async function initDatabase() {
       console.log('Column is_favorite already exists or could not be added');
     }
 
-    // 3. Table positions (lo que el usuario TIENE en cartera)
+    // 3. Table positions
     await sql`
       CREATE TABLE IF NOT EXISTS positions (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -87,6 +87,8 @@ export async function initDatabase() {
         UNIQUE(portfolio_id, ticker)
       )
     `;
+
+
 
     // 4. Table transactions
     await sql`
