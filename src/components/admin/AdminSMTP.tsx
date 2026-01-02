@@ -47,7 +47,7 @@ export const AdminSMTP: React.FC = () => {
         if (!testEmail) return alert('Ingresa un email de destino');
         setSendingTest(true);
         try {
-            const { data } = await api.post('/admin/settings/smtp/test', { to: testEmail });
+            const { data } = await api.post('/admin/settings/smtp/test', { testEmail });
             alert(data.message);
         } catch (err: any) {
             alert(err.response?.data?.message || 'Error enviando email de prueba');

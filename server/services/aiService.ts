@@ -3,6 +3,7 @@ import { MarketDataService } from './marketData'; // Keep imports
 import { SettingsService } from './settingsService';
 import { NotificationService } from './notificationService';
 import { AIProviderFactory } from './ai/AIProviderFactory';
+import { DiscoveryService } from './discoveryService';
 
 // Cache for the active provider instance usually managed within Factory or just re-fetched lightly
 // For now, we fetch fresh to ensure config updates apply immediately.
@@ -17,14 +18,26 @@ const getProvider = async () => {
 };
 
 export const AIService = {
-    async _buildPortfolioAnalysisPrompt(userId: string, userMessage: string) {
+    async _buildPortfolioAnalysisPrompt(userId: string, userMessage: string, portfolioId?: string) {
         // 1. Fetch Context
-        const portfolios = await sql`
-        SELECT p.name, pos.ticker, pos.quantity, pos.average_buy_price, pos.asset_type 
-        FROM portfolios p
-        JOIN positions pos ON p.id = pos.portfolio_id
-        WHERE p.user_id = ${userId}
-    `;
+        let query = sql`
+            SELECT p.name, pos.ticker, pos.quantity, pos.average_buy_price, pos.asset_type 
+            FROM portfolios p
+            JOIN positions pos ON p.id = pos.portfolio_id
+            WHERE p.user_id = ${userId}
+        `;
+
+        // Filter by specific portfolio if provided
+        if (portfolioId) {
+            query = sql`
+                SELECT p.name, pos.ticker, pos.quantity, pos.average_buy_price, pos.asset_type 
+                FROM portfolios p
+                JOIN positions pos ON p.id = pos.portfolio_id
+                WHERE p.user_id = ${userId} AND p.id = ${portfolioId}
+            `;
+        }
+
+        const portfolios = await query;
 
         const portfolioSummary = portfolios.map(p =>
             `- ${p.ticker} (${p.asset_type}): ${p.quantity} unidades @ ${p.average_buy_price}`
@@ -151,6 +164,30 @@ INSTRUCCIONES:
 - Identifícate siempre como Stocks Bot.`;
         }
 
+        // Discovery Engine Data (Global Context)
+        try {
+            const discoveryStats = await DiscoveryService.getAllDiscoveryData();
+            if (discoveryStats && Object.keys(discoveryStats).length > 0) {
+                marketContext += "\n📡 RADAR DE MERCADO (Discovery Engine):\n";
+
+                // Trending
+                const trendingKey = discoveryStats['trending_global'] ? 'trending_global' : (discoveryStats['day_gainers'] ? 'day_gainers' : null);
+                if (trendingKey) {
+                    const trends = discoveryStats[trendingKey].slice(0, 5).map((i: any) => {
+                        const isOwned = portfolioTickers.includes(i.t);
+                        return `${i.t} (${i.chg_1d > 0 ? '+' : ''}${i.chg_1d.toFixed(1)}%${isOwned ? ' ✅' : ''})`;
+                    }).join(', ');
+                    marketContext += `🔥 Tendencia Global: ${trends}\n`;
+                }
+
+                // Sectors
+                const sectors = Object.keys(discoveryStats).filter(k => k.startsWith('sector_')).map(k => k.replace('sector_', '')).join(', ');
+                if (sectors) marketContext += `🏗️ Sectores Rastreados: ${sectors}\n`;
+            }
+        } catch (e) {
+            console.error('Data Discovery Error (Portfolio):', e);
+        }
+
         // Debug Context (Temporary)
         // console.log('[AI PROMPT CONTEXT]', marketContext);
 
@@ -195,13 +232,13 @@ INSTRUCCIONES:
         }
     },
 
-    async analyzePortfolioStream(userId: string, userMessage: string) {
+    async analyzePortfolioStream(userId: string, userMessage: string, portfolioId?: string) {
         const provider = await getProvider();
         if (!provider) {
             return async function* () { yield "Error: Servicio IA no configurado." }();
         }
 
-        const prompt = await this._buildPortfolioAnalysisPrompt(userId, userMessage);
+        const prompt = await this._buildPortfolioAnalysisPrompt(userId, userMessage, portfolioId);
 
         try {
             const stream = await provider.generateStream(prompt);
@@ -244,7 +281,8 @@ INSTRUCCIONES:
                     pos.quantity, 
                     pos.average_buy_price,
                     pos.asset_type,
-                    pos.currency
+                    pos.currency,
+                    pos.updated_at
                 FROM portfolios p
                 LEFT JOIN positions pos ON p.id = pos.portfolio_id
                 WHERE p.user_id = ${userId}
@@ -260,8 +298,10 @@ INSTRUCCIONES:
                 });
 
                 for (const [name, positions] of Object.entries(grouped)) {
-                    userContext += `• ${name}: `;
-                    userContext += positions.map(p => `${p.ticker} (${p.quantity})`).join(', ');
+                    userContext += `• ${name}:\n`;
+                    userContext += positions.map(p =>
+                        `   - ${p.ticker}: ${Number(p.quantity)} uds @ ${Number(p.average_buy_price).toFixed(2)} ${p.currency} (Últ. mov: ${new Date(p.updated_at).toLocaleDateString('es-ES')})`
+                    ).join('\n');
                     userContext += '\n';
                 }
             }
@@ -485,6 +525,31 @@ INSTRUCCIONES:
                     console.error(`ChatBot: Error fetching data for ${ticker}`, e);
                 }
             }
+        }
+
+        // 4.1 Discovery Engine Data (Global Context)
+        try {
+            const discoveryStats = await DiscoveryService.getAllDiscoveryData();
+            if (discoveryStats && Object.keys(discoveryStats).length > 0) {
+                marketDataStr += "\n📡 RADAR DE MERCADO (Discovery Engine):\n";
+
+                // Trending
+                const trendingKey = discoveryStats['trending_global'] ? 'trending_global' : (discoveryStats['day_gainers'] ? 'day_gainers' : null);
+
+                if (trendingKey) {
+                    const trends = discoveryStats[trendingKey].slice(0, 5).map((i: any) => {
+                        const isOwned = portfolioTickers.includes(i.t);
+                        return `${i.t} (${i.chg_1d > 0 ? '+' : ''}${i.chg_1d.toFixed(1)}%${isOwned ? ' ✅' : ''})`;
+                    }).join(', ');
+                    marketDataStr += `🔥 Tendencia Global: ${trends}\n`;
+                }
+
+                // Sectors
+                const sectors = Object.keys(discoveryStats).filter(k => k.startsWith('sector_')).map(k => k.replace('sector_', '')).join(', ');
+                if (sectors) marketDataStr += `🏗️ Sectores Rastreados: ${sectors} (Datos disponibles si el usuario pregunta)\n`;
+            }
+        } catch (e) {
+            console.error('AI Discovery Context Error:', e);
         }
 
         if (!newsDataStr) {

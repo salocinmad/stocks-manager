@@ -250,7 +250,10 @@ export const Dashboard: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ message: "Analiza mi portafolio actual y dame recomendaciones estratégicas." })
+        body: JSON.stringify({
+          message: "Analiza mi portafolio actual y dame recomendaciones estratégicas.",
+          portfolioId: selectedPortfolioId || activeId
+        })
       });
 
       if (!response.body) throw new Error("No response body");
@@ -380,7 +383,7 @@ export const Dashboard: React.FC = () => {
               disabled={isAnalyzing}
               className="mt-2 w-full py-3 rounded-xl bg-accent-blue/10 text-accent-blue font-bold hover:bg-accent-blue hover:text-white transition-all"
             >
-              {isAnalyzing ? "Analizando..." : "Consultar Gemini"}
+              {isAnalyzing ? "Analizando..." : "Generar Análisis de IA"}
             </button>
           </div>
         </div>
@@ -389,7 +392,7 @@ export const Dashboard: React.FC = () => {
         {/* AI Insight Result */}
         {insight && (
           <div className="p-6 rounded-[2rem] bg-[#1a1a14] text-white border border-primary/20 pb-8">
-            <h3 className="font-bold text-primary mb-4 text-lg">Gemini Insight</h3>
+            <h3 className="font-bold text-primary mb-4 text-lg">Análisis de IA</h3>
             <div data-color-mode="dark">
               <MDEditor.Markdown
                 source={insight}

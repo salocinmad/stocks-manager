@@ -1,6 +1,6 @@
 # 📖 Manual de Usuario - Stocks Manager
 
-Versión 2.0 | Última actualización: Diciembre 2025
+Versión 2.1.0 | Última actualización: Enero 2026
 
 ---
 
@@ -11,12 +11,14 @@ Versión 2.0 | Última actualización: Diciembre 2025
 3. [Dashboard](#-dashboard)
 4. [Gestión de Portfolios](#-gestión-de-portfolios)
 5. [Operaciones de Compra/Venta](#-operaciones-de-compraventa)
-6. [Alertas de Precio](#-alertas-de-precio)
-7. [Watchlists](#-watchlists)
-8. [Reportes Fiscales](#-reportes-fiscales)
-9. [ChatBot IA](#-chatbot-ia)
-10. [Configuración de Perfil](#-configuración-de-perfil)
-11. [Preguntas Frecuentes](#-preguntas-frecuentes)
+6. [Análisis de Posiciones](#-análisis-de-posiciones-nuevo)
+7. [Alertas de Precio](#-alertas-de-precio)
+8. [Watchlists](#-watchlists)
+9. [Reportes Fiscales](#-reportes-fiscales)
+10. [ChatBot IA](#-chatbot-ia)
+11. [Calendario Financiero](#-calendario-financiero)
+12. [Configuración de Perfil](#-configuración-de-perfil)
+13. [Preguntas Frecuentes](#-preguntas-frecuentes)
 
 ---
 
@@ -89,6 +91,7 @@ El Dashboard es tu página principal con un resumen de toda tu cartera.
 | **Gráfico PnL** | Evolución de tu rentabilidad en el tiempo |
 | **Mercado** | Estado del mercado (abierto/cerrado) |
 | **Asignación Sectorial** | Distribución de tu cartera por sectores |
+| **Descubrimiento** | **¡NUEVO!** Sugerencias automáticas de acciones tendencia (Tecnología, Noticias, etc). |
 
 ### Filtros del Gráfico PnL
 
@@ -140,6 +143,16 @@ El portfolio favorito es el que se muestra por defecto en el Dashboard:
    - Fecha de compra
    - Moneda
 5. Haz clic en **"Guardar"**
+ 
+ ### Editar una Posición
+ 
+ Si necesitas corregir datos de una posición existente (ej: ajustar el precio medio o las comisiones):
+ 1. En tu portfolio, haz clic en el icono de **lápiz** (✏️) junto a la posición.
+ 2. Modifica:
+    - Cantidad
+    - Precio Promedio de Compra
+    - **Comisión Total Acumulada**
+ 3. Guarda los cambios. El PnL se recalculará automáticamente.
 
 ---
 
@@ -190,6 +203,49 @@ Si tu broker permite exportar operaciones:
 3. Sube el archivo (CSV, Excel)
 4. Revisa las operaciones detectadas
 5. Confirma la importación
+
+---
+
+---
+
+## 🔬 Análisis de Posiciones (NUEVO)
+
+Stocks Manager 2.1.0 introduce una potente herramienta de análisis para cada activo de tu cartera.
+
+### Acceder al Análisis
+1. En tu portfolio, haz clic en el icono de **gráficas** (📊) situado a la derecha de cualquier posición.
+2. Se abrirá un modal con **6 pestañas de información detallada**.
+
+### 1. 📈 Posición
+Resumen de tu inversión: PnL, Precio Medio, Peso en Cartera y Desglose de Operaciones.
+
+### 2. 📊 Técnico
+Indicadores calculados automáticamente (RSI, Medias Móviles):
+- **RSI (14)**: Indica si el activo está sobrecomprado (>70) o sobrevendido (<30).
+- **Tendencia**: Detecta cruces de medias (Golden Cross / Death Cross).
+
+### 3. ⚠️ Riesgo
+Métricas avanzadas para evaluar la volatilidad:
+- **Sharpe/Sortino Ratio**: Rentabilidad ajustada al riesgo.
+- **VaR (Value at Risk)**: Pérdida máxima estimada en un día normal.
+- **Score**: Puntuación de riesgo del 1 al 10.
+
+### 4. 🏢 Fundamental (NUEVO)
+Salud financiera y valoración de la empresa:
+- **Valoración**: PER, PEG Ratio, EV/EBITDA.
+- **Rentabilidad**: ROE, Márgenes Operativos y Netos.
+- **Dividendos**: Rentabilidad por dividendo (Yield) y fechas de pago.
+- **Salud**: Deuda Total y disponibilidad de Caja.
+
+### 5. 🎯 Analistas
+Consenso de mercado provisto por Yahoo Finance:
+- Recomendación media (Comprar/Vender).
+- Precio Objetivo (Target Price) estimado por analistas.
+
+### 6. 🔮 Simulador "What-If"
+Herramienta para proyectar escenarios:
+- *¿Qué pasa si compro 10 acciones más?*
+- *¿Cómo cambia mi PnL si el precio sube un 5%?*
 
 ---
 
@@ -282,10 +338,26 @@ Si tienes inversiones en activos extranjeros por valor superior a 50.000€, el 
 El ChatBot usa inteligencia artificial para ayudarte con análisis y consultas.
 
 ### Cómo Usar el ChatBot
+ 
+ 1. Haz clic en el icono del **bot** (💬) en la esquina inferior
+ 2. **Selecciona la Personalidad**: Arriba a la derecha del chat, puedes elegir entre:
+    - 👔 **Asistente Estándar**: Profesional y equilibrado.
+    - 🐺 **El Lobo**: Agresivo, busca rendimiento, tono desafiante.
+    - 👨‍🏫 **Profesor**: Explicaciones sencillas y educativas.
+    - *Y más opciones configuradas por el administrador (ej: Consultor Estratégico).*
 
-1. Haz clic en el icono del **bot** (💬) en la esquina inferior
-2. Escribe tu pregunta
-3. Espera la respuesta
+ 3. **Contexto Financiero**:
+    El chatbot ahora tiene acceso a:
+    - 📰 **Noticias recientes** sobre las empresas que mencionas.
+    - 📊 **Datos Fundamentales** (PER, Capitalización, Precio Objetivo).
+    - 📈 **Análisis Técnico** (RSI, Tendencias).
+    - 🌍 **Sugerencias de Mercado**: Conoce las tendencias actuales del Motor de Descubrimiento.
+
+ 4. **Escribe tu consulta**:
+    - *"Analiza mi cartera y dime si estoy muy expuesto a tecnología"*
+    - *"¿Qué opinas de las acciones que son tendencia hoy?"*
+    - *"Dame un análisis fundamental de AAPL"*
+ 5. **Espera la respuesta**
 
 ### Ejemplos de Preguntas
 
@@ -300,6 +372,28 @@ El ChatBot usa inteligencia artificial para ayudarte con análisis y consultas.
 - El ChatBot no tiene acceso a información en tiempo real de todos los mercados
 - Sus consejos son orientativos, no recomendaciones de inversión profesionales
 - No puede ejecutar operaciones por ti
+
+---
+
+## 📅 Calendario Financiero
+
+El calendario te ayuda a planificar en función de eventos clave del mercado y de tus acciones.
+
+### Vistas Disponibles
+
+1. **Mis Eventos**: Muestra solo los eventos relacionados con las acciones que tienes actualmente en tu portafolio.
+2. **Mercado**: Muestra eventos destacados del mercado general (ej. resultados de Apple, Microsoft, datos de inflación).
+
+### Datos Mostrados
+
+Para cada día con eventos, verás tarjetas con:
+- **Tipo de Evento**: Resultados (Earnings), Dividendos, Reuniones Fed/BCE.
+- **EPS Estimado**: Beneficio por acción esperado por los analistas.
+- **Monto Dividendo**: Cantidad a pagar por acción.
+
+### Sincronización
+
+El sistema actualiza los datos automáticamente cada 6 horas. Puedes forzar una actualización manual pulsando el botón **"Sincronizar"**.
 
 ---
 
@@ -382,4 +476,4 @@ Si tienes problemas o sugerencias:
 
 ---
 
-*Stocks Manager v2.0 - Gestión Inteligente de Inversiones*
+*Stocks Manager v2.1.0 - Gestión Inteligente de Inversiones*

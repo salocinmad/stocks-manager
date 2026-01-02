@@ -1,6 +1,6 @@
 # 🛠️ Guía de Administrador - Stocks Manager
 
-Versión 2.0 | Última actualización: Diciembre 2025
+Versión 2.1.0 | Última actualización: Enero 2026
 
 ---
 
@@ -15,7 +15,10 @@ Versión 2.0 | Última actualización: Diciembre 2025
 7. [Configuración de IA](#-configuración-de-ia)
 8. [Sincronización de Mercado](#-sincronización-de-mercado)
 9. [Backup y Restauración](#-backup-y-restauración)
-10. [Monitorización](#-monitorización)
+10. [Panel de Análisis de Posición (v2.1.0)](#-panel-de-análisis-de-posición-v210)
+11. [Alertas Avanzadas (v2.1.0)](#-alertas-avanzadas-v210)
+12. [Atajos de Teclado (v2.1.0)](#️-atajos-de-teclado-v210)
+13. [Monitorización](#-monitorización)
 
 ---
 
@@ -31,7 +34,7 @@ Versión 2.0 | Última actualización: Diciembre 2025
 
 ```bash
 # Clonar repositorio
-git clone <tu-repo> stocks-manager
+git clone https://github.com/salocinmad/stocks-manager.git
 cd stocks-manager
 
 # Crear archivo de variables de entorno
@@ -57,8 +60,9 @@ DB_PASSWORD=tu_password_seguro
 # JWT
 JWT_SECRET=clave_secreta_muy_larga_y_segura
 
-# APIs (opcional al inicio)
-FINNHUB_API_KEY=
+# APIs
+FINNHUB_API_KEY=tu_clave_gratuita
+# Opcionales (Solo para Google News vieja escuela, ahora obsoleta)
 GOOGLE_API_KEY=
 
 # SMTP (para emails)
@@ -71,7 +75,7 @@ SMTP_FROM=tu@email.com
 
 ### Acceso Inicial
 
-1. Accede a `http://tu-servidor:3000`
+1. Accede a `http://localhost:3000`
 2. Regístrate con el primer usuario (se convierte en admin automáticamente)
 3. Ve al panel de administración
 
@@ -88,14 +92,14 @@ SMTP_FROM=tu@email.com
 
 | Pestaña | Función |
 |---------|---------|
-| **General** | URL pública y configuración básica |
-| **IA** | Configuración de Gemini y prompts |
-| **Mercado** | Sincronización de datos históricos |
+| **General** | Config URL, Crawlers y Toggle de Descubrimiento |
+| **IA** | Configuración de Proveedores (Gemini, Ollama, etc) y Prompts |
+| **Mercado** | Sincronización de datos históricos y Crawler Manual |
 | **Usuarios** | Gestión de cuentas |
 | **Claves API** | Configuración de Finnhub |
 | **SMTP** | Configuración de email |
-| **Backup** | Exportar/importar datos |
-| **Estadísticas** | Métricas del sistema |
+| **Backup** | Exportar/importar datos (ZIP/SQL) |
+| **Estadísticas** | Métricas del sistema y Crawler |
 
 ---
 
@@ -151,6 +155,23 @@ Tras resetear, el usuario podrá configurar 2FA de nuevo.
 |-------|-------------|
 | **URL Pública** | URL donde está desplegada la app (ej: `https://stocks.tudominio.com`). Se usa en notificaciones por email. |
 
+### Pestaña Discovery Engine (v2.1.0)
+
+Control total sobre el comportamiento del crawler de mercado.
+
+#### Presets (Modos Rápidos)
+- **🐢 Stealth**: 2 ciclos/hora, bajo volumen. Para servidores con pocos recursos.
+- **⚖️ Balanced**: 6 ciclos/hora (cada 10 min), volumen medio. Recomendado.
+- **🐺 Wolf Mode**: 12 ciclos/hora (cada 5 min), alto volumen (80 items/worker). **Alto consumo de CPU/Red**.
+
+#### Controles Granulares
+- **Frecuencia de Ciclos**: Define cuántas veces por hora se ejecuta el crawler (1 a 30).
+- **Volúmenes por Worker**:
+    - **Yahoo V8 (Técnico)**: Cantidad de acciones a escanear buscando patrones técnicos.
+    - **Yahoo V10 (Fundamental)**: Cantidad de acciones para análisis profundo de calidad.
+    - **Finnhub (Noticias)**: Cantidad de acciones para buscar noticias recientes.
+- **Priorizar Market Open**: Si está activo, detecta si la bolsa (US/EU) está abierta y fuerza la búsqueda de "Day Gainers" y "Most Actives" en lugar de la rotación habitual.
+
 ---
 
 ## 🔑 Claves API
@@ -162,7 +183,7 @@ Tras resetear, el usuario podrá configurar 2FA de nuevo.
 3. Introduce tu key
 4. Guarda
 
-> 💡 Finnhub proporciona datos complementarios como noticias y métricas.
+> 💡 Finnhub proporciona datos complementarios como noticias y métricas, pero ya **no es estrictamente necesario** para ver si el mercado está abierto (se usa Yahoo V10 por defecto).
 
 ### Google Gemini (IA)
 
@@ -204,35 +225,41 @@ Si usas Gmail:
 
 ---
 
-## 🤖 Configuración de IA
+## 🤖 Configuración de IA (Multi-Proveedor)
 
-### Modelo
+El sistema ahora soporta múltiples proveedores de IA, tanto en la nube como locales.
 
-Selecciona el modelo de Gemini a usar:
+### 🧠 Proveedores Soportados
 
-| Modelo | Características |
-|--------|-----------------|
-| `gemini-1.5-flash` | Rápido, económico, recomendado |
-| `gemini-1.5-pro` | Más potente, más lento |
-| `gemini-2.0-flash` | Última versión experimental |
+1.  **Google Gemini** (Nube - Default): Rápido y económico.
+2.  **OpenRouter** (Nube): Acceso a Claude 3.5, GPT-4, Llama 3 via API unificada.
+3.  **Groq** (Nube): Inferencia ultrarrápida (Llama 3, Mixtral).
+4.  **Ollama** (Local): Privacidad total. Requiere correr Ollama en el servidor/PC.
+5.  **LM Studio** (Local): Otra opción para LLMs locales.
 
-### Prompts Personalizables
+### Configuración de Claves
 
-Puedes personalizar el comportamiento de la IA editando los prompts:
+Las claves API se gestionan en **Admin → Claves API** o mediante variables de entorno en el `.env`:
 
-**ChatBot (Conversacional)**
-- Variables disponibles: `{{CHAT_HISTORY}}`, `{{MARKET_DATA}}`
-- Usado en el chat con el usuario
+| Variable | Proveedor |
+|----------|-----------|
+| `GOOGLE_GENAI_API_KEY` | Google Gemini |
+| `OPENROUTER_API_KEY` | OpenRouter |
+| `GROQ_API_KEY` | Groq |
 
-**Análisis (Reporte)**
-- Variables: `{{PORTFOLIO_CONTEXT}}`, `{{MARKET_CONTEXT}}`, `{{USER_MESSAGE}}`
-- Usado para análisis detallados de cartera
+### Gestión de Modelos
 
-### Refrescar Modelos
+1. Ve a **Admin → Inteligencia Artificial**.
+2. Selecciona el **Proveedor Activo**.
+3. Configura el **Modelo** específico (ej: `gemini-1.5-flash`, `anthropic/claude-3.5-sonnet`).
+4. **Habilita/Deshabilita** proveedores según lo que quieras ofrecer a tus usuarios.
 
-Si Google lanza nuevos modelos:
-1. Haz clic en **"Refrescar"** junto al selector
-2. Se actualizará la lista de modelos disponibles
+### 🎭 Prompts y Personas
+
+Puedes crear y editar "Personas" para el ChatBot (ej: "Lobo de Wall Street", "Profesor", "Asesor Conservador").
+- Ve a la sección **Prompts**.
+- Edita el texto del prompt del sistema para cambiar la personalidad de la IA.
+- Marca como **Activo** los que quieras que aparezcan en el selector del chat.
 
 ---
 
@@ -270,33 +297,129 @@ Si Google lanza nuevos modelos:
 ## 💾 Backup y Restauración
 
 ### Exportar Backup
+ 
+ **Formato ZIP (Completo - Recomendado)**:
+ 1. Ve a **Admin → Backup → Manual**
+ 2. Haz clic en **"Descargar ZIP Completo"**
+ 3. Se descarga un archivo `.zip` que contiene:
+    - `database_dump.json`: Todos los datos de la base de datos.
+    - `uploads/`: Carpeta con imágenes, avatares y archivos subidos por los usuarios.
+ 
+ **Formato SQL (Solo Estructura/Datos)**:
+ 1. Haz clic en **"Descargar SQL"**
+ 2. Genera un script SQL puro (útil para migraciones manuales o debug).
 
-**Formato JSON** (recomendado):
-1. Ve a **Admin → Backup**
-2. Haz clic en **"Descargar JSON"**
-3. Se descarga `stocks-manager-backup-YYYY-MM-DD.json`
+### 📅 Programador de Backups (Nuevo)
 
-**Formato SQL**:
-1. Haz clic en **"Descargar SQL"**
-2. Se descarga un script SQL con todos los datos
+Ahora puedes automatizar el envío de copias de seguridad a tu correo electrónico.
+
+1. Ve a **Admin → Backup → Programación**.
+2. **Activar**: Enciende el interruptor "Habilitar Programador".
+3. **Email**: Define la dirección de correo donde recibirás los backups.
+4. **Frecuencia**:
+   - **Diario**: Se envía todos los días a la hora configurada.
+   - **Semanal**: Se envía un día específico de la semana (seleccionable: Lunes a Domingo).
+   - **Mensual**: Se envía un día específico del mes (seleccionable: 1 al 28).
+5. **Hora**: Selecciona la hora exacta de ejecución (Hora del Servidor).
+6. **Protección**: (Opcional) Establece una contraseña para cifrar el archivo ZIP adjunto.
+   > 🔒 Si configuras una contraseña, el ZIP no se podrá abrir sin ella.
+
+**Limitaciones de Correo:**
+- Si el backup supera los **25 MB**, no se adjuntará al correo.
+- En su lugar, recibirás una notificación indicando que el backup se generó correctamente pero debes descargarlo manualmente desde el panel por motivos de tamaño.
+
+**Prueba Inmediata:**
+- Usa el botón **"Enviar Ahora"** para forzar una ejecución inmediata y verificar que recibes el correo correctamente.
 
 ### Restaurar Backup
 
 > ⚠️ **CUIDADO**: Esto REEMPLAZA todos los datos actuales
 
-1. Ve a **Admin → Backup**
+1. Ve a **Admin → Backup → Manual**
 2. Haz clic en **"Restaurar desde archivo"**
-3. Selecciona tu archivo `.json` o `.sql`
+3. Selecciona tu archivo `.zip` (generado por el sistema), `.json` o `.sql`
 4. Confirma la restauración
 5. Cierra sesión y vuelve a entrar
 
 ### Recomendaciones
 
-- Haz backup **semanal** como mínimo
-- Guarda backups en ubicación externa (cloud, NAS)
-- Prueba restaurar en entorno de test periódicamente
+- Activa el **backup semanal** automatizado al correo.
+- Usa contraseña para los backups por email si usas un servicio de correo público.
+- Si tu instancia tiene muchas imágenes, es probable que superes los 25MB pronto; revisa tu correo para las notificaciones.
 
 ---
+
+## 📊 Panel de Análisis de Posición (v2.1.0)
+
+### Descripción
+
+Nuevo modal grande (80% del viewport) que proporciona análisis profundo de cada posición. Accesible desde la pantalla de Cartera pulsando el icono 📊 (analytics) en cualquier posición.
+
+### 6 Pestañas Disponibles
+
+| Tab | Contenido |
+|-----|-----------|
+| **📈 Posición** | Cantidad, precio medio, PnL (€/%), peso en cartera |
+| **📊 Técnico** | RSI (14), SMA 50, SMA 200, tendencia (alcista/bajista), timestamp último cálculo |
+| **⚠️ Riesgo** | Volatilidad anualizada, Sharpe, Sortino, Max Drawdown, Beta, VaR, Score (1-10) |
+| **🏢 Fundamental** | **NUEVO**: Valoración (PER, EV), Rentabilidad (ROE, Márgenes), Salud (Deuda), Dividendos |
+| **🎯 Analistas** | Consenso (Comprar/Mantener/Vender), precio objetivo, desglose, insiders |
+| **🔮 What-If** | Simulador interactivo: comprar más acciones, vender parcialmente, simular cambios de precio |
+
+### Cálculos Automáticos y Caché
+
+- **Técnico/Riesgo**: Job cada 6 horas.
+- **Fundamental**: Caché de 14 días (debido a la baja frecuencia de cambios en reportes trimestrales).
+
+---
+
+## 🔔 Alertas Avanzadas (v2.1.0)
+
+### Nuevos Tipos de Alertas
+
+| Tipo | Descripción |
+|------|-------------|
+| `price` | Alerta de precio (por encima/debajo de umbral) |
+| `percent_change` | Cambio porcentual diario |
+| `volume` | Volumen inusual (x veces el promedio) |
+| `rsi` | **NUEVO**: Sobrecompra (RSI > 70) o Sobreventa (RSI < 30) |
+| `sma_cross` | **NUEVO**: Golden Cross (SMA50 > SMA200) o Death Cross |
+
+### Alertas de Portfolio
+
+Ahora es posible crear alertas a nivel de cartera completa:
+
+- **PnL absoluto**: Notificar si la ganancia/pérdida supera un umbral en €
+- **PnL porcentual**: Notificar si el rendimiento supera un % objetivo
+- **Valor total**: Notificar si el valor de la cartera alcanza un umbral
+- **Exposición sectorial**: Notificar si un sector representa más del X% de la cartera
+
+---
+
+## ⌨️ Atajos de Teclado (v2.1.0)
+
+### Hotkeys Disponibles
+
+| Atajo | Acción |
+|-------|--------|
+| `Ctrl + K` | Abrir búsqueda global (Command Palette) |
+| `Ctrl + D` | Ir a Dashboard |
+| `Ctrl + P` | Ir a Cartera |
+| `Ctrl + A` | Ir a Alertas |
+| `Ctrl + W` | Ir a Watchlist |
+| `Ctrl + N` | Nueva operación (Registrar compra/venta) |
+| `?` | Mostrar panel de ayuda de atajos |
+| `Escape` | Cerrar modal activo |
+
+### Búsqueda Global (Ctrl+K)
+
+La búsqueda global permite navegar rápidamente por la aplicación:
+
+- **Pantallas**: Dashboard, Cartera, Alertas, Noticias, etc.
+- **Tickers**: Busca acciones por nombre o símbolo
+- **Carteras**: Accede a tus carteras directamente
+
+Usa las flechas ↑↓ para navegar y Enter para seleccionar.
 
 ## 📊 Monitorización
 
@@ -388,4 +511,29 @@ El primer usuario registrado se convierte automáticamente en admin. Después:
 
 ---
 
-*Stocks Manager v2.0 - Guía de Administrador*
+*Stocks Manager v2.1.0 - Guía de Administrador*
+
+---
+
+## 🧪 Ejecución de Tests
+
+El sistema incluye una suite de pruebas automatizadas.
+
+### Cómo ejecutar los tests
+
+```bash
+docker compose exec app npm test
+```
+
+### Interpretación
+
+1.  **✅ CHECKS VERDES (Pasados)**: Aparecen **al principio**.
+2.  **❌ FALLOS ROJOS (Fallidos)**: Aparecen **al final**.
+
+> **Nota Importante**: En la terminal NO verás el "stack trace" (detalle técnico) del error. Solo verás qué test falló.
+
+Para ver el detalle completo (línea de código, diferencia de variables, etc.), el sistema genera automáticamente un fichero de log:
+
+`server/tests/test_debug.log`
+
+Si hay fallos, el test runner te recordará esta ruta al finalizar.

@@ -23,32 +23,37 @@ import { ChatBot } from './components/ChatBot';
 import { PrivateRoute } from './components/PrivateRoute';
 import { InactivityMonitor } from './components/InactivityMonitor';
 import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
+import { KeyboardShortcutsProvider } from './components/KeyboardShortcutsProvider';
+import { GlobalSearchModal } from './components/GlobalSearchModal';
 
 const MainLayout: React.FC = () => {
   return (
-    <div className="flex w-full h-screen overflow-hidden">
-      <Sidebar />
-      <div className="flex-1 flex flex-col h-full overflow-y-auto overflow-x-hidden relative scroll-smooth bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark transition-colors duration-300">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/portfolio" element={<PortfolioScreen />} />
-          <Route path="/market" element={<MarketAnalysis />} />
-          <Route path="/manual-entry" element={<ManualEntry />} />
-          <Route path="/risk-vis" element={<RiskVisualScreen />} />
-          <Route path="/news" element={<NewsScreen />} />
-          <Route path="/reports" element={<ReportsScreen />} />
-          <Route path="/profile" element={<ProfileScreen />} />
-          <Route path="/watchlists" element={<WatchlistsScreen />} />
-          <Route path="/alerts" element={<AlertsScreen />} />
-          <Route path="/admin" element={<AdminScreen />} />
-          <Route path="/importers" element={<ImportersScreen />} />
-          <Route path="/notifications" element={<NotificationChannelsScreen />} />
-          <Route path="/calendar" element={<CalendarScreen />} />
-        </Routes>
-        <ChatBot />
+    <KeyboardShortcutsProvider>
+      <div className="flex w-full h-screen overflow-hidden">
+        <Sidebar />
+        <div className="flex-1 flex flex-col h-full overflow-y-auto overflow-x-hidden relative scroll-smooth bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark transition-colors duration-300">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/portfolio" element={<PortfolioScreen />} />
+            <Route path="/market" element={<MarketAnalysis />} />
+            <Route path="/manual-entry" element={<ManualEntry />} />
+            <Route path="/risk-vis" element={<RiskVisualScreen />} />
+            <Route path="/news" element={<NewsScreen />} />
+            <Route path="/reports" element={<ReportsScreen />} />
+            <Route path="/profile" element={<ProfileScreen />} />
+            <Route path="/watchlists" element={<WatchlistsScreen />} />
+            <Route path="/alerts" element={<AlertsScreen />} />
+            <Route path="/admin" element={<AdminScreen />} />
+            <Route path="/importers" element={<ImportersScreen />} />
+            <Route path="/notifications" element={<NotificationChannelsScreen />} />
+            <Route path="/calendar" element={<CalendarScreen />} />
+          </Routes>
+          <ChatBot />
+        </div>
+        <InactivityMonitor timeoutMinutes={30} warningMinutes={2} />
+        <GlobalSearchModal />
       </div>
-      <InactivityMonitor timeoutMinutes={30} warningMinutes={2} />
-    </div>
+    </KeyboardShortcutsProvider>
   );
 };
 

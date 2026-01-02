@@ -7,11 +7,14 @@ describe("TwoFactorService (Integration)", () => {
 
     // Cleanup helper
     const cleanup = async () => {
+        // Safe cleanup targeting only the test user
         await sql`DELETE FROM users WHERE email = 'auth_test@example.com'`;
     };
 
     beforeEach(async () => {
         await cleanup();
+        // Also cleanup generic test emails just in case
+        await sql`DELETE FROM users WHERE email LIKE 'test%@example.com'`;
     });
 
     afterAll(async () => {

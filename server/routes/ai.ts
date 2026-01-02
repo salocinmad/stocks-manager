@@ -40,8 +40,9 @@ export const aiRoutes = new Elysia({ prefix: '/ai' })
 
 
     .post('/analyze', async ({ userId, body }) => {
-        const { message } = body;
-        const geminiStream = await AIService.analyzePortfolioStream(userId, message);
+        // @ts-ignore
+        const { message, portfolioId } = body;
+        const geminiStream = await AIService.analyzePortfolioStream(userId, message, portfolioId);
 
         const stream = new ReadableStream({
             async start(controller) {
@@ -57,6 +58,7 @@ export const aiRoutes = new Elysia({ prefix: '/ai' })
         });
     }, {
         body: t.Object({
-            message: t.String()
+            message: t.String(),
+            portfolioId: t.Optional(t.String())
         })
     });

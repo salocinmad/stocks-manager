@@ -10,6 +10,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import nodemailer from 'nodemailer';
 import { recalculateAllHistory } from '../jobs/pnlJob';
+import { DiscoveryService } from '../services/discoveryService';
+import { BackupService } from '../services/backupService';
+import { BackupJob } from '../jobs/backupJob';
+// import { DiscoveryJob } from '../jobs/discoveryJob'; // Removed duplicate/unused if not needed or fixed import
+// import { DiscoveryJob } from '../jobs/discoveryJob'; // Removed duplicate/unused if not needed or fixed import
 
 // Helper implementation for consistent table ordering
 const getOrderedTables = (allTables: string[]) => {
@@ -275,6 +280,75 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             mode: t.String()
         })
     })
+    // === BACKUP SETTINGS ===
+    .get('/settings/backup', async () => {
+        const enabled = await SettingsService.get('BACKUP_SCHEDULER_ENABLED') === 'true';
+        const email = await SettingsService.get('BACKUP_EMAIL') || '';
+        const frequency = await SettingsService.get('BACKUP_FREQUENCY') || 'daily';
+        const time = await SettingsService.get('BACKUP_TIME') || '04:00';
+        const password = await SettingsService.get('BACKUP_PASSWORD') || '';
+        const dayOfWeek = parseInt(await SettingsService.get('BACKUP_DAY_OF_WEEK') || '1'); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+        const dayOfMonth = parseInt(await SettingsService.get('BACKUP_DAY_OF_MONTH') || '1'); // 1-28
+
+        return { enabled, email, frequency, time, password, dayOfWeek, dayOfMonth };
+    })
+    .post('/settings/backup', async ({ body }) => {
+        // @ts-ignore
+        const { enabled, email, frequency, time, password, dayOfWeek, dayOfMonth } = body;
+
+        try {
+            await SettingsService.set('BACKUP_SCHEDULER_ENABLED', String(enabled));
+            await SettingsService.set('BACKUP_EMAIL', email);
+            await SettingsService.set('BACKUP_FREQUENCY', frequency);
+            await SettingsService.set('BACKUP_TIME', time);
+            await SettingsService.set('BACKUP_DAY_OF_WEEK', String(dayOfWeek ?? 1));
+            await SettingsService.set('BACKUP_DAY_OF_MONTH', String(dayOfMonth ?? 1));
+
+            // Save password encrypted
+            if (password) {
+                await SettingsService.set('BACKUP_PASSWORD', password, true);
+            } else {
+                // If empty string sent, maybe they want to remove it? 
+                // Currently user sends what is in the form.
+                // If user clears it, we should clear it.
+                await SettingsService.set('BACKUP_PASSWORD', '', false);
+            }
+
+            return { success: true, message: 'Configuración de backup guardada' };
+        } catch (e: any) {
+            throw new Error(e.message);
+        }
+    }, {
+        body: t.Object({
+            enabled: t.Boolean(),
+            email: t.String(),
+            frequency: t.String(),
+            time: t.String(),
+            password: t.Optional(t.String()),
+            dayOfWeek: t.Optional(t.Number()),
+            dayOfMonth: t.Optional(t.Number())
+        })
+    })
+    // === TRIGGER BACKUP MANUALLY ===
+    .post('/settings/backup/send-now', async ({ body }) => {
+        // @ts-ignore
+        const { email } = body;
+        try {
+            console.log(`[Admin] Triggering manual backup email to ${email}...`);
+            // Run async? No, user wants feedback usually, but email sending takes time.
+            // Let's run it async but return success immediately? 
+            // Better: await it so user knows it worked (sent).
+            await BackupJob.performBackup(email);
+            return { success: true, message: 'Backup enviado correctamente' };
+        } catch (e: any) {
+            console.error('Manual Send Now failed:', e);
+            throw new Error(e.message);
+        }
+    }, {
+        body: t.Object({
+            email: t.String()
+        })
+    })
     // Estadísticas
     .get('/stats', async () => {
         const [userStats] = await sql`
@@ -286,6 +360,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         const [portfolioStats] = await sql`SELECT COUNT(*) as total FROM portfolios`;
         const [positionStats] = await sql`SELECT COUNT(*) as total FROM positions`;
         const [transactionStats] = await sql`SELECT COUNT(*) as total FROM transactions`;
+        const discoveryStats = await DiscoveryService.getStats();
 
         return {
             users: {
@@ -294,7 +369,8 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             },
             portfolios: parseInt(portfolioStats.total),
             positions: parseInt(positionStats.total),
-            transactions: parseInt(transactionStats.total)
+            transactions: parseInt(transactionStats.total),
+            discovery: discoveryStats
         };
     })
     // === SETTINGS (Base de Datos) ===
@@ -319,6 +395,63 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         body: t.Object({
             appUrl: t.String()
         })
+    })
+
+
+    // Crawler Settings
+    .get('/settings/crawler', async () => {
+        const enabled = await SettingsService.get('CRAWLER_ENABLED');
+        return {
+            enabled: enabled === 'true',
+            cycles: await SettingsService.get('CRAWLER_CYCLES_PER_HOUR'),
+            volV8: await SettingsService.get('CRAWLER_VOL_YAHOO_V8'),
+            volV10: await SettingsService.get('CRAWLER_VOL_YAHOO_V10'),
+            volFinnhub: await SettingsService.get('CRAWLER_VOL_FINNHUB'),
+            marketOpenOnly: await SettingsService.get('CRAWLER_MARKET_OPEN_ONLY') === 'true'
+        };
+    })
+    .post('/settings/crawler', async ({ body }) => {
+        // @ts-ignore
+        const { enabled } = body;
+        try {
+            await SettingsService.set('CRAWLER_ENABLED', String(enabled));
+            return { success: true, enabled };
+        } catch (error: any) {
+            throw new Error(`Error al guardar: ${error.message}`);
+        }
+    }, {
+        body: t.Object({
+            enabled: t.Boolean()
+        })
+    })
+    .post('/settings/crawler/granular', async ({ body }) => {
+        // @ts-ignore
+        const { cycles, volV8, volV10, volFinnhub, marketOpenOnly } = body;
+        try {
+            await SettingsService.set('CRAWLER_CYCLES_PER_HOUR', cycles);
+            await SettingsService.set('CRAWLER_VOL_YAHOO_V8', volV8);
+            await SettingsService.set('CRAWLER_VOL_YAHOO_V10', volV10);
+            await SettingsService.set('CRAWLER_VOL_FINNHUB', volFinnhub);
+            await SettingsService.set('CRAWLER_MARKET_OPEN_ONLY', String(marketOpenOnly));
+            return { success: true, message: 'Configuración granular del crawler guardada.' };
+        } catch (error: any) {
+            throw new Error(`Error al guardar: ${error.message}`);
+        }
+    }, {
+        body: t.Object({
+            cycles: t.String(),
+            volV8: t.String(),
+            volV10: t.String(),
+            volFinnhub: t.String(),
+            marketOpenOnly: t.Boolean()
+        })
+    })
+    .post('/settings/crawler/run', async () => {
+        // Trigger manual run (async, don't wait for completion)
+        // Trigger manual run (async, don't wait for completion)
+        // DiscoveryJob.runDiscoveryCycle().catch(e => console.error('Manual Discovery Error:', e));
+        return { success: true, message: 'Ciclo de descubrimiento iniciado manualmente.' };
+        return { success: true, message: 'Ciclo de descubrimiento iniciado manualmente.' };
     })
 
     // API Keys
@@ -687,14 +820,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
 
     // ===== BACKUP & RESTORE =====
     .get('/backup/tables', async () => {
-        const tablesResult = await sql`
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_type = 'BASE TABLE'
-        `;
-        const allTables = tablesResult.map(t => t.table_name);
-        return getOrderedTables(allTables);
+        return await BackupService.getTables();
     })
     // Backup JSON (Restaurado)
     .get('/backup/json', async () => {
@@ -730,55 +856,14 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     // Modificado: Backup ahora devuelve un ZIP con el JSON t las imagenes
     .get('/backup/zip', async () => {
         try {
-            // 1. Generar JSON con los datos de la DB
-            const tablesResult = await sql`
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_type = 'BASE TABLE'
-            `;
-            const allTables = tablesResult.map(t => t.table_name);
-            const tableNames = getOrderedTables(allTables);
-
-            const backupData: Record<string, any[]> = {};
-            const metadata = {
-                version: '1.0',
-                createdAt: new Date().toISOString(),
-                tables: tableNames
-            };
-
-            for (const tableName of tableNames) {
-                const rows = await sql.unsafe(`SELECT * FROM "${tableName}"`);
-                backupData[tableName] = rows;
-            }
-
-            const backupJson = { metadata, data: backupData };
-
-            // 2. Crear ZIP
-            const zip = new AdmZip();
-
-            // Añadir JSON al ZIP
-            zip.addFile("database_dump.json", Buffer.from(JSON.stringify(backupJson, null, 2), "utf8"));
-
-            // Añadir carpeta uploads completa al ZIP
-            const uploadsPath = path.join(process.cwd(), 'uploads');
-            if (fs.existsSync(uploadsPath)) {
-                zip.addLocalFolder(uploadsPath, "uploads");
-            }
-
-            // 3. Generar buffer
-            const zipBuffer = zip.toBuffer();
-            const fileName = `stocks-manager-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
-
-
+            const zipBuffer = await BackupService.generateBackupZip();
 
             return new Response(zipBuffer as any, {
                 headers: {
                     'Content-Type': 'application/zip',
-                    'Content-Disposition': `attachment; filename="${fileName}"`
+                    'Content-Disposition': `attachment; filename="stocks-manager-backup-${new Date().toISOString()}.zip"`
                 }
             });
-
         } catch (error: any) {
             console.error('Backup ZIP failed:', error);
             throw new Error(`Error al crear backup: ${error.message}`);
@@ -863,21 +948,26 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
                 isZip = true;
             }
 
-            const zip = isZip ? new AdmZip(buffer) : null;
-            const zipEntries = zip ? zip.getEntries() : [];
+            // Unzip logic using unzipper (async)
+            if (isZip) {
+                try {
+                    const zip = new AdmZip(buffer);
+                    const dumpEntry = zip.getEntry('database_dump.json');
 
-            if (isZip && zip) {
-                // Modo ZIP
-                const dumpEntry = zipEntries.find(entry => entry.entryName === 'database_dump.json');
-                if (!dumpEntry) {
-                    throw new Error('El archivo ZIP no contiene database_dump.json');
+                    if (!dumpEntry) {
+                        throw new Error('El archivo ZIP no contiene database_dump.json');
+                    }
+
+                    const dumpContent = zip.readAsText(dumpEntry);
+                    const parsed = JSON.parse(dumpContent);
+                    metadata = parsed.metadata;
+                    data = parsed.data;
+
+                } catch (e: any) {
+                    throw new Error('Error leyendo ZIP: ' + e.message);
                 }
-                const dumpContent = dumpEntry.getData().toString('utf8');
-                const parsed = JSON.parse(dumpContent);
-                metadata = parsed.metadata;
-                data = parsed.data;
             } else {
-                // Modo JSON (asumimos que es texto plano JSON)
+                // Modo JSON
                 try {
                     const content = buffer.toString('utf8');
                     const parsed = JSON.parse(content);
@@ -942,12 +1032,14 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             }
 
             // 2. Extraer imágenes (SOLO SI ES ZIP)
-            if (isZip && zip) {
-                // El ZIP contiene "uploads/notes/..." como estructura de carpetas.
-                // Al extraer en process.cwd() (/app), se colocarán en /app/uploads/notes/...
-                // database_dump.json también se extraerá en /app, pero no molesta.
+            // 2. Extraer imágenes (SOLO SI ES ZIP)
+            // 2. Extraer imágenes (SOLO SI ES ZIP)
+            if (isZip) {
                 console.log(`Extracting ZIP contents to ${process.cwd()}...`);
                 try {
+                    // Extract all files using adm-zip (synchronous & reliable)
+                    const zip = new AdmZip(buffer);
+                    // Extract to current working directory (overwrites matching files)
                     zip.extractAllTo(process.cwd(), true);
                     console.log('Images restored successfully');
                 } catch (e: any) {

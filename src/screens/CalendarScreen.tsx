@@ -10,6 +10,9 @@ interface CalendarEvent {
     title: string;
     description: string | null;
     is_custom: boolean;
+    estimated_eps?: number;
+    dividend_amount?: number;
+    status?: string; // 'estimated', 'confirmed'
 }
 
 const EVENT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -29,6 +32,9 @@ export const CalendarScreen: React.FC = () => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [showCreateModal, setShowCreateModal] = useState(false);
 
+    // View Mode: 'portfolio' (Mis Acciones) | 'market' (Mercado)
+    const [viewMode, setViewMode] = useState<'portfolio' | 'market'>('portfolio');
+
     // Form state
     const [newEvent, setNewEvent] = useState({
         title: '',
@@ -41,41 +47,41 @@ export const CalendarScreen: React.FC = () => {
     const fetchEvents = useCallback(async () => {
         try {
             setLoading(true);
-            const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-            const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
 
-            const response = await api.get(`/calendar/events?from=${startOfMonth.toISOString().split('T')[0]}&to=${endOfMonth.toISOString().split('T')[0]}`);
+            let data: CalendarEvent[] = [];
 
-            // Handle potential error responses
-            if (response.data && Array.isArray(response.data)) {
-                setEvents(response.data as CalendarEvent[]);
+            if (viewMode === 'portfolio') {
+                const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+                const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+                // Extend fetching to catch "next 90 days" just in case, but filter visually or rely on API range
+                // API defaults to 90 days if no range, or uses query stats.
+                const response = await api.get(`/calendar/events?from=${startOfMonth.toISOString().split('T')[0]}&to=${endOfMonth.toISOString().split('T')[0]}`);
+                if (response.data && Array.isArray(response.data)) {
+                    data = response.data;
+                }
             } else {
-                setEvents([]);
+                // Market Mode: Fetch general events
+                const response = await api.get('/calendar/market?days=45');
+                if (response.data && Array.isArray(response.data)) {
+                    data = response.data;
+                }
             }
+            setEvents(data);
         } catch (err: any) {
             console.error('Error fetching events:', err);
-            // Don't crash - just show empty events
             setEvents([]);
         } finally {
             setLoading(false);
         }
-    }, [currentMonth]); // Remove api from deps to prevent re-fetch loops
+    }, [currentMonth, viewMode]); // Re-fetch when month OR mode changes
 
     useEffect(() => {
-        // Only fetch if component is mounted
         let isMounted = true;
-
         const doFetch = async () => {
-            if (isMounted) {
-                await fetchEvents();
-            }
+            if (isMounted) await fetchEvents();
         };
-
         doFetch();
-
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, [fetchEvents]);
 
     const handleSync = async () => {
@@ -83,7 +89,7 @@ export const CalendarScreen: React.FC = () => {
         try {
             await api.post('/calendar/sync');
             await fetchEvents();
-            alert('Eventos sincronizados correctamente');
+            alert('Sincronización completada con éxito.');
         } catch (err) {
             console.error('Sync error:', err);
             alert('Error al sincronizar');
@@ -232,6 +238,27 @@ export const CalendarScreen: React.FC = () => {
                 {/* Sidebar with events */}
                 <aside className="w-full lg:w-[380px] bg-white dark:bg-surface-dark rounded-3xl border border-border-light dark:border-border-dark p-6 flex flex-col overflow-hidden">
                     {/* Actions */}
+                    <div className="flex bg-gray-100 dark:bg-background-dark/50 p-1 rounded-xl mb-4">
+                        <button
+                            onClick={() => setViewMode('portfolio')}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${viewMode === 'portfolio'
+                                ? 'bg-white dark:bg-surface-dark-elevated shadow-sm text-primary'
+                                : 'text-text-secondary-light hover:text-text-primary-light'
+                                }`}
+                        >
+                            Mis Eventos
+                        </button>
+                        <button
+                            onClick={() => setViewMode('market')}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${viewMode === 'market'
+                                ? 'bg-white dark:bg-surface-dark-elevated shadow-sm text-primary'
+                                : 'text-text-secondary-light hover:text-text-primary-light'
+                                }`}
+                        >
+                            Mercado
+                        </button>
+                    </div>
+
                     <div className="flex gap-2 mb-6">
                         <button
                             onClick={handleSync}
@@ -282,6 +309,24 @@ export const CalendarScreen: React.FC = () => {
                                             )}
                                         </div>
                                         {event.description && <p className="text-sm text-text-secondary-light">{event.description}</p>}
+
+                                        {/* Financial Data */}
+                                        {(event.estimated_eps !== undefined || event.dividend_amount !== undefined) && (
+                                            <div className="flex gap-4 mt-2 pt-2 border-t border-dashed border-border-light dark:border-border-dark">
+                                                {event.estimated_eps !== undefined && event.estimated_eps !== null && (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] text-text-secondary-light uppercase">Est. EPS</span>
+                                                        <span className="font-bold text-sm">{event.estimated_eps.toFixed(2)}</span>
+                                                    </div>
+                                                )}
+                                                {event.dividend_amount !== undefined && event.dividend_amount !== null && (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] text-text-secondary-light uppercase">Dividendo</span>
+                                                        <span className="font-bold text-sm text-green-500">${event.dividend_amount.toFixed(2)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })

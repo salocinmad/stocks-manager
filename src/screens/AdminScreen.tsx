@@ -24,6 +24,11 @@ interface SystemStats {
     portfolios: number;
     positions: number;
     transactions: number;
+    discovery?: {
+        sectors: number;
+        companies: number;
+        lastUpdate: string | null;
+    };
 }
 
 interface SmtpConfig {
@@ -40,10 +45,11 @@ export const AdminScreen: React.FC = () => {
     const { api, isAdmin, user: currentUser } = useAuth();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<Tab>('general');
-    const [generalSubTab, setGeneralSubTab] = useState<'config' | 'smtp'>('config');
+    const [generalSubTab, setGeneralSubTab] = useState<'config' | 'smtp' | 'discovery'>('config');
     const [users, setUsers] = useState<User[]>([]);
     const [stats, setStats] = useState<SystemStats | null>(null);
     const [loading, setLoading] = useState(true);
+    const [statsLoading, setStatsLoading] = useState(false);
     const [apiKeys, setApiKeys] = useState({ finnhub: '', google: '' });
     // AI Model
     const [aiSubTab, setAiSubTab] = useState<'general' | 'providers'>('general');
@@ -64,14 +70,44 @@ export const AdminScreen: React.FC = () => {
     // SMTP config moved to AdminSMTP component
     // const [smtpConfig, setSmtpConfig] = useState...
 
-    // Backup/Restore
+    // Backup State
+    const [backupSubTab, setBackupSubTab] = useState<'manual' | 'scheduler' | 'tables'>('manual');
     const [backupLoading, setBackupLoading] = useState(false);
     const [restoreLoading, setRestoreLoading] = useState(false);
     const [tables, setTables] = useState<string[]>([]);
 
+    // Scheduler State
+    const [schedulerEnabled, setSchedulerEnabled] = useState(false);
+    const [schedulerEmail, setSchedulerEmail] = useState('');
+    const [schedulerFrequency, setSchedulerFrequency] = useState('daily');
+    const [schedulerTime, setSchedulerTime] = useState('04:00');
+    const [schedulerPassword, setSchedulerPassword] = useState('');
+    const [schedulerDayOfWeek, setSchedulerDayOfWeek] = useState(1); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+    const [schedulerDayOfMonth, setSchedulerDayOfMonth] = useState(1); // 1-28
+    const [schedulerSaving, setSchedulerSaving] = useState(false);
+    const [sendingNow, setSendingNow] = useState(false);
+    const [serverTime, setServerTime] = useState('');
+
+    useEffect(() => {
+        // Cargar hora del servidor cada minuto
+        const interval = setInterval(() => {
+            setServerTime(new Date().toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid' }));
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
     // Modal para cambiar contraseña
     const [passwordModal, setPasswordModal] = useState<User | null>(null);
     const [newPassword, setNewPassword] = useState('');
+
+    // Crawler Config
+    const [crawlerEnabled, setCrawlerEnabled] = useState(false);
+    const [crawling, setCrawling] = useState(false);
+    // Granular Config
+    const [crawlerCycles, setCrawlerCycles] = useState('6');
+    const [crawlerVolV8, setCrawlerVolV8] = useState('20');
+    const [crawlerVolV10, setCrawlerVolV10] = useState('5');
+    const [crawlerVolFinnhub, setCrawlerVolFinnhub] = useState('15');
+    const [crawlerMarketOpenOnly, setCrawlerMarketOpenOnly] = useState(true);
 
     // Cargar config general
     // SMTP Handlers moved to AdminSMTP
@@ -83,6 +119,60 @@ export const AdminScreen: React.FC = () => {
             console.error('Error loading general config:', err);
         }
     }, [api]);
+
+    const loadCrawlerStatus = useCallback(async () => {
+        try {
+            const { data } = await api.get('/admin/settings/crawler');
+            setCrawlerEnabled(data.enabled);
+            // Load Granular
+            if (data.cycles) setCrawlerCycles(String(data.cycles));
+            if (data.volV8) setCrawlerVolV8(String(data.volV8));
+            if (data.volV10) setCrawlerVolV10(String(data.volV10));
+            if (data.volFinnhub) setCrawlerVolFinnhub(String(data.volFinnhub));
+            if (data.marketOpenOnly !== undefined) setCrawlerMarketOpenOnly(data.marketOpenOnly);
+        } catch (err) {
+            console.error('Error loading crawler status:', err);
+        }
+    }, [api]);
+
+    const saveCrawlerConfig = async () => {
+        try {
+            await api.post('/admin/settings/crawler/granular', {
+                cycles: crawlerCycles,
+                volV8: crawlerVolV8,
+                volV10: crawlerVolV10,
+                volFinnhub: crawlerVolFinnhub,
+                marketOpenOnly: crawlerMarketOpenOnly
+            });
+            alert('Configuración del motor actualizada.');
+        } catch (err) {
+            console.error('Error saving crawler config:', err);
+            alert('Error al guardar configuración.');
+        }
+    };
+
+    const toggleCrawler = async () => {
+        try {
+            const newValue = !crawlerEnabled;
+            await api.post('/admin/settings/crawler', { enabled: newValue });
+            setCrawlerEnabled(newValue);
+        } catch (err) {
+            console.error('Error saving crawler status:', err);
+            alert('Error al guardar estado del crawler');
+        }
+    };
+
+    const runCrawler = async () => {
+        setCrawling(true);
+        try {
+            const { data } = await api.post('/admin/settings/crawler/run');
+            alert(data.message || 'Crawler iniciado manualmente.');
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Error al ejecutar crawler');
+        } finally {
+            setCrawling(false);
+        }
+    };
 
     // Guardar Config General
     const saveGeneralConfig = async () => {
@@ -136,11 +226,14 @@ export const AdminScreen: React.FC = () => {
 
     // Cargar stats
     const loadStats = useCallback(async () => {
+        setStatsLoading(true);
         try {
             const { data } = await api.get('/admin/stats');
             setStats(data);
         } catch (err) {
             console.error('Error loading stats:', err);
+        } finally {
+            setStatsLoading(false);
         }
     }, [api]);
 
@@ -171,11 +264,18 @@ export const AdminScreen: React.FC = () => {
 
         const loadData = async () => {
             setLoading(true);
-            await Promise.all([loadGeneralConfig(), loadUsers(), loadStats(), loadApiKeys(), loadAiConfig()]);
+            await Promise.all([
+                loadGeneralConfig(),
+                loadUsers(),
+                loadStats(),
+                loadApiKeys(),
+                loadAiConfig(),
+                loadCrawlerStatus() // Added
+            ]);
             setLoading(false);
         };
         loadData();
-    }, [isAdmin, navigate, loadGeneralConfig, loadUsers, loadStats, loadApiKeys, loadAiConfig]);
+    }, [isAdmin, navigate, loadGeneralConfig, loadUsers, loadStats, loadApiKeys, loadAiConfig, loadCrawlerStatus]);
 
     // Bloquear/Desbloquear usuario
     const toggleBlock = async (userId: string, blocked: boolean) => {
@@ -397,11 +497,68 @@ export const AdminScreen: React.FC = () => {
 
     // Cargar tablas cuando se active el tab backup
     React.useEffect(() => {
+        if (activeTab === 'users') loadUsers();
+        if (activeTab === 'stats') loadStats();
+        if (activeTab === 'api') loadApiKeys();
         if (activeTab === 'backup') {
             loadTables();
+            loadBackupSettings();
         }
-    }, [activeTab]);
+    }, [activeTab, loadUsers, loadStats, loadApiKeys]);
 
+    const loadBackupSettings = async () => {
+        try {
+            const { data } = await api.get('/admin/settings/backup');
+            const { enabled, email, frequency, time, password, dayOfWeek, dayOfMonth } = data;
+            setSchedulerEnabled(enabled);
+            setSchedulerEmail(email);
+            setSchedulerFrequency(frequency);
+            setSchedulerTime(time);
+            setSchedulerPassword(password || '');
+            setSchedulerDayOfWeek(dayOfWeek ?? 1);
+            setSchedulerDayOfMonth(dayOfMonth ?? 1);
+        } catch (error) {
+            console.error('Error loading backup settings:', error);
+        }
+    };
+
+    const saveBackupSettings = async () => {
+        setSchedulerSaving(true);
+        try {
+            await api.post('/admin/settings/backup', {
+                enabled: schedulerEnabled,
+                email: schedulerEmail,
+                frequency: schedulerFrequency,
+                time: schedulerTime,
+                password: schedulerPassword,
+                dayOfWeek: schedulerDayOfWeek,
+                dayOfMonth: schedulerDayOfMonth
+            });
+            // Show toast or alert?
+            alert('Configuración guardada correctamente');
+        } catch (error: any) {
+            console.error('Error saving backup settings:', error);
+            alert('Error al guardar configuración: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setSchedulerSaving(false);
+        }
+    };
+
+    const handleSendNow = async () => {
+        if (!schedulerEmail) return alert('Debes configurar un email primero');
+        setSendingNow(true);
+        try {
+            await api.post('/admin/settings/backup/send-now', {
+                email: schedulerEmail
+            });
+            alert('Backup enviado correctamente por correo');
+        } catch (error: any) {
+            console.error('Error sending backup:', error);
+            alert('Error al enviar backup: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setSendingNow(false);
+        }
+    };
     const tabs = [
         { id: 'general' as Tab, label: 'General', icon: 'settings' },
         { id: 'ai' as Tab, label: 'Inteligencia Artificial', icon: 'psychology' },
@@ -462,6 +619,15 @@ export const AdminScreen: React.FC = () => {
                                     >
                                         SMTP (Correo)
                                     </button>
+                                    <button
+                                        onClick={() => setGeneralSubTab('discovery')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${generalSubTab === 'discovery'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
+                                    >
+                                        Discovery Engine
+                                    </button>
                                 </div>
 
                                 {generalSubTab === 'config' && (
@@ -501,6 +667,208 @@ export const AdminScreen: React.FC = () => {
 
                                 {generalSubTab === 'smtp' && (
                                     <AdminSMTP />
+                                )}
+
+                                {generalSubTab === 'discovery' && (
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 animate-fade-in">
+                                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-amber-500">rocket_launch</span>
+                                            Motor de Descubrimiento
+                                        </h2>
+
+                                        {/* --- MAIN CONTROL --- */}
+                                        <div className="p-5 bg-background-light dark:bg-surface-dark-elevated rounded-xl border border-border-light dark:border-border-dark mb-6 shadow-sm">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <div>
+                                                    <h3 className="font-bold text-lg flex items-center gap-2">
+                                                        Control Maestro
+                                                    </h3>
+                                                    <p className="text-xs text-text-secondary-light">
+                                                        Activa o desactiva todo el sistema de descubrimiento automático.
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        onClick={runCrawler}
+                                                        disabled={crawling}
+                                                        className="px-4 py-2 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-all disabled:opacity-50 flex items-center gap-1"
+                                                    >
+                                                        <span className={`material-symbols-outlined text-sm ${crawling ? 'animate-spin' : ''}`}>
+                                                            {crawling ? 'sync' : 'play_arrow'}
+                                                        </span>
+                                                        {crawling ? 'Ejecutando...' : 'Ejecutar Ahora'}
+                                                    </button>
+
+                                                    <div className="relative inline-block w-12 align-middle select-none transition duration-200 ease-in">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={crawlerEnabled}
+                                                            onChange={toggleCrawler}
+                                                            className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer checkbox-toggle"
+                                                            style={{ right: crawlerEnabled ? '0' : 'auto', left: crawlerEnabled ? 'auto' : '0', borderColor: crawlerEnabled ? '#22c55e' : '#cbd5e1' }}
+                                                        />
+                                                        <label className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${crawlerEnabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}></label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 text-xs">
+                                                <div className={`px-2 py-1 rounded ${crawlerEnabled ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                    Estado: <strong>{crawlerEnabled ? 'ACTIVO' : 'INACTIVO'}</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* --- PRESETS --- */}
+                                        <div className="mb-8">
+                                            <h4 className="text-sm font-bold text-text-secondary-light uppercase mb-3">Modos Rápidos (Presets)</h4>
+                                            <div className="grid grid-cols-3 gap-3">
+                                                <button
+                                                    onClick={() => {
+                                                        setCrawlerCycles('2'); setCrawlerVolV8('10'); setCrawlerVolV10('5'); setCrawlerVolFinnhub('5');
+                                                    }}
+                                                    className="p-3 rounded-xl border border-border-light dark:border-border-dark hover:border-primary/50 bg-background-light dark:bg-surface-dark-elevated transition-all text-left"
+                                                >
+                                                    <div className="text-xl mb-1">🐢</div>
+                                                    <div className="font-bold text-sm">Modo Sigilo</div>
+                                                    <div className="text-[10px] text-text-secondary-light">2 ciclos/h - Bajo consumo</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setCrawlerCycles('6'); setCrawlerVolV8('20'); setCrawlerVolV10('5'); setCrawlerVolFinnhub('15');
+                                                    }}
+                                                    className="p-3 rounded-xl border border-primary bg-primary/5 dark:bg-primary/10 transition-all text-left"
+                                                >
+                                                    <div className="text-xl mb-1">⚖️</div>
+                                                    <div className="font-bold text-sm text-primary">Balanceado</div>
+                                                    <div className="text-[10px] text-text-secondary-light">6 ciclos/h (Default)</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setCrawlerCycles('12'); setCrawlerVolV8('80'); setCrawlerVolV10('20'); setCrawlerVolFinnhub('30');
+                                                    }}
+                                                    className="p-3 rounded-xl border border-red-500/30 bg-red-500/5 hover:bg-red-500/10 transition-all text-left group"
+                                                >
+                                                    <div className="text-xl mb-1 group-hover:scale-110 transition-transform">🐺</div>
+                                                    <div className="font-bold text-sm text-red-400">Wolf Mode</div>
+                                                    <div className="text-[10px] text-text-secondary-light">12 ciclos/h - Máximo volumen</div>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* --- GRANULAR CONTROLS --- */}
+                                        <div className="space-y-6 border-t border-border-light dark:border-border-dark pt-6">
+
+                                            {/* Cycles Per Hour */}
+                                            <div>
+                                                <div className="flex justify-between mb-2">
+                                                    <label className="text-sm font-bold flex items-center gap-1">
+                                                        Frecuencia de Ciclos
+                                                        <span className="material-symbols-outlined text-xs text-text-secondary-light cursor-help" title="Cuántas veces por hora se ejecutará el crawler. 6 = Cada 10 mins. 12 = Cada 5 mins.">help</span>
+                                                    </label>
+                                                    <span className="text-sm font-mono bg-background-light dark:bg-black/20 px-2 rounded text-primary">{crawlerCycles} / hora</span>
+                                                </div>
+                                                <input
+                                                    type="range" min="1" max="30" step="1"
+                                                    value={crawlerCycles}
+                                                    onChange={(e) => setCrawlerCycles(e.target.value)}
+                                                    className="w-full accent-primary h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                                                />
+                                                <div className="flex justify-between text-[10px] text-text-secondary-light mt-1">
+                                                    <span>1 (c/60m)</span>
+                                                    <span>6 (c/10m)</span>
+                                                    <span>12 (c/5m)</span>
+                                                    <span>30 (c/2m)</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                {/* V8 Volume */}
+                                                <div>
+                                                    <div className="flex justify-between mb-2">
+                                                        <label className="text-xs font-bold uppercase text-text-secondary-light flex items-center gap-1">
+                                                            Yahoo V8 (Técnico)
+                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Cantidad de acciones a escanear buscando Momentum y Day Gainers.">help</span>
+                                                        </label>
+                                                        <span className="text-xs font-mono">{crawlerVolV8} items</span>
+                                                    </div>
+                                                    <input
+                                                        type="range" min="10" max="200" step="10"
+                                                        value={crawlerVolV8}
+                                                        onChange={(e) => setCrawlerVolV8(e.target.value)}
+                                                        className="w-full accent-blue-500 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                                                    />
+                                                </div>
+
+                                                {/* V10 Volume */}
+                                                <div>
+                                                    <div className="flex justify-between mb-2">
+                                                        <label className="text-xs font-bold uppercase text-text-secondary-light flex items-center gap-1">
+                                                            Yahoo V10 (Calidad)
+                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Cantidad de 'Joyas' a buscar con análisis fundamental profundo (ROE, Deuda).">help</span>
+                                                        </label>
+                                                        <span className="text-xs font-mono text-purple-400">{crawlerVolV10} items</span>
+                                                    </div>
+                                                    <input
+                                                        type="range" min="1" max="50" step="1"
+                                                        value={crawlerVolV10}
+                                                        onChange={(e) => setCrawlerVolV10(e.target.value)}
+                                                        className="w-full accent-purple-500 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                                                    />
+                                                </div>
+
+                                                {/* Finnhub Volume */}
+                                                <div>
+                                                    <div className="flex justify-between mb-2">
+                                                        <label className="text-xs font-bold uppercase text-text-secondary-light flex items-center gap-1">
+                                                            Finnhub (Noticias)
+                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Cantidad de acciones trending basadas en noticias recientes.">help</span>
+                                                        </label>
+                                                        <span className="text-xs font-mono text-orange-400">{crawlerVolFinnhub} items</span>
+                                                    </div>
+                                                    <input
+                                                        type="range" min="5" max="50" step="5"
+                                                        value={crawlerVolFinnhub}
+                                                        onChange={(e) => setCrawlerVolFinnhub(e.target.value)}
+                                                        className="w-full accent-orange-500 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Checks */}
+                                            <div className="flex items-center gap-2 mt-4 p-3 rounded-xl bg-background-light dark:bg-surface-dark-elevated">
+                                                <input
+                                                    type="checkbox"
+                                                    id="marketOpen"
+                                                    checked={crawlerMarketOpenOnly}
+                                                    onChange={(e) => setCrawlerMarketOpenOnly(e.target.checked)}
+                                                    className="w-4 h-4 text-primary rounded focus:ring-primary bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600"
+                                                />
+                                                <label htmlFor="marketOpen" className="ml-2 text-sm font-medium text-text-primary cursor-pointer select-none">
+                                                    Priorizar <strong>Mercado Abierto</strong> (Buscar Day Gainers si Market Open)
+                                                </label>
+                                            </div>
+
+                                            <button
+                                                onClick={saveCrawlerConfig}
+                                                className="w-full py-3 bg-primary text-black font-bold rounded-xl hover:opacity-90 shadow-lg shadow-primary/10 mt-4"
+                                            >
+                                                Guardar Configuración Avanzada
+                                            </button>
+                                        </div>
+
+
+                                        <div className="mt-6 p-4 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                                            <h4 className="font-bold text-sm text-blue-500 mb-2 flex items-center gap-1">
+                                                <span className="material-symbols-outlined text-sm">info</span>
+                                                Información
+                                            </h4>
+                                            <p className="text-xs text-text-secondary-light">
+                                                El crawler busca oportunidades de inversión en múltiples sectores usando
+                                                <strong> Yahoo Finance</strong> y <strong>Finnhub</strong>.
+                                                Se ejecuta en segundo plano. Los resultados se muestran en el Dashboard y se analizan por la IA.
+                                            </p>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -795,9 +1163,10 @@ export const AdminScreen: React.FC = () => {
                                         <p className="text-xs text-text-secondary-light mt-1">
                                             Obtén tu key en <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">finnhub.io</a>
                                         </p>
+
                                     </div>
 
-                                    {/* Google Config moved to AI Tab */}
+
 
                                     <button
                                         onClick={saveApiKeys}
@@ -827,132 +1196,317 @@ export const AdminScreen: React.FC = () => {
                         )}
 
                         {/* Tab: Backup */}
-                        {
-                            activeTab === 'backup' && (
-                                <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-5xl w-full animate-fade-in">
-                                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                        <span className="material-symbols-outlined">backup</span>
-                                        Backup y Restauración
-                                    </h2>
+                        {activeTab === 'backup' && (
+                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 animate-fade-in">
+                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                    <span className="material-symbols-outlined">backup</span>
+                                    Backup y Restauración
+                                </h2>
 
-                                    {/* Info de tablas */}
-                                    <div className="mb-6 p-4 bg-background-light dark:bg-surface-dark-elevated rounded-xl">
-                                        <p className="text-sm text-text-secondary-light mb-2">
-                                            <strong>{tables.length}</strong> tablas detectadas en la base de datos:
-                                        </p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {tables.map(t => (
-                                                <span key={t} className="px-2 py-1 bg-primary/10 text-primary text-xs font-mono rounded">
-                                                    {t}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Crear Backup */}
-                                    <div className="mb-8">
-                                        <h3 className="font-bold mb-4 flex items-center gap-2">
-                                            <span className="material-symbols-outlined text-green-500">download</span>
-                                            Crear Backup
-                                        </h3>
-                                        <p className="text-sm text-text-secondary-light mb-4">
-                                            Descarga una copia de seguridad de los datos. Elige el formato que más te convenga.
-                                        </p>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <button
-                                                onClick={downloadBackupZip}
-                                                disabled={backupLoading}
-                                                className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
-                                            >
-                                                {backupLoading ? (
-                                                    <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
-                                                ) : (
-                                                    <span className="material-symbols-outlined text-3xl text-blue-500">folder_zip</span>
-                                                )}
-                                                <div className="text-center">
-                                                    <p className="font-bold">Completo (ZIP)</p>
-                                                    <p className="text-xs text-text-secondary-light">DB + Imágenes</p>
-                                                </div>
-                                            </button>
-
-                                            <button
-                                                onClick={downloadBackupJson}
-                                                disabled={backupLoading}
-                                                className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
-                                            >
-                                                {backupLoading ? (
-                                                    <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
-                                                ) : (
-                                                    <span className="material-symbols-outlined text-3xl text-green-500">data_object</span>
-                                                )}
-                                                <div className="text-center">
-                                                    <p className="font-bold">Datos (JSON)</p>
-                                                    <p className="text-xs text-text-secondary-light">Solo Base de Datos</p>
-                                                </div>
-                                            </button>
-
-                                            <button
-                                                onClick={downloadBackupSql}
-                                                disabled={backupLoading}
-                                                className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
-                                            >
-                                                {backupLoading ? (
-                                                    <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
-                                                ) : (
-                                                    <span className="material-symbols-outlined text-3xl text-orange-500">database</span>
-                                                )}
-                                                <div className="text-center">
-                                                    <p className="font-bold">Script SQL</p>
-                                                    <p className="text-xs text-text-secondary-light">Para PostgreSQL</p>
-                                                </div>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Restaurar */}
-                                    <div className="border-t border-border-light dark:border-border-dark pt-6">
-                                        <h3 className="font-bold mb-4 flex items-center gap-2">
-                                            <span className="material-symbols-outlined text-red-500">restore</span>
-                                            Restaurar Backup
-                                        </h3>
-                                        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl mb-4">
-                                            <p className="text-sm text-red-400 flex items-start gap-2">
-                                                <span className="material-symbols-outlined text-lg">warning</span>
-                                                <span>
-                                                    <strong>¡Atención!</strong> Restaurar un backup REEMPLAZARÁ todos los datos actuales.
-                                                    Esta acción es irreversible. Crea un backup antes de continuar.
-                                                </span>
-                                            </p>
-                                        </div>
-                                        <label className={`flex items-center justify-center gap-3 px-6 py-4 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${restoreLoading ? 'border-primary bg-primary/10' : 'border-border-light dark:border-border-dark hover:border-primary hover:bg-primary/5'}`}>
-                                            {restoreLoading ? (
-                                                <>
-                                                    <span className="size-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
-                                                    <span className="font-semibold">Restaurando...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <span className="material-symbols-outlined">upload_file</span>
-                                                    <span className="font-semibold">Arrastra o selecciona un archivo (.zip, .json, .sql)</span>
-                                                </>
-                                            )}
-                                            <input
-                                                type="file"
-                                                accept=".json,.sql,.zip"
-                                                onChange={handleRestoreFile}
-                                                className="hidden"
-                                                disabled={restoreLoading}
-                                            />
-                                        </label>
-                                    </div>
+                                {/* Sub-tabs Navigation */}
+                                <div className="flex gap-4 mb-6 border-b border-border-light dark:border-border-dark pb-2">
+                                    <button
+                                        onClick={() => setBackupSubTab('manual')}
+                                        className={`pb-2 px-2 text-sm font-semibold transition-colors ${backupSubTab === 'manual' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
+                                    >
+                                        Manual
+                                    </button>
+                                    <button
+                                        onClick={() => setBackupSubTab('scheduler')}
+                                        className={`pb-2 px-2 text-sm font-semibold transition-colors ${backupSubTab === 'scheduler' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
+                                    >
+                                        Programación
+                                    </button>
+                                    <button
+                                        onClick={() => setBackupSubTab('tables')}
+                                        className={`pb-2 px-2 text-sm font-semibold transition-colors ${backupSubTab === 'tables' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
+                                    >
+                                        Tablas Detectadas
+                                    </button>
                                 </div>
-                            )
-                        }
+
+                                {/* CONTENIDO: MANUAL */}
+                                {backupSubTab === 'manual' && (
+                                    <div className="animate-fade-in">
+                                        {/* Crear Backup */}
+                                        <div className="mb-8">
+                                            <h3 className="font-bold mb-4 flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-green-500">download</span>
+                                                Crear Backup
+                                            </h3>
+                                            <p className="text-sm text-text-secondary-light mb-4">
+                                                Descarga una copia de seguridad de los datos. Elige el formato que más te convenga.
+                                                <br />
+                                                <span className="text-xs opacity-70">Nota: Las descargas manuales NO están protegidas con contraseña.</span>
+                                            </p>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <button
+                                                    onClick={downloadBackupZip}
+                                                    disabled={backupLoading}
+                                                    className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
+                                                >
+                                                    {backupLoading ? (
+                                                        <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
+                                                    ) : (
+                                                        <span className="material-symbols-outlined text-3xl text-blue-500">folder_zip</span>
+                                                    )}
+                                                    <div className="text-center">
+                                                        <p className="font-bold">Completo (ZIP)</p>
+                                                        <p className="text-xs text-text-secondary-light">DB + Imágenes</p>
+                                                    </div>
+                                                </button>
+
+                                                <button
+                                                    onClick={downloadBackupJson}
+                                                    disabled={backupLoading}
+                                                    className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
+                                                >
+                                                    {backupLoading ? (
+                                                        <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
+                                                    ) : (
+                                                        <span className="material-symbols-outlined text-3xl text-green-500">data_object</span>
+                                                    )}
+                                                    <div className="text-center">
+                                                        <p className="font-bold">Datos (JSON)</p>
+                                                        <p className="text-xs text-text-secondary-light">Solo Base de Datos</p>
+                                                    </div>
+                                                </button>
+
+                                                <button
+                                                    onClick={downloadBackupSql}
+                                                    disabled={backupLoading}
+                                                    className="flex flex-col items-center gap-3 p-6 bg-background-light dark:bg-surface-dark-elevated rounded-2xl hover:ring-2 hover:ring-primary transition-all disabled:opacity-50"
+                                                >
+                                                    {backupLoading ? (
+                                                        <span className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin"></span>
+                                                    ) : (
+                                                        <span className="material-symbols-outlined text-3xl text-orange-500">database</span>
+                                                    )}
+                                                    <div className="text-center">
+                                                        <p className="font-bold">Script SQL</p>
+                                                        <p className="text-xs text-text-secondary-light">Para PostgreSQL</p>
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Restaurar */}
+                                        <div className="border-t border-border-light dark:border-border-dark pt-6">
+                                            <h3 className="font-bold mb-4 flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-red-500">restore</span>
+                                                Restaurar Backup
+                                            </h3>
+                                            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl mb-4">
+                                                <p className="text-sm text-red-400 flex items-start gap-2">
+                                                    <span className="material-symbols-outlined text-lg">warning</span>
+                                                    <span>
+                                                        <strong>¡Atención!</strong> Restaurar un backup REEMPLAZARÁ todos los datos actuales.
+                                                        Esta acción es irreversible. Crea un backup antes de continuar.
+                                                    </span>
+                                                </p>
+                                            </div>
+                                            <label className={`flex items-center justify-center gap-3 px-6 py-4 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${restoreLoading ? 'border-primary bg-primary/10' : 'border-border-light dark:border-border-dark hover:border-primary hover:bg-primary/5'}`}>
+                                                {restoreLoading ? (
+                                                    <>
+                                                        <span className="size-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+                                                        <span className="font-semibold">Restaurando...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span className="material-symbols-outlined">upload_file</span>
+                                                        <span className="font-semibold">Arrastra o selecciona un archivo (.zip, .json, .sql)</span>
+                                                    </>
+                                                )}
+                                                <input
+                                                    type="file"
+                                                    accept=".json,.sql,.zip"
+                                                    onChange={handleRestoreFile}
+                                                    className="hidden"
+                                                    disabled={restoreLoading}
+                                                />
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* CONTENIDO: PROGRAMACIÓN */}
+                                {backupSubTab === 'scheduler' && (
+                                    <div className="animate-fade-in space-y-6">
+                                        <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <span className="material-symbols-outlined text-blue-500 text-2xl">schedule_send</span>
+                                                <div>
+                                                    <h4 className="font-bold text-blue-500">Backup Automático por Email</h4>
+                                                    <p className="text-xs opacity-70">
+                                                        El sistema enviará una copia ZIP encriptada a tu correo.
+                                                        Máx 25MB (si supera, se notificará).
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {/* Toggle Switch */}
+                                            <button
+                                                onClick={() => setSchedulerEnabled(!schedulerEnabled)}
+                                                className={`w-12 h-6 rounded-full p-1 transition-colors ${schedulerEnabled ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`}
+                                            >
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${schedulerEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {/* Email */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-text-secondary-light mb-2">Email de Destino</label>
+                                                <input
+                                                    type="email"
+                                                    value={schedulerEmail}
+                                                    onChange={e => setSchedulerEmail(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+                                                    placeholder="admin@ejemplo.com"
+                                                />
+                                            </div>
+
+                                            {/* Contraseña */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-text-secondary-light mb-2">Contraseña del ZIP (Opcional)</label>
+                                                <input
+                                                    type="password"
+                                                    value={schedulerPassword}
+                                                    onChange={e => setSchedulerPassword(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+                                                    placeholder="Para proteger el archivo adjunto"
+                                                />
+                                            </div>
+
+                                            {/* Frecuencia */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-text-secondary-light mb-2">Frecuencia</label>
+                                                <div className="flex gap-2">
+                                                    {['daily', 'weekly', 'monthly'].map(f => (
+                                                        <button
+                                                            key={f}
+                                                            onClick={() => setSchedulerFrequency(f)}
+                                                            className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${schedulerFrequency === f ? 'bg-primary text-black' : 'bg-background-light dark:bg-surface-dark-elevated hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                                        >
+                                                            {f === 'daily' ? 'Diario' : f === 'weekly' ? 'Semanal' : 'Mensual'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Día de la semana (solo para Semanal) */}
+                                            {schedulerFrequency === 'weekly' && (
+                                                <div>
+                                                    <label className="block text-sm font-medium text-text-secondary-light mb-2">Día de la Semana</label>
+                                                    <select
+                                                        value={schedulerDayOfWeek}
+                                                        onChange={e => setSchedulerDayOfWeek(Number(e.target.value))}
+                                                        className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+                                                    >
+                                                        <option value={1}>Lunes</option>
+                                                        <option value={2}>Martes</option>
+                                                        <option value={3}>Miércoles</option>
+                                                        <option value={4}>Jueves</option>
+                                                        <option value={5}>Viernes</option>
+                                                        <option value={6}>Sábado</option>
+                                                        <option value={0}>Domingo</option>
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            {/* Día del mes (solo para Mensual) */}
+                                            {schedulerFrequency === 'monthly' && (
+                                                <div>
+                                                    <label className="block text-sm font-medium text-text-secondary-light mb-2">Día del Mes</label>
+                                                    <select
+                                                        value={schedulerDayOfMonth}
+                                                        onChange={e => setSchedulerDayOfMonth(Number(e.target.value))}
+                                                        className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+                                                    >
+                                                        {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                                                            <option key={d} value={d}>{d}</option>
+                                                        ))}
+                                                    </select>
+                                                    <p className="text-xs text-text-secondary-light mt-1">Máximo día 28 para evitar problemas con meses cortos.</p>
+                                                </div>
+                                            )}
+
+                                            {/* Hora */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-text-secondary-light mb-2">Hora de Ejecución</label>
+                                                <input
+                                                    type="time"
+                                                    value={schedulerTime}
+                                                    onChange={e => setSchedulerTime(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+                                                />
+                                                <p className="text-xs text-text-secondary-light mt-1 flex items-center gap-1">
+                                                    <span className="material-symbols-outlined text-[14px]">public</span>
+                                                    Hora del Servidor (aprox): {serverTime || 'Cargando...'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-between items-center pt-4 border-t border-border-light dark:border-border-dark">
+                                            <button
+                                                onClick={handleSendNow}
+                                                disabled={sendingNow || !schedulerEmail}
+                                                className="flex items-center gap-2 px-4 py-2 text-primary hover:bg-primary/10 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {sendingNow ? (
+                                                    <span className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+                                                ) : (
+                                                    <span className="material-symbols-outlined">send</span>
+                                                )}
+                                                Enviar Ahora
+                                            </button>
+
+                                            <button
+                                                onClick={saveBackupSettings}
+                                                disabled={schedulerSaving}
+                                                className="px-8 py-3 bg-primary text-black font-bold rounded-xl hover:opacity-90 transition-all flex items-center gap-2"
+                                            >
+                                                {schedulerSaving && <span className="size-4 border-2 border-black border-t-transparent rounded-full animate-spin"></span>}
+                                                Guardar Configuración
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* CONTENIDO: TABLAS */}
+                                {backupSubTab === 'tables' && (
+                                    <div className="animate-fade-in">
+                                        <div className="mb-6 p-4 bg-background-light dark:bg-surface-dark-elevated rounded-xl">
+                                            <div className="flex justify-between items-end mb-4">
+                                                <div>
+                                                    <h4 className="font-bold flex items-center gap-2">
+                                                        <span className="material-symbols-outlined text-purple-500">table_view</span>
+                                                        Tablas Detectadas
+                                                    </h4>
+                                                    <p className="text-sm text-text-secondary-light">
+                                                        Estas son las tablas que se incluyen en el backup.
+                                                    </p>
+                                                </div>
+                                                <span className="text-2xl font-black text-primary">{tables.length}</span>
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-2 max-h-[400px] overflow-y-auto">
+                                                {tables.map(t => (
+                                                    <span key={t} className="px-3 py-1.5 bg-background dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg text-xs font-mono">
+                                                        {t}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                                }
+                            </div>
+                        )}
 
                         {/* Tab: Estadísticas */}
                         {
                             activeTab === 'stats' && stats && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 animate-fade-in">
                                     <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
                                         <div className="flex items-center gap-3 mb-4">
                                             <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
@@ -993,48 +1547,66 @@ export const AdminScreen: React.FC = () => {
                                         </div>
                                         <p className="text-3xl font-black">{stats.transactions}</p>
                                     </div>
+
+                                    {/* Discovery Engine Stats */}
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center">
+                                                <span className="material-symbols-outlined text-cyan-500 text-2xl">rocket_launch</span>
+                                            </div>
+                                            <span className="text-sm font-semibold text-text-secondary-light">Discovery Engine</span>
+                                        </div>
+                                        <p className="text-3xl font-black">{stats.discovery?.companies || 0}</p>
+                                        <p className="text-sm text-text-secondary-light">
+                                            Empresas en {stats.discovery?.sectors || 0} sectores
+                                        </p>
+                                        {stats.discovery?.lastUpdate && (
+                                            <p className="text-xs text-text-secondary-light mt-1 opacity-70">
+                                                {new Date(stats.discovery.lastUpdate).toLocaleTimeString()}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )
+                        }
+
+                        {/* Modal: Cambiar contraseña */}
+                        {
+                            passwordModal && (
+                                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                                    <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl animate-scale-in">
+                                        <h3 className="text-xl font-bold mb-2">Cambiar Contraseña</h3>
+                                        <p className="text-sm text-text-secondary-light mb-6">{passwordModal.email}</p>
+
+                                        <input
+                                            type="password"
+                                            value={newPassword}
+                                            onChange={e => setNewPassword(e.target.value)}
+                                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary mb-6"
+                                            placeholder="Nueva contraseña (mín. 6 caracteres)"
+                                        />
+
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => setPasswordModal(null)}
+                                                className="px-4 py-2 text-text-secondary-light hover:text-text-primary transition-colors"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                onClick={changePassword}
+                                                className="px-6 py-2 bg-primary text-black font-bold rounded-xl hover:opacity-90 transition-all"
+                                            >
+                                                Cambiar
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             )
                         }
                     </>
                 )}
-            </div >
-
-            {/* Modal: Cambiar contraseña */}
-            {
-                passwordModal && (
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl animate-scale-in">
-                            <h3 className="text-xl font-bold mb-2">Cambiar Contraseña</h3>
-                            <p className="text-sm text-text-secondary-light mb-6">{passwordModal.email}</p>
-
-                            <input
-                                type="password"
-                                value={newPassword}
-                                onChange={e => setNewPassword(e.target.value)}
-                                className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary mb-6"
-                                placeholder="Nueva contraseña (mín. 6 caracteres)"
-                            />
-
-                            <div className="flex justify-end gap-2">
-                                <button
-                                    onClick={() => setPasswordModal(null)}
-                                    className="px-4 py-2 text-text-secondary-light hover:text-text-primary transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={changePassword}
-                                    className="px-6 py-2 bg-primary text-black font-bold rounded-xl hover:opacity-90 transition-all"
-                                >
-                                    Cambiar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-
+            </div>
 
         </main >
     );

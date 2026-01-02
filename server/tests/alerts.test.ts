@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach, afterEach, afterAll } from "bun:test";
+import { describe, expect, test, mock, beforeEach, afterEach, afterAll, beforeAll } from "bun:test";
 import { AlertService } from "../services/alertService";
 import { MarketDataService } from "../services/marketData";
 import { NotificationService } from "../services/notificationService";
@@ -21,6 +21,11 @@ describe("AlertService (Integration)", () => {
         await sql`DELETE FROM users WHERE email LIKE 'alert_%'`;
         await sql`DELETE FROM alerts WHERE ticker IN ('AAPL', 'TSLA', 'GME')`;
     };
+
+    // Clean up any stale test users from previous failed runs
+    beforeAll(async () => {
+        await cleanup();
+    });
 
     beforeEach(async () => {
         await cleanup();

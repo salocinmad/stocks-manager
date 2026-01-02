@@ -1,14 +1,23 @@
-import { describe, expect, test, mock, beforeEach, afterEach, afterAll } from "bun:test";
+import { describe, expect, test, mock, beforeEach, afterEach, afterAll, beforeAll } from "bun:test";
 import { PortfolioService } from "../services/portfolioService";
 import sql from "../db";
 
 describe("PortfolioService Logic (Integration)", () => {
 
+    const cleanupIds: string[] = [];
+    const registerCleanup = (id: string) => cleanupIds.push(id);
+
+    // Clean up any stale test users from previous failed runs
+    beforeAll(async () => {
+        // Safe cleanup targeting only test emails
+        await sql`DELETE FROM users WHERE email LIKE 'logic_%'`;
+    });
+
     // Helper to setup context
     const setup = async () => {
         const userId = crypto.randomUUID();
         const portId = crypto.randomUUID();
-        const uniqueEmail = `logic_${Date.now()}@test.com`;
+        const uniqueEmail = `logic_${Date.now()}_${Math.random().toString(36).substring(7)}@test.com`;
 
         await sql`INSERT INTO users (id, email, password_hash, full_name, role) VALUES (${userId}, ${uniqueEmail}, 'hash', 'Test', 'user')`;
         await sql`INSERT INTO portfolios (id, user_id, name) VALUES (${portId}, ${userId}, 'Test Port')`;
@@ -16,14 +25,11 @@ describe("PortfolioService Logic (Integration)", () => {
         return { userId, portId };
     };
 
-    const cleanupIds: string[] = [];
-    const registerCleanup = (id: string) => cleanupIds.push(id);
-
     afterEach(async () => {
-        for (const id of cleanupIds) {
-            await sql`DELETE FROM users WHERE id = ${id}`;
+        if (cleanupIds.length > 0) {
+            await sql`DELETE FROM users WHERE id IN ${sql(cleanupIds)}`;
+            cleanupIds.length = 0;
         }
-        cleanupIds.length = 0;
     });
 
     test("should calculate effective price correctly for INITIAL BUY with commission", async () => {
@@ -33,8 +39,7 @@ describe("PortfolioService Logic (Integration)", () => {
         const amount = 10;
         const price = 100; // Price per unit
         const commission = 5;
-        // Total Cost = 1000 + 5 = 1005
-        // Effective Price per unit = 100.5
+        // Logic V2: Store Raw Price (100) and Commission (5) separately.
 
         await PortfolioService.addTransaction(portId, "AAPL", "BUY", amount, price, "USD", commission);
 
@@ -43,8 +48,10 @@ describe("PortfolioService Logic (Integration)", () => {
 
         expect(pos).toBeDefined();
         expect(Number(pos.quantity)).toBe(10);
-        // DB stores numeric/decimal? it might be string or number depending on driver
-        expect(Number(pos.average_buy_price)).toBe(100.5);
+
+        // Expect RAW price, not effective price
+        expect(Number(pos.average_buy_price)).toBe(100);
+        expect(Number(pos.commission)).toBe(5);
     });
 
     test("should calculate WEIGHTED AVERAGE price correctly for ADDING to position", async () => {
@@ -55,7 +62,7 @@ describe("PortfolioService Logic (Integration)", () => {
         await PortfolioService.addTransaction(portId, "AAPL", "BUY", 10, 100, "USD", 0);
 
         // 2. Second Buy: 10 @ 200, Comm 0
-        // Total Cost = 1000 + 2000 = 3000
+        // Total Cost (Raw) = 1000 + 2000 = 3000
         // Total Qty = 20
         // Avg = 150
         await PortfolioService.addTransaction(portId, "AAPL", "BUY", 10, 200, "USD", 0);
@@ -99,7 +106,5 @@ describe("PortfolioService Logic (Integration)", () => {
         }
 
         expect(error).toBeDefined();
-        // Exact message depends on service implementation
-        // expect(error.message).toContain("Insufficient");
     });
 });

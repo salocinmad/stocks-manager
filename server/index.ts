@@ -17,7 +17,8 @@ import { notificationRoutes } from './routes/notifications';
 import { calendarRoutes } from './routes/calendar';
 import { publicRoutes } from './routes/public';
 import { chatRoutes } from './routes/chat';
-import { chatRoutes } from './routes/chat';
+import { analysisRoutes } from './routes/analysis';
+
 import { notesRoutes } from './routes/notes';
 import { userRoutes } from './routes/user';
 import { initDatabase } from './init_db';
@@ -29,12 +30,29 @@ import { schedulePnLJob, calculatePnLForAllPortfolios } from './jobs/pnlJob';
 // Initialize DB and load settings
 // Initialize DB and load settings
 
+// === LOGGING OVERRIDE (Spanish Timestamp) ===
+const getTimestamp = () => new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' });
+
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+const originalInfo = console.info;
+
+console.log = (...args) => originalLog(`[${getTimestamp()}]`, ...args);
+console.error = (...args) => originalError(`[${getTimestamp()}]`, ...args);
+console.warn = (...args) => originalWarn(`[${getTimestamp()}]`, ...args);
+console.info = (...args) => originalInfo(`[${getTimestamp()}]`, ...args);
+// ============================================
+
 await initDatabase();
 await SettingsService.loadToEnv();
 
 // Start Alert Service Loop (every 60s)
+import { PortfolioAlertService } from './services/portfolioAlertService';
+
 setInterval(() => {
     AlertService.checkAlerts().catch(err => console.error('AlertService Error:', err));
+    PortfolioAlertService.checkPortfolioAlerts().catch(err => console.error('PortfolioAlertService Error:', err));
 }, 60000);
 
 // Initial History Sync: DESACTIVADO para mejorar arranque.
@@ -74,6 +92,63 @@ setInterval(() => {
         MarketDataService.syncCurrencyHistory(1).catch(e => console.error('Daily Currency Sync Error:', e));
     }
 }, 60000); // Check every minute
+
+// Discovery Crawler Job (Configurable Check every 3 mins)
+import { DiscoveryJob } from './jobs/discoveryJob';
+
+setInterval(() => {
+    DiscoveryJob.runDiscoveryCycle().catch(e => console.error('DiscoveryJob Error:', e));
+}, 3 * 60 * 1000); // 3 Minutes (To allow high freq checks)
+
+// Initial Discovery Run (After 30s)
+setTimeout(() => {
+    console.log('[Startup] Running Initial Discovery Cycle...');
+    DiscoveryJob.runDiscoveryCycle().catch(e => console.error('Initial DiscoveryJob Error:', e));
+}, 30000);
+
+// Calendar Sync Job (Every 6h)
+import { CalendarJob } from './jobs/calendarJob';
+
+setInterval(() => {
+    CalendarJob.run().catch(e => console.error('CalendarJob Error:', e));
+}, 6 * 60 * 60 * 1000); // 6 Hours
+
+// Initial Calendar Run (After 60s)
+setTimeout(() => {
+    console.log('[Startup] Running Initial Calendar Sync...');
+    CalendarJob.run().catch(e => console.error('Initial CalendarJob Error:', e));
+}, 60000);
+
+// Position Analysis Job (Every 6h at 00:00, 06:00, 12:00, 18:00)
+import { runPositionAnalysisJob } from './jobs/positionAnalysisJob';
+
+let lastAnalysisHour = -1;
+setInterval(() => {
+    const now = new Date();
+    const madTimeString = now.toLocaleString("en-US", { timeZone: "Europe/Madrid" });
+    const madTime = new Date(madTimeString);
+    const hour = madTime.getHours();
+
+    // Run at 00, 06, 12, 18
+    if ([0, 6, 12, 18].includes(hour) && hour !== lastAnalysisHour) {
+        lastAnalysisHour = hour;
+        console.log('📊 Running Position Analysis Job...');
+        runPositionAnalysisJob().catch(e => console.error('PositionAnalysisJob Error:', e));
+    }
+}, 60000); // Check every minute
+
+// Initial Analysis Run (After 90s)
+setTimeout(() => {
+    console.log('[Startup] Running Initial Position Analysis...');
+    runPositionAnalysisJob().catch(e => console.error('Initial PositionAnalysisJob Error:', e));
+}, 90000);
+
+// Backup Job (Every Minute)
+import { BackupJob } from './jobs/backupJob';
+
+setInterval(() => {
+    BackupJob.checkAndRun().catch(e => console.error('BackupJob Error:', e));
+}, 60000);
 
 // Mapeo de extensiones a tipos MIME
 const mimeTypes: Record<string, string> = {
@@ -124,6 +199,7 @@ const app = new Elysia({
         .use(notesRoutes)
         .use(userRoutes)
         .use(publicRoutes)
+        .use(analysisRoutes)
         .get('/health', () => ({ status: 'ok', version: '1.0.0' }))
     )
     // 2. Servir imágenes de notas desde /uploads

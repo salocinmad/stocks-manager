@@ -72,7 +72,7 @@ export async function initDatabase() {
       console.log('Column is_favorite already exists or could not be added');
     }
 
-    // 3. Table positions
+    // 3. Table positions (lo que el usuario TIENE en cartera)
     await sql`
       CREATE TABLE IF NOT EXISTS positions (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -87,8 +87,6 @@ export async function initDatabase() {
         UNIQUE(portfolio_id, ticker)
       )
     `;
-
-
 
     // 4. Table transactions
     await sql`
@@ -157,6 +155,28 @@ export async function initDatabase() {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `;
+
+    // 7.1 Crawler Settings Migration (Ensure defaults exist)
+    try {
+      const defaultCrawlerSettings = [
+        { key: 'CRAWLER_CYCLES_PER_HOUR', value: '6' },
+        { key: 'CRAWLER_VOL_YAHOO_V8', value: '20' },
+        { key: 'CRAWLER_VOL_FINNHUB', value: '15' },
+        { key: 'CRAWLER_VOL_YAHOO_V10', value: '5' },
+        { key: 'CRAWLER_MARKET_OPEN_ONLY', value: 'true' }
+      ];
+
+      for (const setting of defaultCrawlerSettings) {
+        await sql`
+                INSERT INTO system_settings (key, value)
+                VALUES (${setting.key}, ${setting.value})
+                ON CONFLICT (key) DO NOTHING
+            `;
+      }
+      console.log('Crawler settings seeded.');
+    } catch (e: any) {
+      console.error('Error seeding crawler settings:', e.message);
+    }
 
     // 8. Histórico de Precios (Historical Data for AI & Charts)
     await sql`
@@ -324,6 +344,31 @@ export async function initDatabase() {
       console.log('Created table: financial_events');
     } catch (e: any) { console.error('Migration error (financial_events table):', e.message); }
 
+    // Calendar Migrations (New Columns)
+    try {
+      await sql`ALTER TABLE financial_events ADD COLUMN IF NOT EXISTS estimated_eps DECIMAL`;
+      console.log('Applied migration: financial_events.estimated_eps');
+    } catch (e: any) { console.error('Migration error (financial_events.estimated_eps):', e.message); }
+
+    try {
+      await sql`ALTER TABLE financial_events ADD COLUMN IF NOT EXISTS dividend_amount DECIMAL`;
+      console.log('Applied migration: financial_events.dividend_amount');
+    } catch (e: any) { console.error('Migration error (financial_events.dividend_amount):', e.message); }
+
+    try {
+      await sql`ALTER TABLE financial_events ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'estimated'`;
+      console.log('Applied migration: financial_events.status');
+    } catch (e: any) { console.error('Migration error (financial_events.status):', e.message); }
+
+    try {
+      await sql`ALTER TABLE financial_events ADD CONSTRAINT uq_events_user_ticker_date UNIQUE (user_id, ticker, event_type, event_date)`;
+      console.log('Applied migration: uq_events_user_ticker_date');
+    } catch (e: any) {
+      // Ignore if already exists (error 42710)
+      if (e.code !== '42710') console.error('Migration error (unique constraint):', e.message);
+    }
+
+
     try {
       await sql`CREATE INDEX IF NOT EXISTS idx_events_user_date ON financial_events(user_id, event_date)`;
       console.log('Created index: idx_events_user_date');
@@ -345,6 +390,16 @@ export async function initDatabase() {
         `;
       await sql`CREATE INDEX IF NOT EXISTS idx_prompts_type_active ON ai_prompts(prompt_type, is_active)`;
       console.log('Created table: ai_prompts');
+
+      // Market Discovery Cache (AI "Smart Crawler")
+      await sql`
+        CREATE TABLE IF NOT EXISTS market_discovery_cache (
+            category VARCHAR(255) PRIMARY KEY,
+            data JSONB NOT NULL,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      console.log('Created table: market_discovery_cache');
 
       // ----------------------------------------------------
       // NEW: AI Providers Table (Multi-Provider Support V6)
@@ -381,6 +436,7 @@ export async function initDatabase() {
         let standardChatContent = oldChatSetting.length > 0 ? oldChatSetting[0].value : `Eres un asesor financiero cercano y experto. Tu nombre es Stocks Bot.
 
 ESTILO DE RESPUESTA:
+- IDIOMA: Responde SIEMPRE en ESPAÑOL, salvo que el usuario te hable explícitamente en otro idioma.
 - Habla como un colega experto, NO como un robot corporativo
 - Tutea al usuario, sé directo y amigable
 - Usa emojis con moderación donde tenga sentido (📈 📉 💡 ⚠️)
@@ -416,10 +472,14 @@ Responde al último mensaje del usuario de forma natural y útil.`;
         // 2. El Lobo de Wall Street
         const wolfPrompt = `Eres "El Lobo", un broker agresivo, exitoso y directo de Wall Street.
 TU PERFIL:
+- IDIOMA: Responde SIEMPRE en ESPAÑOL, salvo que el usuario te hable explícitamente en otro idioma.
 - Tono: Sarcástico, extremadamente confiado (casi arrogante), usas jerga financiera (bullish, bearish, to the moon, bag holder).
 - Objetivo: Hacer dinero. Odias las pérdidas y la debilidad.
 - Estilo: Respuestas cortas, impactantes. Si el usuario pierde dinero, sé duro con él ("¿Te gusta perder dinero?"). Si gana, celébralo como un rey.
 - NUNCA des consejos legales, pero habla como si fueras el dueño del mercado.
+
+DATOS DEL USUARIO (PORTAFOLIO):
+{{USER_CONTEXT}}
 
 DATOS DE MERCADO:
 {{MARKET_DATA}}
@@ -441,11 +501,15 @@ Dime qué hacer, crack.`;
         // 3. Profesor Paciente (ELI5)
         const teacherPrompt = `Eres el Profesor Finanzas, un educador paciente y amable.
 TU PERFIL:
+- IDIOMA: Responde SIEMPRE en ESPAÑOL, salvo que el usuario te hable explícitamente en otro idioma.
 - Asumes que el usuario es PRINCIPIANTE.
 - Explicas todo con analogías sencillas (ELI5 - Explain Like I'm 5).
 - Evitas jerga técnica sin explicarla primero.
 - Tu objetivo es que el usuario APRENDA, no solo que gane dinero.
 - Tono: Calmado, alentador, educativo.
+
+DATOS DEL ALUMNO (PORTAFOLIO):
+{{USER_CONTEXT}}
 
 DATOS:
 {{MARKET_DATA}}
@@ -483,6 +547,7 @@ NOTICIAS RELACIONADAS:
 Pregunta: "{{USER_MESSAGE}}"
 
 INSTRUCCIONES:
+- IDIOMA: Responde SIEMPRE en ESPAÑOL, salvo que el usuario te hable explícitamente en otro idioma.
 - Responde en español, profesional y conciso.
 - Analiza brevemente la curva de precios si hay datos.
 - Da consejos estratégicos sobre diversificación y riesgo.
@@ -496,6 +561,7 @@ INSTRUCCIONES:
         // 2. Gestor de Riesgos (Bearish / Pessimistic)
         const riskManagerPrompt = `Eres el "Director de Riesgos" (Risk Manager). Tu trabajo es encontrar PROBLEMAS.
 ACTITUD:
+- IDIOMA: Responde SIEMPRE en ESPAÑOL, salvo que el usuario te hable explícitamente en otro idioma.
 - Extremadamente conservador y pesimista.
 - Tu foco NO es cuánto puede ganar el usuario, sino CUÁNTO PUEDE PERDER.
 - Busca: Falta de diversificación, concentración en un solo sector, activos volátiles, burbujas.
@@ -521,6 +587,7 @@ Haz tu reporte de riesgos brutalmente honesto.`;
         // 3. Venture Capitalist (Bullish / Aggressive)
         const vcPrompt = `Eres un Venture Capitalist de Silicon Valley.
 ACTITUD:
+- IDIOMA: Responde SIEMPRE en ESPAÑOL, salvo que el usuario te hable explícitamente en otro idioma.
 - Visionario, optimista, enfocado en el CRECIMIENTO EXPONENCIAL (10x).
 - La volatilidad a corto plazo no te importa. Te importa el futuro a 5-10 años.
 - Buscas tecnología, disrupción, innovación.
@@ -633,6 +700,113 @@ Danos tu visión de futuro.`;
     } catch (e: any) {
       console.error('Error seeding AI Providers:', e.message);
     }
+
+    // ============================================================
+    // V2.1.0 MIGRATIONS - Position Analysis & Advanced Alerts
+    // ============================================================
+    console.log('Running v2.1.0 migrations...');
+
+    // 1. Position Analysis Cache (precalculated metrics every 6h)
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS position_analysis_cache (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          position_id UUID REFERENCES positions(id) ON DELETE CASCADE,
+          ticker VARCHAR(20) NOT NULL,
+          
+          -- Technical Indicators
+          rsi DECIMAL,
+          sma_50 DECIMAL,
+          sma_200 DECIMAL,
+          trend VARCHAR(30),
+          
+          -- Risk Metrics
+          volatility DECIMAL,
+          sharpe_ratio DECIMAL,
+          sortino_ratio DECIMAL,
+          max_drawdown DECIMAL,
+          beta DECIMAL,
+          var_95 DECIMAL,
+          risk_score INTEGER,
+          
+          -- Timestamps
+          calculated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          
+          UNIQUE(position_id)
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS idx_analysis_cache_ticker ON position_analysis_cache(ticker)`;
+      console.log('Created table: position_analysis_cache');
+    } catch (e: any) { console.error('Migration error (position_analysis_cache):', e.message); }
+
+    // 2. Portfolio Alerts (portfolio-level alerts: PnL, value, sector exposure)
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS portfolio_alerts (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          portfolio_id UUID REFERENCES portfolios(id) ON DELETE CASCADE,
+          alert_type VARCHAR(30) NOT NULL,
+          threshold_value DECIMAL,
+          threshold_percent DECIMAL,
+          sector_target VARCHAR(50),
+          is_active BOOLEAN DEFAULT true,
+          triggered BOOLEAN DEFAULT false,
+          is_repeatable BOOLEAN DEFAULT false,
+          repeat_cooldown_hours INTEGER DEFAULT 24,
+          last_triggered_at TIMESTAMP WITH TIME ZONE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS idx_portfolio_alerts_user ON portfolio_alerts(user_id)`;
+      console.log('Created table: portfolio_alerts');
+    } catch (e: any) { console.error('Migration error (portfolio_alerts):', e.message); }
+
+    // 3. Technical Alerts columns
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS rsi_threshold INTEGER`;
+      console.log('Applied migration: alerts.rsi_threshold');
+    } catch (e: any) { console.error('Migration error (alerts.rsi_threshold):', e.message); }
+
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS rsi_condition VARCHAR(20)`;
+      console.log('Applied migration: alerts.rsi_condition');
+    } catch (e: any) { console.error('Migration error (alerts.rsi_condition):', e.message); }
+
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS sma_type VARCHAR(20)`;
+      console.log('Applied migration: alerts.sma_type');
+    } catch (e: any) { console.error('Migration error (alerts.sma_type):', e.message); }
+
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS last_indicator_value DECIMAL`;
+      console.log('Applied migration: alerts.last_indicator_value');
+    } catch (e: any) { console.error('Migration error (alerts.last_indicator_value):', e.message); }
+
+    // 4. News Alerts columns
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS news_keywords TEXT[]`;
+      console.log('Applied migration: alerts.news_keywords');
+    } catch (e: any) { console.error('Migration error (alerts.news_keywords):', e.message); }
+
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS news_urgency_min VARCHAR(10) DEFAULT 'low'`;
+      console.log('Applied migration: alerts.news_urgency_min');
+    } catch (e: any) { console.error('Migration error (alerts.news_urgency_min):', e.message); }
+
+    // 5. User news language preference
+    try {
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS news_language VARCHAR(5) DEFAULT 'es'`;
+      console.log('Applied migration: users.news_language');
+    } catch (e: any) { console.error('Migration error (users.news_language):', e.message); }
+
+    // 6. Deactivation token for alerts (if not exists)
+    try {
+      await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS deactivation_token UUID DEFAULT gen_random_uuid()`;
+      console.log('Applied migration: alerts.deactivation_token');
+    } catch (e: any) { console.error('Migration error (alerts.deactivation_token):', e.message); }
+
+    console.log('V2.1.0 migrations completed.');
 
   } catch (error) {
     console.error('Error initializing database:', error);

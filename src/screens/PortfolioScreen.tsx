@@ -7,6 +7,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableRow, DragHandleCell } from '../components/SortableRow';
 import { StockNoteModal } from '../components/StockNoteModal';
+import { PositionAnalysisModal } from '../components/PositionAnalysisModal';
 
 type SortKey = 'name' | 'quantity' | 'average_buy_price' | 'currentPrice' | 'currentValue' | 'returnPct';
 type SortDirection = 'asc' | 'desc';
@@ -100,6 +101,9 @@ export const PortfolioScreen: React.FC = () => {
 
   // Estado para modal de notas
   const [notePosition, setNotePosition] = useState<Position | null>(null);
+
+  // Estado para modal de análisis de posición
+  const [analysisPosition, setAnalysisPosition] = useState<Position | null>(null);
 
   // Estados para ordenación y Drag & Drop
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -699,7 +703,7 @@ export const PortfolioScreen: React.FC = () => {
                                 <div className={`flex flex-col items-end justify-center px-3 py-1.5 rounded-lg border w-fit ml-auto transition-all ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
                                   <span className="font-bold">{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
                                   <span className="text-xs opacity-90 font-medium">
-                                    {((pos.currentValue || 0) - (pos.quantity * pos.average_buy_price)).toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
+                                    {((pos.currentValue || 0) - ((pos.quantity * pos.average_buy_price) + (Number(pos.commission) || 0))).toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
                                   </span>
                                 </div>
                               </td>
@@ -710,6 +714,9 @@ export const PortfolioScreen: React.FC = () => {
                                   </button>
                                   <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Crear Alerta de Precio">
                                     <span className="material-symbols-outlined text-lg">notifications_active</span>
+                                  </button>
+                                  <button onClick={() => setAnalysisPosition(pos)} className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-600 transition-all" title="Análisis Detallado">
+                                    <span className="material-symbols-outlined text-lg">analytics</span>
                                   </button>
                                   <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
                                     <span className="material-symbols-outlined text-lg">edit</span>
@@ -1028,6 +1035,17 @@ export const PortfolioScreen: React.FC = () => {
           positionId={notePosition.id}
           ticker={notePosition.ticker}
           onClose={() => setNotePosition(null)}
+        />
+      )}
+
+      {/* Modal de Análisis de Posición */}
+      {analysisPosition && (
+        <PositionAnalysisModal
+          isOpen={!!analysisPosition}
+          onClose={() => setAnalysisPosition(null)}
+          positionId={analysisPosition.id}
+          ticker={analysisPosition.ticker}
+          companyName={analysisPosition.name}
         />
       )}
     </main >

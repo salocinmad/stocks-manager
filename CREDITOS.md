@@ -45,6 +45,9 @@ Estas tecnologías procesan datos, manejan la seguridad y conectan con servicios
 | **@google/generative-ai** | SDK de Google Gemini AI. | Apache 2.0 | [Google](https://ai.google.dev) |
 | **Axios** | Cliente HTTP para peticiones. | MIT | [Matt Zabriskie](https://axios-http.com) |
 | **dotenv** | Carga de variables de entorno. | BSD-2-Clause | [Scott Motte](https://github.com/motdotla/dotenv) |
+| **archiver** | Creación de archivos ZIP/TAR (Stream). | MIT | [Chris Talkington](https://github.com/archiverjs/node-archiver) |
+| **archiver-zip-encrypted** | Encriptación de archivos ZIP. | MIT | [Chris Talkington](https://github.com/archiverjs/node-archiver-zip-encrypted) |
+| **unzipper** | Extracción fiable de archivos ZIP. | MIT | [Evan Oxfeld](https://github.com/ZJONSSON/node-unzipper) |
 
 ---
 
@@ -77,4 +80,4 @@ Sin su trabajo desinteresado, el desarrollo de software sería mucho más difíc
 
 ---
 
-*Documento generado para Stocks Manager v2.0*
+*Documento generado para Stocks Manager v2.1.0*

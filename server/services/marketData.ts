@@ -1,10 +1,9 @@
 import sql from '../db';
 import { NewsService } from './newsService';
+import YahooFinance from 'yahoo-finance2';
+const yahooFinance = new YahooFinance();
+import { DiscoveryItem } from './discoveryService';
 
-
-// ============================================================
-// CACHE SYSTEM WITH TTL
-// ============================================================
 // ============================================================
 // CACHE SYSTEM WITH TTL (DB PERSISTED)
 // ============================================================
@@ -13,6 +12,8 @@ import { NewsService } from './newsService';
 const TTL = {
     QUOTE: 60 * 1000,             // 60 seconds - Real-time-ish quotes
     EXCHANGE_RATE: 5 * 60 * 1000, // 5 minutes - Rates change slowly
+    ANALYST: 12 * 60 * 60 * 1000, // 12 hours - Analyst recommendations (v2.1.0)
+    FUNDAMENTALS: 14 * 24 * 60 * 60 * 1000, // 14 days - Fundamental data (v2.2.0)
     PROFILE: 24 * 60 * 60 * 1000, // 24 hours - Sector/Industry rarely changes
     HISTORY: 24 * 60 * 60 * 1000  // 24 hours - Historical data is static
 };
@@ -26,8 +27,6 @@ async function getFromCache<T>(key: string): Promise<T | null> {
         if (result.length > 0) {
             return result[0].data as T;
         }
-        // If exists but expired, it's cleaned up by the cron job, 
-        // or we could delete it here on read-miss, but let's keep it simple.
         return null;
     } catch (e) {
         console.error('Cache Read Error:', e);
@@ -59,7 +58,6 @@ setInterval(async () => {
 }, 10 * 60 * 1000);
 
 // ============================================================
-
 export interface SymbolSearchResult {
     symbol: string;
     name: string;
@@ -69,6 +67,17 @@ export interface SymbolSearchResult {
 
 export interface QuoteResult {
     c: number;           // Current price
+    breakdown?: {
+        buy: number;
+        sell: number;
+        hold: number;
+        strongBuy: number;
+        strongSell: number;
+    };
+    insiderSentiment?: {
+        mspr: number;
+        label: string;
+    };
     pc: number;          // Previous close
     d: number;           // Change
     dp: number;          // Change percent
@@ -94,9 +103,302 @@ export interface QuoteResult {
     yearHigh?: number;   // 52 Week High
 }
 
-export const MarketDataService = {
-    // provider: removed
+export interface FundamentalData {
+    marketCap: number;          // Capitalización
+    enterpriseValue: number;    // Valor Empresa (EV)
+    trailingPE: number;         // PER Real
+    forwardPE: number;          // PER Estimado
+    pegRatio: number;           // PEG
+    priceToSales: number;       // Precio/Ventas
+    priceToBook: number;        // Precio/Libro
 
+    // Rentabilidad
+    profitMargins: number;      // Margen Neto
+    operatingMargins: number;   // Margen Operativo
+    grossMargins: number;       // Margen Bruto [NEW]
+    ebitdaMargins: number;      // Margen EBITDA [NEW]
+    returnOnEquity: number;     // ROE
+    returnOnAssets: number;     // ROA
+
+    // Crecimiento [NEW]
+    revenueGrowth: number;      // Crecimiento Ventas
+    earningsGrowth: number;     // Crecimiento Beneficios
+
+    // Estado Financiero & Cash Flow
+    totalRevenue: number;       // Ingresos Totales
+    ebitda: number;             // EBITDA
+    totalCash: number;          // Caja Total
+    totalDebt: number;          // Deuda Total
+    debtToEquity: number;       // Deuda/Capital
+    currentRatio: number;       // Liquidez Corriente
+    quickRatio: number;         // Liquidez Ácida (Quick) [NEW]
+    freeCashflow: number;       // Free Cash Flow [NEW]
+    operatingCashflow: number;  // Operating Cash Flow [NEW]
+
+    // Por Acción
+    trailingEps: number;        // BPA (EPS) Real
+    forwardEps: number;         // BPA Estimado
+    bookValue: number;          // Valor en Libros
+    revenuePerShare: number;    // Ventas por Acción [NEW]
+    totalCashPerShare: number;  // Caja por Acción [NEW]
+
+    // Dividendos
+    dividendRate: number;       // Dividendo Anual ($)
+    dividendYield: number;      // Rentabilidad (%)
+    payoutRatio: number;        // Payout (%)
+    exDividendDate: string;     // Fecha Ex-Dividend
+
+    // Estructura y Sentimiento [NEW]
+    heldPercentInstitutions: number; // % Institucional
+    heldPercentInsiders: number;     // % Insiders
+    shortRatio: number;              // Short Ratio (Days to Cover)
+}
+
+export interface CompanyEvent {
+    id: string;
+    date: string;               // ISO Date String
+    type: 'EARNINGS_RELEASE' | 'EARNINGS_CALL' | 'DIVIDEND' | 'SPLIT' | 'OTHER';
+    title: string;
+    description: string;
+    isConfirmed: boolean;
+}
+
+export const MarketDataService = {
+
+    // ===========================================
+    // CALENDAR EVENTS (v2.2.0)
+    // ===========================================
+    async getCalendarEvents(ticker: string): Promise<CompanyEvent[]> {
+        const cacheKey = "calendar:" + ticker.toUpperCase();
+        try {
+            // Check cache (reuse Fundamentals TTL of 14 days is too long, maybe 24h?)
+            // Using PROFILE TTL (24h) for now as events don't change hourly
+            const cached = await getFromCache<CompanyEvent[]>(cacheKey);
+            if (cached !== null) return cached;
+
+            const summary = await yahooFinance.quoteSummary(ticker, {
+                modules: ['calendarEvents', 'earnings']
+            });
+
+            if (!summary) return [];
+
+            const events: CompanyEvent[] = [];
+            const ce = summary.calendarEvents;
+            const earn = summary.earnings;
+
+            if (ce) {
+                // 1. Next Earnings Date (Confirmed)
+                if (ce.earnings && ce.earnings.earningsDate && ce.earnings.earningsDate.length > 0) {
+                    const date = ce.earnings.earningsDate[0];
+                    events.push({
+                        id: `earn-${date.getTime()}`,
+                        date: date.toISOString(),
+                        type: 'EARNINGS_RELEASE',
+                        title: 'Resultados (Próximos)',
+                        description: `Publicación oficial de resultados. Estimación: ${ce.earnings.earningsAverage || 'N/A'}`,
+                        isConfirmed: true
+                    });
+
+                    // 2. Earnings Call (Presentation)
+                    if (ce.earnings.earningsCallDate && ce.earnings.earningsCallDate.length > 0) {
+                        const callDate = ce.earnings.earningsCallDate[0];
+                        // Only add if significantly different from release date (e.g. > 1 hour diff)
+                        if (Math.abs(callDate.getTime() - date.getTime()) > 3600000) {
+                            events.push({
+                                id: `call-${callDate.getTime()}`,
+                                date: callDate.toISOString(),
+                                type: 'EARNINGS_CALL',
+                                title: 'Conferencia Inversores',
+                                description: 'Presentación de resultados ante analistas e inversores.',
+                                isConfirmed: true
+                            });
+                        }
+                    }
+                }
+
+                // 3. Next Dividend (Confirmed)
+                if (ce.exDividendDate) {
+                    events.push({
+                        id: `div-ex-${ce.exDividendDate.getTime()}`,
+                        date: ce.exDividendDate.toISOString(),
+                        type: 'DIVIDEND',
+                        title: 'Ex-Dividendo',
+                        description: `Fecha límite para tener acciones y cobrar.`,
+                        isConfirmed: true
+                    });
+                }
+                if (ce.dividendDate) {
+                    events.push({
+                        id: `div-pay-${ce.dividendDate.getTime()}`,
+                        date: ce.dividendDate.toISOString(),
+                        type: 'DIVIDEND',
+                        title: 'Pago Dividendo',
+                        description: `Fecha de pago efectivo del dividendo.`,
+                        isConfirmed: true
+                    });
+                }
+            }
+
+            // 4. Future Earnings Projections (Estimations)
+            if (earn && earn.earningsChart && earn.earningsChart.quarterly) {
+                // Get the last known date from the quarterly history to start projecting
+                const quarters = earn.earningsChart.quarterly;
+                // Sort by date just in case
+                // quarters.sort((a, b) => a.date - b.date); 
+
+                // Find the latest historical quarter
+                const lastQ = quarters[quarters.length - 1];
+                let lastDate = lastQ && lastQ.date ? new Date(lastQ.date) : new Date();
+
+                // If the "Next Earnings Date" (Confirmed) is already ahead, use that as base
+                const confirmedNext = events.find(e => e.type === 'EARNINGS_RELEASE');
+                if (confirmedNext) {
+                    lastDate = new Date(confirmedNext.date);
+                }
+
+                // Project next 3 quarters (approx 90 days each)
+                for (let i = 1; i <= 3; i++) {
+                    // Add ~91 days
+                    const nextDate = new Date(lastDate);
+                    nextDate.setDate(nextDate.getDate() + (91 * i));
+
+                    events.push({
+                        id: `earn-est-${nextDate.getTime()}`,
+                        date: nextDate.toISOString(),
+                        type: 'EARNINGS_RELEASE',
+                        title: `Resultados (Estimado)`,
+                        description: `Fecha proyectada basada en trimestre fiscal.`,
+                        isConfirmed: false
+                    });
+                }
+            }
+
+            // Sort by Date
+            events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+            // Filter out past events (allow generous 24h buffer just in case)
+            const now = new Date();
+            now.setHours(now.getHours() - 24);
+            const futureEvents = events.filter(e => new Date(e.date) > now);
+
+            await setCache(cacheKey, futureEvents, TTL.PROFILE); // 24h Cache
+            return futureEvents;
+
+        } catch (e) {
+            console.error(`[MarketData] Calendar Error for ${ticker}:`, e);
+            return [];
+        }
+    },
+
+    // Nueva función para el Crawler de Descubrimiento (Yahoo Screener)
+    async getDiscoveryCandidates(scrId: string, count: number = 25): Promise<DiscoveryItem[]> {
+        try {
+            console.log(`[MarketData] Fetching Discovery Candidates for ${scrId}...`);
+            const result = await yahooFinance.screener({ scrIds: scrId, count }, { validateResult: false });
+
+            if (!result || !result.quotes) return [];
+
+            return result.quotes.map((q: any) => ({
+                t: q.symbol,
+                n: q.shortName || q.longName || q.symbol,
+                s: q.sector || 'Unknown',
+                p: q.regularMarketPrice || 0,
+                chg_1d: q.regularMarketChangePercent || 0,
+                chg_1w: q.fiftyTwoWeekChangePercent ? q.fiftyTwoWeekChangePercent / 52 : undefined,
+                vol_rel: q.averageDailyVolume3Month ? (q.regularMarketVolume / q.averageDailyVolume3Month) : 1,
+                tech: {
+                    rsi: 50, // Calculated later
+                    trend: (q.regularMarketChangePercent || 0) > 0 ? 'Bullish' : 'Bearish',
+                    sma50_diff: (q.fiftyDayAverageChangePercent || 0) * 100
+                },
+                fund: {
+                    mcap: q.marketCap ? (q.marketCap / 1e9).toFixed(2) + 'B' : 'N/A',
+                    recs: 'Hold',
+                    target: 0
+                }
+            }));
+
+        } catch (e) {
+            console.error(`[MarketData] Screener Error (${scrId}):`, e);
+            throw e;
+        }
+    },
+
+    // Finnhub Discovery (News-based Ticker Extraction)
+    async getDiscoveryCandidatesFinnhub(category: string, count: number = 25): Promise<DiscoveryItem[]> {
+        const finnhubKey = process.env.FINNHUB_API_KEY;
+        if (!finnhubKey) return [];
+
+        try {
+            console.log(`[MarketData] Finnhub Discovery for ${category}...`);
+
+            // Step 1: Get Candidate Tickers via Yahoo
+            const map: Record<string, string> = {
+                'technology': 'growth_technology_stocks',
+                'business': 'most_actives',
+                'general': 'day_gainers'
+            };
+            const targetScreener = map[category] || 'day_gainers';
+
+            console.log(`[MarketData] Finnhub: Fetching candidates using backup source (${targetScreener})...`);
+
+            // Randomness Strategy: Fetch 3x the candidates, shuffle them, and pick the requested amount.
+            // This ensures variety (Random Top 60) instead of always the same Top 20.
+            const poolSize = 60;
+            const candidatesPool = await this.getDiscoveryCandidates(targetScreener, poolSize);
+
+            // Shuffle
+            const shuffled = candidatesPool.sort(() => 0.5 - Math.random());
+
+            // Respect Finnhub Rate Limit (Limit final selection to 20 for now)
+            const limit = Math.min(count, 20);
+            const selectedCandidates = shuffled.slice(0, limit);
+
+            const tickers = selectedCandidates.map(c => c.t);
+
+            if (tickers.length === 0) return [];
+
+            // Step 2: Fetch Quotes from Finnhub
+            console.log(`[MarketData] Finnhub: Fetching real-time quotes for ${tickers.length} tickers...`);
+            const results: DiscoveryItem[] = [];
+
+            await Promise.all(tickers.map(async (t) => {
+                try {
+                    const qUrl = `https://finnhub.io/api/v1/quote?symbol=${t}&token=${finnhubKey}`;
+                    const qRes = await fetch(qUrl);
+                    if (qRes.ok) {
+                        const qData = await qRes.json();
+                        if (qData.c) {
+                            results.push({
+                                t: t,
+                                n: t,
+                                s: 'N/A',
+                                p: Number(qData.c),
+                                chg_1d: Number(qData.dp),
+                                chg_1w: 0,
+                                vol_rel: 1,
+                                source: 'Finnhub'
+                            });
+                        }
+                    }
+                } catch (e) { }
+            }));
+
+            // Restore Names
+            return results.map(r => {
+                const yC = candidatesPool.find(c => c.t === r.t);
+                return {
+                    ...r,
+                    n: yC ? yC.n : r.n,
+                    s: yC ? yC.s : r.s
+                };
+            });
+
+        } catch (e) {
+            console.error(`[MarketData] Finnhub Discovery Error (${category}):`, e);
+            return [];
+        }
+    },
 
     // Buscar símbolos usando fetch directo
     async searchSymbols(query: string): Promise<SymbolSearchResult[]> {
@@ -139,18 +441,17 @@ export const MarketDataService = {
         }
     },
 
-    // Obtener tipo de cambio usando fetch directo
     async getExchangeRate(fromCurrency: string, toCurrency: string): Promise<number | null> {
         if (fromCurrency === toCurrency) return 1.0;
 
-        const cacheKey = `rate:${fromCurrency}:${toCurrency}`;
+        const cacheKey = "rate:" + fromCurrency + ":" + toCurrency;
         const cached = await getFromCache<number>(cacheKey);
         if (cached !== null) {
             return cached;
         }
 
         try {
-            const symbol = `${fromCurrency}${toCurrency}=X`;
+            const symbol = fromCurrency + toCurrency + "=X";
             // Reuse getQuote logic since it fetches the same chart data
             const quote = await this.getQuote(symbol);
 
@@ -164,10 +465,9 @@ export const MarketDataService = {
             return null;
         }
     },
-
     // Obtener cotización usando fetch directo a Yahoo API V8 (bypass library)
     async getQuote(ticker: string): Promise<QuoteResult | null> {
-        const cacheKey = `quote:${ticker.toUpperCase()}`;
+        const cacheKey = "quote:" + ticker.toUpperCase();
         const cached = await getFromCache<QuoteResult>(cacheKey);
         if (cached !== null) {
             return cached;
@@ -175,7 +475,7 @@ export const MarketDataService = {
 
         try {
             // Yahoo Finance V8 Chart API is robust for current price stats
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+            const url = "https://query1.finance.yahoo.com/v8/finance/chart/" + ticker + "?interval=1d&range=1d";
             const response = await fetch(url, {
                 headers: {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -184,7 +484,7 @@ export const MarketDataService = {
             });
 
             if (!response.ok) {
-                console.error(`Yahoo API Fetch Error ${response.status} for ${ticker}: ${response.statusText}`);
+                console.error(`Yahoo API Fetch Error ${response.status} for ${ticker}: ${response.statusText} `);
                 return null;
             }
 
@@ -196,20 +496,17 @@ export const MarketDataService = {
                 return null;
             }
 
-            // Determine market state: prefer marketState, fallback to currentTradingPeriod
+            // Determine market state
             let marketState = 'CLOSED';
             if (meta.marketState) {
                 marketState = meta.marketState.toUpperCase();
             } else if (meta.currentTradingPeriod) {
-                // Calculate state from trading period timestamps
                 const now = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
                 const ctp = meta.currentTradingPeriod;
 
-                const preStart = ctp.pre?.start || 0;
-                const preEnd = ctp.pre?.end || 0;
                 const regStart = ctp.regular?.start || 0;
                 const regEnd = ctp.regular?.end || 0;
-                const postStart = ctp.post?.start || 0;
+                const preStart = ctp.pre?.start || 0;
                 const postEnd = ctp.post?.end || 0;
 
                 if (now >= regStart && now <= regEnd) {
@@ -218,34 +515,7 @@ export const MarketDataService = {
                     marketState = 'PRE';
                 } else if (now > regEnd && now <= postEnd) {
                     marketState = 'POST';
-                } else {
-                    marketState = 'CLOSED';
                 }
-            }
-
-            // NEW: Fetch Fundamental Data (Parallel)
-            let fundamentals: any = {};
-            try {
-                // Modules: financialData, defaultKeyStatistics, calendarEvents, summaryDetail
-                const funUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=financialData,defaultKeyStatistics,calendarEvents,summaryDetail`;
-                const funResp = await fetch(funUrl);
-                if (funResp.ok) {
-                    const funJson = await funResp.json();
-                    const res = funJson.quoteSummary?.result?.[0];
-                    if (res) {
-                        fundamentals = {
-                            marketCap: res.summaryDetail?.marketCap?.fmt,
-                            peRatio: res.summaryDetail?.forwardPE?.fmt || res.summaryDetail?.trailingPE?.fmt,
-                            beta: res.summaryDetail?.beta?.fmt,
-                            earningsDate: res.calendarEvents?.earnings?.earningsDate?.[0]?.fmt,
-                            targetMeanPrice: res.financialData?.targetMeanPrice?.fmt,
-                            recommendationKey: res.financialData?.recommendationKey,
-                            shortRatio: res.defaultKeyStatistics?.shortRatio?.fmt
-                        };
-                    }
-                }
-            } catch (ignored) {
-                console.warn(`[MarketData] Fundamentals fetch warning for ${ticker}:`, ignored);
             }
 
             const result: QuoteResult = {
@@ -254,16 +524,13 @@ export const MarketDataService = {
                 d: (meta.regularMarketPrice || 0) - (meta.chartPreviousClose || 0),
                 dp: 0, // calculate percentage manually
                 currency: meta.currency || 'USD',
-                name: meta.longName || meta.shortName || meta.symbol, // FIXED: Use real name from V8
+                name: meta.longName || meta.shortName || meta.symbol,
                 volume: meta.regularMarketVolume || 0,
                 lastUpdated: Date.now(),
                 state: marketState,
                 exchange: meta.exchangeName || 'UNKNOWN',
                 yearLow: meta.fiftyTwoWeekLow,
-                yearHigh: meta.fiftyTwoWeekHigh,
-
-                // Add Fundamentals
-                ...fundamentals
+                yearHigh: meta.fiftyTwoWeekHigh
             };
 
             // Calculate change percent
@@ -274,7 +541,100 @@ export const MarketDataService = {
             await setCache(cacheKey, result, TTL.QUOTE);
             return result;
         } catch (e) {
-            console.error(`Quote Error for ${ticker}:`, e);
+            console.error(`Quote Error for ${ticker}: `, e);
+            return null;
+        }
+    },
+
+    // ===========================================
+    // FUNDAMENTAL DATA (v2.2.0)
+    // ===========================================
+    async getFundamentals(ticker: string): Promise<FundamentalData | null> {
+        const cacheKey = "fundamentals:" + ticker.toUpperCase();
+        const cached = await getFromCache<FundamentalData>(cacheKey);
+        if (cached !== null) {
+            return cached;
+        }
+
+        try {
+            // Usamos la librería oficial para datos fundamentales complejos
+            const summary = await yahooFinance.quoteSummary(ticker, {
+                modules: ['financialData', 'defaultKeyStatistics', 'summaryDetail', 'calendarEvents', 'price']
+            });
+
+            if (!summary) return null;
+
+            const fd = summary.financialData;
+            const ks = summary.defaultKeyStatistics; // Key Stats (EV, Shares)
+            const sd = summary.summaryDetail;       // Market Cap, Dividend Yield, Trailing PE
+            const ce = summary.calendarEvents;      // Earnings
+            // const price = summary.price;            // Name, Currency (Optional redundancy)
+
+            if (!fd || !sd) return null;
+
+            // Helper para extraer raw values de forma segura
+            const val = (obj: any) => (obj && typeof obj === 'object' && 'raw' in obj) ? (obj.raw || 0) : (obj || 0);
+            const fmt = (obj: any) => (obj && typeof obj === 'object' && 'fmt' in obj) ? obj.fmt : null;
+
+            const data: FundamentalData = {
+                // Valuation
+                marketCap: val(sd.marketCap),
+                enterpriseValue: val(ks?.enterpriseValue),
+                trailingPE: val(sd.trailingPE),
+                forwardPE: val(sd.forwardPE),
+                pegRatio: val(ks?.pegRatio),
+                priceToSales: val(sd.priceToSalesTrailing12Months),
+                priceToBook: val(ks?.priceToBook),
+
+                // Profitability
+                profitMargins: val(fd.profitMargins),
+                operatingMargins: val(fd.operatingMargins),
+                grossMargins: val(fd.grossMargins), // NEW
+                ebitdaMargins: val(fd.ebitdaMargins), // NEW
+                returnOnEquity: val(fd.returnOnEquity),
+                returnOnAssets: val(fd.returnOnAssets),
+
+                // Growth
+                revenueGrowth: val(fd.revenueGrowth), // NEW
+                earningsGrowth: val(fd.earningsGrowth), // NEW
+
+                // Financials & Cash Flow
+                totalRevenue: val(fd.totalRevenue),
+                ebitda: val(fd.ebitda),
+                totalCash: val(fd.totalCash),
+                totalDebt: val(fd.totalDebt),
+                debtToEquity: val(fd.debtToEquity),
+                currentRatio: val(fd.currentRatio),
+                quickRatio: val(fd.quickRatio), // NEW
+                freeCashflow: val(fd.freeCashflow), // NEW
+                operatingCashflow: val(fd.operatingCashflow), // NEW
+
+                // Per Share
+                trailingEps: val(ks?.trailingEps), // Sometimes in defaultKeyStatistics
+                forwardEps: val(ks?.forwardEps),
+                bookValue: val(ks?.bookValue),
+                revenuePerShare: val(fd.revenuePerShare), // NEW
+                totalCashPerShare: val(fd.totalCashPerShare), // NEW
+
+                // Dividends
+                dividendRate: val(sd.dividendRate),
+                dividendYield: val(sd.dividendYield),
+                payoutRatio: val(sd.payoutRatio),
+                exDividendDate: fmt(sd.exDividendDate) || 'N/A',
+
+                // Structure & Sentiment
+                heldPercentInstitutions: val(ks?.heldPercentInstitutions), // NEW
+                heldPercentInsiders: val(ks?.heldPercentInsiders), // NEW
+                shortRatio: val(ks?.shortRatio) // NEW
+            };
+
+            await setCache(cacheKey, data, TTL.FUNDAMENTALS);
+            return data;
+
+        } catch (e) {
+            console.error(`[MarketData] Fundamentals Error for ${ticker}: `, e);
+            // No devolvemos null para no romper todo el analisis, tal vez un objeto vacio o partial?
+            // Mejor null y que el frontend maneje "N/A"
             return null;
         }
     },
@@ -340,7 +700,7 @@ export const MarketDataService = {
                 website: result?.summaryProfile?.website || null,
                 longBusinessSummary: result?.summaryProfile?.longBusinessSummary || null,
                 fullTimeEmployees: result?.summaryProfile?.fullTimeEmployees || null,
-                name: result?.price?.longName || result?.price?.shortName || ticker, // Added name
+                name: result?.price?.longName || result?.price?.shortName || ticker,
                 logo: null
             };
 
@@ -350,7 +710,6 @@ export const MarketDataService = {
             console.error(`Asset Profile Error for ${ticker}:`, e);
 
             // EMERGENCY FALLBACK: Manual mapping for common stocks (IBEX/Continuous/US)
-            // This ensures "Desconocido" is avoided for popular assets when API fails
             const manualMap: Record<string, string> = {
                 // IBEX 35 / Spanish
                 'DIA.MC': 'Consumer Defensive', 'OHLA.MC': 'Industrials', 'AMP.MC': 'Industrials',
@@ -402,8 +761,8 @@ export const MarketDataService = {
 
             return {
                 ...quote,
-                sector: profile.sector,
-                industry: profile.industry
+                sector: profile?.sector || 'Desconocido',
+                industry: profile?.industry || 'Desconocido'
             };
         } catch (e) {
             console.error(`QuoteWithProfile Error for ${ticker}:`, e);
@@ -551,81 +910,69 @@ export const MarketDataService = {
     },
 
 
-    // Estado de mercados usando Finnhub API (más preciso para festivos y horarios)
+    // Estado de mercados usando Yahoo Finance V10 (quoteSummary)
+    // Reemplaza a Finnhub para mayor fiabilidad y uso de la API V10 solicitada
     async getMarketStatus(indices: string[]) {
-        const finnhubKey = process.env.FINNHUB_API_KEY;
+        try {
+            console.log(`[MarketStatus] Fetching status for ${indices.length} indices via Yahoo V10...`);
 
-        // Mapeo de símbolos Yahoo a códigos de exchange de Finnhub
-        const exchangeMap: Record<string, { exchange: string, name: string }> = {
-            '^IBEX': { exchange: 'MC', name: 'Ibex 35' },      // Madrid
-            '^IXIC': { exchange: 'US', name: 'Nasdaq' },       // US (Nasdaq)
-            '^NYA': { exchange: 'US', name: 'NYSE' },          // US (NYSE)
-            '^GDAXI': { exchange: 'DE', name: 'DAX' },         // Frankfurt
-            '^FTSE': { exchange: 'L', name: 'FTSE 100' }       // London
-        };
+            // Yahoo V10 (quoteSummary) no soporta batching nativo como V7 (quote),
+            // así que iteramos con Promise.all.
+            const results = await Promise.all(indices.map(async (symbol) => {
+                try {
+                    // quoteSummary es la API V10
+                    const summary = await yahooFinance.quoteSummary(symbol, { modules: ['price'] });
+                    const price = summary.price;
 
-        // Si no hay API key de Finnhub, fallback a CLOSED
-        if (!finnhubKey) {
-            console.warn('[MarketStatus] No Finnhub API key, defaulting to CLOSED');
+                    if (!price) {
+                        return {
+                            symbol,
+                            name: symbol,
+                            state: 'UNKNOWN',
+                            exchangeName: 'UNKNOWN'
+                        };
+                    }
+
+                    // Mapeo de estados de Yahoo a nuestro formato
+                    // Yahoo marketState: 'PRE', 'REGULAR', 'POST', 'CLOSED', 'PREPRE', 'POSTPOST', etc.
+                    // Frontend espera el estado CRUDO para pintar los colores correctamente
+                    const state = price.marketState || 'CLOSED';
+
+                    // Nombres amigables para exchanges comunes
+                    let exchangeName = price.exchangeName || 'UNKNOWN';
+                    if (symbol === '^IBEX') exchangeName = 'BME';
+                    if (symbol === '^GDAXI') exchangeName = 'XETRA';
+                    if (symbol === '^FTSE') exchangeName = 'LSE';
+                    if (symbol === '^DJI') exchangeName = 'NYSE';
+                    if (symbol === '^IXIC') exchangeName = 'NASDAQ';
+
+                    return {
+                        symbol,
+                        name: price.shortName || price.longName || symbol,
+                        state: state, // 'REGULAR', 'CLOSED', 'PRE', 'POST'
+                        exchangeName: exchangeName,
+                        // Info extra útil
+                        marketState: price.marketState
+                    };
+
+                } catch (err) {
+                    console.error(`[MarketStatus] Error fetching ${symbol}:`, err);
+                    return { symbol, name: symbol, state: 'CLOSED', exchangeName: 'Unknown' };
+                }
+            }));
+
+            return results;
+
+        } catch (e) {
+            console.error('[MarketStatus] Global error:', e);
+            // Fallback seguro
             return indices.map(symbol => ({
                 symbol,
-                name: exchangeMap[symbol]?.name || symbol,
+                name: symbol,
                 state: 'CLOSED',
-                exchangeName: exchangeMap[symbol]?.exchange || 'UNKNOWN'
+                exchangeName: 'UNKNOWN'
             }));
         }
-
-        // Obtener estados únicos por exchange (evitar llamadas duplicadas)
-        const uniqueExchanges = [...new Set(indices.map(s => exchangeMap[s]?.exchange).filter(Boolean))];
-        const statusCache: Record<string, { isOpen: boolean, session: string | null, holiday: string | null }> = {};
-
-        await Promise.all(uniqueExchanges.map(async (exchange) => {
-            try {
-                const url = `https://finnhub.io/api/v1/stock/market-status?exchange=${exchange}&token=${finnhubKey}`;
-                const response = await fetch(url);
-                if (response.ok) {
-                    const data = await response.json();
-                    statusCache[exchange] = {
-                        isOpen: data.isOpen === true,
-                        session: data.session || null, // 'pre-market', 'regular', 'post-market' o null
-                        holiday: data.holiday || null
-                    };
-                }
-            } catch (e) {
-                console.error(`[MarketStatus] Error fetching ${exchange}:`, e);
-            }
-        }));
-
-        // Construir resultado para cada índice
-        return indices.map(symbol => {
-            const mapping = exchangeMap[symbol];
-            if (!mapping) {
-                return { symbol, name: symbol, state: 'UNKNOWN', exchangeName: 'UNKNOWN' };
-            }
-
-            const status = statusCache[mapping.exchange];
-            let state = 'CLOSED';
-
-            if (status) {
-                if (status.holiday) {
-                    state = 'CLOSED'; // Es festivo
-                } else if (status.isOpen) {
-                    // Mapear session de Finnhub a nuestro formato
-                    if (status.session === 'pre-market') state = 'PRE';
-                    else if (status.session === 'post-market') state = 'POST';
-                    else state = 'REGULAR';
-                } else {
-                    state = 'CLOSED';
-                }
-            }
-
-            return {
-                symbol,
-                name: mapping.name,
-                state,
-                exchangeName: mapping.exchange
-            };
-        });
     },
 
     // Historial de precios usando fetch directo
