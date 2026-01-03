@@ -293,10 +293,13 @@ export const MarketDataService = {
     // Nueva función para el Crawler de Descubrimiento (Yahoo Screener)
     async getDiscoveryCandidates(scrId: string, count: number = 25): Promise<DiscoveryItem[]> {
         try {
-            console.log(`[MarketData] Fetching Discovery Candidates for ${scrId}...`);
-            const result = await yahooFinance.screener({ scrIds: scrId as any, count: count }, { validateResult: false });
+            console.log(`[MarketData] Obteniendo Candidatos de Descubrimiento para ${scrId}...`);
+            const result = await yahooFinance.screener({ scrIds: scrId as any, count: count }, undefined, { validateResult: false }) as any;
 
             if (!result || !result.quotes) return [];
+
+            // DEBUG: Print keys of first item to find sector field
+            if (result.quotes.length > 0) { console.log('KEYS:', Object.keys(result.quotes[0])); }
 
             return result.quotes.map((q: any) => ({
                 t: q.symbol,
@@ -318,11 +321,42 @@ export const MarketDataService = {
                 }
             }));
 
-        } catch (e) {
-            console.error(`[MarketData] Screener Error (${scrId}):`, e);
-            throw e;
+        } catch (e: any) {
+            console.error(`[MarketData] Crawler Error for ${scrId}:`, e.message);
+            return [];
         }
     },
+
+    /**
+     * Enrich items with missing sector data using quoteSummary
+     */
+    async enrichSectors(items: DiscoveryItem[]): Promise<DiscoveryItem[]> {
+        const unknownItems = items.filter(i => i.s === 'Unknown' || !i.s);
+        if (unknownItems.length === 0) return items;
+
+        console.log(`[MarketData] Buscando sector para ${unknownItems.length} items desconocidos...`);
+
+        // Process in chunks of 10 to avoid rate limits
+        const chunk = 10;
+        for (let i = 0; i < unknownItems.length; i += chunk) {
+            const batch = unknownItems.slice(i, i + chunk);
+            await Promise.all(batch.map(async (item) => {
+                try {
+                    const summary = await yahooFinance.quoteSummary(item.t, { modules: ['assetProfile'] });
+                    if (summary.assetProfile && summary.assetProfile.sector) {
+                        item.s = summary.assetProfile.sector;
+                    }
+                } catch (e) {
+                    // Ignore errors, keep as Unknown
+                }
+            }));
+            // Small delay between chunks
+            if (i + chunk < unknownItems.length) await new Promise(r => setTimeout(r, 1000));
+        }
+
+        return items;
+    },
+
 
     // Finnhub Discovery (News-based Ticker Extraction)
     async getDiscoveryCandidatesFinnhub(category: string, count: number = 25): Promise<DiscoveryItem[]> {

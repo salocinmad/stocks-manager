@@ -6,7 +6,7 @@ export const CalendarJob = {
      * Run the synchronization cycle for all users
      */
     async run() {
-        console.log(`[CalendarJob] Starting 6h sync cycle... ${new Date().toISOString()}`);
+        console.log(`[CalendarJob] Iniciando ciclo de sincronización de 6h... ${new Date().toISOString()}`);
 
         // Check if Discovery Crawler ran recently (within 5 minutes)
         // If so, wait until 5 minutes have passed to avoid API congestion.
@@ -23,16 +23,16 @@ export const CalendarJob = {
                 const diffMinutes = diffMs / (1000 * 60);
 
                 if (diffMinutes >= 5) {
-                    console.log(`[CalendarJob] Crawler safe time passed (${diffMinutes.toFixed(1)} mins). Proceeding.`);
+                    console.log(`[CalendarJob] Tiempo de seguridad del Crawler pasado (${diffMinutes.toFixed(1)} mins). Procediendo.`);
                     break;
                 }
 
-                console.log(`[CalendarJob] Discovery Crawler just ran (${diffMinutes.toFixed(1)} mins ago). Waiting 2 minutes...`);
+                console.log(`[CalendarJob] El Crawler de Descubrimiento acaba de ejecutarse (hace ${diffMinutes.toFixed(1)} mins). Esperando 2 minutos...`);
                 await new Promise(resolve => setTimeout(resolve, 2 * 60 * 1000)); // Sleep 2 mins
                 // Loop check again
 
             } catch (e: any) {
-                console.error('[CalendarJob] Error checking lock:', e.message);
+                console.error('[CalendarJob] Error verificando bloqueo:', e.message);
                 break; // Proceed on error
             }
         }
@@ -41,7 +41,7 @@ export const CalendarJob = {
             // Get all users
             const users = await sql`SELECT id FROM users`;
 
-            console.log(`[CalendarJob] Syncing financial events for ${users.length} users...`);
+            console.log(`[CalendarJob] Sincronizando eventos financieros para ${users.length} usuarios...`);
 
             let totalSynced = 0;
             for (const user of users) {
@@ -49,10 +49,10 @@ export const CalendarJob = {
                 totalSynced += count;
             }
 
-            console.log(`[CalendarJob] Cycle completed. Synced ${totalSynced} events across ${users.length} users.`);
+            console.log(`[CalendarJob] Ciclo completado. Sincronizados ${totalSynced} eventos para ${users.length} usuarios.`);
 
         } catch (e: any) {
-            console.error('[CalendarJob] Error during sync cycle:', e.message);
+            console.error('[CalendarJob] Error durante el ciclo de sincronización:', e.message);
         }
     }
 };

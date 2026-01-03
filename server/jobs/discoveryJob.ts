@@ -33,7 +33,7 @@ export const DiscoveryJob = {
             // 1. Check Global Switch (HARD STOP)
             const enabled = await SettingsService.get('CRAWLER_ENABLED');
             if (enabled !== 'true') {
-                console.log('[DiscoveryCrawler] Master Switch OFF. Operation skipped.');
+                console.log('[DiscoveryCrawler] Interruptor Maestro APAGADO. Operación omitida.');
                 return;
             }
 
@@ -46,7 +46,7 @@ export const DiscoveryJob = {
 
             // Start Cycle
             this.lastRunTime = now;
-            console.log(`[DiscoveryCrawler] Starting Cycle (Config: ${cyclesPerHour}/hr)...`);
+            console.log(`[DiscoveryCrawler] Iniciando Ciclo (Config: ${cyclesPerHour}/hr)...`);
 
             // Load Volumes
             // volFinnhub -> US Pipeline Volume
@@ -74,10 +74,13 @@ export const DiscoveryJob = {
             ];
 
             const screenerId = VALID_SCREENERS[Math.floor(Math.random() * VALID_SCREENERS.length)];
-            console.log(`[DiscoveryCrawler] Fetching candidates via '${screenerId}'...`);
+            console.log(`[DiscoveryCrawler] Obteniendo candidatos via '${screenerId}'...`);
 
             // Fetch a larger pool to ensure we get diversity across sectors
-            const pool = await MarketDataService.getDiscoveryCandidates(screenerId, 100);
+            let pool = await MarketDataService.getDiscoveryCandidates(screenerId, 100);
+
+            // Enrich "Unknown" sectors (critical fix for Yahoo Screener missing data)
+            pool = await MarketDataService.enrichSectors(pool);
 
             // Group by Sector to maintain the "Specific Targeted Discovery" illusion/utility
             const bySector: Record<string, any[]> = {};
@@ -87,7 +90,7 @@ export const DiscoveryJob = {
                 bySector[s].push(item);
             }
 
-            console.log(`[DiscoveryDebug] Grouped ${pool.length} candidates into ${Object.keys(bySector).length} sectors.`);
+            console.log(`[DiscoveryDebug] ${pool.length} candidatos agrupados en ${Object.keys(bySector).length} sectores.`);
 
             // Process each sector group
             for (const sector of Object.keys(bySector)) {
@@ -95,12 +98,14 @@ export const DiscoveryJob = {
                 const cleanSectorName = sector.toLowerCase().replace(/ /g, '_');
 
                 // Debug Log per Sector
-                // console.log(`[DiscoveryDebug] Processing Sector: ${sector} (${sectorItems.length} items)`);
+                // console.log(`[DiscoveryDebug] Procesando Sector: ${sector} (${sectorItems.length} items)`);
 
                 // === PIPELINE 1: US DEEP (From this sector group) ===
+                // Announce Pipeline Start for this sector
                 try {
                     const usItems = sectorItems.filter((i: any) => !i.t.includes('.'));
-                    // console.log(`[DiscoveryDebug] Sector ${sector}: Found ${usItems.length} US candidates.`);
+                    // Debug Log always
+                    console.log(`[DiscoveryDebug] Evaluando Pipeline USA (Finnhub) para Sector: ${sector} (${usItems.length} candidatos)...`);
 
                     if (usItems.length > 0) {
                         const freshSet = await MarketDataService.checkFreshness(usItems.map((c: any) => c.t));
@@ -120,11 +125,14 @@ export const DiscoveryJob = {
                             await DiscoveryService.saveDiscoveryData(`us_${cleanSectorName}`, selected);
                             const time = new Date().toISOString();
                             const tickers = selected.map((s: any) => s.t).join(', ');
-                            console.log(`[${time}] CRAWLER [Finnhub] (Pipeline USA) Sector: ${sector} | Total: ${usItems.length} | Fresh: ${freshSet.size} | Added: ${selected.length} | Items: [${tickers}]`);
+                            console.log(`[${time}] CRAWLER [Finnhub] (Pipeline USA) Sector: ${sector} | Total: ${usItems.length} | Frescos: ${freshSet.size} | Añadidos: ${selected.length} | Items: [${tickers}]`);
                         }
+                    } else {
+                        // Optional: Log empty state
+                        // console.log(`[DiscoveryDebug] No US candidates in sector ${sector}.`);
                     }
                 } catch (e: any) {
-                    const msg = `[Crawler US] Error processing sector ${sector}: ${e.message}\n`;
+                    const msg = `[Crawler US] Error procesando sector ${sector}: ${e.message}\n`;
                     console.error(msg);
                     await Bun.write('crawler_debug.log', msg);
                 }
@@ -134,7 +142,9 @@ export const DiscoveryJob = {
                     const globalItems = sectorItems.filter((item: any) => {
                         return GLOBAL_MARKETS.some(suffix => item.t.endsWith(suffix));
                     });
-                    // console.log(`[DiscoveryDebug] Sector ${sector}: Found ${globalItems.length} Global candidates.`);
+
+                    // Debug Log always
+                    console.log(`[DiscoveryDebug] Evaluando Pipeline Global (Yahoo) para Sector: ${sector} (${globalItems.length} candidatos)...`);
 
                     if (globalItems.length > 0) {
                         // V8 Branch (Fast) - Save all or subset? Save subset.
@@ -143,7 +153,7 @@ export const DiscoveryJob = {
                             await DiscoveryService.saveDiscoveryData(`global_fast_${cleanSectorName}`, fastItems);
                             const time = new Date().toISOString();
                             const tickers = fastItems.map((s: any) => s.t).join(', ');
-                            console.log(`[${time}] CRAWLER [Yahoo V8] (Global Fast) Sector: ${sector} | Total: ${globalItems.length} | Added: ${fastItems.length} | Items: [${tickers}]`);
+                            console.log(`[${time}] CRAWLER [Yahoo V8] (Global Rapido) Sector: ${sector} | Total: ${globalItems.length} | Añadidos: ${fastItems.length} | Items: [${tickers}]`);
                         }
 
                         // V10 Branch (Deep)
@@ -162,18 +172,21 @@ export const DiscoveryJob = {
                             await DiscoveryService.saveDiscoveryData(`global_deep_${cleanSectorName}`, deepItems);
                             const time = new Date().toISOString();
                             const tickers = deepItems.map((s: any) => s.t).join(', ');
-                            console.log(`[${time}] CRAWLER [Yahoo V10] (Global Deep) Sector: ${sector} | Total: ${globalItems.length} | Fresh: ${freshSet.size} | Added: ${deepItems.length} | Items: [${tickers}]`);
+                            console.log(`[${time}] CRAWLER [Yahoo V10] (Global Profundo) Sector: ${sector} | Total: ${globalItems.length} | Frescos: ${freshSet.size} | Añadidos: ${deepItems.length} | Items: [${tickers}]`);
                         }
+                    } else {
+                        // Optional: Log empty state
+                        // console.log(`[DiscoveryDebug] No Global candidates in sector ${sector}.`);
                     }
 
                 } catch (e: any) {
-                    const msg = `[Crawler Global] Error processing sector ${sector}: ${e.message}\n`;
+                    const msg = `[Crawler Global] Error procesando sector ${sector}: ${e.message}\n`;
                     console.error(msg);
                     await Bun.write('crawler_debug.log', msg);
                 }
             }
 
-            console.log(`[DiscoveryCrawler] Cycle completed at ${new Date().toISOString()}`);
+            console.log(`[DiscoveryCrawler] Ciclo completado a las ${new Date().toISOString()}`);
 
         } catch (error) {
             console.error('[DiscoveryCrawler] Cycle failed:', error);

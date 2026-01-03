@@ -9,9 +9,9 @@ async function runManual() {
     await initDatabase();
 
     try {
-        console.log('Running scanHybridPair()...');
+        console.log('Ejecutando scanHybridPair()...');
         await DiscoveryJob.scanHybridPair();
-        console.log('Done.');
+        console.log('Hecho.');
     } catch (e) {
         console.error('Error:', e);
     }
