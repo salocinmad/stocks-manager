@@ -294,7 +294,7 @@ export const MarketDataService = {
     async getDiscoveryCandidates(scrId: string, count: number = 25): Promise<DiscoveryItem[]> {
         try {
             console.log(`[MarketData] Fetching Discovery Candidates for ${scrId}...`);
-            const result = await yahooFinance.screener({ scrIds: scrId, count }, { validateResult: false });
+            const result = await yahooFinance.screener({ scrIds: scrId as any, count: count }, { validateResult: false });
 
             if (!result || !result.quotes) return [];
 
@@ -1406,6 +1406,38 @@ export const MarketDataService = {
                 console.error(`[MarketData] CRITICAL: Fallback DB query failed for ${symbol}`, dbErr);
                 return [];
             }
+        }
+    },
+
+    // Check if fundamental data for these tickers is fresh (< 7 days)
+    async checkFreshness(tickers: string[]): Promise<Set<string>> {
+        if (tickers.length === 0) return new Set();
+        try {
+            // Keys are "fundamentals:TICKER"
+            const keys = tickers.map(t => `fundamentals:${t.toUpperCase()}`);
+
+            // We check updated_at or created_at. market_cache has 'created_at'.
+            // TTL for fundamentals is 14 days, we want to skip if < 7 days old.
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+            const result = await sql`
+                SELECT key FROM market_cache 
+                WHERE key IN ${sql(keys)} 
+                AND created_at > ${sevenDaysAgo}
+            `;
+
+            // Return set of tickers that ARE fresh (to be skipped)
+            const freshTickers = new Set<string>();
+            result.forEach(row => {
+                const ticker = row.key.split(':')[1];
+                if (ticker) freshTickers.add(ticker);
+            });
+            return freshTickers;
+
+        } catch (e) {
+            console.error('[MarketData] Freshness Check Error:', e);
+            return new Set();
         }
     },
 

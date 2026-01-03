@@ -786,8 +786,8 @@ export const AdminScreen: React.FC = () => {
                                                 <div>
                                                     <div className="flex justify-between mb-2">
                                                         <label className="text-xs font-bold uppercase text-text-secondary-light flex items-center gap-1">
-                                                            Yahoo V8 (Técnico)
-                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Cantidad de acciones a escanear buscando Momentum y Day Gainers.">help</span>
+                                                            Global Fast (Resto del Mundo - Rápido) <span className="text-gray-400 font-normal ml-1 text-[10px]">(Motor: Yahoo V8)</span>
+                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Busca en mercados internacionales (ES, DE, UK...) y guarda datos básicos rápidos.">help</span>
                                                         </label>
                                                         <span className="text-xs font-mono">{crawlerVolV8} items</span>
                                                     </div>
@@ -803,8 +803,8 @@ export const AdminScreen: React.FC = () => {
                                                 <div>
                                                     <div className="flex justify-between mb-2">
                                                         <label className="text-xs font-bold uppercase text-text-secondary-light flex items-center gap-1">
-                                                            Yahoo V10 (Calidad)
-                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Cantidad de 'Joyas' a buscar con análisis fundamental profundo (ROE, Deuda).">help</span>
+                                                            Global Deep (Resto del Mundo - Profundo) <span className="text-purple-300 font-normal ml-1 text-[10px]">(Motor: Yahoo V10)</span>
+                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Selecciona empresas internacionales, verifica frescura y descarga análisis fundamental completo.">help</span>
                                                         </label>
                                                         <span className="text-xs font-mono text-purple-400">{crawlerVolV10} items</span>
                                                     </div>
@@ -820,8 +820,8 @@ export const AdminScreen: React.FC = () => {
                                                 <div>
                                                     <div className="flex justify-between mb-2">
                                                         <label className="text-xs font-bold uppercase text-text-secondary-light flex items-center gap-1">
-                                                            Finnhub (Noticias)
-                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Cantidad de acciones trending basadas en noticias recientes.">help</span>
+                                                            Pipeline USA (Filtro America) <span className="text-orange-300 font-normal ml-1 text-[10px]">(Motor: Yahoo V10)</span>
+                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Busca y filtra solo empresas de EE.UU., verificando frescura y descargando datos completos.">help</span>
                                                         </label>
                                                         <span className="text-xs font-mono text-orange-400">{crawlerVolFinnhub} items</span>
                                                     </div>

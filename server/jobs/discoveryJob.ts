@@ -4,162 +4,174 @@ import { SettingsService } from '../services/settingsService';
 import yahooFinance from 'yahoo-finance2';
 
 /**
- * Smart Discovery Crawler 2.0 (Configurable Engine)
+ * Smart Discovery Crawler 3.0 (Split-World Pipeline)
  * 
- * Capabilities:
- * - Dynamic Frequency (Check every 3 mins, run based on cycles/hr)
- * - Hybrid Trio: Run 3 specialized workers in parallel (V8 Tech, Finnhub News, V10 Fundamental)
- * - Granular Volume Control: User defines how many items each worker fetches.
- * - Market Intelligence: Prioritizes "Day Gainers" when market is OPEN.
+ * Architecture:
+ * - Independent Pipelines for US and Global markets to maximize data relevancy.
+ * - Smart Skipping: Checks DB before fetching expensive fundamental data (V10).
+ * - Targeted Markets: US Pipeline (US Only), Global Pipeline (ES, DE, FR, UK, MX, JP, CN, HK).
  */
+
+const SECTOR_SCREENERS = [
+    'ms_technology', 'ms_financial_services', 'ms_healthcare', 'ms_consumer_cyclical',
+    'ms_industrials', 'ms_energy', 'ms_consumer_defensive', 'ms_real_estate',
+    'ms_utilities', 'ms_basic_materials', 'ms_communication_services'
+];
+
+// Target Markets for Global Pipeline (Non-US)
+const GLOBAL_MARKETS = ['.MC', '.DE', '.PA', '.L', '.MX', '.T', '.SS', '.SZ', '.HK'];
+
 export const DiscoveryJob = {
 
     lastRunTime: 0,
 
     async runDiscoveryCycle() {
         const now = Date.now();
-        console.log('[DiscoveryCrawler] Checking schedule...');
+        // console.log('[DiscoveryCrawler] Checking schedule...');
 
         try {
-            // 1. Check Global Switch
+            // 1. Check Global Switch (HARD STOP)
             const enabled = await SettingsService.get('CRAWLER_ENABLED');
             if (enabled !== 'true') {
-                return; // Silent return to avoid log spam
+                console.log('[DiscoveryCrawler] Master Switch OFF. Operation skipped.');
+                return;
             }
 
             // 2. Check Frequency Window
             const cyclesPerHour = parseInt(await SettingsService.get('CRAWLER_CYCLES_PER_HOUR') || '6');
-            const cooldownMinutes = 60 / Math.max(1, Math.min(cyclesPerHour, 60)); // Min 1 min interval
+            const cooldownMinutes = 60 / Math.max(1, Math.min(cyclesPerHour, 60));
             const minutesSinceLast = (now - this.lastRunTime) / 60000;
 
-            if (minutesSinceLast < cooldownMinutes) {
-                // Not time yet
-                return;
-            }
+            if (minutesSinceLast < cooldownMinutes) return;
 
             // Start Cycle
             this.lastRunTime = now;
             console.log(`[DiscoveryCrawler] Starting Cycle (Config: ${cyclesPerHour}/hr)...`);
 
             // Load Volumes
-            const volV8 = parseInt(await SettingsService.get('CRAWLER_VOL_YAHOO_V8') || '20');
-            const volV10 = parseInt(await SettingsService.get('CRAWLER_VOL_YAHOO_V10') || '5');
-            const volFinnhub = parseInt(await SettingsService.get('CRAWLER_VOL_FINNHUB') || '15');
-            const marketOpenOnly = (await SettingsService.get('CRAWLER_MARKET_OPEN_ONLY')) === 'true';
+            // volFinnhub -> US Pipeline Volume
+            // volV8 -> Global Pipeline V8 (Fast) Volume
+            // volV10 -> Global Pipeline V10 (Deep) Volume
+            const volFinnhub = parseInt(await SettingsService.get('CRAWLER_VOL_FINNHUB') || '20'); // US Target
+            const volV8 = parseInt(await SettingsService.get('CRAWLER_VOL_YAHOO_V8') || '10'); // Global Fast Target
+            const volV10 = parseInt(await SettingsService.get('CRAWLER_VOL_YAHOO_V10') || '20'); // Global Deep Target
 
-            // 3. Determine Market Status (US vs EU)
-            // We check a representative index for each region to determine "Market Open"
-            let isUSOpen = false;
-            let isEUOpen = false;
-            let marketLabel = "Global/Closed";
+            // Note: Market Open checks removed/deprioritized for this architecture as requested, 
+            // but we can re-enable specialized "Day Gainer" logic if needed. 
+            // For now, we assume standard Sector Rotation is desired always for filling the DB.
 
-            try {
-                // Check S&P 500 (US) and Euro Stoxx 50 (EU)
-                const statuses = await MarketDataService.getMarketStatus(['^GSPC', '^STOXX50E']);
-                const usStatus = statuses.find(s => s.symbol === '^GSPC');
-                const euStatus = statuses.find(s => s.symbol === '^STOXX50E');
+            // 2. Refresh Safe Screeners List (Yahoo Finance Strict Validation)
+            // We cannot use 'ms_energy' etc directly. We must use valid screeners and group manually.
+            const VALID_SCREENERS = [
+                'day_gainers',
+                'day_losers',
+                'most_actives',
+                'undervalued_growth_stocks',
+                'undervalued_large_caps',
+                'growth_technology_stocks',
+                'aggressive_small_caps',
+                'top_mutual_funds'
+            ];
 
-                isUSOpen = usStatus?.state === 'OPEN';
-                isEUOpen = euStatus?.state === 'OPEN';
+            const screenerId = VALID_SCREENERS[Math.floor(Math.random() * VALID_SCREENERS.length)];
+            console.log(`[DiscoveryCrawler] Fetching candidates via '${screenerId}'...`);
 
-                if (isUSOpen && isEUOpen) marketLabel = "US & EU Open";
-                else if (isUSOpen) marketLabel = "US Open";
-                else if (isEUOpen) marketLabel = "EU Open";
-            } catch (err) {
-                console.warn('[DiscoveryCrawler] Failed to check market status, assuming Global/Time-based.');
-                // Fallback to time if API fails
-                const hour = new Date().getHours();
-                isUSOpen = (hour >= 15 && hour <= 22); // Approx 15:30 - 22:00 CET
-                isEUOpen = (hour >= 9 && hour <= 17);  // Approx 09:00 - 17:30 CET
+            // Fetch a larger pool to ensure we get diversity across sectors
+            const pool = await MarketDataService.getDiscoveryCandidates(screenerId, 100);
+
+            // Group by Sector to maintain the "Specific Targeted Discovery" illusion/utility
+            const bySector: Record<string, any[]> = {};
+            for (const item of pool) {
+                const s = item.s || 'Unknown';
+                if (!bySector[s]) bySector[s] = [];
+                bySector[s].push(item);
             }
 
-            console.log(`[DiscoveryCrawler] Market Context: ${marketLabel}`);
+            console.log(`[DiscoveryDebug] Grouped ${pool.length} candidates into ${Object.keys(bySector).length} sectors.`);
 
-            // === WORKER 1: YAHOO V8 (Technical/Momentum) ===
-            const runV8 = async () => {
-                let target = 'undervalued_growth_stocks'; // Default rotation
-                let label = 'Sector Rotation';
+            // Process each sector group
+            for (const sector of Object.keys(bySector)) {
+                const sectorItems = bySector[sector];
+                const cleanSectorName = sector.toLowerCase().replace(/ /g, '_');
 
-                // Market Open Override Logic
-                if (marketOpenOnly && (isUSOpen || isEUOpen)) {
-                    target = 'day_gainers';
-                    label = `🔥 Day Gainers (${marketLabel})`;
-                } else {
-                    // Standard Rotation based on minute
-                    const opts = ['sector_technology', 'undervalued_large_caps', 'aggressive_small_caps', 'growth_technology_stocks'];
-                    const idx = new Date().getMinutes() % opts.length;
-                    target = opts[idx];
-                }
+                // Debug Log per Sector
+                // console.log(`[DiscoveryDebug] Processing Sector: ${sector} (${sectorItems.length} items)`);
 
-                console.log(`[Crawler V8] Scanning ${label}... (${volV8} items)`);
-                const data = await MarketDataService.getDiscoveryCandidates(target, volV8);
-                if (data.length > 0) {
-                    await DiscoveryService.saveDiscoveryData(`v8_${target}`, data);
-                }
-            };
+                // === PIPELINE 1: US DEEP (From this sector group) ===
+                try {
+                    const usItems = sectorItems.filter((i: any) => !i.t.includes('.'));
+                    // console.log(`[DiscoveryDebug] Sector ${sector}: Found ${usItems.length} US candidates.`);
 
-            // === WORKER 2: FINNHUB (News/Trends) ===
-            const runFinnhub = async () => {
-                // Finnhub Options
-                const opts = [
-                    { key: 'sector_technology', target: 'technology' },
-                    { key: 'trending_news', target: 'business' },
-                    { key: 'general_news', target: 'general' }
-                ];
-                const idx = new Date().getHours() % opts.length; // Slower rotation
-                const sF = opts[idx];
+                    if (usItems.length > 0) {
+                        const freshSet = await MarketDataService.checkFreshness(usItems.map((c: any) => c.t));
 
-                console.log(`[Crawler Finnhub] Fetching ${sF.target} news... (${volFinnhub} items)`);
-                const data = await MarketDataService.getDiscoveryCandidatesFinnhub(sF.target, volFinnhub);
-                if (data.length > 0) {
-                    await DiscoveryService.saveDiscoveryData(sF.key, data);
-                }
-            };
-
-            // === WORKER 3: YAHOO V10 (Fundamental/Deep Value) ===
-            const runV10 = async () => {
-                // Strategy: Search broader candidates then filter deeply
-                // We use 'screener' to find candidates, then 'quoteSummary' to validate
-                const searchCount = Math.max(10, volV10 * 2); // Search double to allow filtering
-                console.log(`[Crawler V10] Deep seeking ${volV10} gems... (Scanning ${searchCount})`);
-
-                const candidates = await MarketDataService.getDiscoveryCandidates('undervalued_large_caps', searchCount);
-
-                const gems = [];
-                for (const cand of candidates) {
-                    if (gems.length >= volV10) break; // Reached target
-
-                    try {
-                        const fundamentals = await yahooFinance.quoteSummary(cand.t, { modules: ['financialData', 'defaultKeyStatistics'] });
-                        const fin = fundamentals.financialData;
-
-                        // Strict Value Filter:
-                        // 1. Profitable (ROE > 0)
-                        // 2. Reasonable Debt (D/E < 2.0)
-                        if (fin && fin.returnOnEquity && fin.returnOnEquity > 0.05) {
-                            // Enrich candidate with fundamental data preview if needed
-                            // Note: 'priceChange' is not in DiscoveryItem, so we use chg_1w or keep existing chg_1d
-                            // If we want to store ROE, we might need to expand the interface, but for now we filter.
-                            // We can use 'vol_rel' to store a score or similar if we wanted.
-                            gems.push(cand);
+                        // Select up to volFinnhub items that aren't fresh
+                        const selected: any[] = [];
+                        for (const cand of usItems) {
+                            if (selected.length >= volFinnhub) break;
+                            if (freshSet.has(cand.t)) continue;
+                            try {
+                                const f = await MarketDataService.getFundamentals(cand.t);
+                                if (f) selected.push({ ...cand, fund: { ...cand.fund, ...f } });
+                            } catch (e) { }
                         }
-                    } catch (e) {
-                        // Ignore failure, next candidate
+
+                        if (selected.length > 0) {
+                            await DiscoveryService.saveDiscoveryData(`us_${cleanSectorName}`, selected);
+                            const time = new Date().toISOString();
+                            const tickers = selected.map((s: any) => s.t).join(', ');
+                            console.log(`[${time}] CRAWLER [Finnhub] (Pipeline USA) Sector: ${sector} | Total: ${usItems.length} | Fresh: ${freshSet.size} | Added: ${selected.length} | Items: [${tickers}]`);
+                        }
                     }
+                } catch (e: any) {
+                    const msg = `[Crawler US] Error processing sector ${sector}: ${e.message}\n`;
+                    console.error(msg);
+                    await Bun.write('crawler_debug.log', msg);
                 }
 
-                if (gems.length > 0) {
-                    console.log(`[Crawler V10] Found ${gems.length} Quality Gems.`);
-                    await DiscoveryService.saveDiscoveryData('v10_quality_gems', gems);
-                }
-            };
+                // === PIPELINE 2: GLOBAL SHARED (from this sector group) ===
+                try {
+                    const globalItems = sectorItems.filter((item: any) => {
+                        return GLOBAL_MARKETS.some(suffix => item.t.endsWith(suffix));
+                    });
+                    // console.log(`[DiscoveryDebug] Sector ${sector}: Found ${globalItems.length} Global candidates.`);
 
-            // EXECUTE PARALLEL TRIO
-            await Promise.all([
-                runV8().catch(e => console.error('[Crawler V8] Failed', e)),
-                runFinnhub().catch(e => console.error('[Crawler Finnhub] Failed', e)),
-                runV10().catch(e => console.error('[Crawler V10] Failed', e))
-            ]);
+                    if (globalItems.length > 0) {
+                        // V8 Branch (Fast) - Save all or subset? Save subset.
+                        const fastItems = globalItems.slice(0, volV8);
+                        if (fastItems.length > 0) {
+                            await DiscoveryService.saveDiscoveryData(`global_fast_${cleanSectorName}`, fastItems);
+                            const time = new Date().toISOString();
+                            const tickers = fastItems.map((s: any) => s.t).join(', ');
+                            console.log(`[${time}] CRAWLER [Yahoo V8] (Global Fast) Sector: ${sector} | Total: ${globalItems.length} | Added: ${fastItems.length} | Items: [${tickers}]`);
+                        }
+
+                        // V10 Branch (Deep)
+                        const freshSet = await MarketDataService.checkFreshness(globalItems.map((c: any) => c.t));
+                        const deepItems: any[] = [];
+                        for (const cand of globalItems) {
+                            if (deepItems.length >= volV10) break;
+                            if (freshSet.has(cand.t)) continue;
+                            try {
+                                const f = await MarketDataService.getFundamentals(cand.t);
+                                if (f) deepItems.push({ ...cand, fund: { ...cand.fund, ...f } });
+                            } catch (e) { }
+                        }
+
+                        if (deepItems.length > 0) {
+                            await DiscoveryService.saveDiscoveryData(`global_deep_${cleanSectorName}`, deepItems);
+                            const time = new Date().toISOString();
+                            const tickers = deepItems.map((s: any) => s.t).join(', ');
+                            console.log(`[${time}] CRAWLER [Yahoo V10] (Global Deep) Sector: ${sector} | Total: ${globalItems.length} | Fresh: ${freshSet.size} | Added: ${deepItems.length} | Items: [${tickers}]`);
+                        }
+                    }
+
+                } catch (e: any) {
+                    const msg = `[Crawler Global] Error processing sector ${sector}: ${e.message}\n`;
+                    console.error(msg);
+                    await Bun.write('crawler_debug.log', msg);
+                }
+            }
 
             console.log(`[DiscoveryCrawler] Cycle completed at ${new Date().toISOString()}`);
 
@@ -168,7 +180,7 @@ export const DiscoveryJob = {
         }
     },
 
-    // Legacy support if needed
+    // Legacy / Manual Triggers
     async scanTrending() { await this.runDiscoveryCycle(); },
     async scanHybridPair() { await this.runDiscoveryCycle(); }
 }

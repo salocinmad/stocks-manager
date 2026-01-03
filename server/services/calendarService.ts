@@ -108,11 +108,12 @@ export const CalendarService = {
                             'estimated',
                             ${e.epsEstimate || null}
                         )
-                        ON CONFLICT (user_id, event_date) 
+                        ON CONFLICT (user_id, ticker, event_type, event_date)
                         DO UPDATE SET 
                             status = 'estimated',
-                            estimated_eps = EXCLUDED.estimated_eps
-                        WHERE financial_events.ticker = ${ticker} AND financial_events.title = ${`Resultados ${ticker}`}
+                            estimated_eps = EXCLUDED.estimated_eps,
+                            title = EXCLUDED.title,
+                            event_date = EXCLUDED.event_date
                     `;
                     // Note: constraint is usually PK id, but logic above tries to mimic upsert on unique keys. 
                     // Actually, schema might not have unique constraint on (user, date, ticker).
