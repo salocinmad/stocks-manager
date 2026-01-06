@@ -172,7 +172,8 @@ CREATE TABLE IF NOT EXISTS market_cache (
     key TEXT PRIMARY KEY,
     data JSONB NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_market_cache_expiry ON market_cache(expires_at);
 
@@ -327,6 +328,7 @@ CREATE TABLE IF NOT EXISTS portfolio_alerts (
     triggered BOOLEAN DEFAULT false,
     is_repeatable BOOLEAN DEFAULT false,
     repeat_cooldown_hours INTEGER DEFAULT 24,
+    triggered_assets JSONB DEFAULT '{}'::jsonb,
     last_triggered_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

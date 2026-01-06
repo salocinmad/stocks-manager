@@ -216,10 +216,17 @@ export async function initDatabase() {
         key TEXT PRIMARY KEY,
         data JSONB NOT NULL,
         expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_market_cache_expiry ON market_cache(expires_at)`;
+
+    // Migration for market_cache.updated_at
+    try {
+      await sql`ALTER TABLE market_cache ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
+      console.log('Applied migration: market_cache.updated_at');
+    } catch (e: any) { console.error('Migration error (market_cache.updated_at):', e.message); }
 
     console.log('Database schema is ready.');
 
@@ -913,6 +920,12 @@ Danos tu visión de futuro.`;
       await sql`CREATE INDEX IF NOT EXISTS idx_global_tickers_yahoo_status ON global_tickers(yahoo_status)`;
       console.log('Created index: idx_global_tickers_yahoo_status');
     } catch (e: any) { console.error('Migration error (idx_global_tickers_yahoo_status):', e.message); }
+
+    // 7. Portfolio Alerts Global Trigger (v2.4.0)
+    try {
+      await sql`ALTER TABLE portfolio_alerts ADD COLUMN IF NOT EXISTS triggered_assets JSONB DEFAULT '{}'::jsonb`;
+      console.log('Applied migration: portfolio_alerts.triggered_assets');
+    } catch (e: any) { console.error('Migration error (portfolio_alerts.triggered_assets):', e.message); }
 
     console.log('V2.1.0 migrations completed.');
 

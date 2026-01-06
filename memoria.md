@@ -10,7 +10,7 @@ Este documento es la guía para asegurar la continuidad del proyecto sin errores
 |-----------|-----------|
 | `PROJECT_INDEX.md` | **Fuente de verdad** sobre estructura, arquitectura y funcionalidad de cada archivo |
 | `RELEASE_NOTES.md` | Changelog completo de versiones |
-| `init.sql` | Esquema SQL de las 22 tablas del sistema |
+| `init.sql` | Esquema SQL de las 23 tablas del sistema |
 | `init_db.ts` | Gestor de arranque y migraciones automáticas |
 
 ---
@@ -46,7 +46,7 @@ Este documento es la guía para asegurar la continuidad del proyecto sin errores
 
 ## 📊 ESTRUCTURA DE BASE DE DATOS
 
-**22 Tablas principales** (ver `init.sql` para detalle completo):
+**23 Tablas principales** (ver `init.sql` para detalle completo):
 
 | Tabla | Propósito |
 |-------|-----------|
@@ -55,19 +55,19 @@ Este documento es la guía para asegurar la continuidad del proyecto sin errores
 | `positions` | Posiciones actuales por cartera |
 | `transactions` | Historial de operaciones |
 | `alerts` | Alertas de precio/técnicas |
-| `portfolio_alerts` | Alertas a nivel de cartera |
+| `portfolio_alerts` | Alertas Globales de carteras (incluye `triggered_assets` para tracking granular) |
 | `watchlists` | Listas de seguimiento |
 | `historical_data` | Datos OHLC históricos |
 | `global_tickers` | Librería global con ISIN, `yahoo_status`, `yahoo_error` |
-| `market_discovery_cache` | Caché del Discovery Engine |
+| `market_cache` | Caché persistente de datos de mercado con timestamp `updated_at` |
 | `ticker_details_cache` | Datos profundos para modales de Discovery |
 | `position_analysis_cache` | Métricas técnicas/riesgo precalculadas |
 | `pnl_history_cache` | Historial de PnL por día |
 | `ai_providers` | Proveedores de IA configurados |
 | `ai_prompts` | Prompts personalizados |
 | `chat_conversations` / `chat_messages` | Historial de chat IA |
+| `financial_events` | Calendario de dividendos/ganancias |
 | `system_settings` | Configuración global (`APP_VERSION`, índices de cabecera) |
-| ... | (ver init.sql para lista completa - **23 tablas**) |
 
 ---
 
@@ -77,12 +77,18 @@ Este documento es la guía para asegurar la continuidad del proyecto sin errores
 
 | Tab | Subtabs | Funcionalidad |
 |-----|---------|---------------|
-| **General** | Configuración, SMTP | Seguridad, Email |
+| **General** | Configuración, SMTP | Seguridad, Email, Reset Global |
 | **Inteligencia Artificial** | Proveedores, Prompts | Gestión de IA |
 | **Mercado** | Sincronización, Índices de Cabecera, Discovery Engine | **NUEVO: 3 subtabs** |
 | **Usuarios** | - | Gestión de usuarios |
 | **Backup** | - | Respaldos y restauración |
-| **Logs** | - | Registros del sistema |
+| **Estadísticas** | - | Métricas del sistema |
+
+### Tab Mercado (Reorganizado):
+### Tab General (Subtabs):
+- **Configuración**: URLs públicas.
+- **SMTP**: Configuración de correo.
+- **Alarmas (NUEVO)**: Acciones de emergencia. Restablecer TODAS las alertas y Lista Maestra de alertas.
 
 ### Tab Mercado (Reorganizado):
 - **Sincronización**: Sync manual, Recálculo PnL, Librería Global, Enriquecimiento, Zona de Peligro
@@ -124,7 +130,9 @@ docker compose logs app --tail 100
 
 ---
 
-**ÚLTIMA ACTUALIZACIÓN**: Enero 2026
-- **Tabla `ticker_details_cache`**: Cache de datos profundos para modales Discovery
-- **Cache de MarketStatus**: Solo 1 llamada por minuto a Yahoo (optimización)
-- **Refresh de Portfolio**: Botón manual (60s cooldown) + auto-refresh cada 5 minutos
+**ÚLTIMA ACTUALIZACIÓN**: Enero 2026 (v2.1.0)
+- **Alertas Globales**: Sistema de monitorización de todos los activos de un portfolio con cooldown individual (`triggered_assets` JSONB).
+- **Consolidación de API**: Endpoint `/api/alerts` unificado para todo tipo de alertas.
+- **UI Alertas**: Rediseño de tarjetas compactas y grid de alta densidad.
+- **Reset de Alertas**: Botones para restablecer alertas disparadas (Individual y Global con limpieza de historial `triggered_assets`).
+- **Esquema DB**: Inclusión de `updated_at` en `market_cache` para mejor consistencia de caché.

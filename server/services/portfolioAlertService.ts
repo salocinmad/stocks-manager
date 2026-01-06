@@ -62,11 +62,12 @@ export const PortfolioAlertService = {
         const alertType = alert.alert_type;
         let conditionMet = false;
         let notificationMessage = '';
+        let triggeredAssetTicker = ''; // Track which asset triggered it for focused notification
 
-        // Get portfolio positions
+        // Get portfolio positions with FULL market data
         const positions = await sql`
             SELECT p.*, 
-                   (SELECT data->>'c' FROM market_cache mc WHERE mc.key = 'quote:' || p.ticker LIMIT 1) as current_price
+                   (SELECT data FROM market_cache mc WHERE mc.key = 'quote:' || p.ticker LIMIT 1) as market_data
             FROM positions p
             WHERE p.portfolio_id = ${alert.portfolio_id}
             AND p.quantity > 0
@@ -79,7 +80,8 @@ export const PortfolioAlertService = {
         let totalCost = 0;
 
         for (const pos of positions) {
-            const price = pos.current_price ? parseFloat(pos.current_price) : 0;
+            const quote = pos.market_data || {};
+            const price = quote.c ? parseFloat(quote.c) : 0;
             const qty = Number(pos.quantity);
             const avgPrice = Number(pos.average_buy_price);
 
@@ -90,8 +92,55 @@ export const PortfolioAlertService = {
         const totalPnL = totalValue - totalCost;
         const totalPnLPercent = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0;
 
-        // Check alert conditions
-        if (alertType === 'pnl_above') {
+        // Check conditions based on Alert Type
+        if (alertType === 'any_asset_change_percent') {
+            // GLOBAL TRIGGER: Check each asset individually
+            const threshold = Number(alert.threshold_percent) || 5;
+            const triggeredAssetsMap = alert.triggered_assets || {}; // {"AAPL": "timestamp", "MSFT": "timestamp"}
+            const cooldownHours = alert.repeat_cooldown_hours || 1; // Default 1h for individual assets
+
+            for (const pos of positions) {
+                const quote = pos.market_data;
+                if (!quote || typeof quote.dp === 'undefined') continue;
+
+                const changePercent = parseFloat(quote.dp); // Daily percent change
+                const absChange = Math.abs(changePercent);
+
+                if (absChange >= threshold) {
+                    // Check individual cooldown
+                    const lastTriggered = triggeredAssetsMap[pos.ticker];
+                    const now = new Date();
+
+                    let inCooldown = false;
+                    if (lastTriggered) {
+                        const lastDate = new Date(lastTriggered);
+                        const diffHours = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
+                        if (diffHours < cooldownHours) {
+                            inCooldown = true;
+                        }
+                    }
+
+                    if (!inCooldown) {
+                        conditionMet = true;
+                        triggeredAssetTicker = pos.ticker;
+                        const direction = changePercent > 0 ? 'subido' : 'bajado';
+                        const emoji = changePercent > 0 ? '🚀' : '🔻';
+                        notificationMessage = `${emoji} **${pos.ticker}** ha ${direction} un **${absChange.toFixed(2)}%** hoy.\n\nPrecio: ${quote.c} ${quote.currency || ''}\nUmbral Alerta: ${threshold}%`;
+
+                        // Mark this asset as triggered NOW
+                        triggeredAssetsMap[pos.ticker] = now.toISOString();
+
+                        // We only trigger for ONE asset per cycle to avoid spamming 20 emails at once if market crashes.
+                        // Next cycle (1 min later) will pick up the next one if it's not in cooldown.
+                        break;
+                    }
+                }
+            }
+
+            // Update the map in the alert object so we can save it later
+            alert.triggered_assets = triggeredAssetsMap;
+
+        } else if (alertType === 'pnl_above') {
             const threshold = Number(alert.threshold_value) || 0;
             if (totalPnL >= threshold) {
                 conditionMet = true;
@@ -140,7 +189,8 @@ export const PortfolioAlertService = {
                 try {
                     const profile = await MarketDataService.getAssetProfile(pos.ticker);
                     if (profile?.sector === targetSector) {
-                        const price = pos.current_price ? parseFloat(pos.current_price) : 0;
+                        const quote = pos.market_data || {};
+                        const price = quote.c ? parseFloat(quote.c) : 0;
                         sectorValue += Number(pos.quantity) * price;
                     }
                 } catch (e) {
@@ -158,28 +208,44 @@ export const PortfolioAlertService = {
 
         // Trigger notifications if condition met
         if (conditionMet) {
-            console.log(`[PortfolioAlerts] Alert triggered for portfolio ${alert.portfolio_name}`);
+            console.log(`[PortfolioAlerts] Alert triggered for portfolio ${alert.portfolio_name} (${triggeredAssetTicker || alert.alert_type})`);
 
             // Send notifications
-            const title = `🔔 Alerta de Cartera: ${alert.portfolio_name}`;
+            const title = triggeredAssetTicker
+                ? `🔔 Alerta ${triggeredAssetTicker}: Movimiento significativo`
+                : `🔔 Alerta de Cartera: ${alert.portfolio_name}`;
+
             await NotificationService.dispatch(alert.user_id, title, notificationMessage);
 
             // Send email
             await PortfolioAlertService.sendAlertEmail(alert.email, alert, notificationMessage);
 
-            // Update alert
-            if (alert.is_repeatable) {
+            // Update alert status
+            if (alertType === 'any_asset_change_percent') {
+                // For global alerts, we update the JSONB map but keep the alert active and "not fully triggered" in the legacy sense
+                // (or we can mark it triggered but repeatable).
+                // Best approach: Update triggered_assets column.
                 await sql`
                     UPDATE portfolio_alerts 
-                    SET triggered = true, last_triggered_at = NOW()
+                    SET triggered_assets = ${sql.json(alert.triggered_assets)},
+                        last_triggered_at = NOW()
                     WHERE id = ${alert.id}
-                `;
+                 `;
             } else {
-                await sql`
-                    UPDATE portfolio_alerts 
-                    SET triggered = true, is_active = false
-                    WHERE id = ${alert.id}
-                `;
+                // Standard behavior for whole-portfolio alerts
+                if (alert.is_repeatable) {
+                    await sql`
+                        UPDATE portfolio_alerts 
+                        SET triggered = true, last_triggered_at = NOW()
+                        WHERE id = ${alert.id}
+                    `;
+                } else {
+                    await sql`
+                        UPDATE portfolio_alerts 
+                        SET triggered = true, is_active = false
+                        WHERE id = ${alert.id}
+                    `;
+                }
             }
         }
     },
@@ -188,6 +254,7 @@ export const PortfolioAlertService = {
      * Send alert email
      */
     sendAlertEmail: async (to: string, alert: any, message: string) => {
+        if (process.env.NODE_ENV === 'test') return;
         const smtpConfig = await SettingsService.getSmtpConfig();
 
         if (!smtpConfig.host || !smtpConfig.user) {

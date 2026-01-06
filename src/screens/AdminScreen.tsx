@@ -50,11 +50,16 @@ export const AdminScreen: React.FC = () => {
     const { addToast } = useToast();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<Tab>('general');
-    const [generalSubTab, setGeneralSubTab] = useState<'config' | 'smtp'>('config');
+    const [generalSubTab, setGeneralSubTab] = useState<'config' | 'smtp' | 'alerts'>('config');
     const [users, setUsers] = useState<User[]>([]);
     const [stats, setStats] = useState<SystemStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [statsLoading, setStatsLoading] = useState(false);
+
+    // Alerts Modal State
+    const [showAlertsModal, setShowAlertsModal] = useState(false);
+    const [allAlerts, setAllAlerts] = useState<{ stockAlerts: any[], portfolioAlerts: any[] } | null>(null);
+
     const [apiKeys, setApiKeys] = useState({ finnhub: '', google: '', fmp: '', eodhd: '', globalExchanges: '' });
     // AI Model
     const [aiSubTab, setAiSubTab] = useState<'general' | 'providers'>('general');
@@ -653,6 +658,15 @@ export const AdminScreen: React.FC = () => {
                                     >
                                         SMTP (Correo)
                                     </button>
+                                    <button
+                                        onClick={() => setGeneralSubTab('alerts')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${generalSubTab === 'alerts'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
+                                    >
+                                        Alarmas
+                                    </button>
                                 </div>
 
                                 {generalSubTab === 'config' && (
@@ -686,12 +700,64 @@ export const AdminScreen: React.FC = () => {
                                             >
                                                 {saving ? 'Guardando...' : 'Guardar Configuración'}
                                             </button>
+
+
                                         </div>
                                     </div>
                                 )}
 
                                 {generalSubTab === 'smtp' && (
                                     <AdminSMTP />
+                                )}
+
+                                {generalSubTab === 'alerts' && (
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 animate-fade-in">
+                                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                            <span className="material-symbols-outlined">warning</span>
+                                            Gestión de Alarmas
+                                        </h2>
+                                        <p className="text-sm text-text-secondary-light mb-8">
+                                            Herramientas para restablecer el estado de las alertas y visualizar el estado actual de los disparadores.
+                                            Utiliza "Restablecer Todas" para reactivar alertas disparadas o limpiar bloqueos.
+                                        </p>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <button
+                                                onClick={async () => {
+                                                    if (!confirm('¿Estás seguro de restablecer TODAS las alertas disparadas del sistema? Esto reactivará alertas que ya saltaron.')) return;
+                                                    try {
+                                                        const { data } = await api.post('/admin/alerts/reset-all');
+                                                        alert(data.message);
+                                                    } catch (e: any) {
+                                                        alert(e.response?.data?.message || 'Error al restablecer');
+                                                    }
+                                                }}
+                                                className="py-8 px-6 bg-red-500/10 text-red-500 font-bold rounded-2xl hover:bg-red-500 hover:text-white transition-all border border-red-500/20 flex flex-col items-center justify-center gap-3 group"
+                                            >
+                                                <span className="material-symbols-outlined text-4xl group-hover:scale-110 transition-transform">restart_alt</span>
+                                                <span>Restablecer Todas las Alertas</span>
+                                            </button>
+
+                                            <button
+                                                onClick={async () => {
+                                                    setLoading(true);
+                                                    try {
+                                                        const { data } = await api.get('/admin/alerts/list');
+                                                        setAllAlerts(data);
+                                                        setShowAlertsModal(true);
+                                                    } catch (e: any) {
+                                                        alert('Error al cargar alertas: ' + e.message);
+                                                    } finally {
+                                                        setLoading(false);
+                                                    }
+                                                }}
+                                                className="py-8 px-6 bg-blue-500/10 text-blue-500 font-bold rounded-2xl hover:bg-blue-500 hover:text-white transition-all border border-blue-500/20 flex flex-col items-center justify-center gap-3 group"
+                                            >
+                                                <span className="material-symbols-outlined text-4xl group-hover:scale-110 transition-transform">visibility</span>
+                                                <span>Ver Todas las Alertas ({allAlerts ? (allAlerts.stockAlerts.length + allAlerts.portfolioAlerts.length) : '...'})</span>
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -1851,6 +1917,132 @@ export const AdminScreen: React.FC = () => {
                                 </div>
                             )
                         }
+
+                        {/* --- MODAL: TODAS LAS ALERTAS --- */}
+                        {showAlertsModal && allAlerts && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                                <div className="bg-surface-light dark:bg-surface-dark rounded-3xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+                                    <div className="p-6 border-b border-border-light dark:border-border-dark flex justify-between items-center bg-surface-light dark:bg-surface-dark-elevated">
+                                        <h2 className="text-xl font-bold flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-primary">notifications_active</span>
+                                            Monitor de Alertas Global
+                                        </h2>
+                                        <button onClick={() => setShowAlertsModal(false)} className="p-2 hover:bg-black/10 dark:hover:bg-white/10 rounded-full transition-colors">
+                                            <span className="material-symbols-outlined">close</span>
+                                        </button>
+                                    </div>
+
+                                    <div className="flex-1 overflow-y-auto p-6">
+                                        <div className="flex gap-4 mb-6">
+                                            <div className="bg-blue-500/10 text-blue-500 px-4 py-2 rounded-xl font-bold border border-blue-500/20">
+                                                Stocks: {allAlerts.stockAlerts.length}
+                                            </div>
+                                            <div className="bg-purple-500/10 text-purple-500 px-4 py-2 rounded-xl font-bold border border-purple-500/20">
+                                                Portfolio: {allAlerts.portfolioAlerts.length}
+                                            </div>
+                                            <div className="bg-red-500/10 text-red-500 px-4 py-2 rounded-xl font-bold border border-red-500/20">
+                                                Disparadas: {allAlerts.stockAlerts.filter((a: any) => a.triggered).length + allAlerts.portfolioAlerts.filter((a: any) => a.triggered).length}
+                                            </div>
+                                        </div>
+
+                                        <h3 className="font-bold mb-4 text-primary sticky top-0 bg-surface-light dark:bg-surface-dark py-2">Alertas de Acciones</h3>
+                                        <table className="w-full text-sm mb-8">
+                                            <thead className="bg-background-light dark:bg-black/20 text-xs uppercase text-text-secondary-light">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left rounded-l-lg">Usuario</th>
+                                                    <th className="px-4 py-3 text-left">Ticker</th>
+                                                    <th className="px-4 py-3 text-center">Condición</th>
+                                                    <th className="px-4 py-3 text-right">Objetivo</th>
+                                                    <th className="px-4 py-3 text-center rounded-r-lg">Estado</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-border-light dark:divide-border-dark">
+                                                {allAlerts.stockAlerts.map((alert: any) => (
+                                                    <tr key={alert.id} className="hover:bg-black/5 dark:hover:bg-white/5">
+                                                        <td className="px-4 py-3">
+                                                            <div className="font-bold">{alert.user.name}</div>
+                                                            <div className="text-xs text-text-secondary-light">{alert.user.email}</div>
+                                                        </td>
+                                                        <td className="px-4 py-3 font-mono font-bold">{alert.ticker}</td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-xs">
+                                                                {alert.condition === 'above' ? 'Subir de' : 'Bajar de'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right font-mono">{alert.targetPrice.toFixed(2)}</td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            {alert.triggered ? (
+                                                                <span className="inline-flex items-center gap-1 text-red-500 font-bold text-xs bg-red-500/10 px-2 py-1 rounded-full">
+                                                                    <span className="material-symbols-outlined text-[14px]">warning</span> DISPARADA
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-green-500 font-bold text-xs bg-green-500/10 px-2 py-1 rounded-full">EN ESPERA</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {allAlerts.stockAlerts.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={5} className="px-4 py-8 text-center text-text-secondary-light">No hay alertas de acciones configuradas.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+
+                                        <h3 className="font-bold mb-4 text-purple-500 sticky top-0 bg-surface-light dark:bg-surface-dark py-2">Alertas de Portafolio</h3>
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-background-light dark:bg-black/20 text-xs uppercase text-text-secondary-light">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left rounded-l-lg">Usuario</th>
+                                                    <th className="px-4 py-3 text-left">Portafolio</th>
+                                                    <th className="px-4 py-3 text-center">Tipo</th>
+                                                    <th className="px-4 py-3 text-center rounded-r-lg">Estado</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-border-light dark:divide-border-dark">
+                                                {allAlerts.portfolioAlerts.map((alert: any) => (
+                                                    <tr key={alert.id} className="hover:bg-black/5 dark:hover:bg-white/5">
+                                                        <td className="px-4 py-3">
+                                                            <div className="font-bold">{alert.user.name}</div>
+                                                            <div className="text-xs text-text-secondary-light">{alert.user.email}</div>
+                                                        </td>
+                                                        <td className="px-4 py-3 font-medium">{alert.portfolioName}</td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <span className="bg-purple-500/10 text-purple-500 px-2 py-1 rounded text-xs font-bold">
+                                                                {alert.alertType}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            {alert.triggered ? (
+                                                                <span className="inline-flex items-center gap-1 text-red-500 font-bold text-xs bg-red-500/10 px-2 py-1 rounded-full">
+                                                                    <span className="material-symbols-outlined text-[14px]">warning</span> DISPARADA
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-green-500 font-bold text-xs bg-green-500/10 px-2 py-1 rounded-full">EN ESPERA</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {allAlerts.portfolioAlerts.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={4} className="px-4 py-8 text-center text-text-secondary-light">No hay alertas de portafolio configuradas.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="p-4 border-t border-border-light dark:border-border-dark bg-background-light dark:bg-surface-dark-elevated text-right">
+                                        <button
+                                            onClick={() => setShowAlertsModal(false)}
+                                            className="px-6 py-2 bg-gray-200 dark:bg-gray-700 font-bold rounded-xl hover:opacity-80 transition-opacity"
+                                        >
+                                            Cerrar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                     </>
                 )}
             </div>

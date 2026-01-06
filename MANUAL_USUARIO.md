@@ -270,9 +270,17 @@ Las alertas te notifican cuando un activo alcanza un precio objetivo.
 2. Haz clic en **"+ Nueva Alerta"**
 3. Busca el ticker del activo
 4. Configura:
-   - **Condición**: "Mayor que" o "Menor que"
-   - **Precio objetivo**: El precio que dispara la alerta
-5. Guarda la alerta
+   - **Tipo**: Precio, Cambio %, Volumen o **Global**.
+   - **Condición/Umbral**: El valor que dispara la alerta.
+
+### Alertas Globales de Portafolio (NUEVO v2.4)
+Esta potente función te permite vigilar **todos los activos** de un portafolio a la vez.
+
+1. Selecciona la pestaña **"Global"**.
+2. Elige el portafolio que quieres monitorizar.
+3. Define un **Umbral de Movimiento (%)** (ej. 5%).
+4. **¿Cómo funciona?**: El sistema revisará cada acción de tu cartera. Si **CUALQUIERA** de ellas sube o baja más de un 5% en el día, recibirás una notificación específica para esa acción (ej. "AAPL se mueve un +6%").
+5. **Cooldown Inteligente**: Si AAPL dispara la alerta, esa acción específica "descansará" el tiempo que configures (ej. 24h), pero el resto de tu cartera (MSFT, GOOGL...) seguirá siendo vigilada activamente.
 
 ### Tipos de Notificación
 

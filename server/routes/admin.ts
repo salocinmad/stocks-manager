@@ -145,6 +145,79 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         })
     })
 
+    // Restablecer TODAS las alertas (Global Reset)
+    .get('/alerts/list', async () => {
+        const stockAlerts = await sql`
+            SELECT a.*, u.email, u.full_name 
+            FROM alerts a 
+            JOIN users u ON a.user_id = u.id 
+            ORDER BY a.triggered DESC, a.created_at DESC
+        `;
+
+        const portfolioAlerts = await sql`
+            SELECT pa.*, u.email, u.full_name, p.name as portfolio_name
+            FROM portfolio_alerts pa
+            JOIN users u ON pa.user_id = u.id
+            JOIN portfolios p ON pa.portfolio_id = p.id
+            ORDER BY pa.triggered DESC, pa.created_at DESC
+        `;
+
+        return {
+            stockAlerts: stockAlerts.map(a => ({
+                id: a.id,
+                type: 'stock',
+                ticker: a.ticker,
+                user: { email: a.email, name: a.full_name },
+                condition: a.condition,
+                targetPrice: Number(a.target_price),
+                triggered: a.triggered,
+                active: a.is_active,
+                createdAt: a.created_at
+            })),
+            portfolioAlerts: portfolioAlerts.map(a => ({
+                id: a.id,
+                type: 'portfolio',
+                portfolioName: a.portfolio_name,
+                user: { email: a.email, name: a.full_name },
+                alertType: a.alert_type,
+                triggered: a.triggered,
+                active: a.is_active,
+                createdAt: a.created_at
+            }))
+        };
+    })
+
+    .post('/alerts/reset-all', async () => {
+        try {
+            // Reset stock alerts
+            const stockResult = await sql`
+                UPDATE alerts SET 
+                    triggered = false,
+                    last_triggered_at = NULL,
+                    is_active = true
+                WHERE triggered = true
+            `;
+
+            // Reset portfolio alerts
+            const portfolioResult = await sql`
+                UPDATE portfolio_alerts SET 
+                    triggered = false,
+                    last_triggered_at = NULL,
+                    is_active = true
+                WHERE triggered = true
+            `;
+
+            console.log(`[Admin] Global Alert Reset: ${stockResult.count} stock alerts, ${portfolioResult.count} portfolio alerts.`);
+
+            return {
+                success: true,
+                message: `Se han restablecido ${stockResult.count} alertas de acciones y ${portfolioResult.count} de portafolio.`
+            };
+        } catch (error: any) {
+            throw new Error(`Error al restablecer alertas: ${error.message}`);
+        }
+    })
+
     // Explorador de Discovery Engine
     .get('/explorer/discovery', async ({ query }) => {
         const { category, search, limit, offset, filter, sortBy, order, market } = query;

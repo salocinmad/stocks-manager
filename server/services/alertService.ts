@@ -205,6 +205,7 @@ export const AlertService = {
 
 
     sendAlertEmail: async (to: string, alert: any, currentPrice: number, notificationMessage?: string) => {
+        if (process.env.NODE_ENV === 'test') return;
         const smtpConfig = await SettingsService.getSmtpConfig();
 
         if (!smtpConfig.host || !smtpConfig.user) {

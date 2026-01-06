@@ -9,7 +9,7 @@ Estos archivos definen la estructura de datos. **Cualquier cambio en el modelo d
 
 - **`i:\dev\stocks-manager\init.sql`**
     - **Tipo**: Script SQL (PostgreSQL).
-    - **Propósito**: Define el esquema base para inicializaciones externas. Contiene las **23 tablas** del sistema, incluyendo `global_tickers` (con columnas `yahoo_status`, `yahoo_error` para marcado de tickers fallidos), `ticker_details_cache` (datos profundos para Discovery), `pnl_history_cache`, `position_analysis_cache`, y **seeds iniciales** en `system_settings` (`APP_VERSION`).
+    - **Propósito**: Define el esquema base para inicializaciones externas. Contiene las **23 tablas** del sistema, incluyendo `market_cache` (con `updated_at`), `global_tickers` (con columnas `yahoo_status`, `yahoo_error` para marcado de tickers fallidos), `ticker_details_cache` (datos profundos para Discovery), `pnl_history_cache`, `position_analysis_cache`, y **seeds iniciales** en `system_settings` (`APP_VERSION`).
     - **Uso**: Referencia principal del esquema relacional y paridad con `init_db.ts`.
 
 - **`i:\dev\stocks-manager\server\init_db.ts`**
@@ -75,7 +75,7 @@ Lógica de negocio pura. Independiente del transporte HTTP.
 - **`smtpService.ts`**: Transporte de Email. Wrapper de `nodemailer`.
 - **`twoFactorService.ts`**: 2FA. Generación/Validación de TOTP (`otpauth`).
 - **`positionAnalysisService.ts`**: **Análisis de Posición** (v2.1.0). Calcula métricas de riesgo (Sharpe, Sortino, MaxDrawdown, Beta, VaR95%), simulaciones What-If y obtiene datos de analistas. Usa caché en `position_analysis_cache`.
-- **`portfolioAlertService.ts`**: **Alertas de Portfolio** (v2.1.0). Alertas a nivel de cartera completa: PnL (€/%), valor total, exposición sectorial.
+- **`portfolioAlertService.ts`**: **Alertas de Portfolio** (v2.1.0/v2.4.0). Alertas a nivel de cartera completa (PnL, valor total) y **Alertas Globales de Activos** (`any_asset_change_percent`), que monitorean cambios diarios en cada posición individualmente.
 
 ### 🛣️ Rutas API (`server/routes/`)
 Controladores HTTP REST. Mapean requests a llamadas de servicios.
@@ -89,7 +89,7 @@ Controladores HTTP REST. Mapean requests a llamadas de servicios.
 - **`notifications.ts`**: Alertas Config (`GET/POST /channels`).
 - **`portfolios.ts`**: Transacciones (`GET :id`, `POST /transaction`).
 - **`reports.ts`**: Fiscalidad (`GET /tax-report`).
-- **`alerts.ts`**: Alertas Precio (`GET/POST /alerts`). Ahora soporta tipos: `price`, `percent_change`, `volume`, `rsi`, `sma_cross`.
+- **`alerts.ts`**: Alertas Unificadas (`GET/POST /alerts`). Soporta alertas individuales (`price`, `volume`, `rsi`) y Globales de Portfolio (`any_asset_change_percent`) con enrutamiento inteligente a tablas `alerts` o `portfolio_alerts`. Incluye endpoint de reseteo (`PUT /:id/reset`) que limpia `triggered_assets`.
 - **`analysis.ts`**: **Análisis de Posición** (v2.1.0). Endpoints: `GET /analysis/position/:id`, `POST /analysis/simulate/{buy,sell,price-change}`, `POST /analysis/refresh/:id`.
 
 ### ⏱️ Cron Jobs (`server/jobs/`)
@@ -130,6 +130,7 @@ Pruebas de integración y unidad (Ejecutar con `docker compose exec app bun test
 - **`portfolio.test.ts`**: Placeholder para futuros tests de controladores de portafolio.
 - **`setup.ts`**: Configuración global de entorno de pruebas (Variables, Mocks iniciales).
 - **`test_debug.log`**: Log detallado (stack trace completo) de la última ejecución. Se regenera en cada test run.
+- **`portfolio_global_alerts.test.ts`**: (v2.4.0) Test de integración para Alertas Globales. Verifica disparo de alertas por activo y gestión de cooldowns (`triggered_assets`).
 
 ---
 
@@ -151,8 +152,9 @@ Vistas principales (Rutas).
 - **`NewsScreen.tsx`**: Lector de noticias financieras.
 
 ### 🧩 Screens (Páginas)
-- **`AdminScreen.tsx`**: Panel de Control.
-    - **Tabs**: General, Inteligencia Artificial, Usuarios, Mercado, Backup, Logs.
+    - **`AdminScreen.tsx`**: Panel de Control.
+    - **Tabs**: General (Config, SMTP, **Alarmas**), Inteligencia Artificial, Usuarios, Mercado, Backup, Logs.
+    - **Tab General**: Gestión centralizada de configuración, correo y **Acciones de Emergencia** (Reset de Alertas).
     - **Tab Mercado (Reorganizado v2.1.0)**: Contiene 3 subtabs:
       - **Sincronización**: Sync manual, PnL, Librería Global, Enriquecimiento, Zona de Peligro.
       - **Índices de Cabecera**: Selector de índices globales para la cabecera (`MarketIndicesSelector`).
