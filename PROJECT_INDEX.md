@@ -143,7 +143,7 @@ SPA construida con **React 19**, **Vite** y **TailwindCSS**.
 
 ### 📱 Pantallas (`src/screens/`)
 Vistas principales (Rutas).
-- **`Dashboard.tsx`**: Home. Implementa carga progresiva con **Skeleton UI**. Layout de **alta densidad** con selector de portafolio "Premium Dropdown", widgets de "Top Gainers/Losers" y resumen patrimonial.
+- **`Dashboard.tsx`**: Home. **Layout de 2 columnas** (v2.1.0): Columna principal (75%) con 3 stats cards, AI Insight (condicional), Top Movers y Gráfico PnL. Columna lateral (25%) con botón Análisis IA y gráfico de Distribución por Sector. Implementa Skeleton UI y selector de portafolio "Premium Dropdown".
 - **`CalendarScreen.tsx`**: **Calendario Financiero**. Vista mensual, toggles Mercado/Portfolio.
 - **`PortfolioScreen.tsx`**: Gestión de inversiones. Tabla de activos, desglose monedas.
 - **`MarketDataService.tsx`** vs **`marketData.ts`**: Frontend = API Wrapper (`/api/market/...`), Backend = Core Logic.

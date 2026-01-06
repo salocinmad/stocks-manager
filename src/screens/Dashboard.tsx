@@ -295,8 +295,8 @@ export const Dashboard: React.FC = () => {
                         setIsPortfolioMenuOpen(false);
                       }}
                       className={`w-full text-left px-5 py-3 flex items-center justify-between transition-all border-l-[3px] ${selectedPortfolioId === p.id
-                          ? 'bg-primary/5 dark:bg-primary/10 text-primary border-primary'
-                          : 'text-text-primary-light dark:text-white/80 hover:bg-bg-light dark:hover:bg-white/5 hover:text-primary border-transparent'
+                        ? 'bg-primary/5 dark:bg-primary/10 text-primary border-primary'
+                        : 'text-text-primary-light dark:text-white/80 hover:bg-bg-light dark:hover:bg-white/5 hover:text-primary border-transparent'
                         }`}
                     >
                       <span className="font-bold text-sm">{p.name}</span>
@@ -309,252 +309,259 @@ export const Dashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Net Worth */}
-          <div className="flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:border-primary/50 transition-all group">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                <span className="material-symbols-outlined font-bold text-base">wallet</span>
-              </div>
-              <h3 className="text-sm font-bold dark:text-white">{t('dashboard.net_worth')}</h3>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">{formatCurrency(totalValue)}</p>
-              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${gainPercent >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                {gainPercent >= 0 ? '↑' : '↓'} {Math.abs(gainPercent).toFixed(2)}%
-              </span>
-            </div>
-          </div>
+        {/* MAIN TWO-COLUMN LAYOUT */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-          {/* Daily Gain */}
-          <div className={`flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl transition-all group ${todaysGain >= 0 ? 'hover:border-green-500/30' : 'hover:border-red-500/30'}`}>
-            <div className="flex items-center gap-2 mb-1">
-              <div className={`size-8 rounded-lg flex items-center justify-center ${todaysGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                <span className="material-symbols-outlined font-bold text-base">{todaysGain >= 0 ? 'trending_up' : 'trending_down'}</span>
-              </div>
-              <h3 className="text-sm font-bold dark:text-white">{t('dashboard.todays_gain')}</h3>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <p className={`text-2xl font-bold tracking-tight ${todaysGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {todaysGain >= 0 ? '+' : ''}{formatCurrency(todaysGain)}
-              </p>
-              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${todaysGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                {todaysGain >= 0 ? '↑' : '↓'} {Math.abs(gainPercent).toFixed(2)}%
-              </span>
-            </div>
-          </div>
+          {/* MAIN COLUMN (75%) */}
+          <div className="lg:col-span-9 flex flex-col gap-3">
 
-          {/* Total Gain (NEW) */}
-          <div className={`flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl transition-all group ${totalGain >= 0 ? 'hover:border-green-500/30' : 'hover:border-red-500/30'}`}>
-            <div className="flex items-center gap-2 mb-1">
-              <div className={`size-8 rounded-lg flex items-center justify-center ${totalGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                <span className="material-symbols-outlined font-bold text-base">show_chart</span>
-              </div>
-              <h3 className="text-sm font-bold dark:text-white">Ganancia Total</h3>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <p className={`text-2xl font-bold tracking-tight ${totalGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {totalGain >= 0 ? '+' : ''}{formatCurrency(totalGain)}
-              </p>
-              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${totalGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                {totalGain >= 0 ? '↑' : '↓'} {Math.abs(totalGainPercent).toFixed(2)}%
-              </span>
-            </div>
-          </div>
-
-          {/* AI Banner */}
-          <div className="flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:border-accent-blue/30 transition-all group">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="size-8 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">
-                <span className="material-symbols-outlined font-bold text-base">insights</span>
-              </div>
-              <h3 className="text-sm font-bold dark:text-white">{t('dashboard.ai_analysis')}</h3>
-            </div>
-            <button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing}
-              className="mt-1 w-full py-2 rounded-lg bg-accent-blue/10 text-accent-blue text-xs font-bold hover:bg-accent-blue hover:text-white transition-all"
-            >
-              {isAnalyzing ? "Analizando..." : "Generar Análisis de IA"}
-            </button>
-          </div>
-        </div>
-
-        {/* Top Movers Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* Top Gainers */}
-          <div className="flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="size-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
-                  <span className="material-symbols-outlined font-bold text-base">rocket_launch</span>
-                </div>
-                <h3 className="text-sm font-bold dark:text-white">Mejores del Día</h3>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {topGainers.length > 0 ? topGainers.map((asset, idx) => (
-                <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-background-light/50 dark:bg-white/5 border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-white/10 transition-colors">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-xs dark:text-white">{asset.ticker}</span>
-                    <span className="text-[9px] text-text-secondary-light font-medium">{formatCurrency(asset.price)}</span>
+            {/* Row 1: 3 Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Net Worth */}
+              <div className="flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:border-primary/50 transition-all group min-h-[120px]">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                    <span className="material-symbols-outlined font-bold text-base">wallet</span>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <span className="font-bold text-xs text-green-500 leading-tight">
-                      {asset.change > 0 ? '+' : ''}{asset.change.toLocaleString('es-ES', { style: 'currency', currency: asset.currency || 'USD' })}
-                    </span>
-                    <span className="text-[9px] font-black text-green-500/70">
-                      +{asset.changePercent.toFixed(2)}%
-                    </span>
-                  </div>
+                  <h3 className="text-sm font-bold dark:text-white">{t('dashboard.net_worth')}</h3>
                 </div>
-              )) : (
-                <p className="text-xs text-text-secondary-light italic">Sin ganancias hoy</p>
-              )}
-            </div>
-          </div>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-2xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">{formatCurrency(totalValue)}</p>
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${gainPercent >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                    {gainPercent >= 0 ? '↑' : '↓'} {Math.abs(gainPercent).toFixed(2)}%
+                  </span>
+                </div>
+              </div>
 
-          {/* Top Losers */}
-          <div className="flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="size-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500">
-                  <span className="material-symbols-outlined font-bold text-base">trending_down</span>
+              {/* Daily Gain */}
+              <div className={`flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl transition-all group min-h-[120px] ${todaysGain >= 0 ? 'hover:border-green-500/30' : 'hover:border-red-500/30'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={`size-8 rounded-lg flex items-center justify-center ${todaysGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                    <span className="material-symbols-outlined font-bold text-base">{todaysGain >= 0 ? 'trending_up' : 'trending_down'}</span>
+                  </div>
+                  <h3 className="text-sm font-bold dark:text-white">{t('dashboard.todays_gain')}</h3>
                 </div>
-                <h3 className="text-sm font-bold dark:text-white">Peores del Día</h3>
+                <div className="flex items-baseline gap-2">
+                  <p className={`text-2xl font-bold tracking-tight ${todaysGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {todaysGain >= 0 ? '+' : ''}{formatCurrency(todaysGain)}
+                  </p>
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${todaysGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                    {todaysGain >= 0 ? '↑' : '↓'} {Math.abs(gainPercent).toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Total Gain */}
+              <div className={`flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl transition-all group min-h-[120px] ${totalGain >= 0 ? 'hover:border-green-500/30' : 'hover:border-red-500/30'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={`size-8 rounded-lg flex items-center justify-center ${totalGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                    <span className="material-symbols-outlined font-bold text-base">show_chart</span>
+                  </div>
+                  <h3 className="text-sm font-bold dark:text-white">Ganancia Total</h3>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <p className={`text-2xl font-bold tracking-tight ${totalGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {totalGain >= 0 ? '+' : ''}{formatCurrency(totalGain)}
+                  </p>
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${totalGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                    {totalGain >= 0 ? '↑' : '↓'} {Math.abs(totalGainPercent).toFixed(2)}%
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              {topLosers.length > 0 ? topLosers.map((asset, idx) => (
-                <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-background-light/50 dark:bg-white/5 border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-white/10 transition-colors">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-xs dark:text-white">{asset.ticker}</span>
-                    <span className="text-[9px] text-text-secondary-light font-medium">{formatCurrency(asset.price)}</span>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className="font-bold text-xs text-red-500 leading-tight">
-                      {asset.change.toLocaleString('es-ES', { style: 'currency', currency: asset.currency || 'USD' })}
-                    </span>
-                    <span className="text-[9px] font-black text-red-500/70">
-                      {asset.changePercent.toFixed(2)}%
-                    </span>
-                  </div>
+
+            {/* AI Insight Result (Conditional - Between Stats and Top Movers) */}
+            {insight && (
+              <div className="p-6 rounded-[2rem] bg-[#1a1a14] text-white border border-primary/20 pb-8">
+                <h3 className="font-bold text-primary mb-4 text-lg">Análisis de IA</h3>
+                <div data-color-mode="dark">
+                  <MDEditor.Markdown
+                    source={insight}
+                    style={{ backgroundColor: 'transparent', color: '#d1d5db', fontSize: '0.95rem' }}
+                  />
                 </div>
-              )) : (
-                <p className="text-xs text-text-secondary-light italic">Sin pérdidas hoy</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-
-        {/* AI Insight Result */}
-        {insight && (
-          <div className="p-6 rounded-[2rem] bg-[#1a1a14] text-white border border-primary/20 pb-8">
-            <h3 className="font-bold text-primary mb-4 text-lg">Análisis de IA</h3>
-            <div data-color-mode="dark">
-              <MDEditor.Markdown
-                source={insight}
-                style={{ backgroundColor: 'transparent', color: '#d1d5db', fontSize: '0.95rem' }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Charts & Distribution */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-          {/* PnL Chart */}
-          <div className="lg:col-span-9 flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm h-[360px] relative overflow-hidden group">
-            <div className="flex items-center justify-between mb-1 z-10 relative">
-              <div className="flex items-center gap-2">
-                <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                  <span className="material-symbols-outlined text-base">ssid_chart</span>
-                </div>
-                <h3 className="text-sm font-bold dark:text-white">PnL Ganancias/Perdidas</h3>
               </div>
-              {/* Period Filter Buttons */}
-              <div className="flex gap-1 bg-bg-light dark:bg-bg-dark rounded-lg p-1">
-                {(['1M', '3M', '1Y'] as const).map((period) => (
-                  <button
-                    key={period}
-                    onClick={async () => {
-                      setPnlPeriod(period);
-                      setPnlLoading(true);
-                      try {
-                        const { data } = await api.get(`/portfolios/${selectedPortfolioId}/pnl-history?period=${period}`);
-                        setPnlHistory(Array.isArray(data) ? data : []);
-                      } catch (e) {
-                        console.error('Error fetching PnL:', e);
-                      } finally {
-                        setPnlLoading(false);
-                      }
-                    }}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${pnlPeriod === period
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                  >
-                    {period}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex-1 w-full h-full z-10">
-              {pnlLoading ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-text-secondary-light">
-                  <div className="size-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p className="text-sm font-medium animate-pulse">Calculando histórico...</p>
-                </div>
-              ) : pnlHistory.length > 0 ? (
-                <PnLChart data={pnlHistory} theme={theme} />
-              ) : (
-                /* Placeholder content using the new PnLChart dependency logic if empty */
-                <div className="w-full h-full flex flex-col items-center justify-center text-text-secondary-light">
-                  <span className="material-symbols-outlined text-4xl mb-2 opacity-50">show_chart</span>
-                  <p>No hay suficientes datos históricos para el gráfico PnL</p>
-                  <p className="text-xs opacity-70 mt-1">Sincronizando datos...</p>
-                </div>
-              )}
-            </div>
-          </div>
+            )}
 
-          {/* Sector Distribution */}
-          <div className="lg:col-span-3 flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
-            <h3 className="text-xs font-bold mb-4 dark:text-white uppercase tracking-wider text-text-secondary-light">Distribución por Sector</h3>
-            <div className="h-[200px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={sectorAllocation}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {sectorAllocation.map((entry, index) => (
-                      <Cell key={`sector-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-4 flex flex-col gap-2">
-              {sectorAllocation.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between">
+            {/* Row 2: Top Movers */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Top Gainers */}
+              <div className="flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
+                <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <div className="size-2.5 rounded-full" style={{ backgroundColor: item.color }}></div>
-                    <span className="text-sm font-medium dark:text-gray-300">{item.name}</span>
+                    <div className="size-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
+                      <span className="material-symbols-outlined font-bold text-base">rocket_launch</span>
+                    </div>
+                    <h3 className="text-sm font-bold dark:text-white">Mejores del Día</h3>
                   </div>
-                  <span className="text-sm font-bold dark:text-white">{formatCurrency(item.value)}</span>
                 </div>
-              ))}
-              {sectorAllocation.length === 0 && (
-                <p className="text-center text-sm text-text-secondary-light py-4 italic">Cargando sectores...</p>
-              )}
+                <div className="flex flex-col gap-1.5">
+                  {topGainers.length > 0 ? topGainers.map((asset, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-background-light/50 dark:bg-white/5 border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-white/10 transition-colors">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-xs dark:text-white">{asset.ticker}</span>
+                        <span className="text-[9px] text-text-secondary-light font-medium">{formatCurrency(asset.price)}</span>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="font-bold text-xs text-green-500 leading-tight">
+                          {asset.change > 0 ? '+' : ''}{asset.change.toLocaleString('es-ES', { style: 'currency', currency: asset.currency || 'USD' })}
+                        </span>
+                        <span className="text-[9px] font-black text-green-500/70">
+                          +{asset.changePercent.toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="text-xs text-text-secondary-light italic">Sin ganancias hoy</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Top Losers */}
+              <div className="flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="size-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500">
+                      <span className="material-symbols-outlined font-bold text-base">trending_down</span>
+                    </div>
+                    <h3 className="text-sm font-bold dark:text-white">Peores del Día</h3>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {topLosers.length > 0 ? topLosers.map((asset, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-background-light/50 dark:bg-white/5 border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-white/10 transition-colors">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-xs dark:text-white">{asset.ticker}</span>
+                        <span className="text-[9px] text-text-secondary-light font-medium">{formatCurrency(asset.price)}</span>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="font-bold text-xs text-red-500 leading-tight">
+                          {asset.change.toLocaleString('es-ES', { style: 'currency', currency: asset.currency || 'USD' })}
+                        </span>
+                        <span className="text-[9px] font-black text-red-500/70">
+                          {asset.changePercent.toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                  )) : (
+                    <p className="text-xs text-text-secondary-light italic">Sin pérdidas hoy</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Row 3: PnL Chart (Full Width of Main Column) */}
+            <div className="flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm h-[360px] relative overflow-hidden group">
+              <div className="flex items-center justify-between mb-1 z-10 relative">
+                <div className="flex items-center gap-2">
+                  <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                    <span className="material-symbols-outlined text-base">ssid_chart</span>
+                  </div>
+                  <h3 className="text-sm font-bold dark:text-white">PnL Ganancias/Perdidas</h3>
+                </div>
+                {/* Period Filter Buttons */}
+                <div className="flex gap-1 bg-bg-light dark:bg-bg-dark rounded-lg p-1">
+                  {(['1M', '3M', '1Y'] as const).map((period) => (
+                    <button
+                      key={period}
+                      onClick={async () => {
+                        setPnlPeriod(period);
+                        setPnlLoading(true);
+                        try {
+                          const { data } = await api.get(`/portfolios/${selectedPortfolioId}/pnl-history?period=${period}`);
+                          setPnlHistory(Array.isArray(data) ? data : []);
+                        } catch (e) {
+                          console.error('Error fetching PnL:', e);
+                        } finally {
+                          setPnlLoading(false);
+                        }
+                      }}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${pnlPeriod === period
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                    >
+                      {period}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex-1 w-full h-full z-10">
+                {pnlLoading ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-text-secondary-light">
+                    <div className="size-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-sm font-medium animate-pulse">Calculando histórico...</p>
+                  </div>
+                ) : pnlHistory.length > 0 ? (
+                  <PnLChart data={pnlHistory} theme={theme} />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-text-secondary-light">
+                    <span className="material-symbols-outlined text-4xl mb-2 opacity-50">show_chart</span>
+                    <p>No hay suficientes datos históricos para el gráfico PnL</p>
+                    <p className="text-xs opacity-70 mt-1">Sincronizando datos...</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* SIDEBAR COLUMN (25%) */}
+          <div className="lg:col-span-3 flex flex-col gap-3">
+
+            {/* AI Analysis Button */}
+            <div className="flex flex-col justify-between p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:border-accent-blue/30 transition-all group min-h-[120px]">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="size-8 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+                  <span className="material-symbols-outlined font-bold text-base">insights</span>
+                </div>
+                <h3 className="text-sm font-bold dark:text-white">{t('dashboard.ai_analysis')}</h3>
+              </div>
+              <button
+                onClick={handleAnalyze}
+                disabled={isAnalyzing}
+                className="mt-auto w-full py-2.5 rounded-lg bg-accent-blue/10 text-accent-blue text-xs font-bold hover:bg-accent-blue hover:text-white transition-all"
+              >
+                {isAnalyzing ? "Analizando..." : "Generar Análisis de IA"}
+              </button>
+            </div>
+
+            {/* Sector Distribution */}
+            <div className="flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm flex-1">
+              <h3 className="text-xs font-bold mb-4 dark:text-white uppercase tracking-wider text-text-secondary-light">Distribución por Sector</h3>
+              <div className="h-[200px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={sectorAllocation}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={70}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {sectorAllocation.map((entry, index) => (
+                        <Cell key={`sector-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-4 flex flex-col gap-2">
+                {sectorAllocation.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="size-2.5 rounded-full" style={{ backgroundColor: item.color }}></div>
+                      <span className="text-xs font-medium dark:text-gray-300 truncate max-w-[100px]">{item.name}</span>
+                    </div>
+                    <span className="text-xs font-bold dark:text-white">{formatCurrency(item.value)}</span>
+                  </div>
+                ))}
+                {sectorAllocation.length === 0 && (
+                  <p className="text-center text-sm text-text-secondary-light py-4 italic">Cargando sectores...</p>
+                )}
+              </div>
             </div>
           </div>
         </div>

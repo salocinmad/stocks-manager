@@ -7,6 +7,13 @@ Esta versión unifica la potencia del motor de **Alertas Globales** con la intel
 
 ## ✨ Principales Novedades
 
+### 🖥️ Dashboard Rediseñado (Layout 2 Columnas)
+- **Estructura Optimizada**: Nueva arquitectura de dos columnas (75% principal / 25% lateral).
+- **Columna Principal**: Stats (Patrimonio, Variación, Ganancia), Top Movers, Gráfico PnL.
+- **Columna Lateral**: Botón de Análisis IA y Gráfico de Distribución por Sector.
+- **AI Insight Reposicionado**: El resultado del análisis IA aparece entre los stats y los movers.
+- **Alturas Consistentes**: Todas las tarjetas de la primera fila tienen altura uniforme.
+
 ### 🌍 Alertas Globales de Portafolio
 - **Monitorización Total**: Configura una única alerta que vigila el cambio porcentual diario de **cada activo** dentro de un portafolio.
 - **Cooldown Inteligente por Activo**: Si un activo dispara la alerta (ej. AAPL +5%), entra en "snooze" individualmente, mientras los demás activos siguen siendo vigilados.

@@ -80,33 +80,41 @@ La autenticación de dos factores protege tu cuenta:
 
 ## 📊 Dashboard
 
-El Dashboard es tu página principal con un resumen de toda tu cartera.
+El Dashboard es tu página principal con un resumen de toda tu cartera. Presenta un **layout de dos columnas** para optimizar la visualización.
+
+### Layout del Dashboard (v2.1.0)
+
+**Columna Principal (75%):**
+- **Fila 1**: Tarjetas de resumen (Patrimonio Neto, Variación Diaria, Ganancia Total)
+- **Análisis IA**: Resultado del análisis aparece aquí cuando se genera
+- **Fila 2**: Mejores del Día y Peores del Día (activos con mayor subida/bajada)
+- **Fila 3**: Gráfico PnL (evolución de rentabilidad)
+
+**Columna Lateral (25%):**
+- **Análisis IA**: Botón para solicitar análisis estratégico con inteligencia artificial
+- **Distribución por Sector**: Gráfico circular de tu cartera por sectores
 
 ### Elementos del Dashboard
 
 | Sección | Descripción |
 |---------|-------------|
-| **Valor Total** | El valor actual de todas tus inversiones en EUR |
-| **PnL Total** | Ganancia o pérdida total (Profit & Loss) |
+| **Patrimonio Neto** | El valor actual de todas tus inversiones en EUR |
+| **Variación Diaria** | Cambio en el valor de tu cartera hoy |
+| **Ganancia Total** | Ganancia o pérdida total desde la inversión inicial |
+| **Mejores/Peores del Día** | Top 3 activos con mayor subida/bajada hoy |
 | **Gráfico PnL** | Evolución de tu rentabilidad en el tiempo |
-| **Mercado** | Estado del mercado (abierto/cerrado) |
-| **Asignación Sectorial** | Distribución de tu cartera por sectores |
-| **Descubrimiento** | Sugerencias automáticas de acciones tendencia (Tecnología, Noticias, etc). |
-| **Valor Justo** | **NUEVO**: Indicador de acciones infravaloradas según la fórmula de Benjamin Graham. |
+| **Distribución por Sector** | Desglose de tu cartera por sectores industriales |
 
 ### Filtros del Gráfico PnL
 
 Puedes filtrar el periodo del gráfico:
-- **1S** - Última semana
 - **1M** - Último mes
 - **3M** - Últimos 3 meses
-- **6M** - Últimos 6 meses
-- **1A** - Último año
-- **Todo** - Todo el histórico
+- **1Y** - Último año
 
 ### Cambiar de Portfolio
 
-Si tienes varios portfolios, puedes cambiar entre ellos desde el selector en la parte superior.
+Si tienes varios portfolios, puedes cambiar entre ellos desde el selector en la parte superior (dropdown premium).
 
 ---
 

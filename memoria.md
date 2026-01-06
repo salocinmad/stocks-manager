@@ -131,8 +131,20 @@ docker compose logs app --tail 100
 ---
 
 **ÚLTIMA ACTUALIZACIÓN**: Enero 2026 (v2.1.0)
+
+### Cambios Recientes (Enero 2026):
+- **Dashboard Layout 2 Columnas**: Rediseño completo del Dashboard con estructura de dos columnas (75%/25%):
+  - **Columna Principal (lg:col-span-9)**: 
+    - Fila 1: 3 tarjetas de stats (Patrimonio Neto, Variación Diaria, Ganancia Total)
+    - AI Insight Result (condicional, entre stats y movers)
+    - Fila 2: Mejores/Peores del Día
+    - Fila 3: Gráfico PnL (ancho completo de columna)
+  - **Columna Lateral (lg:col-span-3)**:
+    - Botón Análisis IA
+    - Gráfico Distribución por Sector
 - **Alertas Globales**: Sistema de monitorización de todos los activos de un portfolio con cooldown individual (`triggered_assets` JSONB).
 - **Consolidación de API**: Endpoint `/api/alerts` unificado para todo tipo de alertas.
 - **UI Alertas**: Rediseño de tarjetas compactas y grid de alta densidad.
 - **Reset de Alertas**: Botones para restablecer alertas disparadas (Individual y Global con limpieza de historial `triggered_assets`).
 - **Esquema DB**: Inclusión de `updated_at` en `market_cache` para mejor consistencia de caché.
+
