@@ -16,15 +16,19 @@ Permite realizar seguimiento de acciones, criptomonedas y fondos, analizar rendi
   - **Agnóstico**: Usa Gemini, OpenRouter, Groq, Ollama o LM Studio.
   - **Contexto Financiero**: La IA conoce noticias, precios, fundamentales (PER, Beta) e indicadores técnicos (RSI).
   - **Personalizable**: Configura proveedores y prompts desde el panel de administración.
-- **🚀 Motor de Descubrimiento (Stocks Crawler)**:
-  - Escaneo automático (cada 10m) de oportunidades de mercado.
-  - Arquitectura Híbrida Inteligente: Yahoo (Screening) + Finnhub (Precios).
-  - Detección de tendencias en Tecnología, Salud, Finanzas y Noticias Virales.
+- **🚀 Motor de Descubrimiento (Discovery Engine v2.1.0)**:
+  - **Arquitectura Split-World**: Escaneo diferenciado para USA (Finnhub) y Global (Yahoo Trending).
+  - **Enriquecimiento Inteligente**: Autodetección y corrección de sectores desconocidos.
+  - **Rescate por ISIN**: Fallback automático para mapear tickers fallidos entre mercados.
+  - **Persistencia Acumulativa**: Los datos se fusionan (Append) para construir un catálogo histórico sin pérdidas.
+- **🌎 Librería Global (Master Library)**:
+  - Base de datos de más de 12.000 activos mundiales sincronizados vía EODHD.
+  - Soporte universal de ISIN para identificación unívoca.
 - **💰 Gestión de Comisiones**: Registro detallado de comisiones por operación y ajuste de bases de coste.
-- **🔔 Alertas Inteligentes**: Notificaciones por precio, variación porcentual y volumen (Email, Telegram).
+- **🔔 Alertas Inteligentes**: Notificaciones por precio, RSI (v2.1.0), cruces de medias y volumen.
 - **📝 Notas Ricas**: Editor Markdown para anotar tesis de inversión en cada posición.
-- **📅 Calendario Financiero**: Eventos macroeconómicos, fechas de dividendos, y estimaciones de EPS (Yahoo Finance V3).
-- **💾 Backup Automatizado**: Sistema de copia de seguridad programable (Diario/Semanal) con envío por Email y protección por contraseña. Soporta ZIP (Datos + Imágenes) y SQL.
+- **📅 Calendario Financiero**: Eventos macroeconómicos, dividendos y estimaciones de EPS (Yahoo Finance V10).
+- **💾 Backup Automatizado**: Sistema programable (Diario/Semanal) con cifrado, envío por Email y soporte multimedia.
 - **🔒 Seguridad**: Autenticación 2FA (TOTP), hash bcrypt y estructura Dockerizada.
 
 ---

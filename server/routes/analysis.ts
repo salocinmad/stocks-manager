@@ -8,6 +8,7 @@
 import { Elysia, t } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import { PositionAnalysisService } from '../services/positionAnalysisService';
+import { MarketDataService } from '../services/marketData';
 import sql from '../db';
 
 export const analysisRoutes = new Elysia({ prefix: '/analysis' })
@@ -67,9 +68,46 @@ export const analysisRoutes = new Elysia({ prefix: '/analysis' })
         })
     })
 
+    // Get analysis for a ticker (Discovery)
+    .get('/ticker/:ticker', async ({ params }) => {
+        const { ticker } = params;
+        const analysis = await PositionAnalysisService.getTickerAnalysis(ticker);
+
+        if (!analysis) {
+            return { error: 'Could not generate analysis for ticker' };
+        }
+
+        return analysis;
+    }, {
+        params: t.Object({
+            ticker: t.String()
+        })
+    })
+
+    // Get historical data for a ticker with specific range (Discovery)
+    .get('/ticker/:ticker/history', async ({ params, query }) => {
+        const { ticker } = params;
+        const { range } = query;
+
+        let years = 1;
+        if (range === '6m') years = 0.5;
+        if (range === '60d') years = 0.17;
+        if (range === '30d') years = 0.084;
+
+        const history = await MarketDataService.getDetailedHistory(ticker, years);
+        return history;
+    }, {
+        params: t.Object({
+            ticker: t.String()
+        }),
+        query: t.Object({
+            range: t.Optional(t.String())
+        })
+    })
+
     // Simulate buy operation
     .post('/simulate/buy', async ({ body, userId }) => {
-        const { positionId, additionalQty, buyPrice } = body;
+        const { positionId, additionalQty, buyPrice } = body as any;
 
         // Get current position data
         const positions = await sql`
@@ -104,7 +142,7 @@ export const analysisRoutes = new Elysia({ prefix: '/analysis' })
 
     // Simulate sell operation
     .post('/simulate/sell', async ({ body, userId }) => {
-        const { positionId, sellQty, currentPrice } = body;
+        const { positionId, sellQty, currentPrice } = body as any;
 
         const positions = await sql`
             SELECT p.*, pf.user_id,
@@ -138,7 +176,7 @@ export const analysisRoutes = new Elysia({ prefix: '/analysis' })
 
     // Simulate price change
     .post('/simulate/price-change', async ({ body, userId }) => {
-        const { positionId, percentChange, currentPrice } = body;
+        const { positionId, percentChange, currentPrice } = body as any;
 
         const positions = await sql`
             SELECT p.*, pf.user_id,

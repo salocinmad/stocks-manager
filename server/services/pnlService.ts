@@ -187,6 +187,10 @@ export const PnLService = {
                         quantity: quantityMatched,
                         buyPriceEur: (matchLot.unitPrice * matchLot.rateToEur).toFixed(4),
                         sellPriceEur: (price * rate).toFixed(4),
+                        buyPriceOrig: matchLot.unitPrice,
+                        sellPriceOrig: price,
+                        buyRate: matchLot.rateToEur,
+                        sellRate: rate,
                         gainEur: Number(gainEur.toFixed(2)),
                         currency: tx.currency
                     });

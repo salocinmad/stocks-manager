@@ -293,12 +293,20 @@
     size: auto;
   }
 
-  /* Ocultar TODO por defecto */
-  body {
+  /* Ocultar TODO por defecto y forzar fondo blanco */
+  html,
+  body,
+  #root,
+  #root>div,
+  .flex-1 {
     visibility: hidden;
     height: auto !important;
+    min-height: auto !important;
     overflow: visible !important;
     display: block !important;
+    position: static !important;
+    background: white !important;
+    /* Forzar fondo blanco en todos los niveles */
   }
 
   /* Ocultar elementos flotantes explícitamente */
@@ -314,34 +322,63 @@
     visibility: visible;
   }
 
-  /* Posicionar el reporte ocupando toda la página */
+  /* Reducir escala general para que quepa más contenido */
   #printable-report {
-    position: static !important;
-    /* Static permite el flujo normal de páginas */
     visibility: visible !important;
     display: block !important;
-
-    /* Resetear posición para que empiece arriba */
-    position: fixed !important;
-    top: 0;
-    left: 0;
     width: 100% !important;
     height: auto !important;
-
     margin: 0 !important;
-    padding: 0 !important;
-
+    padding: 1cm !important;
+    /* Reducido de 2cm */
     background-color: white !important;
     color: black !important;
     border: none !important;
+    border-radius: 0 !important;
+    /* Quitar bordes redondeados en PDF */
+    box-shadow: none !important;
+    /* Quitar sombras que puedan manchar */
     overflow: visible !important;
+    font-size: 9pt !important;
+    /* Base más pequeña */
   }
 
-  /* Hack para mover el contenido al principio de la página impresa */
-  #printable-report {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
+  #printable-report h1 {
+    font-size: 18pt !important;
+    margin-bottom: 4pt !important;
+  }
+
+  #printable-report .grid {
+    gap: 8pt !important;
+    margin-bottom: 15pt !important;
+  }
+
+  #printable-report .grid>div {
+    padding: 8pt !important;
+    border: 1px solid #eee !important;
+  }
+
+  #printable-report .text-2xl {
+    font-size: 14pt !important;
+  }
+
+  /* Compactar tabla */
+  #printable-report table th {
+    padding: 6pt 4pt !important;
+    font-size: 7pt !important;
+  }
+
+  #printable-report table td {
+    padding: 4pt 4pt !important;
+    font-size: 8.5pt !important;
+    border-bottom: 0.5pt solid #f0f0f0 !important;
+  }
+
+  /* Ajustar subtexto de divisas */
+  #printable-report .text-\[10px\] {
+    font-size: 7pt !important;
+    line-height: 1 !important;
+    margin-top: 1pt !important;
   }
 
   /* Asegurar que la tabla se rompa bien */
@@ -367,5 +404,44 @@
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+}
+
+/* ----- ANIMATIONS ----- */
+@layer utilities {
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .glass-panel {
+    @apply bg-white/70 dark:bg-black/50 backdrop-blur-xl border border-white/20 dark:border-white/5 shadow-2xl;
   }
 }

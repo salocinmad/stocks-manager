@@ -4,6 +4,9 @@ import sql from '../db';
 import bcrypt from 'bcryptjs';
 import { SettingsService } from '../services/settingsService';
 import { MarketDataService } from '../services/marketData';
+import { EODHDService } from '../services/eodhdService';
+
+let globalSyncStatus = { running: false, message: 'IDLE', lastRun: null as Date | null };
 import { AIService } from '../services/aiService';
 import AdmZip from 'adm-zip';
 import * as fs from 'fs';
@@ -13,8 +16,7 @@ import { recalculateAllHistory } from '../jobs/pnlJob';
 import { DiscoveryService } from '../services/discoveryService';
 import { BackupService } from '../services/backupService';
 import { BackupJob } from '../jobs/backupJob';
-// import { DiscoveryJob } from '../jobs/discoveryJob'; // Removed duplicate/unused if not needed or fixed import
-// import { DiscoveryJob } from '../jobs/discoveryJob'; // Removed duplicate/unused if not needed or fixed import
+import { DiscoveryJob } from '../jobs/discoveryJob';
 
 // Helper implementation for consistent table ordering
 const getOrderedTables = (allTables: string[]) => {
@@ -125,6 +127,98 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             months: t.Numeric(),
             type: t.String()
         })
+    })
+
+    // Explorador de Catálogo Maestro
+    .get('/explorer/catalog', async ({ query }) => {
+        const { search, limit, offset } = query;
+        return await DiscoveryService.getPaginatedCatalog(
+            search || '',
+            Number(limit) || 20,
+            Number(offset) || 0
+        );
+    }, {
+        query: t.Object({
+            search: t.Optional(t.String()),
+            limit: t.Optional(t.Numeric()),
+            offset: t.Optional(t.Numeric())
+        })
+    })
+
+    // Explorador de Discovery Engine
+    .get('/explorer/discovery', async ({ query }) => {
+        const { category, search, limit, offset, filter, sortBy, order, market } = query;
+        return await DiscoveryService.getPaginatedDiscovery(
+            category as string || 'all',
+            search || '',
+            Number(limit) || 20,
+            Number(offset) || 0,
+            filter || 'all',
+            sortBy as string || 't',
+            order as string || 'asc',
+            market as string || 'all'
+        );
+    }, {
+        query: t.Object({
+            category: t.Optional(t.String()),
+            search: t.Optional(t.String()),
+            limit: t.Optional(t.Numeric()),
+            offset: t.Optional(t.Numeric()),
+            filter: t.Optional(t.String()),
+            sortBy: t.Optional(t.String()),
+            order: t.Optional(t.String()),
+            market: t.Optional(t.String())
+        })
+    })
+
+    // Obtener categorías de Discovery
+    .get('/explorer/categories', async () => {
+        return await DiscoveryService.getCategories();
+    })
+
+    // Sincronización de Librería Global de Tickers (EODHD)
+    .post('/market/sync-global-library', async () => {
+        if (globalSyncStatus.running) {
+            throw new Error('La sincronización global ya está en curso.');
+        }
+
+        globalSyncStatus = { running: true, message: 'Iniciando sincronización de librería global...', lastRun: null };
+
+        // Run in background
+        EODHDService.syncAllExchanges((msg) => {
+            globalSyncStatus.message = msg;
+        })
+            .then(() => {
+                globalSyncStatus = { running: false, message: 'Sincronización global completada con éxito.', lastRun: new Date() };
+                console.log('[Admin] Global library sync completed successfully.');
+            })
+            .catch((e) => {
+                globalSyncStatus = { running: false, message: `Error en sincronización global: ${e.message}`, lastRun: new Date() };
+                console.error('[Admin] Global library sync failed:', e);
+            });
+
+        return { success: true, message: 'Sincronización de librería global iniciada en segundo plano.' };
+    })
+
+    // Manual Trigger for Catalog Enrichment
+    .post('/catalog/enrich', async () => {
+        console.log('[Admin] Recibida petición manual de enriquecimiento de catálogo');
+        try {
+            const { CatalogEnrichmentJob } = await import('../jobs/catalogEnrichmentJob');
+            CatalogEnrichmentJob.runEnrichmentCycle(true).catch(e => console.error('Manual Catalog Enrichment Error:', e));
+
+            return {
+                success: true,
+                message: 'Enriquecimiento de catálogo iniciado en segundo plano'
+            };
+        } catch (error: any) {
+            return { success: false, message: error.message };
+        }
+    })
+
+    // Obtener estado de la sincronización global
+    .get('/market/sync-status', () => {
+        return globalSyncStatus;
     })
 
     // Recalcular PnL para todos los portfolios (desde primera transacción)
@@ -360,6 +454,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         const [portfolioStats] = await sql`SELECT COUNT(*) as total FROM portfolios`;
         const [positionStats] = await sql`SELECT COUNT(*) as total FROM positions`;
         const [transactionStats] = await sql`SELECT COUNT(*) as total FROM transactions`;
+        const [globalTickersStats] = await sql`SELECT COUNT(*) as total FROM global_tickers`;
         const discoveryStats = await DiscoveryService.getStats();
 
         return {
@@ -370,6 +465,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             portfolios: parseInt(portfolioStats.total),
             positions: parseInt(positionStats.total),
             transactions: parseInt(transactionStats.total),
+            globalTickers: parseInt(globalTickersStats.total),
             discovery: discoveryStats
         };
     })
@@ -394,6 +490,28 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     }, {
         body: t.Object({
             appUrl: t.String()
+        })
+    })
+
+    // Market Display Settings (Header Ticker)
+    .get('/settings/market-display', async () => {
+        const stored = await SettingsService.get('HEADER_INDICES');
+        return {
+            indices: stored ? JSON.parse(stored) : ['^IBEX', '^IXIC', '^NYA', '^GDAXI', '^FTSE', '^FCHI']
+        };
+    })
+    .post('/settings/market-display', async ({ body }) => {
+        // @ts-ignore
+        const { indices } = body;
+        try {
+            await SettingsService.set('HEADER_INDICES', JSON.stringify(indices));
+            return { success: true, message: 'Índices del encabezado actualizados.' };
+        } catch (error: any) {
+            throw new Error(`Error al guardar: ${error.message}`);
+        }
+    }, {
+        body: t.Object({
+            indices: t.Array(t.String())
         })
     })
 
@@ -431,7 +549,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             await SettingsService.set('CRAWLER_CYCLES_PER_HOUR', cycles);
             await SettingsService.set('CRAWLER_VOL_YAHOO_V8', volV8);
             await SettingsService.set('CRAWLER_VOL_YAHOO_V10', volV10);
-            await SettingsService.set('CRAWLER_VOL_FINNHUB', volFinnhub);
+            await SettingsService.set('CRAWLER_VOL_FINNHub', volFinnhub);
             await SettingsService.set('CRAWLER_MARKET_OPEN_ONLY', String(marketOpenOnly));
             return { success: true, message: 'Configuración granular del crawler guardada.' };
         } catch (error: any) {
@@ -448,9 +566,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     })
     .post('/settings/crawler/run', async () => {
         // Trigger manual run (async, don't wait for completion)
-        // Trigger manual run (async, don't wait for completion)
-        // DiscoveryJob.runDiscoveryCycle().catch(e => console.error('Manual Discovery Error:', e));
-        return { success: true, message: 'Ciclo de descubrimiento iniciado manualmente.' };
+        DiscoveryJob.runDiscoveryCycle().catch(e => console.error('Manual Discovery Error:', e));
         return { success: true, message: 'Ciclo de descubrimiento iniciado manualmente.' };
     })
 
@@ -460,22 +576,25 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     })
     .post('/settings/api', async ({ body }) => {
         // @ts-ignore
-        const { finnhub, google } = body;
+        const { finnhub, google, fmp, eodhd, globalExchanges } = body;
         try {
             await SettingsService.set('FINNHUB_API_KEY', finnhub, true);
             await SettingsService.set('GOOGLE_GENAI_API_KEY', google, true);
+            await SettingsService.set('FMP_API_KEY', fmp, true);
+            await SettingsService.set('EODHD_API_KEY', eodhd, true);
+            if (globalExchanges !== undefined) {
+                await SettingsService.set('GLOBAL_TICKER_EXCHANGES', globalExchanges, false);
+            }
 
-            // Actualizar process.env para compatibilidad inmediata
-            process.env.FINNHUB_API_KEY = finnhub;
-            process.env.GOOGLE_GENAI_API_KEY = google;
-
-            // Sync to .env file
+            // Sync certain keys to .env for backwards compatibility if needed
             await updateEnvFile({
                 FINNHUB_API_KEY: finnhub,
-                GOOGLE_GENAI_API_KEY: google
+                GOOGLE_GENAI_API_KEY: google,
+                FMP_API_KEY: fmp,
+                EODHD_API_KEY: eodhd
             });
 
-            return { success: true, message: 'Claves API guardadas correctamente (DB + .env)' };
+            return { success: true, message: 'Claves API actualizadas.' };
         } catch (error: any) {
             console.error('Error saving API keys:', error);
             throw new Error(`Error al guardar: ${error.message}`);
@@ -483,7 +602,10 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     }, {
         body: t.Object({
             finnhub: t.String(),
-            google: t.String()
+            google: t.String(),
+            fmp: t.String(),
+            eodhd: t.String(),
+            globalExchanges: t.Optional(t.String())
         })
     })
 
@@ -705,7 +827,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         if (!target) throw new Error('Prompt no encontrado');
 
         // Allow updating content even if system? Maybe just name/content but not type.
-        // Let's allow updating content for system prompts too, why not? Or maybe restrict.
+        // Let's allow editing content for system prompts too, why not? Or maybe restrict.
         // For now, allow fully editing custom prompts, and editing content of system prompts (if user wants to tweak default)
         // Actually, system prompts usually implies "Factory Reset" capable. 
         // But let's allow editing them for now as requested "default options" but user might want to tweak.
@@ -854,7 +976,7 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         }
     })
     // Modificado: Backup ahora devuelve un ZIP con el JSON t las imagenes
-    .get('/backup/zip', async () => {
+    .get('/backup/zip', async ({ set }) => {
         try {
             const zipBuffer = await BackupService.generateBackupZip();
 
@@ -1140,4 +1262,17 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         body: t.Object({
             sqlScript: t.String()
         })
+    })
+    // Wipe Discovery Data
+    .post('/discovery/wipe', async ({ set }) => {
+        console.log('⚠️ Admin triggered DISCOVERY WIPE');
+        try {
+            await sql`TRUNCATE TABLE global_tickers, market_discovery_cache RESTART IDENTITY CASCADE`;
+            console.log('✅ Discovery tables truncated.');
+            return { message: 'Datos de descubrimiento eliminados correctamente.' };
+        } catch (e: any) {
+            console.error('Error wiping discovery tables:', e);
+            set.status = 500;
+            throw new Error(e.message);
+        }
     });

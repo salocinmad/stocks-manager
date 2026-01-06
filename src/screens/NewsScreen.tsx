@@ -48,7 +48,7 @@ export const NewsScreen: React.FC = () => {
 
   return (
     <main className="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
-      <Header title={t('menu.news')} />
+
 
       <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-[1600px] mx-auto w-full flex flex-col gap-6">
         {/* Search / Filter */}

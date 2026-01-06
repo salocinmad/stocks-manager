@@ -1,0 +1,3 @@
+{
+  "error": "Call `const yahooFinance = new YahooFinance()` first.  Upgrading from v2?  See https://github.com/gadicc/yahoo-finance2/blob/dev/docs/UPGRADING.md."
+}

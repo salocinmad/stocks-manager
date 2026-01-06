@@ -1,107 +1,107 @@
 # 🚀 Stocks Manager v2.1.0 Release Notes
 ## "The Autonomous Intelligence Update"
 
-Esta versión marca un hito en la evolución de Stocks Manager, transformando la plataforma de un gestor pasivo a un **sistema inteligente de descubrimiento y análisis**.
+Esta versión transforma la plataforma de un gestor pasivo a un **sistema inteligente de descubrimiento y análisis**.
 
 ---
 
-### ✨ Nuevas Funcionalidades
+## ✨ Principales Novedades
 
-#### 1. 🧠 Motor de Inteligencia Artificial Multi-Proveedor
-Ahora eres libre de elegir quién analiza tu cartera. Hemos reescrito el núcleo de IA para ser agnóstico del proveedor.
-- **Soporte Nativo**: Conecta con **Gemini** (Google), **OpenRouter** (Acceso a Claude, GPT-4), **Groq** (Inferencias ultra-rápidas), o modelos locales (**Ollama**, **LM Studio**) para máxima privacidad.
-- **Configuración Dinámica**: Añade, edita y cambia proveedores desde el panel de administración sin reiniciar el servidor.
-- **Prompts Contextuales**: La IA ahora recibe noticias reales, datos fundamentales y técnicos de tus posiciones para un análisis preciso.
+### 🧠 Motor de IA Multi-Proveedor
+- **Proveedores**: Gemini, OpenRouter (Claude, GPT-4), Groq, Ollama, LM Studio
+- **Configuración Dinámica**: Añade/cambia proveedores desde Admin sin reiniciar
+- **Prompts Contextuales**: La IA recibe noticias, datos fundamentales y técnicos
 
-#### 2. 🦁 Mejoras en Discovery Engine (Granular & Smart)
-El motor de descubrimiento ha recibido una actualización significativa para ofrecer control total sin cambiar su versión base:
-- **Control Granular**: Nuevos sliders en el panel Admin para configurar ciclos por hora (1-60) y volumen de escaneo individual para cada worker (V8 Técnico, Finnhub Noticias, V10 Fundamental).
-- **Modos Predefinidos (Presets)**:
-  - **🐢 Stealth**: Mínimo impacto, bajo tráfico.
-  - **⚖️ Balanced**: Equilibrio recomendado.
-  - **🐺 Wolf Mode**: Escaneo agresivo cada 5 minutos (hasta 2000 items/hora) para máxima cobertura.
-- **Market Open Awareness**: El crawler detecta automáticamente si los mercados de EE.UU. o Europa están abiertos y prioriza la búsqueda de "Day Gainers" y "Most Actives" en tiempo real.
-- **Arquitectura Híbrida**: Ejecución paralela optimizada de tres workers especializados.
+### 🦁 Discovery Engine (Crawler v2)
+- **Arquitectura Split-World**: Pipelines separados USA (Finnhub) vs Global (Yahoo Trending)
+- **Control Granular**: Presets (Sigilo/Balanceado/Wolf) + sliders hasta 80 items
+- **Kill Switch**: Control maestro para activar/desactivar el crawler completo
+- **Marcado de Fallidos**: Los tickers incompatibles con Yahoo se marcan para saltar en futuros ciclos
 
-#### 3. 📊 Datos Financieros Enriquecidos
-Hemos profundizado en los datos que el sistema recolecta.
-- **Análisis Fundamental Profundo**: Pestaña dedicada con métricas de Valoración (PER, EV/EBITDA), Rentabilidad (ROE, Márgenes), Salud Financiera (Deuda/Equity) y Dividendos completos.
-- **Análisis Técnico**: RSI (Índice de Fuerza Relativa) y Medias Móviles (SMA50/200) calculados automáticamente.
-- **Noticias en Tiempo Real**: Feed de noticias integrado y mejorado.
+### 🌎 Catálogo Maestro de Tickers
+- **Sincronización EODHD**: +100.000 activos con ISIN universal
+- **Filtro "Solo Acciones"**: Ignora ETFs, Fondos e instrumentos irrelevantes
+- **Job Mensual**: Actualización automática de 20 bolsas principales
 
-#### 4. 📅 Calendario Financiero Avanzado
-- **Vista Mensual**: Visualiza eventos de ganancias y dividendos en un calendario interactivo.
-- **Datos Detallados**: Consulta el **EPS Estimado** y el **Monto del Dividendo** directamente en la tarjeta del evento.
-- **Filtros**: Alterna fácilmente entre eventos de **"Mis Acciones"** y eventos generales del **"Mercado"**.
-- **Sincronización Inteligente**: El sistema actualiza automáticamente los eventos cada 6 horas, respetando los ciclos del crawler para no saturar la red.
+### 📊 Panel de Análisis de Posición
+- **5 Pestañas**: Posición, Técnico, Riesgo, Analistas, What-If
+- **Métricas de Riesgo**: Sharpe, Sortino, VaR 95%, Max Drawdown, Beta
+- **Cálculos Automáticos**: Job cada 6 horas precalcula métricas
 
-#### 5. 📊 Panel de Análisis de Posición (NUEVO)
-Análisis profundo de cada posición en tu cartera con un modal de 5 pestañas:
-- **Posición**: Cantidad, precio medio, PnL (€/%), peso en cartera, fechas de operación.
-- **Técnico**: RSI (14), SMA 50/200, tendencia (Golden/Death Cross), timestamp de último cálculo.
-- **Riesgo**: Volatilidad anualizada, Sharpe Ratio, Sortino Ratio, Max Drawdown, Beta vs S&P500, VaR 95%, Score de Riesgo (1-10).
-- **Analistas**: Consenso de recomendaciones (Comprar/Mantener/Vender), precio objetivo, desglose detallado, sentimiento de insiders.
-- **Simulador What-If**: Simula el impacto de comprar más acciones, vender parte de la posición o cambios de precio.
-- **Cálculos Automáticos**: Job programado cada 6 horas (00:00, 06:00, 12:00, 18:00) para precalcular métricas.
-
-#### 6. 🔔 Alertas Avanzadas (NUEVO)
-Sistema de alertas renovado con nuevos tipos:
-- **Alertas Técnicas (RSI)**: Notificación cuando el RSI cruza umbrales de sobrecompra (>70) o sobreventa (<30).
-- **Alertas de Cruce SMA**: Golden Cross (SMA50 cruza por encima de SMA200) y Death Cross (señal bajista).
-- **Alertas de Portfolio**: Alertas a nivel de cartera completa:
-  - PnL absoluto (€) por encima/debajo de umbral
-  - PnL porcentual (%) objetivo
-  - Valor total de cartera
-  - Exposición sectorial máxima
-- **Soporte Multi-idioma**: Preferencia de idioma para alertas de noticias (ES/EN).
-
-#### 7. ⌨️ Atajos de Teclado (NUEVO)
-Navegación rápida con hotkeys:
-- `Ctrl+K`: Búsqueda global (Command Palette)
-- `Ctrl+D`: Ir a Dashboard
-- `Ctrl+P`: Ir a Cartera
-- `Ctrl+A`: Ir a Alertas  
-- `Ctrl+W`: Ir a Watchlist
-- `Ctrl+N`: Nueva operación
-- `?`: Mostrar ayuda de atajos
-- `ESC`: Cerrar modal activo
-
-#### 8. 🛠️ Mejoras Administrativas
-- **Gestión de Backups Totalmente Renovada**:
-  - **Programador Automático**: Configura backups diarios, semanales o mensuales.
-  - **Envío por Email**: Recibe tus copias de seguridad directamente en tu bandeja de entrada.
-  - **Seguridad**: Cifra tus backups con contraseña para enviarlos por email de forma segura.
-  - **Gestión Inteligente**: Si el backup supera los 25MB, recibirás un aviso para descargarlo manualmente.
-  - **Tecnología**: Migración a `archiver` y `unzipper` para mayor fiabilidad en la compresión y restauración.
-- **Configuración SMTP**: Configura tu servidor de correo para alertas desde la interfaz web.
-- **Logs Mejorados**: Sistema de registro con marcas de tiempo precisas para mejor depuración.
-
-#### 9. 🧪 Suite de Tests Renovada
-- **Test Runner Personalizado**: Nueva herramienta de ejecución que ordena los resultados (Verde/Rojo) para máxima legibilidad.
-- **Salida Limpia**: La terminal solo muestra el resumen de ejecución, ocultando ruido innecesario.
-- **Debug Log Persistente**: Generación automática de `server/tests/test_debug.log` con el stack trace completo de la última sesión para auditoría profunda.
+### 🔔 Alertas Avanzadas
+- **Técnicas**: RSI (sobrecompra/sobreventa), Cruces SMA (Golden/Death Cross)
+- **Portfolio**: PnL absoluto/porcentual, valor total, exposición sectorial
+- **Multi-idioma**: Alertas de noticias en ES/EN
 
 ---
 
-### 🐛 Correcciones y Optimizaciones
-- **Finnhub Discovery**: Solucionado el problema donde la API gratuita no devolvía tickers en noticias (implementado fallback a Yahoo Screener).
-- **Rendimiento**: Optimización del cálculo de PnL y caché de mercado en base de datos.
-- **UI**: Mejoras visuales en el Dashboard y corrección de colores en gráficos sectoriales.
-- **Backend Crítico**: Reparación de `marketData.ts` (funciones `getQuote`, `getAssetProfile`) y optimización de llamadas a Yahoo Finance.
-- **Estado de Mercado**: Solucionado error visual donde los mercados aparecían siempre "Cerrados". Ahora se usa directamente el estado de Yahoo Finance V10 (`REGULAR`, `PRE`, `POST`) para mantener la concordancia con el frontend.
+## 🖥️ Mejoras de Interfaz
 
-#### 🆕 Datos Fundamentales (Update v2.1.0)
-Se han añadido capacidades de análisis fundamental profundo:
-- **Pestaña "Fundamental"**: Nueva sección en el Modal de Análisis con 4 categorías:
-  - **Valoración**: Market Cap, EV, PER, PEG, Price/Book.
-  - **Rentabilidad**: Márgenes (Operativo/Neto), ROE, ROA.
-  - **Salud Financiera**: Deuda Total, Caja, Ratios de Liquidez.
-  - **Dividendos**: Yield, Payout Ratio, Fechas Ex-Corte.
-- **Tooltips Educativos**: Explicaciones detalladas al pasar el ratón sobre cualquier métrica (Técnico, Riesgo y Fundamental).
-- **Backend Optimizado**: Caché inteligente de 14 días para datos fundamentales estables.
+### Panel de Administración Reorganizado
+- **Tab Mercado** con 3 subtabs:
+  - **Sincronización**: Sync manual, PnL, Librería Global, Zona de Peligro
+  - **Índices de Cabecera**: Selector de índices para la cabecera global
+  - **Discovery Engine**: Control maestro y configuración granular
+
+### Dashboard Premium
+- **Skeleton Loading**: Carga progresiva sin spinners bloqueantes
+- **Selector de Portafolio**: Dropdown estilo glassmorphism
+- **Top Movers**: Widgets de Mejores/Peores del día
+
+### Navegación
+- **Sidebar 2.0**: Agrupación lógica + estética glassmorphism
+- **Breadcrumbs**: Navegación jerárquica
+- **Atajos**: `Ctrl+K` (búsqueda), `Ctrl+D/P/A/W` (navegación)
+
+### Sistema de Notificaciones
+- **Toasts**: Reemplazo de `alert()` por notificaciones elegantes
 
 ---
 
-### 🔮 Próximamente
-- Análisis de Sentimiento avanzado con Modelos Locales.
-- Simulador de Escenarios de Cartera ("What If").
+## 📈 Datos y Análisis
+
+### Datos Fundamentales Profundos
+- **Valoración**: PER, EV/EBITDA, Price/Book, PEG
+- **Rentabilidad**: Márgenes, ROE, ROA
+- **Salud Financiera**: Deuda, Caja, Liquidez
+- **Graham Number**: Cálculo automático de Fair Value
+
+### Análisis Técnico
+- RSI (7 y 14 días), SMA 50/200, Tendencia (Bullish/Bearish)
+- **+130 Tooltips Educativos** en español
+
+### Calendario Financiero
+- Vista mensual con eventos de ganancias y dividendos
+- EPS estimado y montos de dividendo
+- Sincronización cada 6 horas
+
+---
+
+## 🛠️ Infraestructura
+
+### Sistema de Backup
+- Programador automático (diario/semanal/mensual)
+- Envío por email con cifrado AES-256
+- Gestión inteligente de tamaño (>25MB = aviso)
+
+### Testing
+- Test runner con salida ordenada (Verde/Rojo)
+- Debug log persistente (`test_debug.log`)
+
+### Correcciones Críticas
+- Soporte GBX (Penique Británico) con normalización automática
+- Estado de mercado sincronizado con Yahoo Finance V10
+- Orden de noticias corregido (más recientes primero)
+- Estrategia ISIN Fallback para símbolos internacionales
+
+---
+
+## 🔮 Próximamente
+- Análisis de Sentimiento con modelos locales
+- Escáner de Dividendos Global
+- Optimización del Harvester Global
+
+---
+
+**Versión**: 2.1.0  
+**Última actualización**: Enero 2026

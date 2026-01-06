@@ -215,7 +215,7 @@ export const AlertsScreen: React.FC = () => {
 
   return (
     <main className="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-y-auto">
-      <Header title="Alertas de Precio" />
+
       <div className="max-w-[1400px] mx-auto w-full px-6 py-10 flex flex-col xl:flex-row gap-8">
 
         {/* Formulario */}

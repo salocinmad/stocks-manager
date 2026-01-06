@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import MDEditor from '@uiw/react-md-editor';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import { Header } from '../components/Header';
+import { DashboardSkeleton } from '../components/skeletons/DashboardSkeleton';
 import { TradingViewChart } from '../components/TradingViewChart';
 import { PnLChart } from '../components/PnLChart';
 
@@ -35,12 +35,15 @@ export const Dashboard: React.FC = () => {
   const [totalGain, setTotalGain] = useState<number>(0);
   const [totalGainPercent, setTotalGainPercent] = useState<number>(0);
   const [sectorAllocation, setSectorAllocation] = useState<any[]>([]);
+  const [topGainers, setTopGainers] = useState<any[]>([]);
+  const [topLosers, setTopLosers] = useState<any[]>([]);
   const [topAsset, setTopAsset] = useState<string>("NASDAQ:AAPL");
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [pnlHistory, setPnlHistory] = useState<any[]>([]);
   const [pnlPeriod, setPnlPeriod] = useState<'1M' | '3M' | '1Y'>('3M'); // Default 3 months
   const [loading, setLoading] = useState(true);
-  const [pnlLoading, setPnlLoading] = useState(false); // To track chart loading specifically
+  const [pnlLoading, setPnlLoading] = useState(true);
+  const [isPortfolioMenuOpen, setIsPortfolioMenuOpen] = useState(false); // To track chart loading specifically
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   // AI State
@@ -98,6 +101,8 @@ export const Dashboard: React.FC = () => {
             setGainPercent(summary.dailyChangePercent || 0);
             setTotalGain(summary.totalGainEur || 0);
             setTotalGainPercent(summary.totalGainPercent || 0);
+            if (summary.topGainers) setTopGainers(summary.topGainers);
+            if (summary.topLosers) setTopLosers(summary.topLosers);
           }
 
           if (details && details.positions && details.positions.length > 0) {
@@ -116,88 +121,53 @@ export const Dashboard: React.FC = () => {
               setTopAsset(sortedByValue[0].ticker);
             }
 
-            // Fetch sector distribution (Async but fast enough to wait? Or split?)
-            // Let's keep it here for now to ensure layout doesn't jump too much, 
-            // usually sector data is faster than 6 months of history calculations.
-            try {
-              const { data: sectorData } = await api.post('/market/sector-distribution', { tickers });
+            // Fetch sector distribution (Now provided by summary endpoint with correct currency conversion)
+            if (summary && summary.sectorAllocation) {
+              // Paleta de colores consistente para sectores comunes
+              const sectorColors: Record<string, string> = {
+                'Technology': '#3b82f6',
+                'Healthcare': '#34d399',
+                'Financial Services': '#fbbf24',
+                'Consumer Cyclical': '#f472b6',
+                'Consumer Defensive': '#fb923c',
+                'Industrials': '#a78bfa',
+                'Energy': '#ef4444',
+                'Basic Materials': '#c084fc',
+                'Communication Services': '#22d3ee',
+                'Real Estate': '#14b8a6',
+                'Utilities': '#6366f1',
+                'Desconocido': '#6b7280',
+                // Spanish translations if backend returns them, though likely returns English
+                'Tecnología': '#3b82f6',
+                'Salud': '#34d399',
+                'Servicios Financieros': '#fbbf24',
+                'Consumo Cíclico': '#f472b6',
+                'Consumo Defensivo': '#fb923c',
+                'Industrial': '#a78bfa',
+                'Energía': '#ef4444',
+                'Materiales Básicos': '#c084fc',
+                'Servicios de Comunicación': '#22d3ee',
+                'Inmobiliario': '#14b8a6',
+                'Utilidades': '#6366f1'
+              };
 
-              if (sectorData && !sectorData.error) {
-                const sectorValues: Record<string, number> = {};
-
-                // Normalization map: Map specific industries/variants to standard GICS sectors
-                const sectorMap: Record<string, string> = {
-                  'Semiconductors': 'Technology',
-                  'Software': 'Technology',
-                  'Biotechnology': 'Healthcare',
-                  'Health Care': 'Healthcare',
-                  'Telecommunication': 'Communication Services',
-                  'Building': 'Industrials',
-                  'Construction': 'Industrials',
-                  'Online Media': 'Communication Services',
-                  'Banks': 'Financial Services',
-                  'Insurance': 'Financial Services'
-                };
-
-                for (const pos of positions) {
-                  const info = sectorData[pos.ticker];
-                  let sector = info?.sector || 'Desconocido';
-
-                  // Normalize sector name
-                  if (sectorMap[sector]) {
-                    sector = sectorMap[sector];
-                  }
-
-                  const value = pos.quantity * pos.average_buy_price;
-                  sectorValues[sector] = (sectorValues[sector] || 0) + value;
+              const getSectorColor = (name: string) => {
+                if (sectorColors[name]) return sectorColors[name];
+                let hash = 0;
+                for (let i = 0; i < name.length; i++) {
+                  hash = name.charCodeAt(i) + ((hash << 5) - hash);
                 }
+                const h = Math.abs(hash) % 360;
+                return `hsl(${h}, 70%, 50%)`;
+              };
 
-                const sectorColors: Record<string, string> = {
-                  'Technology': '#3b82f6', // Bright Blue
-                  'Semiconductors': '#8b5cf6', // Violet
-                  'Healthcare': '#34d399', // Emerald
-                  'Health Care': '#34d399', // Emerald (Alternative)
-                  'Financial Services': '#fbbf24', // Amber
-                  'Consumer Cyclical': '#f472b6', // Pink
-                  'Consumer Defensive': '#fb923c', // Orange
-                  'Industrials': '#a78bfa', // Purple
-                  'Energy': '#ef4444', // Red
-                  'Basic Materials': '#c084fc', // Fuchsia
-                  'Communication Services': '#22d3ee', // Cyan
-                  'Telecommunication': '#22d3ee', // Cyan (Alternative)
-                  'Real Estate': '#14b8a6', // Teal
-                  'Utilities': '#6366f1', // Indigo
-                  'Building': '#78716c', // Stone
-                  'Professional Services': '#0ea5e9', // Sky
-                  'Media': '#ec4899', // Pink
-                  'Retail': '#f97316', // Orange
-                  'Desconocido': '#6b7280'
-                };
+              const sectorArray = summary.sectorAllocation.map((item: any) => ({
+                name: item.name,
+                value: item.value,
+                color: getSectorColor(item.name)
+              }));
 
-                // Fallback color generator logic
-                const getSectorColor = (name: string) => {
-                  if (sectorColors[name]) return sectorColors[name];
-
-                  // Generate consistent pastel color from string
-                  let hash = 0;
-                  for (let i = 0; i < name.length; i++) {
-                    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-                  }
-                  const h = hash % 360;
-                  return `hsl(${h}, 70%, 50%)`;
-                };
-
-                const sectorArray = Object.entries(sectorValues).map(([name, value]) => ({
-                  name,
-                  value,
-                  color: getSectorColor(name)
-                }));
-
-                sectorArray.sort((a, b) => b.value - a.value);
-                setSectorAllocation(sectorArray);
-              }
-            } catch (e) {
-              console.error('Error fetching sector distribution', e);
+              setSectorAllocation(sectorArray);
             }
           } else {
             setSectorAllocation([]);
@@ -252,7 +222,7 @@ export const Dashboard: React.FC = () => {
         },
         body: JSON.stringify({
           message: "Analiza mi portafolio actual y dame recomendaciones estratégicas.",
-          portfolioId: selectedPortfolioId || activeId
+          portfolioId: selectedPortfolioId
         })
       });
 
@@ -281,110 +251,200 @@ export const Dashboard: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <main className="flex-1 flex flex-col h-screen bg-background-light dark:bg-background-dark">
-        <Header title={`Hola, ${user?.name || 'Inversor'}`} />
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-text-secondary-light font-medium animate-pulse">Cargando dashboard...</p>
-        </div>
-      </main>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
     <main className="flex-1 flex flex-col h-full overflow-y-auto scroll-smooth">
-      <div className="flex flex-col md:flex-row items-center justify-between px-6 pt-6 md:px-10">
-        <Header title={`Hola, ${user?.name || 'Inversor'}`} />
+      {/* Spacer for aesthetics */}
+      <div className="h-8 md:h-10"></div>
 
-        {/* Portfolio Switcher */}
-        <div className="mt-4 md:mt-0 relative">
-          <select
-            className="appearance-none bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-primary-light dark:text-text-primary-dark rounded-xl px-4 py-2 pr-8 focus:outline-none focus:ring-2 focus:ring-primary font-bold cursor-pointer hover:shadow-md transition-shadow"
-            value={selectedPortfolioId}
-            onChange={(e) => setSelectedPortfolioId(e.target.value)}
+      <div className="flex flex-col gap-3 px-3 pb-12 md:px-6 max-w-[1700px] mx-auto w-full">
+        {/* Custom Portfolio H1 Selector */}
+        <div className="relative mb-4 z-30">
+          <button
+            onClick={() => setIsPortfolioMenuOpen(!isPortfolioMenuOpen)}
+            className="flex items-center gap-3 text-3xl font-bold text-text-primary-light dark:text-white hover:opacity-80 transition-all group outline-none"
           >
-            {portfolios.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.name} {p.is_favorite ? '★' : ''}
-              </option>
-            ))}
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-text-secondary-light">
-            <span className="material-symbols-outlined text-sm">expand_more</span>
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col gap-6 px-6 pb-16 md:px-10 max-w-[1600px] mx-auto w-full">
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Net Worth */}
-          <div className="flex flex-col gap-1 p-8 rounded-[2.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:border-primary/50 transition-all group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                <span className="material-symbols-outlined font-bold">wallet</span>
-              </div>
-              <span className="text-xs font-bold text-text-secondary-light tracking-widest uppercase">{t('dashboard.net_worth')}</span>
+            <div className="p-2.5 rounded-xl bg-surface-light dark:bg-white/5 border border-border-light dark:border-white/10 group-hover:bg-primary/10 group-hover:border-primary/30 transition-all shadow-sm">
+              <span className="material-symbols-outlined text-2xl text-primary">business_center</span>
             </div>
-            <p className="text-4xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">{formatCurrency(totalValue)}</p>
-            <div className="mt-6 flex items-center gap-2">
-              <span className={`font-bold text-sm ${gainPercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {gainPercent >= 0 ? '↑' : '↓'} {Math.abs(gainPercent).toFixed(2)}% (Hoy)
+            <span className="tracking-tight">{portfolios.find(p => p.id === selectedPortfolioId)?.name || 'Seleccionar'}</span>
+            <span className={`material-symbols-outlined text-3xl text-text-secondary-light dark:text-white/50 transition-transform duration-300 ${isPortfolioMenuOpen ? 'rotate-180' : ''}`}>
+              keyboard_arrow_down
+            </span>
+          </button>
+
+          {/* Dropdown Menu */}
+          {isPortfolioMenuOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-10 cursor-default"
+                onClick={() => setIsPortfolioMenuOpen(false)}
+              />
+              <div className="absolute top-full left-0 mt-3 w-80 bg-white dark:bg-[#1E1E2D]/95 backdrop-blur-xl border border-border-light dark:border-white/10 rounded-2xl shadow-2xl z-20 overflow-hidden flex flex-col py-2 animate-in fade-in zoom-in-95 duration-200">
+                <div className="px-4 py-2 text-[10px] font-bold text-text-secondary-light dark:text-white/40 uppercase tracking-widest mb-1">
+                  Mis Portafolios
+                </div>
+                <div className="flex flex-col max-h-[300px] overflow-y-auto custom-scrollbar">
+                  {portfolios.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        setSelectedPortfolioId(p.id);
+                        setIsPortfolioMenuOpen(false);
+                      }}
+                      className={`w-full text-left px-5 py-3 flex items-center justify-between transition-all border-l-[3px] ${selectedPortfolioId === p.id
+                          ? 'bg-primary/5 dark:bg-primary/10 text-primary border-primary'
+                          : 'text-text-primary-light dark:text-white/80 hover:bg-bg-light dark:hover:bg-white/5 hover:text-primary border-transparent'
+                        }`}
+                    >
+                      <span className="font-bold text-sm">{p.name}</span>
+                      {p.is_favorite && <span className="text-yellow-500 text-xs material-symbols-outlined filled">star</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Quick Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Net Worth */}
+          <div className="flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:border-primary/50 transition-all group">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                <span className="material-symbols-outlined font-bold text-base">wallet</span>
+              </div>
+              <h3 className="text-sm font-bold dark:text-white">{t('dashboard.net_worth')}</h3>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">{formatCurrency(totalValue)}</p>
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${gainPercent >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                {gainPercent >= 0 ? '↑' : '↓'} {Math.abs(gainPercent).toFixed(2)}%
               </span>
             </div>
           </div>
 
           {/* Daily Gain */}
-          <div className={`flex flex-col gap-1 p-8 rounded-[2.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl transition-all group ${todaysGain >= 0 ? 'hover:border-green-500/30' : 'hover:border-red-500/30'}`}>
-            <div className="flex items-center justify-between mb-4">
-              <div className={`size-12 rounded-2xl flex items-center justify-center ${todaysGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                <span className="material-symbols-outlined font-bold">{todaysGain >= 0 ? 'trending_up' : 'trending_down'}</span>
+          <div className={`flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl transition-all group ${todaysGain >= 0 ? 'hover:border-green-500/30' : 'hover:border-red-500/30'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <div className={`size-8 rounded-lg flex items-center justify-center ${todaysGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                <span className="material-symbols-outlined font-bold text-base">{todaysGain >= 0 ? 'trending_up' : 'trending_down'}</span>
               </div>
-              <span className="text-xs font-bold text-text-secondary-light tracking-widest uppercase">{t('dashboard.todays_gain')}</span>
+              <h3 className="text-sm font-bold dark:text-white">{t('dashboard.todays_gain')}</h3>
             </div>
-            <div className="flex items-baseline gap-3">
-              <p className={`text-4xl font-bold tracking-tight ${todaysGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            <div className="flex items-baseline gap-2">
+              <p className={`text-2xl font-bold tracking-tight ${todaysGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {todaysGain >= 0 ? '+' : ''}{formatCurrency(todaysGain)}
               </p>
-              <span className={`px-2 py-1 rounded-lg text-xs font-black ${todaysGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                {todaysGain >= 0 ? '+' : ''}{gainPercent.toFixed(2)}%
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${todaysGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                {todaysGain >= 0 ? '↑' : '↓'} {Math.abs(gainPercent).toFixed(2)}%
               </span>
             </div>
           </div>
 
           {/* Total Gain (NEW) */}
-          <div className={`flex flex-col gap-1 p-8 rounded-[2.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl transition-all group ${totalGain >= 0 ? 'hover:border-green-500/30' : 'hover:border-red-500/30'}`}>
-            <div className="flex items-center justify-between mb-4">
-              <div className={`size-12 rounded-2xl flex items-center justify-center ${totalGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                <span className="material-symbols-outlined font-bold">show_chart</span>
+          <div className={`flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl transition-all group ${totalGain >= 0 ? 'hover:border-green-500/30' : 'hover:border-red-500/30'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <div className={`size-8 rounded-lg flex items-center justify-center ${totalGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                <span className="material-symbols-outlined font-bold text-base">show_chart</span>
               </div>
-              <span className="text-xs font-bold text-text-secondary-light tracking-widest uppercase">Ganancia Total</span>
+              <h3 className="text-sm font-bold dark:text-white">Ganancia Total</h3>
             </div>
-            <div className="flex items-baseline gap-3">
-              <p className={`text-4xl font-bold tracking-tight ${totalGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            <div className="flex items-baseline gap-2">
+              <p className={`text-2xl font-bold tracking-tight ${totalGain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {totalGain >= 0 ? '+' : ''}{formatCurrency(totalGain)}
               </p>
-              <span className={`px-2 py-1 rounded-lg text-xs font-black ${totalGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                {totalGain >= 0 ? '+' : ''}{totalGainPercent.toFixed(2)}%
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${totalGain >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                {totalGain >= 0 ? '↑' : '↓'} {Math.abs(totalGainPercent).toFixed(2)}%
               </span>
             </div>
           </div>
 
           {/* AI Banner */}
-          <div className="flex flex-col gap-1 p-8 rounded-[2.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:border-accent-blue/30 transition-all group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="size-12 rounded-2xl bg-accent-blue/10 flex items-center justify-center text-accent-blue">
-                <span className="material-symbols-outlined font-bold">insights</span>
+          <div className="flex flex-col gap-0.5 p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:border-accent-blue/30 transition-all group">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="size-8 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+                <span className="material-symbols-outlined font-bold text-base">insights</span>
               </div>
-              <span className="text-xs font-bold text-text-secondary-light tracking-widest uppercase">{t('dashboard.ai_analysis')}</span>
+              <h3 className="text-sm font-bold dark:text-white">{t('dashboard.ai_analysis')}</h3>
             </div>
             <button
               onClick={handleAnalyze}
               disabled={isAnalyzing}
-              className="mt-2 w-full py-3 rounded-xl bg-accent-blue/10 text-accent-blue font-bold hover:bg-accent-blue hover:text-white transition-all"
+              className="mt-1 w-full py-2 rounded-lg bg-accent-blue/10 text-accent-blue text-xs font-bold hover:bg-accent-blue hover:text-white transition-all"
             >
               {isAnalyzing ? "Analizando..." : "Generar Análisis de IA"}
             </button>
+          </div>
+        </div>
+
+        {/* Top Movers Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Top Gainers */}
+          <div className="flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="size-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
+                  <span className="material-symbols-outlined font-bold text-base">rocket_launch</span>
+                </div>
+                <h3 className="text-sm font-bold dark:text-white">Mejores del Día</h3>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {topGainers.length > 0 ? topGainers.map((asset, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-background-light/50 dark:bg-white/5 border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-white/10 transition-colors">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-xs dark:text-white">{asset.ticker}</span>
+                    <span className="text-[9px] text-text-secondary-light font-medium">{formatCurrency(asset.price)}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="font-bold text-xs text-green-500 leading-tight">
+                      {asset.change > 0 ? '+' : ''}{asset.change.toLocaleString('es-ES', { style: 'currency', currency: asset.currency || 'USD' })}
+                    </span>
+                    <span className="text-[9px] font-black text-green-500/70">
+                      +{asset.changePercent.toFixed(2)}%
+                    </span>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-xs text-text-secondary-light italic">Sin ganancias hoy</p>
+              )}
+            </div>
+          </div>
+
+          {/* Top Losers */}
+          <div className="flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="size-8 rounded-lg bg-red-500/10 flex items-center justify-center text-red-500">
+                  <span className="material-symbols-outlined font-bold text-base">trending_down</span>
+                </div>
+                <h3 className="text-sm font-bold dark:text-white">Peores del Día</h3>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {topLosers.length > 0 ? topLosers.map((asset, idx) => (
+                <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-background-light/50 dark:bg-white/5 border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-white/10 transition-colors">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-xs dark:text-white">{asset.ticker}</span>
+                    <span className="text-[9px] text-text-secondary-light font-medium">{formatCurrency(asset.price)}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="font-bold text-xs text-red-500 leading-tight">
+                      {asset.change.toLocaleString('es-ES', { style: 'currency', currency: asset.currency || 'USD' })}
+                    </span>
+                    <span className="text-[9px] font-black text-red-500/70">
+                      {asset.changePercent.toFixed(2)}%
+                    </span>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-xs text-text-secondary-light italic">Sin pérdidas hoy</p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -403,15 +463,15 @@ export const Dashboard: React.FC = () => {
         )}
 
         {/* Charts & Distribution */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
           {/* PnL Chart */}
-          <div className="lg:col-span-9 flex flex-col p-8 rounded-[3rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm h-[400px] relative overflow-hidden group">
-            <div className="flex items-center justify-between mb-4 z-10 relative">
-              <div className="flex items-center gap-3">
-                <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                  <span className="material-symbols-outlined text-xl">ssid_chart</span>
+          <div className="lg:col-span-9 flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm h-[360px] relative overflow-hidden group">
+            <div className="flex items-center justify-between mb-1 z-10 relative">
+              <div className="flex items-center gap-2">
+                <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                  <span className="material-symbols-outlined text-base">ssid_chart</span>
                 </div>
-                <h3 className="text-xl font-bold dark:text-white">PnL Ganancias/Perdidas</h3>
+                <h3 className="text-sm font-bold dark:text-white">PnL Ganancias/Perdidas</h3>
               </div>
               {/* Period Filter Buttons */}
               <div className="flex gap-1 bg-bg-light dark:bg-bg-dark rounded-lg p-1">
@@ -460,7 +520,7 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Sector Distribution */}
-          <div className="lg:col-span-3 flex flex-col p-8 rounded-[3rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
+          <div className="lg:col-span-3 flex flex-col p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
             <h3 className="text-xs font-bold mb-4 dark:text-white uppercase tracking-wider text-text-secondary-light">Distribución por Sector</h3>
             <div className="h-[200px] w-full">
               <ResponsiveContainer width="100%" height="100%">

@@ -91,7 +91,8 @@ El Dashboard es tu página principal con un resumen de toda tu cartera.
 | **Gráfico PnL** | Evolución de tu rentabilidad en el tiempo |
 | **Mercado** | Estado del mercado (abierto/cerrado) |
 | **Asignación Sectorial** | Distribución de tu cartera por sectores |
-| **Descubrimiento** | **¡NUEVO!** Sugerencias automáticas de acciones tendencia (Tecnología, Noticias, etc). |
+| **Descubrimiento** | Sugerencias automáticas de acciones tendencia (Tecnología, Noticias, etc). |
+| **Valor Justo** | **NUEVO**: Indicador de acciones infravaloradas según la fórmula de Benjamin Graham. |
 
 ### Filtros del Gráfico PnL
 
@@ -143,6 +144,8 @@ El portfolio favorito es el que se muestra por defecto en el Dashboard:
    - Fecha de compra
    - Moneda
 5. Haz clic en **"Guardar"**
+ 
+ > 💡 **Soporte GBX (Londres)**: Si operas en la bolsa de Londres (LSE), puedes elegir la moneda **GBX** (Peniques). Introduce el precio en peniques (ej: 594.5) y el sistema calculará automáticamente el equivalente en EUR usando el tipo de cambio correcto.
  
  ### Editar una Posición
  
@@ -232,7 +235,7 @@ Métricas avanzadas para evaluar la volatilidad:
 
 ### 4. 🏢 Fundamental (NUEVO)
 Salud financiera y valoración de la empresa:
-- **Valoración**: PER, PEG Ratio, EV/EBITDA.
+- **Valoración**: PER, PEG Ratio, EV/EBITDA y **Fair Value (Graham)** (Valor intrínseco teórico).
 - **Rentabilidad**: ROE, Márgenes Operativos y Netos.
 - **Dividendos**: Rentabilidad por dividendo (Yield) y fechas de pago.
 - **Salud**: Deuda Total y disponibilidad de Caja.
@@ -429,7 +432,14 @@ En **Perfil → Seguridad** puedes:
 
 - **Idioma**: Español / Inglés
 - **Moneda preferida**: EUR, USD, GBP...
-- **Tema**: Claro / Oscuro
+ - **Tema**: Claro / Oscuro
+
+### Búsqueda Global (v2.1.0)
+Puedes navegar por la aplicación instantáneamente pulsando `Ctrl + K`.
+- Escribe el nombre de una **pantalla** para ir a ella.
+- Busca un **ticker** para ver su análisis.
+- Busca una **cartera** para abrirla directamente.
+- Usa `Enter` para viajar al destino seleccionado.
 
 ---
 

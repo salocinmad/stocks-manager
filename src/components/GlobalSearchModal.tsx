@@ -51,7 +51,7 @@ export const GlobalSearchModal: React.FC = () => {
                 return data.slice(0, 5).map((item: any) => ({
                     type: 'ticker' as const,
                     title: item.symbol,
-                    subtitle: item.name,
+                    subtitle: `${item.name}${item.currency ? ` [${item.currency}]` : ''}`,
                     icon: '📈',
                     action: () => {
                         // Could navigate to a detail page or open modal
@@ -186,8 +186,8 @@ export const GlobalSearchModal: React.FC = () => {
                                         setIsSearchOpen(false);
                                     }}
                                     className={`w-full flex items-center gap-4 px-4 py-3 text-left transition-colors ${index === selectedIndex
-                                            ? 'bg-blue-50 dark:bg-blue-900/30'
-                                            : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                        ? 'bg-blue-50 dark:bg-blue-900/30'
+                                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
                                         }`}
                                 >
                                     <span className="text-2xl">{result.icon}</span>
@@ -200,9 +200,9 @@ export const GlobalSearchModal: React.FC = () => {
                                         )}
                                     </div>
                                     <span className={`text-xs px-2 py-1 rounded ${result.type === 'screen' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/50 dark:text-purple-400' :
-                                            result.type === 'ticker' ? 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400' :
-                                                result.type === 'portfolio' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' :
-                                                    'bg-gray-100 text-gray-600'
+                                        result.type === 'ticker' ? 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400' :
+                                            result.type === 'portfolio' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' :
+                                                'bg-gray-100 text-gray-600'
                                         }`}>
                                         {result.type === 'screen' ? 'Pantalla' :
                                             result.type === 'ticker' ? 'Ticker' :

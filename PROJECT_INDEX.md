@@ -9,8 +9,8 @@ Estos archivos definen la estructura de datos. **Cualquier cambio en el modelo d
 
 - **`i:\dev\stocks-manager\init.sql`**
     - **Tipo**: Script SQL (PostgreSQL).
-    - **Propósito**: Define el esquema base si se inicializa la DB desde cero externamente. Contiene `CREATE TABLE` para `users`, `portfolios`, `transactions`, `stock_notes`, `financial_events`, etc.
-    - **Uso**: Referencia principal del esquema relacional.
+    - **Propósito**: Define el esquema base para inicializaciones externas. Contiene las **22 tablas** del sistema, incluyendo `global_tickers` (con columnas `yahoo_status`, `yahoo_error` para marcado de tickers fallidos), `pnl_history_cache`, `position_analysis_cache`, y **seeds iniciales** en `system_settings` (`APP_VERSION`).
+    - **Uso**: Referencia principal del esquema relacional y paridad con `init_db.ts`.
 
 - **`i:\dev\stocks-manager\server\init_db.ts`**
     - **Tipo**: Script TypeScript (Ejecución automática).
@@ -18,7 +18,7 @@ Estos archivos definen la estructura de datos. **Cualquier cambio en el modelo d
     - **Funciones**:
         - Verifica conexión a PostgreSQL.
         - Aplica **migraciones evolutivas** (ej. añadir columnas `estimated_eps` a `financial_events` si no existen).
-        - **Siembra datos** (Seed): Crea proveedores de IA por defecto (Gemini, OpenRouter) y el usuario administrador inicial.
+        - **Siembra datos** (Seed): Crea proveedores de IA por defecto (Gemini, OpenRouter), usuario administrador inicial y configuración base (`APP_VERSION`).
     - **Importancia**: Es el mecanismo de "Auto-Migración" del sistema.
 
 ---
@@ -47,14 +47,25 @@ Lógica de negocio pura. Independiente del transporte HTTP.
     - Gestiona proveedores dinámicos (Gemini, OpenAI, Ollama).
     - Construye prompts complejos inyectando contexto financiero (`{{MARKET_DATA}}`) y noticias.
     - Maneja límites de tokens y reintentos.
+- **`calculations.ts`**: **Motor Matemático**. (v2.1.0)
+    - Librería pura de funciones financieras y técnicas.
+    - Calcula RSI, SMA, Volatilidad, Sharpe, Altman Z-Score y Valoración.
+    - Usado por `marketData.ts` y `positionAnalysisService.ts`.
 - **`authService.ts`**: Seguridad. Registro, Login, Refresh Tokens, Hashing (bcrypt).
 - **`backupService.ts`**: **Sistema de Respaldo**. Genera ZIPs (con `archiver`) encriptados y DB Dumps. Gestiona la restauración con `unzipper`.
 - **`calendarService.ts`**: **Calendario Financiero**. Sincroniza eventos de ganancias y dividendos usando `yahoo-finance2` (V3) con ventana de 30 días.
-- **`discoveryService.ts`**: **Discovery Engine**. CRUD para la caché de oportunidades de mercado (`market_discovery_cache`).
+- **`discoveryService.ts`**: **Discovery Engine**. CRUD para la caché de oportunidades de mercado (`market_discovery_cache`). Soporta filtrado serverside avanzado (ej. `chicharros`) y ordenación dinámica por múltiples criterios.
+- **`eodhdService.ts`**: **Librería Global (Harvesting)**. Servicio encargado de sincronizar la lista maestra de tickers mundiales desde EOD Historical Data. Maneja ISINs, filtrado de bolsas (excluyendo USA), filtrado por tipo (**solo 'Common Stock'**) y ahorro de créditos (rate limiting).
+    - **Tabla asociada**: `global_tickers` (almacena símbolos, nombres, ISINs, bolsas, etc. de tickers mundiales).
+### CATÁLOGO MAESTRO (GLOBAL TICKERS)
+- `server/services/eodhdService.ts`: Servicio para la sincronización de la librería global de tickers desde EODHD (solo "Common Stock").
+- `server/jobs/globalTickerJob.ts`: Job mensual para actualizar el catálogo maestro.
 - **`marketData.ts`**: **Proveedor de Datos Unificado**.
-    - Patrón Facade sobre Yahoo Finance (V7/V8/V10) y Finnhub (ahora opcional para estado).
-    - Obtiene precios, fundamentales profundos y estado del mercado (vía `quoteSummary` V10).
-    - Repara y normaliza respuestas de múltiples versiones de API.
+    - **Estrategia Principal**: Utiliza Yahoo Finance (V8/V10) con el método **Search + Enrich** como fuente primaria.
+    - **ISIN Fallback**: Implementa estrategia de rescate. Si un ticker no se encuentra, busca por su ISIN (de `global_tickers`) para encontrar el símbolo correcto automáticamente.
+    - **Alternativas**: Finnhub se mantiene como proveedor alternativo para perfiles de empresa o noticias si las APIs de Yahoo no están disponibles o se solicita explícitamente. EOD Historical Data (EODHD) se usa para la sincronización global de tickers y puede complementar o reemplazar a Finnhub para datos de perfil o fundamentales en el futuro.
+    - **Soporte Multi-divisa**: Normaliza automáticamente `GBX` (LSE) y soporta dinámicamente cualquier divisa de mercado (ej. MXN, CAD) mediante la descarga masiva de cotizaciones V7/V8 tras la búsqueda inicial.
+    - Repara y normaliza respuestas de múltiples versiones de API para mantener la consistencia del sistema.
 - **`newsService.ts`**: Noticias. Busca noticias financieras relevantes filtrando por ticker.
 - **`notificationService.ts`**: Canales. Orquesta envío de alertas por Email o Telegram.
 - **`pnlService.ts`**: **Motor Matemático**. Calcula PnL (Realizado/No Realizado), ROI, Costo Base y métricas de cartera agregadas.
@@ -82,13 +93,21 @@ Controladores HTTP REST. Mapean requests a llamadas de servicios.
 
 ### ⏱️ Cron Jobs (`server/jobs/`)
 Tareas programadas en `index.ts`.
+### ⏱️ Cron Jobs (`server/jobs/`)
+Taras programadas en `index.ts`.
 - **`calendarJob.ts`**: (Cada 6h) Sincroniza eventos financieros. *Espera inteligente* si el Crawler corrió hace poco.
 - **`discoveryJob.ts`**: (**Ciclos Dinámicos / 3m tick**) **Crawler Inteligente**.
     - Ejecuta workers (V8/V10/Finnhub) en paralelo.
     - Respeta configuración granular (Ciclos/hora, Volúmenes).
     - Detecta "Market Open" para priorizar Day Gainers.
+- **`catalogEnrichmentJob.ts`**: (**Segundo plano / Admin**) **Motor de Enriquecimiento**.
+    - Recorre sistemáticamente el `catalogo global` para enriquecer datos de `market_discovery_cache`.
+    - Gestiona presupuesto de llamadas API (ej. 20/ciclo) y reutiliza históricos frescos (< 2 días).
+    - Implementa lógica de rescate por ISIN y **persistencia incremental (Append)** para evitar pérdida de datos.
+    - **Marcado de Tickers Fallidos**: Detecta errores permanentes (`Quote not found`, `internal-error`) y marca los tickers en `yahoo_status='failed'` para saltarlos automáticamente en futuros ciclos.
 - **`backupJob.ts`**: (Programable/Manual) Ejecuta backups automáticos, cifra el archivo (ZIP) y lo envía por email. Gestiona límites de tamaño.
 - **`positionAnalysisJob.ts`**: (Cada 6h: 00:00, 06:00, 12:00, 18:00) **Análisis Técnico** (v2.1.0). Precalcula RSI, SMA, métricas de riesgo para todas las posiciones activas. Almacena en `position_analysis_cache`.
+- **`globalTickerJob.ts`**: (**1 de cada mes**) **Sincronización Mundial**. Actualiza la tabla `global_tickers` descargando listas completas de 20 bolsas internacionales desde EODHD.
 
 ### 📜 Scripts (`server/scripts/`)
 Utilidades de mantenimiento, migración y depuración.
@@ -118,31 +137,48 @@ SPA construida con **React 19**, **Vite** y **TailwindCSS**.
 
 ### 🧩 Contexto (`src/context/`)
 - **`AuthContext.tsx`**: Estado global de sesión. Provee `user`, `login()`, `logout()`, `isAdmin`.
+- **`ToastContext.tsx`**: **Sistema de Notificaciones**. Provee `useToast()` para mostrar alertas no intrusivas (Success/Error/Info) en toda la app. Reemplaza a `alert()`.
 
 ### 📱 Pantallas (`src/screens/`)
 Vistas principales (Rutas).
-- **`Dashboard.tsx`**: Home. Resumen de patrimonio, gráficos PnL y Discovery widget.
+- **`Dashboard.tsx`**: Home. Implementa carga progresiva con **Skeleton UI**. Layout de **alta densidad** con selector de portafolio "Premium Dropdown", widgets de "Top Gainers/Losers" y resumen patrimonial.
 - **`CalendarScreen.tsx`**: **Calendario Financiero**. Vista mensual, toggles Mercado/Portfolio.
 - **`PortfolioScreen.tsx`**: Gestión de inversiones. Tabla de activos, desglose monedas.
+- **`MarketDataService.tsx`** vs **`marketData.ts`**: Frontend = API Wrapper (`/api/market/...`), Backend = Core Logic.
+    - **`MarketIndicesSelector.tsx`**: (v2.1.1) Selector administrativo para personalizar los índices globales de la cabecera. Gestiona persistencia y estandarización de nombres (ej. "IBEX 35 (Spain)").
 - **`MarketAnalysis.tsx`**: Screener técnico y gráficos.
 - **`NewsScreen.tsx`**: Lector de noticias financieras.
-- **`AdminScreen.tsx`**: **Panel de Control**.
-    - Pestañas: General (Crawler), IA (Proveedores), Usuarios, Backups.
+
+### 🧩 Screens (Páginas)
+- **`AdminScreen.tsx`**: Panel de Control.
+    - **Tabs**: General, Inteligencia Artificial, Usuarios, Mercado, Backup, Logs.
+    - **Tab Mercado (Reorganizado v2.1.0)**: Contiene 3 subtabs:
+      - **Sincronización**: Sync manual, PnL, Librería Global, Enriquecimiento, Zona de Peligro.
+      - **Índices de Cabecera**: Selector de índices globales para la cabecera (`MarketIndicesSelector`).
+      - **Discovery Engine**: Control maestro, Presets, Ajustes granulares (sliders hasta 80 items).
 - **`ReportsScreen.tsx`**: Generador de informes fiscales (FIFO).
 - **`ProfileScreen.tsx`**: Seguridad (2FA), Avatar.
 - **`LoginScreen.tsx` / `RegisterScreen.tsx`**: Entrada.
 
 ### 🧩 Componentes (`src/components/`)
 Bloques UI reutilizables.
-- **`Sidebar.tsx`**: Navegación principal.
+- **`Sidebar.tsx`**: Navegación principal **Agrupada** (Principal, Mercados, Sistema) con estética **Glassmorphism**.
+- **`Header.tsx`**: Cabecera Global unificada. Contiene **`Breadcrumbs`** y Ticker de Mercado estable.
+- **`Breadcrumbs.tsx`**: (v2.2.0) Navegación jerárquica basada en rutas.
 - **`ChatBot.tsx`**: **Asistente Flotante**. Interfaz de chat con la IA. Envía contexto de la pantalla actual.
 - **`PnLChart.tsx`**: Gráfico de área (Recharts) para evolución de patrimonio.
 - **`TradingViewChart.tsx`**: Widget ligero de TradingView.
 - **`StockNoteModal.tsx`**: Editor de notas para posiciones.
 - **`ThemeSwitcher.tsx`**: Control Modo Claro/Oscuro.
-- **`PositionAnalysisModal.tsx`**: **Panel de Análisis** (v2.1.0). Modal grande (80% viewport) con **6 pestañas**: Posición, Técnico, Riesgo, **Fundamental**, Analistas, What-If. Incluye tooltips explicativos en todas las métricas.
+- **`PositionAnalysisModal.tsx`**: **Panel de Análisis** (v2.1.0). Modal rediseñado (Estilo "Green Leader") con consistencia visual total con Discovery. **6 pestañas**: Posición, Técnico, Riesgo, **Fundamental**, Analistas, What-If. Footer con versión dinámica.
+- **`SplitViewJsonModal.tsx`**: **Dashboard de Auditoría** (v2.1.0). Modal de inspección profunda para `Discovery Engine`. Transformado en un Dashboard con 4 tarjetas (General, Riesgo, Mercado, Técnico) y gráfica sparkline. Incluye tooltips de glosario.
 - **`KeyboardShortcutsProvider.tsx`**: **Atajos de Teclado** (v2.1.0). Provider global. Hotkeys: `Ctrl+K` (búsqueda), `Ctrl+D/A/P/W/N` (navegación), `?` (ayuda).
 - **`GlobalSearchModal.tsx`**: **Búsqueda Global** (v2.1.0). Command Palette estilo Spotlight. Busca pantallas, tickers y carteras.
+- **`DataExplorerTable.tsx`**: **Tabla del Explorador** (v2.1.0). Tabla avanzada para el Explorador de Mercado con paginación dinámica, ordenación por columnas, nueva columna "Precio Obj" y filtro especializado "Posibles Chicharros".
+
+### 💀 Skeletons (`src/components/skeletons/`)
+Componentes de carga visual (v2.2.0).
+- **`DashboardSkeleton.tsx`**: Estructura pulsante (`animate-pulse`) del Dashboard para carga inicial.
 
 ---
 
@@ -158,19 +194,19 @@ Referencia para humanos.
 
 ## 🐳 6. Ejecución y Pruebas (Docker)
 
-⚠️ **CRÍTICO: SISTEMA SIN BUN LOCAL**
+⚠️ **CRÍTICO: SISTEMA SIN BUN LOCAL Y ENTORNO WINDOWS**
 
-El entorno de desarrollo donde reside este código **NO TIENE BUN INSTALADO**.
-Cualquier intento de ejecutar `bun install`, `bun test` o `bun run` directamente en tu terminal local **FALLARÁ**.
+1. **ENTORNO HOST**: Este proyecto reside en un sistema **Windows**. Por lo tanto, todos los comandos de terminal mostrados abajo deben ejecutarse preferiblemente en **PowerShell**. Evita usar comandos típicos de Linux (como `grep`) directamente en el host para no generar errores de sintaxis; usa las alternativas de PowerShell (ej. `Select-String`) si es necesario, o ejecútalos dentro de `docker compose exec`.
+2. **SIN BUN LOCAL**: El entorno host **NO TIENE BUN INSTALADO**. Cualquier intento de ejecutar `bun install` o `bun run` fuera de Docker fallará.
+3. **PERSISTENCIA DE CAMBIOS**: Debido a que el frontend se sirve desde una carpeta `dist` compilada dentro de la imagen, **CUALQUIER CAMBIO EN EL CÓDIGO (Frontend o Backend) REQUIERE RECONSTRUIR EL CONTENEDOR** para ser efectivo. Los cambios locales no se reflejarán en el navegador si no se ejecuta el build de Docker.
 
 **OBLIGATORIO**: Todas las interacciones, pruebas y scripts deben ejecutarse DENTRO del contenedor Docker.
 
-Todas las interacciones con el entorno de desarrollo, ejecución de tests y scripts de mantenimiento deben realizarse a través de `docker compose`.
-
 ### Comandos Esenciales (Verificados)
 
-**1. Desplegar el Entorno**
-```bash
+**1. Desplegar / Actualizar el Entorno (Obligatorio tras cambios de código)**
+```powershell
+# Este comando es el único que garantiza que tus cambios locales de código se apliquen al Docker
 docker compose up -d --build
 ```
 
@@ -210,3 +246,14 @@ docker compose logs app -f
 ```bash
 docker compose down
 ```
+
+### 8. Gestión de la Versión del Proyecto
+La versión de la aplicación **NO** está hardcodeada en el frontend. Se gestiona centralizadamente en la base de datos (`system_settings`).
+
+**Para cambiar la versión:**
+1. Accede a la base de datos (vía cliente SQL o `docker compose exec db psql`).
+2. Ejecuta el comando SQL:
+   ```sql
+   UPDATE system_settings SET value = 'V2.X.X' WHERE key = 'APP_VERSION';
+   ```
+3. Reinicia el navegador. La nueva versión aparecerá en el Sidebar.

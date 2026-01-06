@@ -99,7 +99,10 @@ export const SettingsService = {
     getApiKeys: async () => {
         return {
             finnhub: await SettingsService.get('FINNHUB_API_KEY') || '',
-            google: await SettingsService.get('GOOGLE_GENAI_API_KEY') || ''
+            google: await SettingsService.get('GOOGLE_GENAI_API_KEY') || '',
+            fmp: await SettingsService.get('FMP_API_KEY') || '',
+            eodhd: await SettingsService.get('EODHD_API_KEY') || '',
+            globalExchanges: await SettingsService.get('GLOBAL_TICKER_EXCHANGES') || ''
         };
     },
 

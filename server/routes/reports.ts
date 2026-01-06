@@ -10,49 +10,52 @@ export const reportsRoutes = new Elysia({ prefix: '/reports' })
             secret: process.env.JWT_SECRET || 'changeme_in_prod'
         })
     )
-    .get('/tax', async ({ headers, query, set, jwt }) => {
+    .derive(async ({ jwt, headers, query, set }) => {
         const auth = headers['authorization'];
         if (!auth?.startsWith('Bearer ')) {
             set.status = 401;
-            return { error: 'Unauthorized' };
+            throw new Error('Unauthorized');
         }
         const profile = await jwt.verify(auth.slice(7)) as any;
         if (!profile?.sub) {
             set.status = 401;
-            return { error: 'Unauthorized' };
+            throw new Error('Unauthorized');
         }
 
+        const userId = profile.sub;
         let portfolioId = query?.portfolioId;
-        if (!portfolioId) {
-            const portfolios = await sql`SELECT id FROM portfolios WHERE user_id = ${profile.sub} ORDER BY is_favorite DESC LIMIT 1`;
-            if (portfolios.length > 0) portfolioId = portfolios[0].id;
-        }
-        if (!portfolioId) return { error: 'No portfolio found' };
 
+        if (portfolioId) {
+            // Verify ownership
+            const [owned] = await sql`SELECT id FROM portfolios WHERE id = ${portfolioId} AND user_id = ${userId}`;
+            if (!owned) {
+                set.status = 403;
+                throw new Error('Forbidden: You do not own this portfolio');
+            }
+        } else {
+            // Default to favorite
+            const portfolios = await sql`SELECT id FROM portfolios WHERE user_id = ${userId} ORDER BY is_favorite DESC LIMIT 1`;
+            if (portfolios.length > 0) {
+                portfolioId = portfolios[0].id;
+            }
+        }
+
+        return { userId, portfolioId };
+    })
+    .get('/tax', async ({ portfolioId }) => {
+        if (!portfolioId) return { error: 'No portfolio found' };
         const fullReport = await PnLService.calculateRealizedPnL_FIFO(portfolioId);
         return { operations: fullReport };
     }, {
         query: t.Object({ portfolioId: t.Optional(t.String()) })
     })
-    .get('/years', async ({ headers, query, set, jwt }) => {
-        const auth = headers['authorization'];
-        if (!auth?.startsWith('Bearer ')) {
-            set.status = 401;
-            return { error: 'Unauthorized' };
-        }
-        const profile = await jwt.verify(auth.slice(7)) as any;
-
-        // Find portfolio
-        let portfolioId = query?.portfolioId;
-        if (!portfolioId) {
-            const portfolios = await sql`SELECT id FROM portfolios WHERE user_id = ${profile.sub} ORDER BY is_favorite DESC LIMIT 1`;
-            if (portfolios.length > 0) portfolioId = portfolios[0].id;
-        }
-
-        // Default to current year if no portfolio or no transactions
+    .get('/years', async ({ portfolioId }) => {
         if (!portfolioId) return [new Date().getFullYear()];
 
         try {
+            // We want years that have ANY transaction (could be a buy that will be sold later)
+            // Or more strictly, years that have realized operations? 
+            // Better to show all years with transactions so users can see they have things.
             const years = await sql`
                 SELECT DISTINCT EXTRACT(YEAR FROM date) as year 
                 FROM transactions 
@@ -69,24 +72,7 @@ export const reportsRoutes = new Elysia({ prefix: '/reports' })
     }, {
         query: t.Object({ portfolioId: t.Optional(t.String()) })
     })
-    .get('/aeat/:year', async ({ headers, params, query, set, jwt }) => {
-        const auth = headers['authorization'];
-        if (!auth?.startsWith('Bearer ')) {
-            set.status = 401;
-            return { error: 'Unauthorized' };
-        }
-        const profile = await jwt.verify(auth.slice(7)) as any;
-        if (!profile?.sub) {
-            set.status = 401;
-            return { error: 'Unauthorized' };
-        }
-
-        let portfolioId = query?.portfolioId;
-        if (!portfolioId) {
-            const portfolios = await sql`SELECT id FROM portfolios WHERE user_id = ${profile.sub} ORDER BY is_favorite DESC LIMIT 1`;
-            if (portfolios.length > 0) portfolioId = portfolios[0].id;
-        }
-
+    .get('/aeat/:year', async ({ params, portfolioId }) => {
         if (!portfolioId) {
             return { summary: { totalGainLoss: 0, totalOperations: 0 }, operations: [] };
         }
@@ -108,6 +94,10 @@ export const reportsRoutes = new Elysia({ prefix: '/reports' })
             qty: op.quantity,
             salePriceEur: Number(op.sellPriceEur),
             buyPriceEur: Number(op.buyPriceEur),
+            salePriceOrig: Number(op.sellPriceOrig),
+            buyPriceOrig: Number(op.buyPriceOrig),
+            saleRate: Number(op.sellRate),
+            buyRate: Number(op.buyRate),
             gainLossEur: op.gainEur,
             currency: op.currency
         }));

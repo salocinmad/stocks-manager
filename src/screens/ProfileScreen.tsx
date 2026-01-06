@@ -131,7 +131,7 @@ export const ProfileScreen: React.FC = () => {
 
   return (
     <main className="flex-1 flex flex-col h-screen overflow-y-auto bg-background-light dark:bg-background-dark">
-      <Header title="Perfil y Ajustes" />
+
 
       <div className="flex flex-col p-6 md:p-10 max-w-5xl mx-auto w-full gap-8">
 

@@ -8,6 +8,7 @@ interface SymbolResult {
   name: string;
   exchange: string;
   type: string;
+  currency?: string;
 }
 
 interface Portfolio {
@@ -15,7 +16,7 @@ interface Portfolio {
   name: string;
 }
 
-const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD'];
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'GBX', 'CHF', 'JPY', 'CAD', 'AUD'];
 
 export const ManualEntry: React.FC = () => {
   const navigate = useNavigate();
@@ -143,11 +144,12 @@ export const ManualEntry: React.FC = () => {
   }, [formData.currency, api]);
 
   const handleSelectSymbol = async (result: SymbolResult) => {
-    // 1. Establecer datos básicos
+    // 1. Establecer datos básicos y moneda devuelta por búsqueda
     setFormData(prev => ({
       ...prev,
       symbol: result.symbol,
-      symbolName: result.name
+      symbolName: result.name,
+      currency: result.currency || prev.currency
     }));
     setShowDropdown(false);
     setSearchResults([]);
@@ -218,7 +220,7 @@ export const ManualEntry: React.FC = () => {
 
   return (
     <main className="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-y-auto">
-      <Header title="Registro de Operación" />
+
       <div className="max-w-[1200px] mx-auto w-full px-6 py-10 flex flex-col gap-8 pb-32">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex flex-col gap-2">
@@ -363,6 +365,11 @@ export const ManualEntry: React.FC = () => {
                           <p className="text-sm text-text-secondary-light">{result.exchange}</p>
                         </div>
                         <div className="flex items-center gap-2">
+                          {result.currency && (
+                            <span className="text-xs font-bold text-text-secondary-light border border-border-light dark:border-border-dark px-1.5 py-0.5 rounded">
+                              {result.currency}
+                            </span>
+                          )}
                           <span className="font-mono text-sm bg-primary/20 text-primary px-2 py-1 rounded-lg">
                             {result.symbol}
                           </span>
@@ -426,7 +433,8 @@ export const ManualEntry: React.FC = () => {
                     onChange={e => setFormData({ ...formData, currency: e.target.value })}
                     className="w-full px-5 py-4 bg-background-light dark:bg-surface-dark-elevated border-none rounded-2xl focus:ring-2 focus:ring-primary text-text-primary-light dark:text-white"
                   >
-                    {CURRENCIES.map(curr => (
+                    {/* Incluir la moneda actual si no está en la lista de favoritas */}
+                    {[...new Set([...CURRENCIES, formData.currency])].map(curr => (
                       <option key={curr} value={curr}>{curr}</option>
                     ))}
                   </select>
@@ -474,7 +482,7 @@ export const ManualEntry: React.FC = () => {
                 <div className="flex justify-between text-sm opacity-60"><span>Cartera:</span><span>{portfolios.find(p => p.id === selectedPortfolioId)?.name || '...'}</span></div>
                 <div className="pt-4 border-t border-white/10 flex justify-between items-end">
                   <span className="text-sm font-bold uppercase">Total EUR</span>
-                  <span className="text-2xl font-bold text-primary">{totalInEur.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</span>
+                  <span className="text-2xl font-bold text-primary">{totalInEur.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
                 </div>
               </div>
               <button

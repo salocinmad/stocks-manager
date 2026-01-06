@@ -61,37 +61,38 @@ export interface AnalystData {
     } | null;
 }
 
-export interface PositionAnalysis {
-    // Position data
-    positionId: string;
+export interface TickerAnalysis {
     ticker: string;
-    quantity: number;
-    averagePrice: number;
     currentPrice: number;
     currency: string;
+    technical: TechnicalIndicators;
+    risk: RiskMetrics;
+    analysts: AnalystData;
+    fundamentals: FundamentalData | null;
+    sector: string;
+    industry: string;
+    calendarEvents: CompanyEvent[];
+    calculatedAt: string;
+    // V10 data sections
+    governance?: any;
+    dividends?: any;
+    calendar?: any;
+    earnings?: any;
+    financialHealth?: any;
+    valuation?: any;
+    extended?: any;
+}
+
+export interface PositionAnalysis extends TickerAnalysis {
+    // Position data
+    positionId: string;
+    quantity: number;
+    averagePrice: number;
     totalValue: number;
     costBasis: number;
     pnl: number;
     pnlPercent: number;
     weight: number;
-
-    // Technical
-    technical: TechnicalIndicators;
-
-    // Risk
-    risk: RiskMetrics;
-
-    // Analysts
-    analysts: AnalystData;
-
-    // Fundamentals (v2.2.0)
-    fundamentals: FundamentalData | null;
-
-    // Calendar (v2.2.0)
-    calendarEvents: CompanyEvent[];
-
-    // Timestamps
-    calculatedAt: string;
 }
 
 
@@ -525,13 +526,13 @@ export const PositionAnalysisService = {
     /**
      * Get analyst recommendations data
      */
-    async getAnalystData(ticker: string): Promise<AnalystData> {
+    async getAnalystData(ticker: string, currency?: string): Promise<AnalystData> {
         try {
             // Parallel requests for efficiency
             const [quote, finnhubRec, insiderSentiment] = await Promise.all([
                 MarketDataService.getQuote(ticker),
-                MarketDataService.getAnalystRecommendations(ticker),
-                MarketDataService.getInsiderSentiment(ticker)
+                MarketDataService.getAnalystRecommendations(ticker, currency),
+                MarketDataService.getInsiderSentiment(ticker, currency)
             ]);
 
             const currentPrice = quote?.c || 0;
@@ -565,41 +566,112 @@ export const PositionAnalysisService = {
     },
 
     /**
-     * Get cached analysis or compute fresh
+     * Get market analysis for a ticker (reusable for positions & discovery)
      */
-    async getCachedAnalysis(positionId: string): Promise<any | null> {
+    async getTickerAnalysis(ticker: string, forceRefresh = false): Promise<TickerAnalysis | null> {
         try {
-            const result = await sql`
-                SELECT * FROM position_analysis_cache 
-                WHERE position_id = ${positionId}
+            const cacheKey = `analysis:${ticker.toUpperCase()}`;
+            const SIX_HOURS = 6 * 60 * 60 * 1000;
+
+            if (!forceRefresh) {
+                const cached = await sql`
+                    SELECT data FROM market_cache 
+                    WHERE key = ${cacheKey} AND expires_at > NOW()
+                `;
+                if (cached.length > 0) {
+                    return cached[0].data as TickerAnalysis;
+                }
+            }
+
+            // Calculate fresh
+            const quote = await MarketDataService.getQuote(ticker);
+            if (!quote) return null;
+
+            const history = await MarketDataService.getDetailedHistory(ticker, 1);
+            const prices = history.map((h: any) => Number(h.close));
+
+            const techResult = MarketDataService.getTechnicalIndicators(prices);
+            const technical = techResult || { rsi: null, sma50: null, sma200: null, trend: 'NEUTRAL' };
+            const risk = await this.calculateRiskMetrics(ticker);
+            const analysts = await this.getAnalystData(ticker, quote.currency);
+            const fundamentals = await MarketDataService.getFundamentals(ticker);
+            const calendarEvents = await MarketDataService.getCalendarEvents(ticker);
+            const profile = await MarketDataService.getAssetProfile(ticker);
+
+            // RECALCULATE RISK SCORE with Quality Bonuses
+            risk.score = this.calculateRiskScore(risk, fundamentals, analysts.consensus, analysts.targetUpside);
+            risk.solvency = this.calculateAltmanZ(fundamentals, fundamentals?.marketCap || 0);
+
+            // NEW: Fetch V10 enhanced data for additional sections
+            let v10Data: any = null;
+            try {
+                v10Data = await MarketDataService.getEnhancedQuoteData(ticker);
+            } catch (v10Err) {
+                console.warn(`[PositionAnalysisService] Could not fetch V10 data for ${ticker}:`, v10Err);
+            }
+
+            const analysis: TickerAnalysis = {
+                ticker,
+                currentPrice: quote.c,
+                currency: quote.currency || 'USD',
+                technical,
+                risk,
+                analysts,
+                fundamentals,
+                sector: profile.sector,
+                industry: profile.industry,
+                calendarEvents,
+                calculatedAt: new Date().toISOString(),
+                // V10 DATA SECTIONS (from getEnhancedQuoteData)
+                governance: v10Data?.governance || null,
+                dividends: v10Data?.dividends || null,
+                calendar: v10Data?.calendar || null,
+                earnings: v10Data?.earnings || null,
+                financialHealth: v10Data?.financialHealth || null,
+                valuation: v10Data?.valuation || null,
+                extended: v10Data?.extended || null,
+            };
+
+            // Save to market_cache
+            const expiresAt = new Date(Date.now() + SIX_HOURS);
+            await sql`
+                INSERT INTO market_cache (key, data, expires_at)
+                VALUES (${cacheKey}, ${analysis as any}, ${expiresAt})
+                ON CONFLICT (key) DO UPDATE 
+                SET data = EXCLUDED.data, expires_at = EXCLUDED.expires_at, created_at = NOW()
             `;
-            return result.length > 0 ? result[0] : null;
+
+            return analysis;
         } catch (e) {
+            console.error('Error getting ticker analysis:', e);
             return null;
         }
     },
 
     /**
-     * Save analysis to cache
+     * Save analysis results to the position_analysis_cache table
      */
     async saveToCache(
         positionId: string,
         ticker: string,
-        technical: TechnicalIndicators,
-        risk: RiskMetrics
+        technical: { rsi: number | null; sma50: number | null; sma200: number | null; trend: string },
+        risk: { volatility: number; sharpe: number; sortino: number; maxDrawdown: number; beta: number; var95: number; score: number }
     ): Promise<void> {
         try {
             await sql`
-                INSERT INTO position_analysis_cache 
-                (position_id, ticker, rsi, sma_50, sma_200, trend, 
-                 volatility, sharpe_ratio, sortino_ratio, max_drawdown, 
-                 beta, var_95, risk_score, calculated_at)
-                VALUES (${positionId}, ${ticker}, ${technical.rsi}, 
-                        ${technical.sma50}, ${technical.sma200}, ${technical.trend},
-                        ${risk.volatility}, ${risk.sharpe}, ${risk.sortino}, 
-                        ${risk.maxDrawdown}, ${risk.beta}, ${risk.var95}, 
-                        ${risk.score}, NOW())
+                INSERT INTO position_analysis_cache (
+                    position_id, ticker, rsi, sma_50, sma_200, trend,
+                    volatility, sharpe_ratio, sortino_ratio, max_drawdown, beta, var_95, risk_score,
+                    calculated_at
+                ) VALUES (
+                    ${positionId}, ${ticker}, 
+                    ${technical.rsi}, ${technical.sma50}, ${technical.sma200}, ${technical.trend},
+                    ${risk.volatility}, ${risk.sharpe}, ${risk.sortino}, ${risk.maxDrawdown}, 
+                    ${risk.beta}, ${risk.var95}, ${risk.score},
+                    NOW()
+                )
                 ON CONFLICT (position_id) DO UPDATE SET
+                    ticker = EXCLUDED.ticker,
                     rsi = EXCLUDED.rsi,
                     sma_50 = EXCLUDED.sma_50,
                     sma_200 = EXCLUDED.sma_200,
@@ -614,7 +686,8 @@ export const PositionAnalysisService = {
                     calculated_at = NOW()
             `;
         } catch (e) {
-            console.error('Error saving to analysis cache:', e);
+            console.error(`[PositionAnalysisService] Error saving cache for ${ticker}:`, e);
+            throw e;
         }
     },
 
@@ -627,9 +700,9 @@ export const PositionAnalysisService = {
             const positions = await sql`
                 SELECT p.*, 
                        (SELECT SUM(pos.quantity * COALESCE(
-                           (SELECT data->>'c' FROM market_cache mc 
+                           (SELECT (data->>'c')::decimal FROM market_cache mc 
                             WHERE mc.key = 'quote:' || pos.ticker 
-                            LIMIT 1)::decimal, 0))
+                            LIMIT 1), 0))
                         FROM positions pos 
                         WHERE pos.portfolio_id = ${portfolioId}
                        ) as portfolio_total_value
@@ -642,11 +715,11 @@ export const PositionAnalysisService = {
             const position = positions[0];
             const ticker = position.ticker;
 
-            // 2. Get current price
-            const quote = await MarketDataService.getQuote(ticker);
-            if (!quote) return null;
+            // 2. Get Ticker Analysis
+            const tickerAnalysis = await this.getTickerAnalysis(ticker);
+            if (!tickerAnalysis) return null;
 
-            const currentPrice = quote.c;
+            const currentPrice = tickerAnalysis.currentPrice;
             const quantity = Number(position.quantity);
             const avgPrice = Number(position.average_buy_price);
             const totalValue = quantity * currentPrice;
@@ -654,87 +727,21 @@ export const PositionAnalysisService = {
             const pnl = totalValue - costBasis;
             const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
             const portfolioValue = Number(position.portfolio_total_value) || totalValue;
-            const weight = (totalValue / portfolioValue) * 100;
-
-            // 3. Check cache (6 hours)
-            let technical: TechnicalIndicators;
-            let risk: RiskMetrics;
-            let calculatedAt: string;
-
-            const cached = await this.getCachedAnalysis(positionId);
-            const cacheAge = cached ? (Date.now() - new Date(cached.calculated_at).getTime()) : Infinity;
-            const SIX_HOURS = 6 * 60 * 60 * 1000;
-
-            if (cached && cacheAge < SIX_HOURS) {
-                // Use cached data
-                technical = {
-                    rsi: cached.rsi ? Number(cached.rsi) : null,
-                    sma50: cached.sma_50 ? Number(cached.sma_50) : null,
-                    sma200: cached.sma_200 ? Number(cached.sma_200) : null,
-                    trend: cached.trend || 'NEUTRAL'
-                };
-                risk = {
-                    volatility: Number(cached.volatility) || 0,
-                    sharpe: Number(cached.sharpe_ratio) || 0,
-                    sortino: Number(cached.sortino_ratio) || 0,
-                    maxDrawdown: Number(cached.max_drawdown) || 0,
-                    beta: Number(cached.beta) || 1,
-                    var95: Number(cached.var_95) || 0,
-                    score: Number(cached.risk_score) || 5,
-                    solvency: null
-                };
-                calculatedAt = cached.calculated_at;
-            } else {
-                // Calculate fresh
-                const history = await MarketDataService.getDetailedHistory(ticker, 1);
-                const prices = history.map((h: any) => Number(h.close));
-
-                const techResult = MarketDataService.getTechnicalIndicators(prices);
-                technical = techResult || { rsi: null, sma50: null, sma200: null, trend: 'NEUTRAL' };
-
-                risk = await this.calculateRiskMetrics(ticker);
-                calculatedAt = new Date().toISOString();
-
-                // Save to cache
-                await this.saveToCache(positionId, ticker, technical, risk);
-            }
-
-            // 4. Get analyst data (uses its own 12h cache)
-            const analysts = await this.getAnalystData(ticker);
-
-            // 5. Get fundamental data (uses its own 14d cache) - v2.2.0
-            const fundamentals = await MarketDataService.getFundamentals(ticker);
-
-            // 6. Get Calendar Events (v2.2.0)
-            const calendarEvents = await MarketDataService.getCalendarEvents(ticker);
-
-            // 7. RECALCULATE RISK SCORE with Quality Bonuses (v2.3.0)
-            risk.score = this.calculateRiskScore(risk, fundamentals, analysts.consensus, analysts.targetUpside);
-
-            // 8. Calculate Solvency Risk (Altman Z-Score) (v2.3.0)
-            risk.solvency = this.calculateAltmanZ(fundamentals, fundamentals?.marketCap || 0);
+            const weight = portfolioValue > 0 ? (totalValue / portfolioValue) * 100 : 0;
 
             return {
+                ...tickerAnalysis,
                 positionId,
-                ticker,
                 quantity,
                 averagePrice: avgPrice,
-                currentPrice,
-                currency: position.currency || 'EUR',
                 totalValue: parseFloat(totalValue.toFixed(2)),
                 costBasis: parseFloat(costBasis.toFixed(2)),
                 pnl: parseFloat(pnl.toFixed(2)),
                 pnlPercent: parseFloat(pnlPercent.toFixed(2)),
-                weight: parseFloat(weight.toFixed(2)),
-                technical,
-                risk,
-                analysts,
-                fundamentals,
-                calendarEvents,
-                calculatedAt
+                weight: parseFloat(weight.toFixed(2))
             };
         } catch (e) {
-            console.error('Error getting full analysis:', e);
+            console.error('Error getting full position analysis:', e);
             return null;
         }
     }

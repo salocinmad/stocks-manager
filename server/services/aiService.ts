@@ -21,7 +21,7 @@ export const AIService = {
     async _buildPortfolioAnalysisPrompt(userId: string, userMessage: string, portfolioId?: string) {
         // 1. Fetch Context
         let query = sql`
-            SELECT p.name, pos.ticker, pos.quantity, pos.average_buy_price, pos.asset_type 
+            SELECT p.name, pos.ticker, pos.quantity, pos.average_buy_price, pos.asset_type, pos.currency
             FROM portfolios p
             JOIN positions pos ON p.id = pos.portfolio_id
             WHERE p.user_id = ${userId}
@@ -30,7 +30,7 @@ export const AIService = {
         // Filter by specific portfolio if provided
         if (portfolioId) {
             query = sql`
-                SELECT p.name, pos.ticker, pos.quantity, pos.average_buy_price, pos.asset_type 
+                SELECT p.name, pos.ticker, pos.quantity, pos.average_buy_price, pos.asset_type, pos.currency
                 FROM portfolios p
                 JOIN positions pos ON p.id = pos.portfolio_id
                 WHERE p.user_id = ${userId} AND p.id = ${portfolioId}
@@ -39,9 +39,18 @@ export const AIService = {
 
         const portfolios = await query;
 
-        const portfolioSummary = portfolios.map(p =>
-            `- ${p.ticker} (${p.asset_type}): ${p.quantity} unidades @ ${p.average_buy_price}`
-        ).join('\n');
+        const portfolioSummary = portfolios.map(p => {
+            let avgPrice = Number(p.average_buy_price);
+            let currency = p.currency || 'USD';
+
+            // GBX/GBp Normalization (Pence to Pounds)
+            if (currency === 'GBX' || currency === 'GBp') {
+                avgPrice = avgPrice / 100;
+                currency = 'GBP';
+            }
+
+            return `- ${p.ticker} (${p.asset_type}): ${p.quantity} unidades @ ${avgPrice.toFixed(2)} ${currency}`;
+        }).join('\n');
 
         // 2. Enrich with Historical Data
         const potentialTickersInMessage = (userMessage.match(/\b[A-Z]{2,6}\b/g) || [])
@@ -73,11 +82,19 @@ export const AIService = {
                     ]);
 
                     if (quote) {
-                        const currencySymbol = quote?.currency === 'EUR' ? '€' : quote?.currency === 'GBP' ? '£' : '$';
+                        let price = quote.c;
+                        let currencySymbol = '$';
+                        if (quote.currency === 'EUR') currencySymbol = '€';
+                        else if (quote.currency === 'GBP') currencySymbol = '£';
+                        else if (quote.currency === 'GBX' || quote.currency === 'GBp') {
+                            currencySymbol = '£';
+                            price = price / 100;
+                        }
+
                         const quoteTime = new Date(quote.lastUpdated || Date.now()).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
                         marketContext += `\nTicker: ${ticker} (${quote.name})\n`;
-                        marketContext += `PRECIO: ${currencySymbol}${quote.c.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)\n`;
+                        marketContext += `PRECIO: ${currencySymbol}${price.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)\n`;
 
                         // FUNDAMENTALES
                         marketContext += `- Market Cap: ${quote.marketCap || 'N/A'} | Beta: ${quote.beta || 'N/A'} | PER: ${quote.peRatio || 'N/A'}\n`;
@@ -299,9 +316,15 @@ INSTRUCCIONES:
 
                 for (const [name, positions] of Object.entries(grouped)) {
                     userContext += `• ${name}:\n`;
-                    userContext += positions.map(p =>
-                        `   - ${p.ticker}: ${Number(p.quantity)} uds @ ${Number(p.average_buy_price).toFixed(2)} ${p.currency} (Últ. mov: ${new Date(p.updated_at).toLocaleDateString('es-ES')})`
-                    ).join('\n');
+                    userContext += positions.map(p => {
+                        let avgPrice = Number(p.average_buy_price);
+                        let currency = p.currency;
+                        if (currency === 'GBX' || currency === 'GBp') {
+                            avgPrice = avgPrice / 100;
+                            currency = 'GBP';
+                        }
+                        return `   - ${p.ticker}: ${Number(p.quantity)} uds @ ${avgPrice.toFixed(2)} ${currency} (Últ. mov: ${new Date(p.updated_at).toLocaleDateString('es-ES')})`;
+                    }).join('\n');
                     userContext += '\n';
                 }
             }
@@ -467,11 +490,19 @@ INSTRUCCIONES:
                     ]);
 
                     if (quote) {
-                        const currencySymbol = quote?.currency === 'EUR' ? '€' : quote?.currency === 'GBP' ? '£' : '$';
+                        let price = quote.c;
+                        let currencySymbol = '$';
+                        if (quote.currency === 'EUR') currencySymbol = '€';
+                        else if (quote.currency === 'GBP') currencySymbol = '£';
+                        else if (quote.currency === 'GBX' || quote.currency === 'GBp') {
+                            currencySymbol = '£';
+                            price = price / 100;
+                        }
+
                         const quoteTime = new Date(quote.lastUpdated || Date.now()).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
                         marketDataStr += `\n📌 ANÁLISIS PARA ${ticker} (${quote.name}):\n`;
-                        marketDataStr += `PRECIO (aprox ${quoteTime}): ${currencySymbol}${quote.c.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)\n`;
+                        marketDataStr += `PRECIO (aprox ${quoteTime}): ${currencySymbol}${price.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)\n`;
 
                         // FUNDAMENTALES
                         marketDataStr += `FUNDAMENTALES:\n`;

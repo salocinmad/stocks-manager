@@ -106,6 +106,19 @@ setTimeout(() => {
     DiscoveryJob.runDiscoveryCycle().catch(e => console.error('Initial DiscoveryJob Error:', e));
 }, 30000);
 
+// Catalog Enrichment Job (Runs every 3 mins like Discovery)
+import { CatalogEnrichmentJob } from './jobs/catalogEnrichmentJob';
+
+setInterval(() => {
+    CatalogEnrichmentJob.runEnrichmentCycle().catch(e => console.error('CatalogEnrichmentJob Error:', e));
+}, 3 * 60 * 1000);
+
+// Initial Catalog Enrichment Run (After 1min)
+setTimeout(() => {
+    console.log('[Startup] Running Initial Catalog Enrichment Cycle...');
+    CatalogEnrichmentJob.runEnrichmentCycle().catch(e => console.error('Initial CatalogEnrichmentJob Error:', e));
+}, 60000);
+
 // Calendar Sync Job (Every 6h)
 import { CalendarJob } from './jobs/calendarJob';
 
@@ -118,6 +131,10 @@ setTimeout(() => {
     console.log('[Startup] Running Initial Calendar Sync...');
     CalendarJob.run().catch(e => console.error('Initial CalendarJob Error:', e));
 }, 60000);
+
+// Market Events Sync Job (Daily at 1:00 AM, 2 tickers every 5 min)
+import { MarketEventsSyncJob } from './jobs/marketEventsSyncJob';
+MarketEventsSyncJob.startScheduler();
 
 // Position Analysis Job (Every 6h at 00:00, 06:00, 12:00, 18:00)
 import { runPositionAnalysisJob } from './jobs/positionAnalysisJob';
@@ -145,6 +162,9 @@ setTimeout(() => {
 
 // Backup Job (Every Minute)
 import { BackupJob } from './jobs/backupJob';
+import { scheduleGlobalTickerJob } from './jobs/globalTickerJob';
+
+scheduleGlobalTickerJob();
 
 setInterval(() => {
     BackupJob.checkAndRun().catch(e => console.error('BackupJob Error:', e));
@@ -200,7 +220,7 @@ const app = new Elysia({
         .use(userRoutes)
         .use(publicRoutes)
         .use(analysisRoutes)
-        .get('/health', () => ({ status: 'ok', version: '1.0.0' }))
+        .get('/health', () => ({ status: 'ok', version: process.env.APP_VERSION || 'V1.0.0' }))
     )
     // 2. Servir imágenes de notas desde /uploads
     .get('/api/uploads/notes/:filename', async ({ params }) => {

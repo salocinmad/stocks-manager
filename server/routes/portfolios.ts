@@ -93,7 +93,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             }
 
             // 2. Obtener tickers únicos para consultar precios
-            const tickers = [...new Set(positions.map(p => p.ticker))];
+            const tickers = [...new Set(positions.map(p => p.ticker))] as string[];
             const quotes: Record<string, any> = {};
 
             await Promise.all(tickers.map(async (ticker) => {
@@ -101,51 +101,67 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             }));
 
             // 3. Obtener tipos de cambio necesarios a EUR
-            const currencies = [...new Set(positions.map(p => p.currency))];
-            const rates: Record<string, number> = { 'EUR': 1.0 };
+            const uniqueCurrencies = new Set<string>();
+            positions.forEach(p => { if (p.currency) uniqueCurrencies.add(p.currency); });
+            // Add quote currencies for accurate live rate conversion
+            Object.values(quotes).forEach((q: any) => { if (q && q.currency) uniqueCurrencies.add(q.currency); });
 
-            await Promise.all(currencies.map(async (curr) => {
+            const rates: Record<string, number> = { 'EUR': 1.0 };
+            // console.log(`[Summary] Currencies (pos+quote): ${Array.from(uniqueCurrencies).join(', ')}`);
+
+            await Promise.all(Array.from(uniqueCurrencies).map(async (curr) => {
                 if (curr !== 'EUR') {
                     const rate = await MarketDataService.getExchangeRate(curr, 'EUR');
                     rates[curr] = rate || 1.0;
                 }
             }));
 
+            // 3b. Obtener sectores
+            const sectors = await MarketDataService.getSectors(tickers);
+
             // 4. Calcular métricas consolidadas
             let totalValueEur = 0;
             let totalPrevValueEur = 0;
             let totalCostEur = 0;
             const distMap: Record<string, number> = {};
+            const sectorMap: Record<string, number> = {};
 
             positions.forEach(p => {
                 const quote = quotes[p.ticker];
-                const rate = rates[p.currency || 'EUR'] || 1.0;
+                const posRate = rates[p.currency || 'EUR'] || 1.0;
                 const qty = Number(p.quantity);
                 const avgPrice = Number(p.average_buy_price) || 0;
 
-                // Costo total en EUR
-                const costEur = qty * avgPrice * rate;
+                // Costo total en EUR (Usar moneda de la posición)
+                const costEur = qty * avgPrice * posRate;
                 totalCostEur += costEur;
 
+                let currentValEur = 0;
+                let prevValEur = 0;
+
                 if (quote && quote.c) {
-                    const currentValEur = qty * quote.c * rate;
-                    const prevValEur = qty * (quote.pc || quote.c) * rate;
+                    // CRITICAL: Use Quote Currency for Live Price (Handles GBP vs GBX mismatch)
+                    const quoteRate = rates[quote.currency] || 1.0;
+                    currentValEur = qty * quote.c * quoteRate;
+                    prevValEur = qty * (quote.pc || quote.c) * quoteRate;
 
                     totalValueEur += currentValEur;
                     totalPrevValueEur += prevValEur;
-
-                    // Distribución
-                    const type = p.asset_type || 'STOCK';
-                    distMap[type] = (distMap[type] || 0) + currentValEur;
                 } else {
-                    // Fallback a precio medio si no hay quote
-                    const val = qty * avgPrice * rate;
+                    // Fallback to position currency/price if no quote
+                    const val = qty * avgPrice * posRate;
                     totalValueEur += val;
-                    totalPrevValueEur += val; // Sin cambio si no hay datos
-
-                    const type = p.asset_type || 'STOCK';
-                    distMap[type] = (distMap[type] || 0) + val;
+                    totalPrevValueEur += val;
+                    currentValEur = val;
                 }
+
+                // Distribución por Tipo de Activo
+                const type = p.asset_type || 'STOCK';
+                distMap[type] = (distMap[type] || 0) + currentValEur;
+
+                // Distribución por Sector
+                const sector = sectors[p.ticker] || 'Unknown';
+                sectorMap[sector] = (sectorMap[sector] || 0) + currentValEur;
             });
 
             const dailyChangeEur = totalValueEur - totalPrevValueEur;
@@ -160,13 +176,59 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
                 color: name === 'STOCK' ? '#fce903' : name === 'CRYPTO' ? '#94a3b8' : '#3b82f6'
             })).filter(d => d.value > 0);
 
+            const sectorAllocation = Object.entries(sectorMap).map(([name, value]) => ({
+                name,
+                value
+            })).sort((a, b) => b.value - a.value).filter(d => d.value > 0);
+
+            // 5. Calcular Ganadores y Perdedores (Top 3)
+            const performanceList = positions.map(p => {
+                const quote = quotes[p.ticker];
+                let changePercent = 0;
+                let change = 0;
+                let price = 0;
+
+                if (quote) {
+                    price = quote.c || 0;
+                    if (quote.dp !== undefined && quote.dp !== null) {
+                        changePercent = quote.dp;
+                    } else if (quote.c && quote.pc) {
+                        changePercent = ((quote.c - quote.pc) / quote.pc) * 100;
+                    }
+
+                    if (quote.d !== undefined && quote.d !== null) {
+                        change = quote.d;
+                    } else if (quote.c && quote.pc) {
+                        change = quote.c - quote.pc;
+                    }
+                }
+
+                return {
+                    ticker: p.ticker,
+                    name: p.portfolio_name, // Optional context
+                    price,
+                    change,
+                    changePercent,
+                    currency: quote?.currency || p.currency
+                };
+            }).filter(p => p.price > 0); // Exclude items with no price data
+
+            // Sort by Change % Descending (High to Low)
+            const sortedByPerformance = [...performanceList].sort((a, b) => b.changePercent - a.changePercent);
+
+            const topGainers = sortedByPerformance.slice(0, 3).filter(p => p.changePercent > 0);
+            const topLosers = sortedByPerformance.slice(-3).reverse().filter(p => p.changePercent < 0);
+
             return {
                 totalValueEur,
                 dailyChangeEur,
                 dailyChangePercent,
                 totalGainEur,
                 totalGainPercent,
-                distribution
+                distribution,
+                sectorAllocation,
+                topGainers,
+                topLosers
             };
 
         } catch (error) {

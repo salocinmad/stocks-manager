@@ -163,7 +163,9 @@ export async function initDatabase() {
         { key: 'CRAWLER_VOL_YAHOO_V8', value: '20' },
         { key: 'CRAWLER_VOL_FINNHUB', value: '15' },
         { key: 'CRAWLER_VOL_YAHOO_V10', value: '5' },
-        { key: 'CRAWLER_MARKET_OPEN_ONLY', value: 'true' }
+        { key: 'CRAWLER_MARKET_OPEN_ONLY', value: 'true' },
+        { key: 'GLOBAL_TICKER_EXCHANGES', value: 'MC,PA,LSE,XETRA,T,HK,TO,NSE,AU,SG,AS,MI,SW,ST,OS,CO,HE,BR,LI,VI' },
+        { key: 'APP_VERSION', value: 'V2.1.0' }
       ];
 
       for (const setting of defaultCrawlerSettings) {
@@ -274,6 +276,21 @@ export async function initDatabase() {
       await sql`ALTER TABLE positions ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0`;
       console.log('Applied migration: positions.display_order');
     } catch (e: any) { console.error('Migration error (positions.display_order):', e.message); }
+
+    try {
+      await sql`ALTER TABLE positions ADD COLUMN IF NOT EXISTS current_stop_loss DECIMAL(20, 8)`;
+      console.log('Applied migration: positions.current_stop_loss');
+    } catch (e: any) { console.error('Migration error (positions.current_stop_loss):', e.message); }
+
+    try {
+      await sql`ALTER TABLE positions ADD COLUMN IF NOT EXISTS current_take_profit DECIMAL(20, 8)`;
+      console.log('Applied migration: positions.current_take_profit');
+    } catch (e: any) { console.error('Migration error (positions.current_take_profit):', e.message); }
+
+    try {
+      await sql`ALTER TABLE positions ADD COLUMN IF NOT EXISTS notes TEXT`;
+      console.log('Applied migration: positions.notes');
+    } catch (e: any) { console.error('Migration error (positions.notes):', e.message); }
 
     try {
       await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS triggered BOOLEAN DEFAULT false`;
@@ -400,6 +417,45 @@ export async function initDatabase() {
         )
       `;
       console.log('Created table: market_discovery_cache');
+
+      // 10. Chat Conversations
+      await sql`
+        CREATE TABLE IF NOT EXISTS chat_conversations (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            title VARCHAR(255) DEFAULT 'Nueva conversación',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS idx_chat_conversations_user ON chat_conversations(user_id)`;
+      console.log('Created table: chat_conversations');
+
+      // 11. Chat Messages
+      await sql`
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            conversation_id UUID REFERENCES chat_conversations(id) ON DELETE CASCADE,
+            role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'model')),
+            content TEXT NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON chat_messages(conversation_id)`;
+      console.log('Created table: chat_messages');
+
+      // 12. PnL History Cache
+      await sql`
+        CREATE TABLE IF NOT EXISTS pnl_history_cache (
+            portfolio_id UUID REFERENCES portfolios(id) ON DELETE CASCADE,
+            date DATE NOT NULL,
+            pnl_eur NUMERIC(20, 4),
+            calculated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(portfolio_id, date)
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS idx_pnl_cache_portfolio ON pnl_history_cache(portfolio_id)`;
+      console.log('Created table: pnl_history_cache');
 
       // ----------------------------------------------------
       // NEW: AI Providers Table (Multi-Provider Support V6)
@@ -805,6 +861,48 @@ Danos tu visión de futuro.`;
       await sql`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS deactivation_token UUID DEFAULT gen_random_uuid()`;
       console.log('Applied migration: alerts.deactivation_token');
     } catch (e: any) { console.error('Migration error (alerts.deactivation_token):', e.message); }
+
+    // 6. Global Tickers Master (Librería Global - V4.0)
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS global_tickers (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          symbol VARCHAR(20) NOT NULL,
+          name TEXT NOT NULL,
+          isin VARCHAR(20),
+          exchange VARCHAR(20) NOT NULL,
+          country VARCHAR(100),
+          currency VARCHAR(10),
+          type VARCHAR(50),
+          last_sync_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(symbol, exchange)
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS idx_global_tickers_isin ON global_tickers(isin)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_global_tickers_exchange ON global_tickers(exchange)`;
+      console.log('Created table: global_tickers');
+    } catch (e: any) { console.error('Migration error (global_tickers table):', e.message); }
+
+    // Migration: Add yahoo_status column to global_tickers (for marking failed/unsupported tickers)
+    try {
+      await sql`ALTER TABLE global_tickers ADD COLUMN IF NOT EXISTS yahoo_status VARCHAR(20)`;
+      console.log('Applied migration: global_tickers.yahoo_status');
+    } catch (e: any) { console.error('Migration error (global_tickers.yahoo_status):', e.message); }
+
+    try {
+      await sql`ALTER TABLE global_tickers ADD COLUMN IF NOT EXISTS yahoo_error TEXT`;
+      console.log('Applied migration: global_tickers.yahoo_error');
+    } catch (e: any) { console.error('Migration error (global_tickers.yahoo_error):', e.message); }
+
+    try {
+      await sql`ALTER TABLE global_tickers ADD COLUMN IF NOT EXISTS last_processed_at TIMESTAMP WITH TIME ZONE`;
+      console.log('Applied migration: global_tickers.last_processed_at');
+    } catch (e: any) { console.error('Migration error (global_tickers.last_processed_at):', e.message); }
+
+    try {
+      await sql`CREATE INDEX IF NOT EXISTS idx_global_tickers_yahoo_status ON global_tickers(yahoo_status)`;
+      console.log('Created index: idx_global_tickers_yahoo_status');
+    } catch (e: any) { console.error('Migration error (idx_global_tickers_yahoo_status):', e.message); }
 
     console.log('V2.1.0 migrations completed.');
 

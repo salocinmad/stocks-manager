@@ -32,6 +32,7 @@ interface Position {
   costBasisEUR?: number;
   lastUpdated?: number;
   commission?: number;
+  marketState?: string;
 }
 
 interface Portfolio {
@@ -258,8 +259,10 @@ export const PortfolioScreen: React.FC = () => {
                 returnPct,
                 change,
                 changePercent,
+
                 name,
-                lastUpdated
+                lastUpdated,
+                marketState: quote?.state || 'CLOSED'
               };
             } catch (e) {
               console.error(`[Portfolio] Error fetching quote for ${pos.ticker}:`, e);
@@ -462,7 +465,7 @@ export const PortfolioScreen: React.FC = () => {
   if (loading) {
     return (
       <main className="flex-1 flex flex-col h-screen bg-background-light dark:bg-background-dark">
-        <Header title="Mi Portafolio" />
+
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
           <p className="text-text-secondary-light font-medium animate-pulse">Cargando tus activos...</p>
@@ -473,7 +476,7 @@ export const PortfolioScreen: React.FC = () => {
 
   return (
     <main className="flex-1 flex flex-col h-screen bg-background-light dark:bg-background-dark overflow-y-auto">
-      <Header title="Mi Portafolio" />
+
       <div className="flex flex-col gap-8 px-6 py-10 md:px-10 max-w-[1600px] mx-auto w-full pb-32">
 
         {/* Header de la sección */}
@@ -676,7 +679,18 @@ export const PortfolioScreen: React.FC = () => {
                               <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30">
                                 <div className="flex flex-col">
                                   <span className="font-bold text-base text-text-primary-light dark:text-white truncate max-w-[180px]" title={pos.name || pos.ticker}>{pos.name || pos.ticker}</span>
-                                  <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
+                                    {pos.marketState && (
+                                      <div
+                                        className={`size-1.5 rounded-full ${pos.marketState === 'REGULAR' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                                          ['PRE', 'POST'].includes(pos.marketState) ? 'bg-orange-500' :
+                                            'bg-red-500/30'
+                                          }`}
+                                        title={`Mercado: ${pos.marketState === 'REGULAR' ? 'Abierto' : ['PRE', 'POST'].includes(pos.marketState) ? 'Pre/Post Market' : 'Cerrado'}`}
+                                      />
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right font-mono font-medium">

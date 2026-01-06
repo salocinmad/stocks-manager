@@ -10,6 +10,10 @@ export const MarketAnalysis: React.FC = () => {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [loading, setLoading] = useState(true);
 
+  // Carteras select
+  const [portfolios, setPortfolios] = useState<any[]>([]);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('');
+
   // Detección de tema
   useEffect(() => {
     const checkTheme = () => {
@@ -41,52 +45,94 @@ export const MarketAnalysis: React.FC = () => {
     return ticker;
   };
 
-  // Cargar datos de la cartera para la watchlist y topAsset
+  // 1. Cargar lista de carteras al inicio
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchPortfolios = async () => {
+      try {
+        const { data } = await api.get('/portfolios');
+        if (Array.isArray(data) && data.length > 0) {
+          setPortfolios(data);
+          const favorite = data.find((p: any) => p.is_favorite) || data[0];
+          setSelectedPortfolioId(favorite.id);
+        }
+      } catch (err) {
+        console.error("Error loading portfolios:", err);
+      }
+    };
+    if (user) fetchPortfolios();
+  }, [user, api]);
+
+  // 2. Cargar datos de la cartera seleccionada
+  useEffect(() => {
+    const fetchPortfolioData = async () => {
+      if (!selectedPortfolioId) return;
       try {
         setLoading(true);
-        // Obtener portafolios para buscar el favorito
-        const { data: portfolios } = await api.get('/portfolios');
-        if (Array.isArray(portfolios) && portfolios.length > 0) {
-          const favorite = portfolios.find((p: any) => p.is_favorite) || portfolios[0];
+        const { data: details } = await api.get(`/portfolios/${selectedPortfolioId}`);
+        if (details && details.positions && details.positions.length > 0) {
+          const positions = details.positions;
 
-          // Detalle del portafolio
-          const { data: details } = await api.get(`/portfolios/${favorite.id}`);
-          if (details && details.positions && details.positions.length > 0) {
-            const positions = details.positions;
+          // Construir Watchlist normalizada
+          const tickers = positions.map((p: any) => normalizeTicker(p.ticker));
+          setWatchlist(tickers);
 
-            // Construir Watchlist normalizada
-            const tickers = positions.map((p: any) => normalizeTicker(p.ticker));
-            setWatchlist(tickers);
-
-            // Encontrar Top Asset
-            const sortedByValue = [...positions].sort((a: any, b: any) =>
-              (b.quantity * b.average_buy_price) - (a.quantity * a.average_buy_price)
-            );
-            if (sortedByValue.length > 0) {
-              setTopAsset(normalizeTicker(sortedByValue[0].ticker));
-            }
+          // Encontrar Top Asset (por valor total)
+          const sortedByValue = [...positions].sort((a: any, b: any) =>
+            (b.quantity * b.average_buy_price) - (a.quantity * a.average_buy_price)
+          );
+          if (sortedByValue.length > 0) {
+            setTopAsset(normalizeTicker(sortedByValue[0].ticker));
           }
+        } else {
+          // Si no hay posiciones, resetear
+          setWatchlist([]);
+          setTopAsset("NASDAQ:AAPL");
         }
       } catch (e) {
-        console.error("Error cargando datos de mercado", e);
+        console.error("Error cargando datos de la cartera", e);
       } finally {
         setLoading(false);
       }
     };
 
-    if (user) fetchData();
-  }, [user, api]);
+    fetchPortfolioData();
+  }, [selectedPortfolioId, api]);
 
   return (
     <main className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Header estándar con estado de mercado integrado */}
-      <Header title="Mercado Global" />
+
+
+      {/* Selector de Cartera Sub-Header */}
+      <div className="px-6 py-4 md:px-10 bg-background-light dark:bg-background-dark border-b border-border-light/30 dark:border-border-dark/30 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-bold opacity-60 uppercase tracking-wider">Cartera de Análisis:</span>
+          <select
+            value={selectedPortfolioId}
+            onChange={(e) => setSelectedPortfolioId(e.target.value)}
+            className="bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl px-4 py-1.5 font-bold focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm min-w-[200px]"
+            disabled={portfolios.length === 0}
+          >
+            {portfolios.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name} {p.is_favorite ? '★' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {loading && (
+          <div className="flex items-center gap-2 text-primary">
+            <div className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-xs font-bold uppercase tracking-tighter">Sincronizando...</span>
+          </div>
+        )}
+      </div>
 
       {/* Contenedor del Gráfico ocupando todo el espacio restante */}
-      <div className="flex-1 w-full bg-white dark:bg-surface-dark border-t border-border-light dark:border-border-dark relative">
+      <div className="flex-1 w-full bg-white dark:bg-surface-dark relative">
         <TradingViewChart
+          key={selectedPortfolioId} // Force refresh on portfolio change
           symbol={topAsset}
           theme={theme}
           watchlist={watchlist}

@@ -172,6 +172,21 @@ Control total sobre el comportamiento del crawler de mercado.
     - **Finnhub (Noticias)**: Cantidad de acciones para buscar noticias recientes.
 - **Priorizar Market Open**: Si está activo, detecta si la bolsa (US/EU) está abierta y fuerza la búsqueda de "Day Gainers" y "Most Actives" en lugar de la rotación habitual.
 
+#### Arquitectura Split-World (v2.1.0)
+El crawler ahora opera bajo un modelo de segmentación geográfica:
+- **Pipeline USA**: Optimizado para mercados americanos usando Finnhub y Yahoo V10.
+- **Pipeline Global**: Especializado en mercados Europeos y Asiáticos (ES, DE, FR, GB, HK) usando la API de trending de Yahoo.
+- **Enriquecimiento**: Cualquier activo detectado sin sector se consulta automáticamente para completar su perfil.
+
+#### Control Maestro (Kill Switch)
+Ubicado en **Admin → General**. Si el interruptor principal está **OFF**, toda actividad del crawler se detiene, incluyendo las ejecuciones manuales por script.
+
+#### Persistencia y Recolección Progresiva (v2.1.0)
+El sistema utiliza una estrategia de **Merge/Append**. A diferencia de versiones anteriores, el motor no sobreescribe el catálogo en cada ciclo, sino que añade las nuevas empresas descubiertas a la base de datos existente. Esto asegura que el "Discovery Engine" actúe como una bola de nieve, creciendo constantemente en activos analizados.
+
+#### Explorador de Mercado (v2.2.0 - Planificado)
+Desde la pestaña **Estadísticas**, el administrador puede acceder a un explorador paginado para auditar cada activo procesado, realizar búsquedas por ticker y visualizar el objeto JSON completo con todas las métricas técnicas y fundamentales.
+
 ---
 
 ## 🔑 Claves API
@@ -185,13 +200,40 @@ Control total sobre el comportamiento del crawler de mercado.
 
 > 💡 Finnhub proporciona datos complementarios como noticias y métricas, pero ya **no es estrictamente necesario** para ver si el mercado está abierto (se usa Yahoo V10 por defecto).
 
+### EOD Historical Data (EODHD) - Librería Global
+
+1. Obtén una API key en [eodhd.com](https://eodhd.com/register)
+2. Ve a **Admin → Claves API**
+3. Introduce tu key en el campo **EODHD API Key**.
+4. Configura el listado de bolsas en **Bolsas para Cosecha Global** (Ej: `MC,PA,LSE,NSE...`).
+5. Guarda.
+
+> 💡 **Librería Global**: El sistema utiliza EODHD para descargar la lista maestra de tickers mundiales con su ISIN. Esta lista alimenta al Discovery Engine para encontrar nuevas oportunidades fuera de USA.
+
 ### Google Gemini (IA)
 
 1. Obtén una API key en [Google AI Studio](https://aistudio.google.com)
 2. Ve a **Admin → Inteligencia Artificial**
 3. Pega la key
 4. Selecciona el modelo (recomendado: `gemini-1.5-flash`)
-5. Guarda
+5. Guarda.
+
+---
+
+## 🌎 Librería Global de Tickers
+
+### Configuración
+Ubicada en **Admin → Mercado → Librería Global de Tickers**. 
+Permite sincronizar de golpe miles de activos internacionales para que el sistema "conozca" su existencia antes de enriquecer su perfil.
+
+> ⚠️ **Filtro de activos**: El sistema sincroniza exclusivamente **Acciones Comunes (Common Stock)**. Quedan excluidos automáticamente los ETFs, Fondos de Inversión y otros instrumentos financieros no deseados.
+
+### Sincronización Automática
+El sistema incluye un job interno (`globalTickerJob`) que se ejecuta el **día 1 de cada mes a las 02:00 AM** para mantener la librería actualizada con las nuevas salidas a bolsa (IPOs) y cambios de nombre.
+
+### Sincronización Manual
+Puedes forzar la actualización pulsando **"Iniciar Sincronización Mundial"**. 
+> ⏳ **IMPORTANTE**: Debido a los límites de la cuenta gratuita de EODHD (20 créditos/día), el sistema espera **1 minuto** entre cada bolsa. La sincronización completa de las 20 bolsas principales tardará unos 20 minutos. El progreso se muestra en tiempo real en la pantalla.
 
 ---
 
@@ -263,34 +305,37 @@ Puedes crear y editar "Personas" para el ChatBot (ej: "Lobo de Wall Street", "Pr
 
 ---
 
-## 📈 Sincronización de Mercado
+## 📈 Sincronización de Mercado (Layout Renovado)
 
-### ¿Qué Sincroniza?
+La pestaña de **Mercado** ha sido reorganizada en un formato de **2 columnas** para mayor claridad y control.
 
-- **Precios históricos** de acciones (Yahoo Finance)
-- **Tipos de cambio** de divisas (EUR/USD, EUR/GBP, etc.)
+### Columna Izquierda: Operaciones Diarias
+Herramientas para la gestión habitual de datos.
 
-### Sincronización Automática
+1.  **Sincronización Manual**:
+    - Periodos predefinidos (5 Días, 1 Mes, 1 Año...).
+    - Botones para sincronizar **Todo**, solo **Acciones** o solo **Divisas**.
+    - Incluye soporte nativo para `GBX` (Peniques) y tipos de cambio cruzados.
 
-- **Diaria a las 04:00 AM** (hora Madrid): Últimos 5 días
-- **Domingos a las 04:00 AM**: Últimos 6 meses completos
+2.  **Recálculo de PnL**:
+    - Herramienta para regenerar el historial de Ganancias/Pérdidas de todas las carteras si detectas inconsistencias en los gráficos.
 
-### Sincronización Manual
+### Columna Derecha: Infraestructura Global
+Herramientas avanzadas para la gestión del catálogo.
 
-1. Ve a **Admin → Mercado**
-2. Selecciona el periodo:
-   - 5 Días
-   - 1 Mes
-   - 6 Meses
-   - 1 Año
-   - 2 Años
-   - 5 Años
-3. Haz clic en:
-   - **Sincronizar TODO** (recomendado)
-   - Solo Acciones
-   - Solo Divisas
+1.  **Librería Global (Cosecha)**:
+    - Estado de la sincronización con EODHD (IPOs, cambios de ISIN).
+    - Botón para iniciar la "Cosecha Mundial" (lento, respeta límites de API).
 
-> ⚠️ Periodos largos pueden tardar varios minutos
+2.  **Enriquecimiento (V10)**:
+    - Trigger manual para procesar activos descubiertos con datos fundamentales de Yahoo V10.
+
+3.  **⛔ ZONA DE PELIGRO**:
+    - **Borrar Datos Discovery**: Botón rojo para eliminar **TODOS** los datos del motor de descubrimiento (`global_tickers`, `market_discovery_cache`).
+    - **Seguridad**: Requiere **DOBLE confirmación**:
+      1. Click en el botón y aceptar el diálogo.
+      2. Escribir la palabra clave `BORRAR` (en mayúsculas) en el segundo prompt.
+    - *Úsalo solo si quieres reiniciar el catálogo desde cero.*
 
 ---
 

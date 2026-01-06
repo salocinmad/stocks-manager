@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { Header } from '../components/Header';
 import { useNavigate } from 'react-router-dom';
 import { PromptEditor } from '../components/PromptEditor';
@@ -7,6 +8,8 @@ import { X } from 'lucide-react';
 import { AIGeneral } from '../components/admin/AIGeneral';
 import { AIProviders } from '../components/admin/AIProviders';
 import { AdminSMTP } from '../components/admin/AdminSMTP';
+import { DataExplorerTable } from '../components/admin/DataExplorerTable';
+import { MarketIndicesSelector } from '../components/admin/MarketIndicesSelector';
 
 interface User {
     id: string;
@@ -24,6 +27,7 @@ interface SystemStats {
     portfolios: number;
     positions: number;
     transactions: number;
+    globalTickers: number;
     discovery?: {
         sectors: number;
         companies: number;
@@ -43,16 +47,18 @@ type Tab = 'general' | 'market' | 'users' | 'api' | 'backup' | 'stats' | 'ai';
 
 export const AdminScreen: React.FC = () => {
     const { api, isAdmin, user: currentUser } = useAuth();
+    const { addToast } = useToast();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<Tab>('general');
-    const [generalSubTab, setGeneralSubTab] = useState<'config' | 'smtp' | 'discovery'>('config');
+    const [generalSubTab, setGeneralSubTab] = useState<'config' | 'smtp'>('config');
     const [users, setUsers] = useState<User[]>([]);
     const [stats, setStats] = useState<SystemStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [statsLoading, setStatsLoading] = useState(false);
-    const [apiKeys, setApiKeys] = useState({ finnhub: '', google: '' });
+    const [apiKeys, setApiKeys] = useState({ finnhub: '', google: '', fmp: '', eodhd: '', globalExchanges: '' });
     // AI Model
     const [aiSubTab, setAiSubTab] = useState<'general' | 'providers'>('general');
+    const [marketSubTab, setMarketSubTab] = useState<'sync' | 'indices' | 'discovery'>('sync');
 
     // Legacy AI State removed (moved to components)
 
@@ -65,6 +71,7 @@ export const AdminScreen: React.FC = () => {
     const [syncPeriod, setSyncPeriod] = useState(1); // meses
     const [syncing, setSyncing] = useState(false);
     const [pnlRecalculating, setPnlRecalculating] = useState(false);
+    const [globalSyncStatus, setGlobalSyncStatus] = useState({ running: false, message: 'IDLE', lastRun: null as string | null });
 
     // SMTP config
     // SMTP config moved to AdminSMTP component
@@ -98,6 +105,33 @@ export const AdminScreen: React.FC = () => {
     // Modal para cambiar contraseña
     const [passwordModal, setPasswordModal] = useState<User | null>(null);
     const [newPassword, setNewPassword] = useState('');
+    const [explorerInStats, setExplorerInStats] = useState<{ source: 'catalog' | 'discovery' } | null>(null);
+
+    useEffect(() => {
+        if (activeTab === 'market') {
+            const pollStatus = async () => {
+                try {
+                    const res = await api.get('/admin/market/sync-status');
+                    setGlobalSyncStatus(res.data);
+                } catch (e) {
+                    console.error('Error polling sync status:', e);
+                }
+            };
+            pollStatus();
+            const interval = setInterval(pollStatus, 5000);
+            return () => clearInterval(interval);
+        }
+    }, [activeTab, api]);
+
+    const handleSyncGlobalLibrary = async () => {
+        if (!window.confirm('¿Iniciar sincronización mundial? Esto descargará miles de tickers con ISIN de bolsas internacionales. El proceso toma ~1 minuto por bolsa para ahorrar créditos de tu plan EODHD.')) return;
+        try {
+            await api.post('/admin/market/sync-global-library');
+            setGlobalSyncStatus(prev => ({ ...prev, running: true, message: 'Iniciando sincronización global...' }));
+        } catch (e: any) {
+            alert('Error al iniciar sincronización: ' + (e.response?.data?.message || e.message));
+        }
+    };
 
     // Crawler Config
     const [crawlerEnabled, setCrawlerEnabled] = useState(false);
@@ -571,7 +605,7 @@ export const AdminScreen: React.FC = () => {
 
     return (
         <main className="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-y-auto">
-            <Header title="Administración" />
+
 
             <div className="max-w-[1400px] mx-auto w-full px-6 py-8">
                 {/* Tabs */}
@@ -580,8 +614,8 @@ export const AdminScreen: React.FC = () => {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${activeTab === tab.id
-                                ? 'bg-primary text-black shadow-lg'
+                            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all whitespace-nowrap ${activeTab === tab.id
+                                ? 'bg-primary text-black shadow-lg shadow-primary/20 scale-[1.02]'
                                 : 'text-text-secondary-light hover:bg-background-light dark:hover:bg-surface-dark-elevated'
                                 }`}
                         >
@@ -618,15 +652,6 @@ export const AdminScreen: React.FC = () => {
                                             }`}
                                     >
                                         SMTP (Correo)
-                                    </button>
-                                    <button
-                                        onClick={() => setGeneralSubTab('discovery')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${generalSubTab === 'discovery'
-                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
-                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
-                                            }`}
-                                    >
-                                        Discovery Engine
                                     </button>
                                 </div>
 
@@ -668,9 +693,228 @@ export const AdminScreen: React.FC = () => {
                                 {generalSubTab === 'smtp' && (
                                     <AdminSMTP />
                                 )}
+                            </div>
+                        )}
 
-                                {generalSubTab === 'discovery' && (
-                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 animate-fade-in">
+                        {activeTab === 'market' && (
+                            <div className="animate-fade-in w-full">
+                                {/* Subtabs Navigation */}
+                                <div className="flex gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-1">
+                                    <button
+                                        onClick={() => setMarketSubTab('sync')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'sync'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
+                                    >
+                                        Sincronización
+                                    </button>
+                                    <button
+                                        onClick={() => setMarketSubTab('indices')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'indices'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
+                                    >
+                                        Índices de Cabecera
+                                    </button>
+                                    <button
+                                        onClick={() => setMarketSubTab('discovery')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'discovery'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
+                                    >
+                                        Discovery Engine
+                                    </button>
+                                </div>
+
+                                {/* Subtab: Sincronización */}
+                                {marketSubTab === 'sync' && (
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 w-full animate-fade-in">
+                                        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                            <span className="material-symbols-outlined">cloud_sync</span>
+                                            Sincronización de Mercado
+                                        </h2>
+
+                                        <p className="text-sm text-text-secondary-light mb-6">
+                                            Gestión centralizada de datos de mercado, sincronización histórica y herramientas de limpieza.
+                                        </p>
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                            {/* COLUMN 1: SYNC & PNL */}
+                                            <div className="space-y-8">
+                                                {/* SYNC SECTION */}
+                                                <div>
+                                                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-primary">
+                                                        <span className="material-symbols-outlined">sync_alt</span>
+                                                        Sincronización Manual
+                                                    </h3>
+                                                    <div className="mb-4">
+                                                        <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">Periodo a Sincronizar</label>
+                                                        <div className="flex gap-2 flex-wrap">
+                                                            {[
+                                                                { l: '5 Días', v: 0.16 },
+                                                                { l: '1 Mes', v: 1 },
+                                                                { l: '6 Meses', v: 6 },
+                                                                { l: '1 Año', v: 12 },
+                                                            ].map(opt => (
+                                                                <button
+                                                                    key={opt.l}
+                                                                    onClick={() => setSyncPeriod(opt.v)}
+                                                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${syncPeriod === opt.v
+                                                                        ? 'border-primary bg-primary/10 text-primary'
+                                                                        : 'border-border-light dark:border-border-dark hover:border-primary/50 text-text-secondary-light'
+                                                                        }`}
+                                                                >
+                                                                    {opt.l}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-3">
+                                                        <button
+                                                            onClick={() => handleSync('all')}
+                                                            disabled={syncing}
+                                                            className="w-full py-3 px-6 bg-primary text-black font-bold rounded-xl hover:opacity-90 flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                                                        >
+                                                            {syncing ? <span className="animate-spin material-symbols-outlined">sync</span> : <span className="material-symbols-outlined">sync</span>}
+                                                            Sincronizar TODO
+                                                        </button>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <button
+                                                                onClick={() => handleSync('portfolio')}
+                                                                disabled={syncing}
+                                                                className="py-2 px-4 bg-background-light dark:bg-surface-dark-elevated font-semibold rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-xs"
+                                                            >
+                                                                Solo Acciones
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleSync('currencies')}
+                                                                disabled={syncing}
+                                                                className="py-2 px-4 bg-background-light dark:bg-surface-dark-elevated font-semibold rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-xs"
+                                                            >
+                                                                Solo Divisas
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* PNL SECTION */}
+                                                <div>
+                                                    <hr className="border-border-light dark:border-border-dark mb-6" />
+                                                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-amber-500">
+                                                        <span className="material-symbols-outlined">show_chart</span>
+                                                        Recálculo de PnL
+                                                    </h3>
+                                                    <p className="text-xs text-text-secondary-light mb-4">
+                                                        Fuerza un recálculo completo del historial de ganancias y pérdidas para todos los portafolios.
+                                                    </p>
+                                                    <button
+                                                        onClick={handleRecalculatePnL}
+                                                        disabled={pnlRecalculating}
+                                                        className="w-full py-3 px-6 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                                                    >
+                                                        {pnlRecalculating ? <span className="animate-spin material-symbols-outlined">sync</span> : <span className="material-symbols-outlined">refresh</span>}
+                                                        {pnlRecalculating ? 'Recalculando...' : 'Recalcular PnL Global'}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* COLUMN 2: DISCOVERY & DANGER */}
+                                            <div className="space-y-8">
+                                                {/* GLOBAL LIBRARY */}
+                                                <div>
+                                                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-purple-500">
+                                                        <span className="material-symbols-outlined">public</span>
+                                                        Librería Global (Cosecha)
+                                                    </h3>
+                                                    <div className="p-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl mb-3 border border-border-light dark:border-border-dark flex justify-between items-center">
+                                                        <span className="text-xs font-bold text-text-secondary-light uppercase">Estado</span>
+                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${globalSyncStatus.running ? 'bg-amber-500/20 text-amber-500 animate-pulse' : 'bg-green-500/20 text-green-500'}`}>
+                                                            {globalSyncStatus.message || (globalSyncStatus.running ? 'EJECUTANDO' : 'LISTO')}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={handleSyncGlobalLibrary}
+                                                        disabled={globalSyncStatus.running}
+                                                        className="w-full py-3 px-6 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50"
+                                                    >
+                                                        <span className="material-symbols-outlined">rocket_launch</span>
+                                                        {globalSyncStatus.running ? 'Sincronizando...' : 'Iniciar Cosecha Mundial'}
+                                                    </button>
+                                                </div>
+
+                                                {/* ENRICHMENT */}
+                                                <div>
+                                                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-cyan-500">
+                                                        <span className="material-symbols-outlined">auto_awesome</span>
+                                                        Enriquecimiento (V10)
+                                                    </h3>
+                                                    <button
+                                                        onClick={async () => {
+                                                            try {
+                                                                await api.post('/admin/catalog/enrich');
+                                                                addToast('✅ Enriquecimiento iniciado', 'success');
+                                                            } catch (e: any) {
+                                                                addToast(`❌ Error: ${e.message}`, 'error');
+                                                            }
+                                                        }}
+                                                        className="w-full py-3 px-6 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-cyan-500/20"
+                                                    >
+                                                        <span className="material-symbols-outlined">psychology</span>
+                                                        Enriquecer Catálogo
+                                                    </button>
+                                                </div>
+
+                                                {/* DANGER ZONE */}
+                                                <div className="p-5 rounded-2xl border border-red-500/30 bg-red-500/5">
+                                                    <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-red-500 uppercase tracking-widest">
+                                                        <span className="material-symbols-outlined text-lg">dangerous</span>
+                                                        Zona de Peligro
+                                                    </h3>
+                                                    <p className="text-xs text-red-400 mb-4 font-medium">
+                                                        Esta acción borrará TODOS los tickers y datos del Discovery Engine.
+                                                        Solo se recomienda si el catálogo está corrupto o quieres reiniciar desde cero.
+                                                    </p>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!window.confirm('¿ESTÁS SEGURO? Esto borrará TODO el catálogo de descubrimiento y los datos cacheados. Es irreversible.')) return;
+                                                            const confirmation = window.prompt('Para confirmar, escribe "BORRAR" en mayúsculas:');
+                                                            if (confirmation !== 'BORRAR') {
+                                                                addToast('Confirmación incorrecta. Acción cancelada.', 'error');
+                                                                return;
+                                                            }
+
+                                                            try {
+                                                                await api.post('/admin/discovery/wipe');
+                                                                addToast('✅ Datos de descubrimiento ELIMINADOS correctamente.', 'success');
+                                                            } catch (e: any) {
+                                                                addToast(`❌ Error al borrar: ${e.message}`, 'error');
+                                                            }
+                                                        }}
+                                                        className="w-full py-3 px-6 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white font-bold rounded-xl flex items-center justify-center gap-3 transition-all border border-red-500/50"
+                                                    >
+                                                        <span className="material-symbols-outlined">delete_forever</span>
+                                                        Borrar Datos Discovery
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Subtab: Índices de Cabecera */}
+                                {marketSubTab === 'indices' && (
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 w-full animate-fade-in">
+                                        <MarketIndicesSelector />
+                                    </div>
+                                )}
+
+                                {/* Subtab: Discovery Engine */}
+                                {marketSubTab === 'discovery' && (
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 animate-fade-in max-w-2xl">
                                         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                                             <span className="material-symbols-outlined text-amber-500">rocket_launch</span>
                                             Motor de Descubrimiento
@@ -786,8 +1030,8 @@ export const AdminScreen: React.FC = () => {
                                                 <div>
                                                     <div className="flex justify-between mb-2">
                                                         <label className="text-xs font-bold uppercase text-text-secondary-light flex items-center gap-1">
-                                                            Global Fast (Resto del Mundo - Rápido) <span className="text-gray-400 font-normal ml-1 text-[10px]">(Motor: Yahoo V8)</span>
-                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Busca en mercados internacionales (ES, DE, UK...) y guarda datos básicos rápidos.">help</span>
+                                                            Global Fast <span className="text-gray-400 font-normal ml-1 text-[10px]">(Yahoo V8)</span>
+                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Busca en mercados internacionales y guarda datos básicos rápidos.">help</span>
                                                         </label>
                                                         <span className="text-xs font-mono">{crawlerVolV8} items</span>
                                                     </div>
@@ -803,13 +1047,13 @@ export const AdminScreen: React.FC = () => {
                                                 <div>
                                                     <div className="flex justify-between mb-2">
                                                         <label className="text-xs font-bold uppercase text-text-secondary-light flex items-center gap-1">
-                                                            Global Deep (Resto del Mundo - Profundo) <span className="text-purple-300 font-normal ml-1 text-[10px]">(Motor: Yahoo V10)</span>
-                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Selecciona empresas internacionales, verifica frescura y descarga análisis fundamental completo.">help</span>
+                                                            Global Deep <span className="text-purple-300 font-normal ml-1 text-[10px]">(Yahoo V10)</span>
+                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Selecciona empresas y descarga análisis fundamental completo.">help</span>
                                                         </label>
                                                         <span className="text-xs font-mono text-purple-400">{crawlerVolV10} items</span>
                                                     </div>
                                                     <input
-                                                        type="range" min="1" max="50" step="1"
+                                                        type="range" min="1" max="80" step="1"
                                                         value={crawlerVolV10}
                                                         onChange={(e) => setCrawlerVolV10(e.target.value)}
                                                         className="w-full accent-purple-500 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
@@ -820,13 +1064,13 @@ export const AdminScreen: React.FC = () => {
                                                 <div>
                                                     <div className="flex justify-between mb-2">
                                                         <label className="text-xs font-bold uppercase text-text-secondary-light flex items-center gap-1">
-                                                            Pipeline USA (Filtro America) <span className="text-orange-300 font-normal ml-1 text-[10px]">(Motor: Yahoo V10)</span>
-                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Busca y filtra solo empresas de EE.UU., verificando frescura y descargando datos completos.">help</span>
+                                                            Pipeline USA <span className="text-orange-300 font-normal ml-1 text-[10px]">(Yahoo V10)</span>
+                                                            <span className="material-symbols-outlined text-[10px] cursor-help" title="Busca y filtra solo empresas de EE.UU.">help</span>
                                                         </label>
                                                         <span className="text-xs font-mono text-orange-400">{crawlerVolFinnhub} items</span>
                                                     </div>
                                                     <input
-                                                        type="range" min="5" max="50" step="5"
+                                                        type="range" min="5" max="80" step="5"
                                                         value={crawlerVolFinnhub}
                                                         onChange={(e) => setCrawlerVolFinnhub(e.target.value)}
                                                         className="w-full accent-orange-500 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
@@ -870,94 +1114,6 @@ export const AdminScreen: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
-                            </div>
-                        )}
-
-                        {/* Tab: Mercado (Market Data Sync) */}
-                        {activeTab === 'market' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-2xl animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                    <span className="material-symbols-outlined">cloud_sync</span>
-                                    Sincronización de Mercado
-                                </h2>
-
-                                <p className="text-sm text-text-secondary-light mb-6">
-                                    Actualiza manualmente los precios históricos y tipos de cambio desde Yahoo Finance.
-                                    Este proceso se ejecuta automáticamente cada noche (04:00 AM Madrid) por 1 mes, pero puedes forzar una carga completa aquí.
-                                </p>
-
-                                <div className="mb-8">
-                                    <label className="block text-xs font-bold uppercase text-text-secondary-light mb-3">Periodo a Sincronizar</label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {[
-                                            { l: '5 Días', v: 0.16 },
-                                            { l: '1 Mes', v: 1 },
-                                            { l: '6 Meses', v: 6 },
-                                            { l: '1 Año', v: 12 },
-                                            { l: '2 Años', v: 24 },
-                                            { l: '5 Años', v: 60 }
-                                        ].map(opt => (
-                                            <button
-                                                key={opt.l}
-                                                onClick={() => setSyncPeriod(opt.v)}
-                                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border-2 ${syncPeriod === opt.v
-                                                    ? 'border-primary bg-primary/10 text-primary'
-                                                    : 'border-border-light dark:border-border-dark hover:border-primary/50 text-text-secondary-light'
-                                                    }`}
-                                            >
-                                                {opt.l}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <button
-                                        onClick={() => handleSync('all')}
-                                        disabled={syncing}
-                                        className="col-span-1 md:col-span-2 py-4 px-6 bg-primary text-black font-bold rounded-2xl hover:opacity-90 flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
-                                    >
-                                        {syncing ? <span className="animate-spin material-symbols-outlined">sync</span> : <span className="material-symbols-outlined">sync</span>}
-                                        Sincronizar TODO (Recomendado)
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleSync('portfolio')}
-                                        disabled={syncing}
-                                        className="py-3 px-4 bg-background-light dark:bg-surface-dark-elevated font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-text-primary"
-                                    >
-                                        <span className="material-symbols-outlined">candlestick_chart</span>
-                                        Solo Acciones
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleSync('currencies')}
-                                        disabled={syncing}
-                                        className="py-3 px-4 bg-background-light dark:bg-surface-dark-elevated font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-text-primary"
-                                    >
-                                        <span className="material-symbols-outlined">currency_exchange</span>
-                                        Solo Divisas
-                                    </button>
-                                </div>
-
-                                {/* Sección: Recalcular PnL */}
-                                <hr className="border-border-light dark:border-border-dark my-8" />
-                                <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-                                    <span className="material-symbols-outlined">show_chart</span>
-                                    Recalcular Gráfico de PnL
-                                </h3>
-                                <p className="text-sm text-text-secondary-light mb-4">
-                                    Si el gráfico de Ganancias/Pérdidas muestra datos incorrectos o desactualizados,
-                                    puedes forzar un recálculo completo desde la primera transacción de cada portafolio.
-                                </p>
-                                <button
-                                    onClick={handleRecalculatePnL}
-                                    disabled={pnlRecalculating}
-                                    className="py-3 px-6 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50"
-                                >
-                                    {pnlRecalculating ? <span className="animate-spin material-symbols-outlined">sync</span> : <span className="material-symbols-outlined">refresh</span>}
-                                    {pnlRecalculating ? 'Recalculando...' : 'Recalcular PnL Global'}
-                                </button>
                             </div>
                         )}
 
@@ -1164,6 +1320,52 @@ export const AdminScreen: React.FC = () => {
                                             Obtén tu key en <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">finnhub.io</a>
                                         </p>
 
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
+                                            FMP API Key (Financial Modeling Prep)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={apiKeys.fmp}
+                                            onChange={e => setApiKeys({ ...apiKeys, fmp: e.target.value })}
+                                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                                            placeholder="Tu API key de Financial Modeling Prep"
+                                        />
+                                        <p className="text-xs text-text-secondary-light mt-1">
+                                            Obtén tu key en <a href="https://site.financialmodelingprep.com/developer/docs/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">financialmodelingprep.com</a>
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
+                                            EODHD API Key (EOD Historical Data)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={apiKeys.eodhd}
+                                            onChange={e => setApiKeys({ ...apiKeys, eodhd: e.target.value })}
+                                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                                            placeholder="Tu API key de EOD Historical Data"
+                                        />
+                                        <p className="text-xs text-text-secondary-light mt-1">
+                                            Obtén tu key en <a href="https://eodhd.com/register" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">eodhd.com</a>
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
+                                            Bolsas para Cosecha Global (EODHD)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={apiKeys.globalExchanges}
+                                            onChange={e => setApiKeys({ ...apiKeys, globalExchanges: e.target.value })}
+                                            className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                                            placeholder="MC,PA,LSE,NSE..."
+                                        />
+                                        <p className="text-xs text-text-secondary-light mt-1 italic">
+                                            Separadas por comas. <span className="text-orange-500 font-bold text-[10px] uppercase">USA NO RECOMENDADO</span> (Solapamiento con Finnhub).
+                                        </p>
                                     </div>
 
 
@@ -1506,66 +1708,111 @@ export const AdminScreen: React.FC = () => {
                         {/* Tab: Estadísticas */}
                         {
                             activeTab === 'stats' && stats && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 animate-fade-in">
-                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                                                <span className="material-symbols-outlined text-blue-500 text-2xl">group</span>
+                                <div className="space-y-8 animate-fade-in">
+                                    {explorerInStats ? (
+                                        <div className="space-y-6">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <button
+                                                    onClick={() => setExplorerInStats(null)}
+                                                    className="flex items-center gap-2 px-6 py-3 bg-surface-light dark:bg-surface-dark-elevated rounded-2xl text-sm font-bold hover:bg-primary hover:text-black transition-all border border-border-light dark:border-border-dark shadow-lg group"
+                                                >
+                                                    <span className="material-symbols-outlined text-base group-hover:-translate-x-1 transition-transform">arrow_back</span>
+                                                    Volver a Estadísticas
+                                                </button>
+                                                <div className="flex-1" />
                                             </div>
-                                            <span className="text-sm font-semibold text-text-secondary-light">Usuarios</span>
-                                        </div>
-                                        <p className="text-3xl font-black">{stats.users.total}</p>
-                                        <p className="text-sm text-text-secondary-light">{stats.users.blocked} bloqueados</p>
-                                    </div>
 
-                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                                                <span className="material-symbols-outlined text-green-500 text-2xl">account_balance_wallet</span>
-                                            </div>
-                                            <span className="text-sm font-semibold text-text-secondary-light">Carteras</span>
+                                            <DataExplorerTable
+                                                key={explorerInStats.source}
+                                                initialSource={explorerInStats.source}
+                                                onBack={() => setExplorerInStats(null)}
+                                            />
                                         </div>
-                                        <p className="text-3xl font-black">{stats.portfolios}</p>
-                                    </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+                                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-blue-500 text-2xl">group</span>
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-text-secondary-light">Usuarios</span>
+                                                </div>
+                                                <p className="text-3xl font-black">{stats.users.total}</p>
+                                                <p className="text-sm text-text-secondary-light">{stats.users.blocked} bloqueados</p>
+                                            </div>
 
-                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                                                <span className="material-symbols-outlined text-purple-500 text-2xl">trending_up</span>
+                                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-green-500 text-2xl">account_balance_wallet</span>
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-text-secondary-light">Carteras</span>
+                                                </div>
+                                                <p className="text-3xl font-black">{stats.portfolios}</p>
                                             </div>
-                                            <span className="text-sm font-semibold text-text-secondary-light">Posiciones</span>
-                                        </div>
-                                        <p className="text-3xl font-black">{stats.positions}</p>
-                                    </div>
 
-                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
-                                                <span className="material-symbols-outlined text-orange-500 text-2xl">receipt_long</span>
+                                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-purple-500 text-2xl">trending_up</span>
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-text-secondary-light">Posiciones</span>
+                                                </div>
+                                                <p className="text-3xl font-black">{stats.positions}</p>
                                             </div>
-                                            <span className="text-sm font-semibold text-text-secondary-light">Transacciones</span>
-                                        </div>
-                                        <p className="text-3xl font-black">{stats.transactions}</p>
-                                    </div>
 
-                                    {/* Discovery Engine Stats */}
-                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center">
-                                                <span className="material-symbols-outlined text-cyan-500 text-2xl">rocket_launch</span>
+                                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-orange-500 text-2xl">receipt_long</span>
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-text-secondary-light">Transacciones</span>
+                                                </div>
+                                                <p className="text-3xl font-black">{stats.transactions}</p>
                                             </div>
-                                            <span className="text-sm font-semibold text-text-secondary-light">Discovery Engine</span>
+
+                                            <div
+                                                onClick={() => setExplorerInStats({ source: 'catalog' })}
+                                                className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 cursor-pointer hover:bg-primary/5 transition-all group border border-transparent hover:border-primary/20"
+                                            >
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-purple-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                        <span className="material-symbols-outlined text-purple-600 text-2xl">public</span>
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-text-secondary-light text-purple-600">Catálogo Maestro</span>
+                                                </div>
+                                                <p className="text-3xl font-black">{stats.globalTickers || 0}</p>
+                                                <div className="flex justify-between items-center mt-1">
+                                                    <p className="text-sm text-text-secondary-light">Tickers (Infraestructura)</p>
+                                                    <span className="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
+                                                </div>
+                                            </div>
+
+                                            <div
+                                                onClick={() => setExplorerInStats({ source: 'discovery' })}
+                                                className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 cursor-pointer hover:bg-cyan-500/5 transition-all group border border-transparent hover:border-cyan-500/20"
+                                            >
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                        <span className="material-symbols-outlined text-cyan-500 text-2xl">rocket_launch</span>
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-text-secondary-light">Discovery Engine</span>
+                                                </div>
+                                                <p className="text-3xl font-black">{stats.discovery?.companies || 0}</p>
+                                                <div className="flex justify-between items-center mt-1">
+                                                    <p className="text-sm text-text-secondary-light">
+                                                        Empresas en {stats.discovery?.sectors || 0} sectores
+                                                    </p>
+                                                    <span className="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
+                                                </div>
+                                                {stats.discovery?.lastUpdate && (
+                                                    <p className="text-xs text-text-secondary-light mt-1 opacity-70">
+                                                        {new Date(stats.discovery.lastUpdate).toLocaleTimeString()}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
-                                        <p className="text-3xl font-black">{stats.discovery?.companies || 0}</p>
-                                        <p className="text-sm text-text-secondary-light">
-                                            Empresas en {stats.discovery?.sectors || 0} sectores
-                                        </p>
-                                        {stats.discovery?.lastUpdate && (
-                                            <p className="text-xs text-text-secondary-light mt-1 opacity-70">
-                                                {new Date(stats.discovery.lastUpdate).toLocaleTimeString()}
-                                            </p>
-                                        )}
-                                    </div>
+                                    )}
                                 </div>
                             )
                         }
@@ -1607,7 +1854,6 @@ export const AdminScreen: React.FC = () => {
                     </>
                 )}
             </div>
-
-        </main >
+        </main>
     );
 };

@@ -37,9 +37,6 @@ services:
     networks:
       - stocks_net
     volumes:
-      - ./server:/app/server
-      - ./src:/app/src
-      - ./index.html:/app/index.html
       - stock_uploads:/app/uploads # Persistir imágenes y avatares
 
 networks:

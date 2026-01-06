@@ -1,8 +1,8 @@
 import sql from '../db';
 import { NewsService } from './newsService';
 import YahooFinance from 'yahoo-finance2';
-const yahooFinance = new YahooFinance();
-import { DiscoveryItem } from './discoveryService';
+const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+import { DiscoveryService, DiscoveryItem } from './discoveryService';
 
 // ============================================================
 // CACHE SYSTEM WITH TTL (DB PERSISTED)
@@ -63,6 +63,7 @@ export interface SymbolSearchResult {
     name: string;
     exchange: string;
     type: string;
+    currency?: string;
 }
 
 export interface QuoteResult {
@@ -152,6 +153,13 @@ export interface FundamentalData {
     heldPercentInstitutions: number; // % Institucional
     heldPercentInsiders: number;     // % Insiders
     shortRatio: number;              // Short Ratio (Days to Cover)
+
+    extended?: any; // New field for deep persistence
+
+    // Normalized Fields (v2.3.0) - Root level access for critical data
+    targetPrice?: number;
+    recommendationKey?: string;
+    fairValue?: number; // Graham Number
 }
 
 export interface CompanyEvent {
@@ -161,6 +169,10 @@ export interface CompanyEvent {
     title: string;
     description: string;
     isConfirmed: boolean;
+    data?: {                    // NEW: Structured data for DB sync
+        eps?: number;
+        dividend?: number;
+    };
 }
 
 export const MarketDataService = {
@@ -177,7 +189,7 @@ export const MarketDataService = {
             if (cached !== null) return cached;
 
             const summary = await yahooFinance.quoteSummary(ticker, {
-                modules: ['calendarEvents', 'earnings']
+                modules: ['calendarEvents', 'earnings', 'summaryDetail']
             });
 
             if (!summary) return [];
@@ -185,18 +197,26 @@ export const MarketDataService = {
             const events: CompanyEvent[] = [];
             const ce = summary.calendarEvents;
             const earn = summary.earnings;
+            const sd = summary.summaryDetail;
 
             if (ce) {
                 // 1. Next Earnings Date (Confirmed)
                 if (ce.earnings && ce.earnings.earningsDate && ce.earnings.earningsDate.length > 0) {
                     const date = ce.earnings.earningsDate[0];
+                    // Create normalized EPS value safely
+                    let epsVal: number | undefined = undefined;
+                    if (ce.earnings.earningsAverage) {
+                        epsVal = typeof ce.earnings.earningsAverage === 'object' ? (ce.earnings.earningsAverage.raw || 0) : ce.earnings.earningsAverage;
+                    }
+
                     events.push({
                         id: `earn-${date.getTime()}`,
                         date: date.toISOString(),
                         type: 'EARNINGS_RELEASE',
                         title: 'Resultados (Próximos)',
-                        description: `Publicación oficial de resultados. Estimación: ${ce.earnings.earningsAverage || 'N/A'}`,
-                        isConfirmed: true
+                        description: `Publicación oficial de resultados. Estimación: ${epsVal !== undefined ? epsVal : 'N/A'}`,
+                        isConfirmed: true,
+                        data: { eps: epsVal }
                     });
 
                     // 2. Earnings Call (Presentation)
@@ -218,13 +238,15 @@ export const MarketDataService = {
 
                 // 3. Next Dividend (Confirmed)
                 if (ce.exDividendDate) {
+                    const divRate = sd?.dividendRate || undefined;
                     events.push({
                         id: `div-ex-${ce.exDividendDate.getTime()}`,
                         date: ce.exDividendDate.toISOString(),
                         type: 'DIVIDEND',
                         title: 'Ex-Dividendo',
                         description: `Fecha límite para tener acciones y cobrar.`,
-                        isConfirmed: true
+                        isConfirmed: true,
+                        data: { dividend: divRate }
                     });
                 }
                 if (ce.dividendDate) {
@@ -291,35 +313,111 @@ export const MarketDataService = {
     },
 
     // Nueva función para el Crawler de Descubrimiento (Yahoo Screener)
-    async getDiscoveryCandidates(scrId: string, count: number = 25): Promise<DiscoveryItem[]> {
+    async getDiscoveryCandidates(scrId: string, count: number = 25, region?: string, targetCurrency?: string, targetSector?: string): Promise<DiscoveryItem[]> {
         try {
-            console.log(`[MarketData] Obteniendo Candidatos de Descubrimiento para ${scrId}...`);
-            const result = await yahooFinance.screener({ scrIds: scrId as any, count: count }, undefined, { validateResult: false }) as any;
+            const regionLog = region || 'US';
+            console.log(`[MarketData] Obteniendo candidatos para ${scrId} (Región: ${regionLog}, Divisa: ${targetCurrency || 'N/A'}, Sector: ${targetSector || 'N/A'})...`);
 
-            if (!result || !result.quotes) return [];
+            let quotes: any[] = [];
 
-            // DEBUG: Print keys of first item to find sector field
-            if (result.quotes.length > 0) { console.log('KEYS:', Object.keys(result.quotes[0])); }
+            const queryOptions: any = {
+                scrIds: scrId as any,
+                count: count
+            };
 
-            return result.quotes.map((q: any) => ({
-                t: q.symbol,
-                n: q.shortName || q.longName || q.symbol,
-                s: q.sector || 'Unknown',
-                p: q.regularMarketPrice || 0,
-                chg_1d: q.regularMarketChangePercent || 0,
-                chg_1w: q.fiftyTwoWeekChangePercent ? q.fiftyTwoWeekChangePercent / 52 : undefined,
-                vol_rel: q.averageDailyVolume3Month ? (q.regularMarketVolume / q.averageDailyVolume3Month) : 1,
-                tech: {
-                    rsi: 50, // Calculated later
-                    trend: (q.regularMarketChangePercent || 0) > 0 ? 'Bullish' : 'Bearish',
-                    sma50_diff: (q.fiftyDayAverageChangePercent || 0) * 100
-                },
-                fund: {
-                    mcap: q.marketCap ? (q.marketCap / 1e9).toFixed(2) + 'B' : 'N/A',
-                    recs: 'Hold',
-                    target: 0
+            if (region && region !== 'US') {
+                queryOptions.region = region;
+                console.log(`[MarketData] Usando Screener con filtro de región: ${region}`);
+            }
+
+            try {
+                // Llamada unificada al Screener de Yahoo
+                const result = await yahooFinance.screener(queryOptions);
+
+                if (result && result.quotes) {
+                    quotes = result.quotes;
+                    console.log(`[MarketData] Screener RAW encontró ${quotes.length} candidatos en ${regionLog}`);
+
+                    // --- FILTRO DE SOBERANÍA (SOVEREIGNTY FILTER) ---
+                    if (targetCurrency) {
+                        const preFilter = quotes.length;
+                        if (targetCurrency === 'GBP') {
+                            quotes = quotes.filter(q => q.currency === 'GBP' || q.currency === 'GBp');
+                        } else {
+                            quotes = quotes.filter(q => q.currency === targetCurrency);
+                        }
+                        console.log(`[MarketData] Filtro Divisa (${targetCurrency}): ${preFilter} -> ${quotes.length} items`);
+                    }
+
+                    if (targetSector) {
+                        const preFilter = quotes.length;
+                        quotes = quotes.filter(q => q.sector && q.sector.toLowerCase().includes(targetSector.toLowerCase()));
+                        console.log(`[MarketData] Filtro Sector (${targetSector}): ${preFilter} -> ${quotes.length} items`);
+                    }
                 }
-            }));
+            } catch (e: any) {
+                console.error(`[MarketData] Error en Screener para ${scrId} (${regionLog}):`, e.message);
+            }
+
+            if (quotes.length === 0) return [];
+
+            // ENRICHMENT: Fetch full quote data to get Target Price, etc.
+            const symbols = quotes.map((q: any) => q.symbol);
+            let enriched: any[] = [];
+            try {
+                enriched = await yahooFinance.quote(symbols);
+            } catch (e) {
+                console.warn('[MarketData] Failed to enrich discovery candidates, using raw screener data.');
+            }
+
+            return quotes.map((q: any) => {
+                const full = enriched.find(e => e.symbol === q.symbol) || {};
+
+                // Use enriched data if available, fallback to screener
+                const price = full.regularMarketPrice || q.regularMarketPrice || 0;
+
+                // Normalization Logic for Discovery (Crawler)
+                const target = full.targetMeanPrice || full.targetMedianPrice || full.financialData?.targetMeanPrice?.raw || full.defaultKeyStatistics?.targetMeanPrice?.raw || 0;
+                const recs = full.recommendationKey || full.financialData?.recommendationKey || full.averageAnalystRating || 'none';
+
+                // Fair Value Calculation (Graham Number) - v2.3.1
+                // Formula: Sqrt(22.5 * EPS * BookValue)
+                let fairValue = 0;
+                const eps = full.defaultKeyStatistics?.trailingEps?.raw || full.earnings?.trailing || 0;
+                const bookValue = full.defaultKeyStatistics?.bookValue?.raw || 0;
+                if (eps > 0 && bookValue > 0) {
+                    fairValue = Math.sqrt(22.5 * eps * bookValue);
+                }
+
+                const mcap = full.marketCap || q.marketCap || 0;
+
+                // Calculate RSI (Basic proxy or 50) - Real RSI needs history, expensive here.
+                // We'll stick to 50 but we have Trend.
+
+                return {
+                    t: q.symbol,
+                    n: q.shortName || q.longName || q.symbol,
+                    s: q.sector || 'Unknown',
+                    p: price,
+                    chg_1d: full.regularMarketChangePercent || q.regularMarketChangePercent || 0,
+                    chg_1w: q.fiftyTwoWeekChangePercent ? q.fiftyTwoWeekChangePercent / 52 : undefined,
+                    vol_rel: (full.averageDailyVolume3Month) ? (full.regularMarketVolume / full.averageDailyVolume3Month) : 1,
+                    tech: {
+                        rsi: 50,
+                        trend: (full.regularMarketChangePercent || 0) > 0 ? 'Bullish' : 'Bearish',
+                        sma50_diff: (full.fiftyDayAverageChangePercent || 0) * 100
+                    },
+                    fund: {
+                        mcap: mcap ? (mcap / 1e9).toFixed(2) + 'B' : 'N/A',
+                        recs: recs,
+                        target: target
+                    },
+                    // Root Normalization for Easy SQL Access
+                    targetPrice: target,
+                    recommendationKey: recs,
+                    fairValue: fairValue > 0 ? fairValue : undefined
+                };
+            });
 
         } catch (e: any) {
             console.error(`[MarketData] Crawler Error for ${scrId}:`, e.message);
@@ -355,6 +453,56 @@ export const MarketDataService = {
         }
 
         return items;
+    },
+
+    /**
+     * Get sectors for a list of tickers (with Caching)
+     */
+    async getSectors(tickers: string[]): Promise<Record<string, string>> {
+        const result: Record<string, string> = {};
+        const missing: string[] = [];
+
+        // 1. Check Cache
+        await Promise.all(tickers.map(async (t) => {
+            const cacheKey = "sector:" + t.toUpperCase();
+            const cached = await getFromCache<string>(cacheKey);
+            if (cached) {
+                result[t] = cached;
+            } else {
+                missing.push(t);
+            }
+        }));
+
+        if (missing.length === 0) return result;
+
+        console.log(`[MarketData] Fetching sectors for ${missing.length} tickers...`);
+
+        // 2. Fetch Missing (Chunked 5 parallel)
+        const chunk = 5;
+        for (let i = 0; i < missing.length; i += chunk) {
+            const batch = missing.slice(i, i + chunk);
+            await Promise.all(batch.map(async (t) => {
+                try {
+                    const summary = await yahooFinance.quoteSummary(t, { modules: ['assetProfile'] });
+                    const sector = summary.assetProfile?.sector || 'Unknown';
+                    result[t] = sector;
+
+                    // Cache it
+                    const cacheKey = "sector:" + t.toUpperCase();
+                    await setCache(cacheKey, sector, TTL.PROFILE);
+                } catch (e) {
+                    console.warn(`[MarketData] Sector fetch failed for ${t}`);
+                    result[t] = 'Unknown';
+                    // Cache negative result briefly (1 hour) to avoid retry loop
+                    const cacheKey = "sector:" + t.toUpperCase();
+                    await setCache(cacheKey, 'Unknown', 60 * 60 * 1000);
+                }
+            }));
+            // Small delay to be nice to API
+            if (i + chunk < missing.length) await new Promise(r => setTimeout(r, 500));
+        }
+
+        return result;
     },
 
 
@@ -461,14 +609,38 @@ export const MarketDataService = {
                 return getPriority(b) - getPriority(a);
             });
 
-            return sortedQuotes
-                .filter((q: any) => q.quoteType === 'EQUITY' || q.quoteType === 'ETF')
-                .map((q: any) => ({
+            const filteredQuotes = sortedQuotes.filter((q: any) => q.quoteType === 'EQUITY' || q.quoteType === 'ETF');
+            const symbols = filteredQuotes.slice(0, 10).map((q: any) => q.symbol);
+
+            if (symbols.length === 0) return [];
+
+            // Enriquecimiento: Obtener datos reales (moneda, nombre oficial) en una sola llamada
+            let enrichedData: any[] = [];
+            try {
+                enrichedData = await yahooFinance.quote(symbols);
+            } catch (err) {
+                console.error('Search Enrichment Error:', err);
+            }
+
+            return filteredQuotes.slice(0, 10).map((q: any) => {
+                const realData = enrichedData.find(ed => ed.symbol === q.symbol);
+                let currency = realData?.currency || q.currency;
+
+                // Normalización GBX centralizada
+                if (currency === 'GBp') {
+                    currency = 'GBX';
+                } else if (currency === 'GBP' && (realData?.exchange === 'LSE' || q.symbol.endsWith('.L'))) {
+                    currency = 'GBX';
+                }
+
+                return {
                     symbol: q.symbol,
-                    name: q.shortname || q.longname || q.symbol,
-                    exchange: q.exchange,
-                    type: q.quoteType
-                }));
+                    name: realData?.shortName || q.shortname || q.longname || q.symbol,
+                    exchange: realData?.exchange || q.exchange,
+                    type: q.quoteType,
+                    currency: currency
+                };
+            });
         } catch (e) {
             console.error('Yahoo Search Error', e);
             return [];
@@ -485,13 +657,23 @@ export const MarketDataService = {
         }
 
         try {
-            const symbol = fromCurrency + toCurrency + "=X";
+            // Support for GBX (Penny Sterling) - Convert to GBP
+            let from = fromCurrency;
+            let to = toCurrency;
+            let multiplier = 1.0;
+
+            if (from === 'GBX') { from = 'GBP'; multiplier *= 0.01; }
+            if (to === 'GBX') { to = 'GBP'; multiplier *= 100.0; }
+
+            const symbol = from + to + "=X";
+
             // Reuse getQuote logic since it fetches the same chart data
             const quote = await this.getQuote(symbol);
 
             if (quote && quote.c) {
-                await setCache(cacheKey, quote.c, TTL.EXCHANGE_RATE);
-                return quote.c;
+                const finalRate = quote.c * multiplier;
+                await setCache(cacheKey, finalRate, TTL.EXCHANGE_RATE);
+                return finalRate;
             }
             return null;
         } catch (e) {
@@ -552,12 +734,23 @@ export const MarketDataService = {
                 }
             }
 
+            let currency = meta.currency || 'USD';
+
+            // Normalización para Londres/GBX
+            // Yahoo devuelve 'GBP' para LSE, pero si el precio está en el rango de los cientos/miles es casi siempre peniques (GBX)
+            if (currency === 'GBp') {
+                currency = 'GBX';
+            } else if (currency === 'GBP' && (meta.exchangeName === 'LSE' || ticker.endsWith('.L'))) {
+                // Heurística: si es LSE y el precio es > 5 (raro ver una acción de < 1 p en GBP en Yahoo) suele ser GBX
+                currency = 'GBX';
+            }
+
             const result: QuoteResult = {
                 c: meta.regularMarketPrice || 0,
                 pc: meta.chartPreviousClose || meta.previousClose || 0,
                 d: (meta.regularMarketPrice || 0) - (meta.chartPreviousClose || 0),
                 dp: 0, // calculate percentage manually
-                currency: meta.currency || 'USD',
+                currency: currency,
                 name: meta.longName || meta.shortName || meta.symbol,
                 volume: meta.regularMarketVolume || 0,
                 lastUpdated: Date.now(),
@@ -585,24 +778,26 @@ export const MarketDataService = {
     // ===========================================
     async getFundamentals(ticker: string): Promise<FundamentalData | null> {
         const cacheKey = "fundamentals:" + ticker.toUpperCase();
-        const cached = await getFromCache<FundamentalData>(cacheKey);
-        if (cached !== null) {
-            return cached;
-        }
+        // Skip cache for now to ensure we get EXTENDED data if it wasn't there before. 
+        // Ideally we should version the cache key or check if extended exists.
+        // const cached = await getFromCache<FundamentalData>(cacheKey);
+        // if (cached !== null && cached.extended) { return cached; } // Only return if extended exists
 
         try {
-            // Usamos la librería oficial para datos fundamentales complejos
-            const summary = await yahooFinance.quoteSummary(ticker, {
-                modules: ['financialData', 'defaultKeyStatistics', 'summaryDetail', 'calendarEvents', 'price']
-            });
+            // Updated list of modules for Deep Analysis (Crawler Persistence)
+            const modules = [
+                'summaryDetail', 'defaultKeyStatistics', 'financialData', 'calendarEvents', 'price',
+                'incomeStatementHistory', 'balanceSheetHistory', 'cashflowStatementHistory', 'earnings'
+            ] as any;
 
+            const summary = await yahooFinance.quoteSummary(ticker, { modules });
             if (!summary) return null;
 
             const fd = summary.financialData;
-            const ks = summary.defaultKeyStatistics; // Key Stats (EV, Shares)
-            const sd = summary.summaryDetail;       // Market Cap, Dividend Yield, Trailing PE
-            const ce = summary.calendarEvents;      // Earnings
-            // const price = summary.price;            // Name, Currency (Optional redundancy)
+            const ks = summary.defaultKeyStatistics;
+            const sd = summary.summaryDetail;
+            const ce = summary.calendarEvents;
+            // const price = summary.price;
 
             if (!fd || !sd) return null;
 
@@ -610,7 +805,54 @@ export const MarketDataService = {
             const val = (obj: any) => (obj && typeof obj === 'object' && 'raw' in obj) ? (obj.raw || 0) : (obj || 0);
             const fmt = (obj: any) => (obj && typeof obj === 'object' && 'fmt' in obj) ? obj.fmt : null;
 
+            // EXTENDED DATA MAPPING (Shared logic with getEnhancedQuoteData)
+            const extended: Record<string, any> = {};
+            const flatten = (obj: any, prefix = '') => {
+                if (!obj || typeof obj !== 'object') return;
+                Object.keys(obj).forEach(key => {
+                    const value = obj[key];
+                    const newKey = prefix ? `${prefix}_${key}` : key;
+                    if (value && typeof value === 'object' && 'raw' in value) {
+                        extended[newKey] = value.raw;
+                    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+                        if (key !== 'maxAge' && key !== 'endDate') flatten(value, newKey);
+                    } else if (value !== null && value !== undefined && typeof value !== 'function') {
+                        extended[newKey] = value;
+                    }
+                });
+            };
+
+            if (summary.financialData) flatten(summary.financialData, 'fin');
+            if (summary.defaultKeyStatistics) flatten(summary.defaultKeyStatistics, 'stat');
+            if (summary.incomeStatementHistory?.incomeStatementHistory?.[0]) flatten(summary.incomeStatementHistory.incomeStatementHistory[0], 'inc');
+            if (summary.balanceSheetHistory?.balanceSheetStatements?.[0]) flatten(summary.balanceSheetHistory.balanceSheetStatements[0], 'bal');
+            if (summary.cashflowStatementHistory?.cashflowStatements?.[0]) flatten(summary.cashflowStatementHistory.cashflowStatements[0], 'cf');
+
+            // Save RAW summary for re-hydration in getEnhancedQuoteData
+            extended['_raw'] = summary;
+
+
+            // Verify and normalize Target Price logic:
+            // 1. FinancialData.targetMeanPrice (Most reliable for Consensus)
+            // 2. DefaultKeyStatistics (Sometimes has it)
+            // 3. SummaryDetail (Sometimes has it)
+            const rawTarget = val(fd.targetMeanPrice) || val(fd.targetMedianPrice) || val(sd.targetMeanPrice);
+            const rawRecs = fd.recommendationKey || fd.recommendationMean || 'none';
+
+            // Fair Value (Graham Number)
+            let fairValue = 0;
+            const eps = val(ks.trailingEps);
+            const bookValue = val(ks.bookValue);
+            if (eps > 0 && bookValue > 0) {
+                fairValue = Math.sqrt(22.5 * eps * bookValue);
+            }
+
             const data: FundamentalData = {
+                // Normalized Fields
+                targetPrice: rawTarget,
+                recommendationKey: typeof rawRecs === 'string' ? rawRecs : undefined,
+                fairValue: fairValue > 0 ? fairValue : undefined,
+
                 // Valuation
                 marketCap: val(sd.marketCap),
                 enterpriseValue: val(ks?.enterpriseValue),
@@ -659,7 +901,9 @@ export const MarketDataService = {
                 // Structure & Sentiment
                 heldPercentInstitutions: val(ks?.heldPercentInstitutions), // NEW
                 heldPercentInsiders: val(ks?.heldPercentInsiders), // NEW
-                shortRatio: val(ks?.shortRatio) // NEW
+                shortRatio: val(ks?.shortRatio), // NEW
+
+                extended: extended // SEND EVERYTHING for persistence
             };
 
             await setCache(cacheKey, data, TTL.FUNDAMENTALS);
@@ -667,119 +911,88 @@ export const MarketDataService = {
 
         } catch (e) {
             console.error(`[MarketData] Fundamentals Error for ${ticker}: `, e);
-            // No devolvemos null para no romper todo el analisis, tal vez un objeto vacio o partial?
-            // Mejor null y que el frontend maneje "N/A"
             return null;
         }
     },
 
-    // Obtener perfil del activo (sector/industria) - Finnhub primario, Yahoo fallback
+    // Obtener perfil del activo (sector/industria) - Motor Personal (Discovery) -> Finnhub -> Yahoo (Library)
     async getAssetProfile(ticker: string) {
         const cacheKey = `profile:${ticker.toUpperCase()}`;
         const cached = await getFromCache<any>(cacheKey);
-        if (cached !== null) {
-            return cached;
+        if (cached !== null) return cached;
+
+        // 1. MOTOR PERSONAL: Buscar en el cache de descubrimiento (Discovery Engine)
+        try {
+            const discResult = await sql`
+                SELECT sector FROM (
+                    SELECT jsonb_array_elements(data)->>'t' as t, jsonb_array_elements(data)->>'s' as sector
+                    FROM market_discovery_cache
+                ) sub WHERE t = ${ticker.toUpperCase()} LIMIT 1
+            `;
+            if (discResult.length > 0 && discResult[0].sector && discResult[0].sector !== 'Unknown') {
+                const profile = {
+                    sector: discResult[0].sector,
+                    industry: discResult[0].sector, // Reuso sector como industria si no hay detalle
+                    name: ticker,
+                    source: 'Personal Engine'
+                };
+                await setCache(cacheKey, profile, TTL.PROFILE);
+                return profile;
+            }
+        } catch (e) {
+            console.warn(`[Discovery Lookup] Error for ${ticker}:`, e);
         }
 
         const finnhubKey = process.env.FINNHUB_API_KEY;
 
-        // Try Finnhub first (more reliable)
-        if (finnhubKey) {
+        // 2. Finnhub (Secondary) - US Only to avoid Cert Errors
+        if (finnhubKey && !ticker.includes('.')) {
             try {
                 const url = `https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${finnhubKey}`;
                 const response = await fetch(url);
-
                 if (response.ok) {
                     const data = await response.json();
-
                     if (data && data.finnhubIndustry) {
                         const profile = {
                             sector: data.finnhubIndustry || 'Desconocido',
                             industry: data.finnhubIndustry || 'Desconocido',
                             country: data.country || 'Desconocido',
                             website: data.weburl || null,
-                            longBusinessSummary: null,
-                            fullTimeEmployees: data.employeeTotal || null,
                             name: data.name || ticker,
-                            logo: data.logo || null
+                            logo: data.logo || null,
+                            source: 'Finnhub'
                         };
-
                         await setCache(cacheKey, profile, TTL.PROFILE);
                         return profile;
                     }
                 }
-            } catch (e) {
-                console.warn(`[Finnhub Profile] Error for ${ticker}:`, e);
-            }
+            } catch (e) { }
         }
 
-        // Fallback to Yahoo V10 quoteSummary
+        // 3. Fallback to Yahoo Library (More robust than raw fetch)
         try {
-            const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=summaryProfile,price`;
-            const response = await fetch(url, {
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                    "Accept": "application/json;q=0.9,*/*;q=0.8"
-                }
-            });
-            if (!response.ok) throw new Error('Fetch failed ' + response.status);
-
-            const data = await response.json();
-            const result = data.quoteSummary?.result?.[0];
-
-            const profile = {
-                sector: result?.summaryProfile?.sector || 'Desconocido',
-                industry: result?.summaryProfile?.industry || 'Desconocido',
-                country: result?.summaryProfile?.country || 'Desconocido',
-                website: result?.summaryProfile?.website || null,
-                longBusinessSummary: result?.summaryProfile?.longBusinessSummary || null,
-                fullTimeEmployees: result?.summaryProfile?.fullTimeEmployees || null,
-                name: result?.price?.longName || result?.price?.shortName || ticker,
-                logo: null
-            };
-
-            await setCache(cacheKey, profile, TTL.PROFILE);
-            return profile;
-        } catch (e) {
-            console.error(`Asset Profile Error for ${ticker}:`, e);
-
-            // EMERGENCY FALLBACK: Manual mapping for common stocks (IBEX/Continuous/US)
-            const manualMap: Record<string, string> = {
-                // IBEX 35 / Spanish
-                'DIA.MC': 'Consumer Defensive', 'OHLA.MC': 'Industrials', 'AMP.MC': 'Industrials',
-                'ITX.MC': 'Consumer Cyclical', 'SAN.MC': 'Financial Services', 'BBVA.MC': 'Financial Services',
-                'TEF.MC': 'Communication Services', 'IBE.MC': 'Utilities', 'REP.MC': 'Energy',
-                'ACS.MC': 'Industrials', 'FER.MC': 'Industrials', 'AENA.MC': 'Industrials',
-                'AMS.MC': 'Technology', 'MRL.MC': 'Real Estate', 'CLNX.MC': 'Communication Services',
-                'GRF.MC': 'Healthcare', 'IAG.MC': 'Industrials', 'ANA.MC': 'Industrials',
-                'ENG.MC': 'Utilities', 'ELE.MC': 'Utilities', 'NTGY.MC': 'Utilities',
-                'REE.MC': 'Utilities', 'MAP.MC': 'Financial Services', 'BKT.MC': 'Financial Services',
-                'SAB.MC': 'Financial Services', 'CABK.MC': 'Financial Services',
-                'MEL.MC': 'Consumer Cyclical', 'ACX.MC': 'Basic Materials', 'MTS.MC': 'Basic Materials',
-                'VIG.MC': 'Real Estate',
-
-                // US / Global
-                'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology', 'AMZN': 'Consumer Cyclical',
-                'NVDA': 'Technology', 'TSLA': 'Consumer Cyclical', 'META': 'Communication Services',
-                'BRK.B': 'Financial Services', 'JPM': 'Financial Services', 'V': 'Financial Services',
-                'JNJ': 'Healthcare', 'PG': 'Consumer Defensive', 'XOM': 'Energy', 'CVX': 'Energy'
-            };
-
-            const knownSector = manualMap[ticker.toUpperCase()];
-            if (knownSector) {
-                return {
-                    sector: knownSector,
-                    industry: 'Manual Fallback',
-                    country: ticker.includes('.MC') ? 'ES' : 'US'
+            const summary = await yahooFinance.quoteSummary(ticker, { modules: ['summaryProfile', 'price'] });
+            if (summary && summary.summaryProfile) {
+                const profile = {
+                    sector: summary.summaryProfile.sector || 'Desconocido',
+                    industry: summary.summaryProfile.industry || 'Desconocido',
+                    country: summary.summaryProfile.country || 'Desconocido',
+                    name: summary.price?.longName || summary.price?.shortName || ticker,
+                    source: 'Yahoo Library'
                 };
+                await setCache(cacheKey, profile, TTL.PROFILE);
+                return profile;
             }
-
-            return {
-                sector: 'Desconocido',
-                industry: 'Desconocido',
-                country: 'Desconocido'
-            };
+        } catch (e) {
+            console.error(`Asset Profile Fallback Error for ${ticker}:`, e);
         }
+
+        return {
+            sector: 'Desconocido',
+            industry: 'Desconocido',
+            country: 'Desconocido',
+            source: 'None'
+        };
     },
 
     // Obtener cotización completa con sector/industria
@@ -1247,9 +1460,15 @@ export const MarketDataService = {
     },
 
     // --- FINNHUB INTEGRATION (ADVANCED INSIGHTS) ---
-    async getAnalystRecommendations(ticker: string) {
+    async getAnalystRecommendations(ticker: string, currency?: string) {
         const apiKey = process.env.FINNHUB_API_KEY;
         if (!apiKey) return null;
+
+        // 1. Check Currency if available (User Request: "Use stored currency")
+        if (currency && currency !== 'USD') return null;
+
+        // 2. Fallback Heuristic: International stocks have dots (e.g., .MC, .DE)
+        if (!currency && ticker.includes('.')) return null;
         const cacheKey = `analyst:${ticker.toUpperCase()}`;
         const cached = await getFromCache(cacheKey);
         if (cached) return cached;
@@ -1271,6 +1490,7 @@ export const MarketDataService = {
     async getPeers(ticker: string) {
         const apiKey = process.env.FINNHUB_API_KEY;
         if (!apiKey) return [];
+        if (ticker.includes('.')) return [];
         const cacheKey = `peers:${ticker.toUpperCase()}`;
         const cached = await getFromCache<string[]>(cacheKey);
         if (cached) return cached;
@@ -1287,9 +1507,15 @@ export const MarketDataService = {
         return [];
     },
 
-    async getInsiderSentiment(ticker: string) {
+    async getInsiderSentiment(ticker: string, currency?: string) {
         const apiKey = process.env.FINNHUB_API_KEY;
         if (!apiKey) return null;
+
+        // 1. Check Currency if available
+        if (currency && currency !== 'USD') return null;
+
+        // 2. Fallback Heuristic
+        if (!currency && ticker.includes('.')) return null;
         // Check cache? Sentiment changes monthly
         try {
             const from = new Date();
@@ -1345,10 +1571,15 @@ export const MarketDataService = {
             const thresholdDate = new Date();
             thresholdDate.setDate(thresholdDate.getDate() - 2);
 
-            if (lastDate && lastDate >= thresholdDate) {
+            if (lastDate) {
                 const msInYear = 365.25 * 24 * 60 * 60 * 1000;
+                // If years requested is small (e.g. 0.084 for 30d), but we need SMA200 later, 
+                // we might want to ensure we have at least 1 year in DB if it's not fresh.
+                // For now, respect the requested "years" but add a buffer check.
+
                 const cutoffDate = new Date(Date.now() - (years * msInYear));
 
+                // Check coverage in DB
                 const dataFromDb = await sql`
                     SELECT date, open, high, low, close, volume 
                     FROM historical_data 
@@ -1357,10 +1588,19 @@ export const MarketDataService = {
                     ORDER BY date ASC
                 `;
 
-                if (dataFromDb.length > 0) {
+                // Minimal coverage threshold (e.g. 70% of expected trading days)
+                const expectedDays = Math.floor(years * 252 * 0.7);
+
+                if (dataFromDb.length >= expectedDays && new Date(dataFromDb[dataFromDb.length - 1].date) >= thresholdDate) {
                     return dataFromDb;
                 }
-                console.warn(`[MarketData] DB appeared fresh but returned 0 rows. Falling through to Yahoo.`);
+
+                // If data is stale or insufficient, force fetch 1 year to ensure SMA calculations work
+                // ONLY if the requested range is small, upgrading it to 1 year for cache warming.
+                if (years < 1) {
+                    console.log(`[MarketData] Insufficient or stale data for ${symbol}. Upgrading fetch to 1 year.`);
+                    years = 1;
+                }
             }
 
             // 2. Fetch Yahoo Direct
@@ -1580,5 +1820,521 @@ export const MarketDataService = {
         } catch (e) {
             console.error('Error syncing currency history:', e);
         }
-    }
+    },
+
+    /**
+     * Get random tickers from global_tickers catalog for enrichment
+     * Only returns tickers that haven't been processed or are stale (>7 days)
+     * Excludes tickers marked as failed (yahoo_status = 'failed')
+     */
+    async getCatalogCandidates(limit: number): Promise<any[]> {
+        try {
+            const result = await sql`
+                SELECT symbol, exchange, isin
+                FROM global_tickers
+                WHERE (last_processed_at IS NULL 
+                   OR last_processed_at < NOW() - INTERVAL '7 days')
+                  AND (yahoo_status IS NULL OR yahoo_status != 'failed')
+                ORDER BY RANDOM()
+                LIMIT ${limit}
+            `;
+
+            return result.map(r => ({
+                ticker: r.exchange ? `${r.symbol}.${r.exchange}` : r.symbol,
+                isin: r.isin || null,
+                symbol: r.symbol,
+                exchange: r.exchange
+            }));
+        } catch (e) {
+            console.error('[MarketData] Error fetching catalog candidates:', e);
+            return [];
+        }
+    },
+
+    /**
+     * Mark a ticker as processed in the catalog
+     */
+    async markCatalogProcessed(symbol: string, exchange: string): Promise<void> {
+        try {
+            await sql`
+                UPDATE global_tickers 
+                SET last_processed_at = NOW(), yahoo_status = 'ok'
+                WHERE symbol = ${symbol} AND exchange = ${exchange}
+            `;
+        } catch (e) {
+            console.error('[MarketData] Error marking ticker as processed:', e);
+        }
+    },
+
+    /**
+     * Mark a ticker as failed (Yahoo Finance doesn't support it)
+     * These tickers will be skipped in future enrichment cycles
+     */
+    async markCatalogFailed(symbol: string, exchange: string, reason: string): Promise<void> {
+        try {
+            await sql`
+                UPDATE global_tickers 
+                SET last_processed_at = NOW(), 
+                    yahoo_status = 'failed',
+                    yahoo_error = ${reason.substring(0, 200)}
+                WHERE symbol = ${symbol} AND exchange = ${exchange}
+            `;
+        } catch (e) {
+            console.error('[MarketData] Error marking ticker as failed:', e);
+        }
+    },
+
+    /**
+     * Check if a ticker has fresh historical data in the database
+     * @param ticker Ticker symbol
+     * @returns true if historical data exists and is < 2 days old
+     */
+    async checkHistoricalFreshness(ticker: string): Promise<boolean> {
+        try {
+            const result = await sql`
+                SELECT MAX(date) as last_date 
+                FROM historical_data 
+                WHERE ticker = ${ticker}
+            `;
+
+            const lastDate = result[0]?.last_date;
+            if (!lastDate) return false;
+
+            const daysSince = Math.floor((Date.now() - new Date(lastDate).getTime()) / 86400000);
+            return daysSince <= 2;
+        } catch (e) {
+            return false;
+        }
+    },
+
+    /**
+     * Get enhanced quote data with all metrics for Discovery Engine
+     * @param ticker Ticker symbol
+     * @param isin Optional ISIN for fallback search
+     * @returns Enhanced discovery item with all calculated metrics
+     */
+    async getEnhancedQuoteData(ticker: string, isin?: string | null): Promise<any> {
+        const {
+            calculateRSI,
+            calculateSMA,
+            calculateVolatility,
+            calculateSharpe,
+            calculateAltmanZScore,
+            getAltmanZone,
+            getTrend,
+            getValuationState,
+            translateRecommendation
+        } = await import('./calculations');
+
+        try {
+            const symbol = ticker.split('.')[0];
+            let callsUsed = 0;
+            let summary: any = null;
+            let isCacheHit = false;
+            console.error('[MarketData] getEnhancedQuoteData STARTED for', ticker);
+
+            // 1. STRATEGY: 72H CACHE FIRST (As requested by User)
+            // "The process should only read the data from the base, unless... older than 72 hours"
+            try {
+                const cached = await DiscoveryService.getTickerDetails(ticker);
+                const CACHE_TTL_HOURS = 72;
+
+                if (cached && cached.data) {
+                    const diffHours = (Date.now() - new Date(cached.updated_at).getTime()) / (1000 * 60 * 60);
+                    if (diffHours < CACHE_TTL_HOURS) {
+                        // Check if we have the raw summary data required for hydration
+                        if (cached.data.extended && cached.data.extended._raw) {
+                            // console.log(`[MarketData] Cache HIT for ${ticker} (Age: ${diffHours.toFixed(1)}h). Using Cached Summary.`);
+                            summary = cached.data.extended._raw;
+                            isCacheHit = true;
+                        }
+                    } else {
+                        // console.log(`[MarketData] Cache STALE for ${ticker} (Age: ${diffHours.toFixed(1)}h).`);
+                    }
+                }
+            } catch (cacheErr) {
+                console.warn(`[MarketData] Cache Check Error for ${ticker}`, cacheErr);
+            }
+
+            // 2. Fetch from Yahoo if not in Cache
+            if (!summary) {
+                try {
+                    // Requesting ALL 10 optimized modules for complete data
+                    summary = await yahooFinance.quoteSummary(ticker, {
+                        modules: [
+                            'assetProfile',           // Governance risk scores, company officers, sector
+                            'summaryDetail',          // Dividend rate/yield, ex-dividend date, 52-week range
+                            'price',                  // Current price, volume, market cap
+                            'defaultKeyStatistics',   // Beta, EPS, shares, book value
+                            'financialData',          // Target prices, recommendations, financial health
+                            'calendarEvents',         // Earnings date, dividend date
+                            'recommendationTrend',    // Analyst breakdown (strongBuy/buy/hold/sell)
+                            'earnings',               // EPS actual/estimate
+                            'earningsHistory',        // Historical EPS surprises
+                            'earningsTrend',          // Forward projections
+                        ]
+                    });
+                    callsUsed++;
+                } catch (e: any) {
+                    // FALLBACK STRATEGY: Try searching by ISIN if available
+                    if (isin && (e.message?.includes('Not Found') || e.message?.includes('Quote not found'))) {
+                        try {
+                            const searchResult = await yahooFinance.search(isin);
+                            if (searchResult.quotes && searchResult.quotes.length > 0) {
+                                const firstQuote: any = searchResult.quotes[0];
+                                const foundTicker = firstQuote.symbol as string;
+
+                                summary = await yahooFinance.quoteSummary(foundTicker, {
+                                    modules: [
+                                        'assetProfile', 'summaryDetail', 'price', 'defaultKeyStatistics',
+                                        'financialData', 'calendarEvents', 'recommendationTrend',
+                                        'earnings', 'earningsHistory', 'earningsTrend'
+                                    ]
+                                });
+                                callsUsed += 2; // Search + Retry
+                                ticker = foundTicker; // Update ticker for subsequent logic
+                            } else {
+                                throw e;
+                            }
+                        } catch (searchError) {
+                            throw e; // Original error if search fails
+                        }
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+
+            const price = summary?.price;
+            const profile = summary?.summaryProfile || summary?.assetProfile; // Support both
+            const assetProfile = summary?.assetProfile;
+            const summaryDetail = summary?.summaryDetail;
+            const stats = summary?.defaultKeyStatistics;
+            const financial = summary?.financialData;
+            const recommendations = summary?.recommendationTrend;
+            const calendarEvents = summary?.calendarEvents;
+            const earningsHistory = summary?.earningsHistory;
+            const earningsTrend = summary?.earningsTrend;
+
+            if (!price || price.regularMarketPrice === undefined) {
+                console.error('[MarketData] Returning NULL because price or regularMarketPrice is missing', { price });
+                return null;
+            }
+
+            const currentPrice = price.regularMarketPrice;
+            const name = price.longName || price.shortName || symbol;
+            const sector = profile?.sector || 'Unknown';
+
+            // 2. Get historical data (check BD first, then Yahoo)
+            let historicalPrices: number[] = [];
+            const hasRecentHistorical = await this.checkHistoricalFreshness(ticker);
+
+            if (hasRecentHistorical) {
+                // Use data from database (Fetch OHLC)
+                const dbData = await sql`
+                    SELECT date, open, high, low, close FROM historical_data
+                    WHERE ticker = ${ticker}
+                    ORDER BY date DESC
+                    LIMIT 50
+                `;
+                historicalPrices = dbData.map((r: any) => parseFloat(r.close)).reverse();
+
+                // Prepare Candles
+                (summary as any).candles = dbData.map((r: any) => ({
+                    time: new Date(r.date).toISOString().split('T')[0],
+                    open: parseFloat(r.open || r.close),
+                    high: parseFloat(r.high || r.close),
+                    low: parseFloat(r.low || r.close),
+                    close: parseFloat(r.close)
+                })).reverse();
+
+            } else {
+                // Fetch from Yahoo
+                const period1 = Math.floor((Date.now() - (50 * 86400 * 1000)) / 1000);
+                const period2 = Math.floor(Date.now() / 1000);
+                const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${period1}&period2=${period2}&interval=1d`;
+
+                const response = await fetch(url);
+                if (response.ok) {
+                    callsUsed++;
+                    const data = await response.json();
+                    const result = data.chart?.result?.[0];
+
+                    if (result?.timestamp && result?.indicators?.quote?.[0]?.close) {
+                        const quotes = result.indicators.quote[0];
+                        const closes = quotes.close; // Restore 'closes' for legacy loop below
+                        const timestamps = result.timestamp;
+                        historicalPrices = closes.filter((c: any) => c !== null);
+
+
+                        // NEW: Prepare Candle Data from API Response
+                        const apiCandles: any[] = [];
+
+                        for (let i = 0; i < timestamps.length; i++) {
+                            // Check if we have valid OHLC data for this point
+                            if (timestamps[i] && quotes.open[i] != null && quotes.high[i] != null && quotes.low[i] != null && quotes.close[i] != null) {
+                                apiCandles.push({
+                                    time: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
+                                    open: parseFloat(quotes.open[i]),
+                                    high: parseFloat(quotes.high[i]),
+                                    low: parseFloat(quotes.low[i]),
+                                    close: parseFloat(quotes.close[i])
+                                });
+                            }
+                        }
+                        // Attach to summary
+                        (summary as any).candles = apiCandles;
+
+                        // Store in database for future use
+
+                        for (let i = 0; i < timestamps.length; i++) {
+                            if (closes[i]) {
+                                const date = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
+                                await sql`
+                                    INSERT INTO historical_data (ticker, date, open, high, low, close, volume)
+                                    VALUES (${ticker}, ${date}::date, ${closes[i]}, ${closes[i]}, ${closes[i]}, ${closes[i]}, 0)
+                                    ON CONFLICT (ticker, date) DO NOTHING
+                                `;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Calculate technical metrics
+            const rsi7 = calculateRSI(historicalPrices, 7);
+            const rsi14 = calculateRSI(historicalPrices, 14);
+            const sma50 = calculateSMA(historicalPrices, 50);
+            const volatility = calculateVolatility(historicalPrices);
+            const sharpe = calculateSharpe(historicalPrices);
+            const trend = getTrend(currentPrice, sma50);
+
+            const sma50Diff = sma50 !== "N/A"
+                ? Math.round(((currentPrice - (sma50 as number)) / (sma50 as number)) * 10000) / 100
+                : "N/A";
+
+            // 4. Calculate Altman Z-Score
+            const zScore = calculateAltmanZScore(financial);
+            const zZone = getAltmanZone(zScore);
+
+            // 5. Valuation
+            const earningsPerShare = financial?.earningsPerShare || 0;
+            const currentPriceCalc = financial?.currentPrice !== undefined ? financial.currentPrice : currentPrice;
+            const peRatio = stats?.forwardPE || (earningsPerShare !== 0 ? currentPriceCalc / earningsPerShare : null);
+            const valuationState = getValuationState(peRatio);
+
+            // 6. Analysts
+            const recommendation = translateRecommendation(recommendations?.trend?.[0]?.period);
+            const numAnalysts = stats?.numberOfAnalystOpinions || 0;
+            const targetMean = financial?.targetMeanPrice || null;
+
+            // 7. Price history (last 30 days)
+            const priceHistory = historicalPrices.slice(-30);
+
+            // 8. EXTENDED DATA MAPPING (Flatten diverse modules)
+            const extended: Record<string, any> = {};
+
+            // Helper to recursively flatten objects
+            const flatten = (obj: any, prefix = '') => {
+                if (!obj || typeof obj !== 'object') return;
+                Object.keys(obj).forEach(key => {
+                    const value = obj[key];
+                    const newKey = prefix ? `${prefix}_${key}` : key;
+                    if (value && typeof value === 'object' && 'raw' in value) {
+                        // Yahoo "fmt"/"raw" objects -> take raw
+                        extended[newKey] = value.raw;
+                    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+                        // Recurse (skip nested dates to avoid clutter)
+                        if (key !== 'maxAge' && key !== 'endDate') flatten(value, newKey);
+                    } else if (value !== null && value !== undefined && typeof value !== 'function') {
+                        // Primitive
+                        extended[newKey] = value;
+                    }
+                });
+            };
+
+            // Map specific interesting modules
+            if (summary?.financialData) flatten(summary.financialData, 'fin');
+            if (summary?.defaultKeyStatistics) flatten(summary.defaultKeyStatistics, 'stat');
+
+            // Add latest statements if available
+            const income = summary?.incomeStatementHistory?.incomeStatementHistory?.[0];
+            if (income) flatten(income, 'inc');
+
+            const balance = summary?.balanceSheetHistory?.balanceSheetStatements?.[0];
+            if (balance) flatten(balance, 'bal');
+
+            const cashflow = summary?.cashflowStatementHistory?.cashflowStatements?.[0];
+            if (cashflow) flatten(cashflow, 'cf');
+
+            // KEY: Save the RAW summary in extended so it can be cached and re-used for hydration
+            extended['_raw'] = summary;
+
+            const result = {
+                t: ticker,
+                n: name,
+                s: sector,
+                industry: profile?.industry || assetProfile?.industry || 'Unknown',
+                p: currentPrice,
+                chg_1d: ((price.regularMarketChangePercent || 0) * 100),
+                source: isCacheHit ? 'Cache (72h)' : 'Yahoo V10 Complete',
+                callsUsed,
+
+                valuation: {
+                    state: valuationState,
+                    peRatio: peRatio || null,
+                    peForward: stats?.forwardPE || null,
+                    pegRatio: stats?.pegRatio || null,
+                    priceToBook: stats?.priceToBook || null,
+                    evRevenue: stats?.enterpriseToRevenue || null,
+                    evEbitda: stats?.enterpriseToEbitda || null,
+                    targetPrice: targetMean,
+                    targetHigh: financial?.targetHighPrice || null,
+                    targetLow: financial?.targetLowPrice || null,
+                    marketCap: price?.marketCap || null,
+                    enterpriseValue: stats?.enterpriseValue || null,
+                },
+
+                // NEW: Governance Risk Scores (from assetProfile)
+                governance: assetProfile ? {
+                    auditRisk: assetProfile.auditRisk || null,
+                    boardRisk: assetProfile.boardRisk || null,
+                    compensationRisk: assetProfile.compensationRisk || null,
+                    shareholderRightsRisk: assetProfile.shareHolderRightsRisk || null,
+                    overallRisk: assetProfile.overallRisk || null,
+                } : null,
+
+                // NEW: Dividend Data (from summaryDetail)
+                dividends: {
+                    rate: summaryDetail?.dividendRate || 0,
+                    yield: summaryDetail?.dividendYield || 0,
+                    exDate: summaryDetail?.exDividendDate || null,
+                    payoutRatio: summaryDetail?.payoutRatio || 0,
+                    trailingAnnualRate: summaryDetail?.trailingAnnualDividendRate || 0,
+                    trailingAnnualYield: summaryDetail?.trailingAnnualDividendYield || 0,
+                },
+
+                // NEW: Calendar Events (from calendarEvents)
+                calendar: {
+                    earningsDate: calendarEvents?.earnings?.earningsDate?.[0] || null,
+                    epsEstimate: calendarEvents?.earnings?.earningsAverage || null,
+                    epsLow: calendarEvents?.earnings?.earningsLow || null,
+                    epsHigh: calendarEvents?.earnings?.earningsHigh || null,
+                    revenueEstimate: calendarEvents?.earnings?.revenueAverage || null,
+                    revenueLow: calendarEvents?.earnings?.revenueLow || null,
+                    revenueHigh: calendarEvents?.earnings?.revenueHigh || null,
+                    dividendDate: calendarEvents?.dividendDate || null,
+                    exDividendDate: calendarEvents?.exDividendDate || null,
+                },
+
+                risk: {
+                    altmanZScore: zScore,
+                    zone: zZone,
+                    beta: stats?.beta || null,
+                    // 52-week range from summaryDetail
+                    fiftyTwoWeekHigh: summaryDetail?.fiftyTwoWeekHigh || null,
+                    fiftyTwoWeekLow: summaryDetail?.fiftyTwoWeekLow || null,
+                    // Short interest
+                    shortRatio: stats?.shortRatio || null,
+                    shortPercentFloat: stats?.shortPercentOfFloat || null,
+                },
+
+                technical: {
+                    rsi14: rsi14,
+                    sma50Diff: sma50Diff,
+                    volatility: volatility,
+                    sharpe: sharpe
+                },
+
+                // ENHANCED: Analyst Data with breakdown and trend
+                analysts: {
+                    recommendation: recommendation,
+                    recommendationKey: financial?.recommendationKey || null,
+                    recommendationMean: financial?.recommendationMean || null,
+                    numberOfAnalysts: financial?.numberOfAnalystOpinions || numAnalysts,
+                    targetMean: financial?.targetMeanPrice || targetMean,
+                    targetMedian: financial?.targetMedianPrice || null,
+                    targetHigh: financial?.targetHighPrice || null,
+                    targetLow: financial?.targetLowPrice || null,
+                    // Breakdown from recommendationTrend
+                    breakdown: recommendations?.trend?.[0] ? {
+                        strongBuy: recommendations.trend[0].strongBuy || 0,
+                        buy: recommendations.trend[0].buy || 0,
+                        hold: recommendations.trend[0].hold || 0,
+                        sell: recommendations.trend[0].sell || 0,
+                        strongSell: recommendations.trend[0].strongSell || 0,
+                    } : null,
+                    // Trend history (last 4 months)
+                    trendHistory: recommendations?.trend?.map((t: any) => ({
+                        period: t.period,
+                        strongBuy: t.strongBuy,
+                        buy: t.buy,
+                        hold: t.hold,
+                        sell: t.sell,
+                        strongSell: t.strongSell,
+                    })) || [],
+                },
+
+                // NEW: EPS History & Projections
+                earnings: {
+                    trailing: stats?.trailingEps || null,
+                    forward: stats?.forwardEps || null,
+                    quarterlyGrowth: stats?.earningsQuarterlyGrowth || null,
+                    // History from earningsHistory (last 4 quarters)
+                    history: earningsHistory?.history?.map((e: any) => ({
+                        quarter: e.quarter,
+                        actual: e.epsActual,
+                        estimate: e.epsEstimate,
+                        surprise: e.epsDifference,
+                        surprisePct: e.surprisePercent,
+                    })) || [],
+                    // Projections from earningsTrend
+                    projections: earningsTrend?.trend?.map((t: any) => ({
+                        period: t.period,
+                        endDate: t.endDate,
+                        growth: t.growth,
+                        epsAvg: t.earningsEstimate?.avg || null,
+                        epsLow: t.earningsEstimate?.low || null,
+                        epsHigh: t.earningsEstimate?.high || null,
+                        revenueAvg: t.revenueEstimate?.avg || null,
+                    })) || [],
+                },
+
+                // Financial Health
+                financialHealth: {
+                    totalCash: financial?.totalCash || null,
+                    totalDebt: financial?.totalDebt || null,
+                    debtToEquity: financial?.debtToEquity || null,
+                    currentRatio: financial?.currentRatio || null,
+                    quickRatio: financial?.quickRatio || null,
+                    freeCashflow: financial?.freeCashflow || null,
+                    operatingCashflow: financial?.operatingCashflow || null,
+                    grossMargins: financial?.grossMargins || null,
+                    operatingMargins: financial?.operatingMargins || null,
+                    profitMargins: financial?.profitMargins || null,
+                    revenueGrowth: financial?.revenueGrowth || null,
+                    earningsGrowth: financial?.earningsGrowth || null,
+                    returnOnEquity: financial?.returnOnEquity || null,
+                    returnOnAssets: financial?.returnOnAssets || null,
+                },
+
+                priceHistory: priceHistory,
+                candles: (summary as any).candles || [], // Include candles for advanced charts
+                extended: extended // SEND EVERYTHING
+            };
+
+            // 9. SAVE TO CACHE (If not a hit, and we have valid data)
+            if (!isCacheHit) {
+                // Determine category? Use 'manual' or existing logic
+                await DiscoveryService.saveTickerDetails(ticker, result);
+                // console.log(`[MarketData] Saved FRESH data for ${ticker} to ticker_details_cache`);
+            }
+
+            return result;
+
+        } catch (e: any) {
+            console.error(`[MarketData] Error getting enhanced data for ${ticker}:`, e);
+            return null;
+        }
+    },
 };

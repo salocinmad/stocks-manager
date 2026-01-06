@@ -89,6 +89,7 @@ interface AuthContextType {
     isAdmin: boolean;
     api: typeof api;
     rememberMe: boolean;
+    appVersion: string;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -98,6 +99,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(() => getInitialUser());
     const [token, setToken] = useState<string | null>(() => getInitialToken());
     const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('rememberMe') === 'true');
+    const [appVersion, setAppVersion] = useState<string>('V...');
+
+    React.useEffect(() => {
+        api.get('/health')
+            .then(res => {
+                if (res.data?.version) setAppVersion(res.data.version);
+            })
+            .catch(err => console.error('Failed to fetch version:', err));
+    }, []);
 
     // Refresh user data on mount to ensure sync with DB (e.g. after restore)
     React.useEffect(() => {
@@ -170,7 +180,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isAuthenticated: !!token,
             isAdmin,
             api,
-            rememberMe
+            rememberMe,
+            appVersion
         }}>
             {children}
         </AuthContext.Provider>
