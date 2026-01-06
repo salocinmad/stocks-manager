@@ -157,6 +157,14 @@ El portfolio favorito es el que se muestra por defecto en el Dashboard:
     - **Comisión Total Acumulada**
  3. Guarda los cambios. El PnL se recalculará automáticamente.
 
+ ### Actualización de Precios (NUEVO)
+
+ Los precios de tu cartera se actualizan siguiendo estas reglas:
+ - **Automático**: El sistema refresca los precios cada **5 minutos** si mantienes la página abierta.
+ - **Manual**: Puedes forzar una actualización pulsando el botón **"Actualizar"** ubicado en la cabecera de la tabla de activos.
+   - 🕒 Este botón tiene un **tiempo de espera de 60 segundos** entre usos para evitar saturar el servidor.
+   - ⏳ Un contador te indicará cuántos segundos faltan para poder volver a actualizar.
+
 ---
 
 ## 💸 Operaciones de Compra/Venta

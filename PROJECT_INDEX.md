@@ -9,7 +9,7 @@ Estos archivos definen la estructura de datos. **Cualquier cambio en el modelo d
 
 - **`i:\dev\stocks-manager\init.sql`**
     - **Tipo**: Script SQL (PostgreSQL).
-    - **Propósito**: Define el esquema base para inicializaciones externas. Contiene las **22 tablas** del sistema, incluyendo `global_tickers` (con columnas `yahoo_status`, `yahoo_error` para marcado de tickers fallidos), `pnl_history_cache`, `position_analysis_cache`, y **seeds iniciales** en `system_settings` (`APP_VERSION`).
+    - **Propósito**: Define el esquema base para inicializaciones externas. Contiene las **23 tablas** del sistema, incluyendo `global_tickers` (con columnas `yahoo_status`, `yahoo_error` para marcado de tickers fallidos), `ticker_details_cache` (datos profundos para Discovery), `pnl_history_cache`, `position_analysis_cache`, y **seeds iniciales** en `system_settings` (`APP_VERSION`).
     - **Uso**: Referencia principal del esquema relacional y paridad con `init_db.ts`.
 
 - **`i:\dev\stocks-manager\server\init_db.ts`**
@@ -62,6 +62,7 @@ Lógica de negocio pura. Independiente del transporte HTTP.
 - `server/jobs/globalTickerJob.ts`: Job mensual para actualizar el catálogo maestro.
 - **`marketData.ts`**: **Proveedor de Datos Unificado**.
     - **Estrategia Principal**: Utiliza Yahoo Finance (V8/V10) con el método **Search + Enrich** como fuente primaria.
+    - **Cache de MarketStatus**: Solo 1 llamada a Yahoo por minuto para estado de mercados (optimización v2.3.0). Todos los navegadores comparten el mismo cache.
     - **ISIN Fallback**: Implementa estrategia de rescate. Si un ticker no se encuentra, busca por su ISIN (de `global_tickers`) para encontrar el símbolo correcto automáticamente.
     - **Alternativas**: Finnhub se mantiene como proveedor alternativo para perfiles de empresa o noticias si las APIs de Yahoo no están disponibles o se solicita explícitamente. EOD Historical Data (EODHD) se usa para la sincronización global de tickers y puede complementar o reemplazar a Finnhub para datos de perfil o fundamentales en el futuro.
     - **Soporte Multi-divisa**: Normaliza automáticamente `GBX` (LSE) y soporta dinámicamente cualquier divisa de mercado (ej. MXN, CAD) mediante la descarga masiva de cotizaciones V7/V8 tras la búsqueda inicial.

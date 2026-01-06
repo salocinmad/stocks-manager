@@ -94,6 +94,15 @@ Esta versión transforma la plataforma de un gestor pasivo a un **sistema inteli
 - Orden de noticias corregido (más recientes primero)
 - Estrategia ISIN Fallback para símbolos internacionales
 
+### Optimizaciones de Rendimiento (v2.3.0)
+- **Cache de MarketStatus Server-Side**: Solo 1 llamada a Yahoo por minuto para los índices de cabecera, independientemente del número de navegadores conectados
+- **Tabla `ticker_details_cache`**: Persistencia de datos profundos para modales de Discovery
+
+### Experiencia de Usuario
+- **Refresh de Portfolio**: Botón manual de actualización con cooldown de 60 segundos
+- **Auto-Refresh**: Actualización automática de precios cada 5 minutos
+- **Feedback Visual**: Contador de cooldown y estado de carga en tiempo real
+
 ---
 
 ## 🔮 Próximamente

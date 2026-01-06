@@ -118,6 +118,25 @@ export const PortfolioScreen: React.FC = () => {
   // State for current time to update "time ago"
   const [now, setNow] = useState(Date.now());
 
+  // Refresh control states
+  const [lastRefreshTime, setLastRefreshTime] = useState<number>(Date.now());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Constants for refresh timing
+  const REFRESH_COOLDOWN = 60 * 1000; // 60 seconds
+  const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+  // Calculate if refresh button should be enabled
+  const canRefresh = useMemo(() => {
+    return (now - lastRefreshTime) >= REFRESH_COOLDOWN;
+  }, [now, lastRefreshTime]);
+
+  // Time until refresh is available (for visual feedback)
+  const cooldownRemaining = useMemo(() => {
+    const remaining = Math.max(0, REFRESH_COOLDOWN - (now - lastRefreshTime));
+    return Math.ceil(remaining / 1000);
+  }, [now, lastRefreshTime]);
+
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000); // Update every second
     return () => clearInterval(interval);
@@ -328,6 +347,36 @@ export const PortfolioScreen: React.FC = () => {
   useEffect(() => {
     loadPortfolios();
   }, [loadPortfolios]);
+
+  // Manual refresh handler
+  const handleManualRefresh = useCallback(async () => {
+    if (!portfolio || isRefreshing) return;
+
+    setIsRefreshing(true);
+    try {
+      await loadPortfolioDetails(portfolio.id);
+      setLastRefreshTime(Date.now());
+    } catch (err) {
+      console.error('Error refreshing portfolio:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [portfolio, isRefreshing, loadPortfolioDetails]);
+
+  // Auto-refresh every 5 minutes after last refresh
+  useEffect(() => {
+    if (!portfolio) return;
+
+    const checkAutoRefresh = () => {
+      const timeSinceLastRefresh = Date.now() - lastRefreshTime;
+      if (timeSinceLastRefresh >= AUTO_REFRESH_INTERVAL) {
+        handleManualRefresh();
+      }
+    };
+
+    const autoRefreshInterval = setInterval(checkAutoRefresh, 10000); // Check every 10s
+    return () => clearInterval(autoRefreshInterval);
+  }, [portfolio, lastRefreshTime, handleManualRefresh]);
 
   const handlePortfolioChange = (newId: string) => {
     if (newId) {
@@ -563,13 +612,35 @@ export const PortfolioScreen: React.FC = () => {
                 Composición de Activos
               </h3>
 
-              {/* Global Timestamp - Centered */}
+              {/* Global Timestamp + Refresh Button - Centered */}
               {lastUpdateTime > 0 && (
-                <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex flex-col items-center">
+                <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center gap-2">
                   <div className="flex items-center gap-2 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark bg-background-light/50 dark:bg-white/5 px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark">
                     <span className="material-symbols-outlined text-[14px] text-primary">schedule</span>
                     <span>Actualizado {getTimeAgo(lastUpdateTime)}</span>
                   </div>
+
+                  {/* Refresh Button */}
+                  <button
+                    onClick={handleManualRefresh}
+                    disabled={!canRefresh || isRefreshing}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${canRefresh && !isRefreshing
+                      ? 'bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:scale-105 active:scale-95 cursor-pointer'
+                      : 'bg-background-light/50 dark:bg-white/5 border-border-light dark:border-border-dark text-text-secondary-light cursor-not-allowed opacity-60'
+                      }`}
+                    title={canRefresh ? 'Actualizar precios' : `Disponible en ${cooldownRemaining}s`}
+                  >
+                    <span
+                      className={`material-symbols-outlined text-[14px] ${isRefreshing ? 'animate-spin' : ''}`}
+                    >
+                      {isRefreshing ? 'progress_activity' : 'refresh'}
+                    </span>
+                    {!canRefresh && !isRefreshing && (
+                      <span className="tabular-nums">{cooldownRemaining}s</span>
+                    )}
+                    {canRefresh && !isRefreshing && <span>Actualizar</span>}
+                    {isRefreshing && <span>Actualizando...</span>}
+                  </button>
                 </div>
               )}
 

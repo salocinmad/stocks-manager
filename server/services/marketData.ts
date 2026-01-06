@@ -18,6 +18,20 @@ const TTL = {
     HISTORY: 24 * 60 * 60 * 1000  // 24 hours - Historical data is static
 };
 
+// ============================================================
+// MARKET STATUS CACHE (In-Memory - Single source of truth)
+// ============================================================
+// This cache ensures only 1 Yahoo API call per minute for market status,
+// regardless of how many browser tabs/clients are connected.
+interface MarketStatusCacheEntry {
+    data: any[];
+    updatedAt: number;
+    indices: string[];
+}
+
+let marketStatusCache: MarketStatusCacheEntry | null = null;
+const MARKET_STATUS_TTL = 60 * 1000; // 1 minute
+
 async function getFromCache<T>(key: string): Promise<T | null> {
     try {
         const result = await sql`
@@ -1159,9 +1173,25 @@ export const MarketDataService = {
 
     // Estado de mercados usando Yahoo Finance V10 (quoteSummary)
     // Reemplaza a Finnhub para mayor fiabilidad y uso de la API V10 solicitada
+    // 
+    // OPTIMIZACIÓN v2.3.0: Cache server-side
+    // - Solo 1 llamada a Yahoo cada 60 segundos (independiente del número de clientes)
+    // - Todos los navegadores/tabs reciben datos del cache instantáneamente
     async getMarketStatus(indices: string[]) {
+        // Check if we have valid cached data
+        const now = Date.now();
+        const indicesKey = indices.sort().join(',');
+
+        if (marketStatusCache &&
+            (now - marketStatusCache.updatedAt) < MARKET_STATUS_TTL &&
+            marketStatusCache.indices.sort().join(',') === indicesKey) {
+            // Return cached data (no Yahoo call)
+            return marketStatusCache.data;
+        }
+
+        // Fetch fresh data from Yahoo
         try {
-            console.log(`[MarketStatus] Fetching status for ${indices.length} indices via Yahoo V10...`);
+            console.log(`[MarketStatus] Refreshing cache for ${indices.length} indices via Yahoo V10...`);
 
             // Yahoo V10 (quoteSummary) no soporta batching nativo como V7 (quote),
             // así que iteramos con Promise.all.
@@ -1208,10 +1238,22 @@ export const MarketDataService = {
                 }
             }));
 
+            // Update cache
+            marketStatusCache = {
+                data: results,
+                updatedAt: now,
+                indices: indices
+            };
+
             return results;
 
         } catch (e) {
             console.error('[MarketStatus] Global error:', e);
+            // Return cached data if available, even if expired
+            if (marketStatusCache) {
+                console.log('[MarketStatus] Returning stale cache due to error');
+                return marketStatusCache.data;
+            }
             // Fallback seguro
             return indices.map(symbol => ({
                 symbol,

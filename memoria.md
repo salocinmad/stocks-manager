@@ -60,13 +60,14 @@ Este documento es la guía para asegurar la continuidad del proyecto sin errores
 | `historical_data` | Datos OHLC históricos |
 | `global_tickers` | Librería global con ISIN, `yahoo_status`, `yahoo_error` |
 | `market_discovery_cache` | Caché del Discovery Engine |
+| `ticker_details_cache` | Datos profundos para modales de Discovery |
 | `position_analysis_cache` | Métricas técnicas/riesgo precalculadas |
 | `pnl_history_cache` | Historial de PnL por día |
 | `ai_providers` | Proveedores de IA configurados |
 | `ai_prompts` | Prompts personalizados |
 | `chat_conversations` / `chat_messages` | Historial de chat IA |
 | `system_settings` | Configuración global (`APP_VERSION`, índices de cabecera) |
-| ... | (ver init.sql para lista completa) |
+| ... | (ver init.sql para lista completa - **23 tablas**) |
 
 ---
 
@@ -123,4 +124,7 @@ docker compose logs app --tail 100
 
 ---
 
-**ÚLTIMA ACTUALIZACIÓN**: Enero 2026 - Reorganización del Panel Admin (Tab Mercado con 3 subtabs)
+**ÚLTIMA ACTUALIZACIÓN**: Enero 2026
+- **Tabla `ticker_details_cache`**: Cache de datos profundos para modales Discovery
+- **Cache de MarketStatus**: Solo 1 llamada por minuto a Yahoo (optimización)
+- **Refresh de Portfolio**: Botón manual (60s cooldown) + auto-refresh cada 5 minutos

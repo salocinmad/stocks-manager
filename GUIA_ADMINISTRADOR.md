@@ -317,8 +317,10 @@ Herramientas para la gestión habitual de datos.
     - Botones para sincronizar **Todo**, solo **Acciones** o solo **Divisas**.
     - Incluye soporte nativo para `GBX` (Peniques) y tipos de cambio cruzados.
 
-2.  **Recálculo de PnL**:
     - Herramienta para regenerar el historial de Ganancias/Pérdidas de todas las carteras si detectas inconsistencias en los gráficos.
+3.  **Optimización de Estado de Mercado (v2.3.0)**:
+    - El sistema implementa un **cache global de 60 segundos** para el estado de los mercados (Abierto/Cerrado).
+    - Esto reduce drásticamente las llamadas a Yahoo Finance cuando hay múltiples usuarios conectados simultáneamente.
 
 ### Columna Derecha: Infraestructura Global
 Herramientas avanzadas para la gestión del catálogo.
