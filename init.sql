@@ -259,6 +259,13 @@ CREATE TABLE IF NOT EXISTS market_discovery_cache (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 19.5 TICKER DETAILS CACHE (Deep data for Discovery modals)
+CREATE TABLE IF NOT EXISTS ticker_details_cache (
+    ticker TEXT PRIMARY KEY,
+    data JSONB,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 20. GLOBAL TICKERS MASTER (Librería Global - V4.0)
 CREATE TABLE IF NOT EXISTS global_tickers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
