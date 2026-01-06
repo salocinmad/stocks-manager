@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run server/index.ts --dev",
-    "build:frontend": "bun build ./src/index.tsx --outdir ./dist --minify",
+    "build:frontend": "rm -rf dist && bun build ./src/index.tsx --outdir ./dist --minify",
     "start": "bun run server/index.ts",
     "test": "bun run server/scripts/test_runner.ts",
     "migrate:ai": "bun run server/scripts/migrate_ai_providers.ts"
