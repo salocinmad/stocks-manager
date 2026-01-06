@@ -606,15 +606,15 @@ export const PortfolioScreen: React.FC = () => {
 
         <div className="w-full rounded-[2.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-xl shadow-black/5 overflow-hidden">
           <div className="p-8">
-            <div className="flex items-center justify-between mb-8 relative">
-              <h3 className="text-xl font-bold flex items-center gap-3">
+            <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4 relative">
+              <h3 className="text-xl font-bold flex items-center gap-3 self-start md:self-auto">
                 <span className="material-symbols-outlined text-primary">pie_chart</span>
                 Composición de Activos
               </h3>
 
-              {/* Global Timestamp + Refresh Button - Centered */}
+              {/* Global Timestamp + Refresh Button - Centered on Desktop, Stacked on Mobile */}
               {lastUpdateTime > 0 && (
-                <div className="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center gap-2">
+                <div className="flex md:absolute md:left-1/2 md:-translate-x-1/2 items-center gap-2 order-3 md:order-none w-full md:w-auto justify-center">
                   <div className="flex items-center gap-2 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark bg-background-light/50 dark:bg-white/5 px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark">
                     <span className="material-symbols-outlined text-[14px] text-primary">schedule</span>
                     <span>Actualizado {getTimeAgo(lastUpdateTime)}</span>
@@ -646,7 +646,7 @@ export const PortfolioScreen: React.FC = () => {
 
               <Link
                 to="/manual-entry"
-                className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20"
+                className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 self-end md:self-auto"
               >
                 <span className="material-symbols-outlined text-lg">add_circle</span>
                 Añadir Activo
