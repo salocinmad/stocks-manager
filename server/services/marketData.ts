@@ -1634,7 +1634,15 @@ export const MarketDataService = {
                 const expectedDays = Math.floor(years * 252 * 0.7);
 
                 if (dataFromDb.length >= expectedDays && new Date(dataFromDb[dataFromDb.length - 1].date) >= thresholdDate) {
-                    return dataFromDb;
+                    // Map to plain objects for proper JSON serialization
+                    return dataFromDb.map(row => ({
+                        date: row.date instanceof Date ? row.date.toISOString() : String(row.date),
+                        open: Number(row.open),
+                        high: Number(row.high),
+                        low: Number(row.low),
+                        close: Number(row.close),
+                        volume: Number(row.volume)
+                    }));
                 }
 
                 // If data is stale or insufficient, force fetch 1 year to ensure SMA calculations work
@@ -1712,7 +1720,15 @@ export const MarketDataService = {
                 `;
 
                 if (fallbackData.length > 0) {
-                    return fallbackData;
+                    // Map to plain objects for proper JSON serialization
+                    return fallbackData.map(row => ({
+                        date: row.date instanceof Date ? row.date.toISOString() : String(row.date),
+                        open: Number(row.open),
+                        high: Number(row.high),
+                        low: Number(row.low),
+                        close: Number(row.close),
+                        volume: Number(row.volume)
+                    }));
                 }
 
                 console.warn(`[MarketData] SAFETY NET FAILED: No local data found for ${symbol}`);

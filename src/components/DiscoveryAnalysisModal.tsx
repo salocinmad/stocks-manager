@@ -232,6 +232,7 @@ export const DiscoveryAnalysisModal: React.FC<DiscoveryAnalysisModalProps> = ({ 
         }
     }, [ticker, api]);
 
+
     useEffect(() => {
         if (isOpen && ticker) {
             fetchAnalysis();

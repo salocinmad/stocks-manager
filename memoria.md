@@ -46,7 +46,7 @@ Este documento es la guía para asegurar la continuidad del proyecto sin errores
 
 ## 📊 ESTRUCTURA DE BASE DE DATOS
 
-**23 Tablas principales** (ver `init.sql` para detalle completo):
+**22 Tablas principales** (ver `init.sql` para detalle completo):
 
 | Tabla | Propósito |
 |-------|-----------|
@@ -130,21 +130,60 @@ docker compose logs app --tail 100
 
 ---
 
-**ÚLTIMA ACTUALIZACIÓN**: Enero 2026 (v2.1.0)
+**ÚLTIMA ACTUALIZACIÓN**: 6 Enero 2026 (v2.1.0)
 
 ### Cambios Recientes (Enero 2026):
-- **Dashboard Layout 2 Columnas**: Rediseño completo del Dashboard con estructura de dos columnas (75%/25%):
-  - **Columna Principal (lg:col-span-9)**: 
-    - Fila 1: 3 tarjetas de stats (Patrimonio Neto, Variación Diaria, Ganancia Total)
-    - AI Insight Result (condicional, entre stats y movers)
-    - Fila 2: Mejores/Peores del Día
-    - Fila 3: Gráfico PnL (ancho completo de columna)
-  - **Columna Lateral (lg:col-span-3)**:
-    - Botón Análisis IA
-    - Gráfico Distribución por Sector
-- **Alertas Globales**: Sistema de monitorización de todos los activos de un portfolio con cooldown individual (`triggered_assets` JSONB).
-- **Consolidación de API**: Endpoint `/api/alerts` unificado para todo tipo de alertas.
-- **UI Alertas**: Rediseño de tarjetas compactas y grid de alta densidad.
-- **Reset de Alertas**: Botones para restablecer alertas disparadas (Individual y Global con limpieza de historial `triggered_assets`).
-- **Esquema DB**: Inclusión de `updated_at` en `market_cache` para mejor consistencia de caché.
 
+#### Dashboard Layout 2 Columnas
+Rediseño completo del Dashboard con estructura de dos columnas (75%/25%):
+- **Columna Principal (lg:col-span-9)**: 
+  - Fila 1: 3 tarjetas de stats (Patrimonio Neto, Variación Diaria, Ganancia Total)
+  - AI Insight Result (condicional, entre stats y movers)
+  - Fila 2: Mejores/Peores del Día
+  - Fila 3: Gráfico PnL (ancho completo de columna)
+- **Columna Lateral (lg:col-span-3)**:
+  - Botón Análisis IA
+  - Gráfico Distribución por Sector
+
+#### Alertas Globales
+Sistema de monitorización de todos los activos de un portfolio con cooldown individual (`triggered_assets` JSONB en `portfolio_alerts`).
+
+#### Gráfico de Velas (Candlestick Chart) - FIX
+- **Problema resuelto**: El gráfico de velas no aparecía en el modal de análisis del Discovery Engine.
+- **Causa raíz**: La función `getDetailedHistory()` en `marketData.ts` devolvía objetos de Postgres que no se serializaban correctamente a JSON (aparecían como `[object Object][object Object]...`).
+- **Solución**: Implementado mapeo explícito de postgres Row objects a objetos JavaScript planos con propiedades `date, open, high, low, close, volume` antes de devolver la respuesta.
+- **Archivos afectados**: 
+  - `server/services/marketData.ts` (función `getDetailedHistory` línea ~1603)
+  - `src/components/DiscoveryAnalysisModal.tsx` (renderizado del chart)
+
+#### Consolidación de API
+- Endpoint `/api/alerts` unificado para todo tipo de alertas.
+- Endpoint `/api/analysis/ticker/:ticker/history` para datos históricos OHLC.
+
+#### UI Alertas
+Rediseño de tarjetas compactas y grid de alta densidad en `AlertsScreen.tsx`.
+
+#### Reset de Alertas
+Botones para restablecer alertas disparadas (Individual y Global con limpieza de historial `triggered_assets`).
+
+---
+
+## 🔧 NOTAS TÉCNICAS IMPORTANTES
+
+### Serialización de Datos de PostgreSQL
+Al devolver datos de consultas SQL para APIs JSON, **siempre mapear los resultados** a objetos JavaScript planos:
+```typescript
+// ❌ Incorrecto - causa [object Object] en JSON
+return await sql`SELECT * FROM table`;
+
+// ✅ Correcto - serializa correctamente
+const rows = await sql`SELECT * FROM table`;
+return rows.map(row => ({
+  field1: row.field1,
+  field2: Number(row.field2),
+  date: row.date instanceof Date ? row.date.toISOString() : String(row.date)
+}));
+```
+
+### Tabla historical_data
+Almacena datos OHLC para gráficos de velas. Actualmente contiene ~187,000+ registros principalmente de acciones de Hong Kong (.HK) y otros mercados. Usa índice `(ticker, date)` para consultas eficientes.

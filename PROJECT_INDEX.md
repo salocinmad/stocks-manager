@@ -9,7 +9,7 @@ Estos archivos definen la estructura de datos. **Cualquier cambio en el modelo d
 
 - **`i:\dev\stocks-manager\init.sql`**
     - **Tipo**: Script SQL (PostgreSQL).
-    - **Propósito**: Define el esquema base para inicializaciones externas. Contiene las **23 tablas** del sistema, incluyendo `market_cache` (con `updated_at`), `global_tickers` (con columnas `yahoo_status`, `yahoo_error` para marcado de tickers fallidos), `ticker_details_cache` (datos profundos para Discovery), `pnl_history_cache`, `position_analysis_cache`, y **seeds iniciales** en `system_settings` (`APP_VERSION`).
+    - **Propósito**: Define el esquema base para inicializaciones externas. Contiene las **22 tablas** del sistema, incluyendo `market_cache` (con `updated_at`), `global_tickers` (con columnas `yahoo_status`, `yahoo_error` para marcado de tickers fallidos), `ticker_details_cache` (datos profundos para Discovery), `historical_data` (OHLC para gráficos de velas), `pnl_history_cache`, `position_analysis_cache`, y **seeds iniciales** en `system_settings` (`APP_VERSION`).
     - **Uso**: Referencia principal del esquema relacional y paridad con `init_db.ts`.
 
 - **`i:\dev\stocks-manager\server\init_db.ts`**
