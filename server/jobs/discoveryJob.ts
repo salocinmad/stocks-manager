@@ -88,31 +88,54 @@ export const DiscoveryJob = {
 
                 console.log(`[DiscoveryJob] USA Pipeline -> Motor: Finnhub, Estrategia: ${screener} (${fhCategory})`);
 
-                const fhItems = await MarketDataService.getDiscoveryCandidatesFinnhub(fhCategory, 50); // Get more candidates to filter
+                const fhItems = await MarketDataService.getDiscoveryCandidatesFinnhub(fhCategory, 50);
 
                 if (fhItems.length > 0) {
                     const freshSet = await MarketDataService.checkFreshness(fhItems.map(c => c.t));
                     const selected: any[] = [];
+                    const detailsBatch: any[] = [];
 
-                    for (const item of fhItems) {
+                    // Optimization: Process in Batches of 5 for Concurrency
+                    const BATCH_SIZE = 5;
+                    const candidatesToProcess = fhItems.filter(item => !freshSet.has(item.t));
+
+                    for (let i = 0; i < candidatesToProcess.length; i += BATCH_SIZE) {
                         if (selected.length >= volFinnhub) break;
-                        if (freshSet.has(item.t)) continue; // SKIP if updated in last 7 days
 
-                        try {
-                            const f = await MarketDataService.getFundamentals(item.t);
-                            if (f) {
-                                selected.push({ ...item, fund: { ...item.fund, ...f } });
-                                // Save DEEP data to ticker_details_cache (for Modal)
-                                await DiscoveryService.saveTickerDetails(item.t, { ...f, price: item.p, symbol: item.t });
+                        const chunk = candidatesToProcess.slice(i, i + BATCH_SIZE);
+                        const promises = chunk.map(async (item) => {
+                            try {
+                                const f = await MarketDataService.getFundamentals(item.t);
+                                if (f) {
+                                    return {
+                                        enriched: { ...item, fund: { ...item.fund, ...f } },
+                                        detail: { ticker: item.t, data: { ...f, price: item.p, symbol: item.t } }
+                                    };
+                                }
+                            } catch (e: any) {
+                                // Mark permanent failures
+                                const msg = e?.message || '';
+                                if (msg.includes('Quote not found') || msg.includes('internal-error')) {
+                                    const parts = item.t.split('.');
+                                    await MarketDataService.markCatalogFailed(parts[0], parts[1] || '', msg);
+                                }
                             }
-                        } catch (e: any) {
-                            // Mark permanent failures to skip in future
-                            const msg = e?.message || '';
-                            if (msg.includes('Quote not found') || msg.includes('internal-error')) {
-                                const parts = item.t.split('.');
-                                await MarketDataService.markCatalogFailed(parts[0], parts[1] || '', msg);
+                            return null;
+                        });
+
+                        const results = await Promise.all(promises);
+
+                        results.forEach(res => {
+                            if (res && selected.length < volFinnhub) {
+                                selected.push(res.enriched);
+                                detailsBatch.push(res.detail);
                             }
-                        }
+                        });
+                    }
+
+                    // Bulk Save Details
+                    if (detailsBatch.length > 0) {
+                        await DiscoveryService.saveTickerDetailsBatch(detailsBatch);
                     }
 
                     if (selected.length > 0) {
@@ -131,33 +154,55 @@ export const DiscoveryJob = {
 
                 console.log(`[DiscoveryJob] Global Pipeline -> Region: ${targetRegion}, Estrategia: ${screenerId}`);
 
-                // Fetch pool (larger to account for sovereign filter)
+                // Fetch pool
                 let pool = await MarketDataService.getDiscoveryCandidates(screenerId, 100, targetRegion, targetCurrency);
 
                 if (pool.length > 0) {
-                    pool = await MarketDataService.enrichSectors(pool);
+                    pool = await MarketDataService.enrichSectors(pool); // Only needed for Yahoo raw candidates
                     const freshSet = await MarketDataService.checkFreshness(pool.map(c => c.t));
                     const selected: any[] = [];
+                    const detailsBatch: any[] = [];
 
-                    for (const cand of pool) {
+                    // Optimization: Batch Process
+                    const BATCH_SIZE = 5;
+                    const candidatesToProcess = pool.filter(cand => !freshSet.has(cand.t));
+
+                    for (let i = 0; i < candidatesToProcess.length; i += BATCH_SIZE) {
                         if (selected.length >= volV10) break;
-                        if (freshSet.has(cand.t)) continue; // SKIP if updated in last 7 days
 
-                        try {
-                            const f = await MarketDataService.getFundamentals(cand.t);
-                            if (f) {
-                                selected.push({ ...cand, fund: { ...cand.fund, ...f } });
-                                // Save DEEP data to ticker_details_cache (for Modal)
-                                await DiscoveryService.saveTickerDetails(cand.t, { ...f, price: cand.p, symbol: cand.t });
+                        const chunk = candidatesToProcess.slice(i, i + BATCH_SIZE);
+                        const promises = chunk.map(async (cand) => {
+                            try {
+                                const f = await MarketDataService.getFundamentals(cand.t);
+                                if (f) {
+                                    return {
+                                        enriched: { ...cand, fund: { ...cand.fund, ...f } },
+                                        detail: { ticker: cand.t, data: { ...f, price: cand.p, symbol: cand.t } }
+                                    };
+                                }
+                            } catch (e: any) {
+                                const msg = e?.message || '';
+                                if (msg.includes('Quote not found') || msg.includes('internal-error')) {
+                                    const parts = cand.t.split('.');
+                                    await MarketDataService.markCatalogFailed(parts[0], parts[1] || '', msg);
+                                }
                             }
-                        } catch (e: any) {
-                            // Mark permanent failures to skip in future
-                            const msg = e?.message || '';
-                            if (msg.includes('Quote not found') || msg.includes('internal-error')) {
-                                const parts = cand.t.split('.');
-                                await MarketDataService.markCatalogFailed(parts[0], parts[1] || '', msg);
+                            return null;
+                        });
+
+                        const results = await Promise.all(promises);
+
+                        results.forEach(res => {
+                            if (res && selected.length < volV10) {
+                                selected.push(res.enriched);
+                                detailsBatch.push(res.detail);
                             }
-                        }
+                        });
+                    }
+
+                    // Bulk Save Details
+                    if (detailsBatch.length > 0) {
+                        await DiscoveryService.saveTickerDetailsBatch(detailsBatch);
                     }
 
                     if (selected.length > 0) {

@@ -358,4 +358,39 @@ export class DiscoveryService {
             return false;
         }
     }
+
+    /**
+     * Bulk save detailed ticker data (Optimization for Crawler)
+     */
+    static async saveTickerDetailsBatch(items: { ticker: string, data: any }[]) {
+        if (items.length === 0) return true;
+
+        try {
+            // Postgres.js supports bulk insert naturally with arrays of objects if keys match
+            // But here we have jsonb 'data' and 'ticker'.
+            // Constructing the values array manually for clarity and safety with JSONB.
+
+            // We use a transaction for cleanliness, though efficient singular insert is fine.
+            await sql.begin(async sql => {
+                for (const item of items) {
+                    await sql`
+                        INSERT INTO ticker_details_cache (ticker, data, updated_at)
+                        VALUES (${item.ticker}, ${item.data}, NOW())
+                        ON CONFLICT (ticker) 
+                        DO UPDATE SET data = ${item.data}, updated_at = NOW()
+                    `;
+                }
+            });
+
+            // NOTE: A true SINGLE SQL statement for upserting multiple rows with JSONB 
+            // is complex in current postgres.js helper syntax without raw string manipulation. 
+            // The Transaction wrapper here at least ensures connection reuse efficiency 
+            // and atomicity, reducing overhead vs separate function calls.
+
+            return true;
+        } catch (error) {
+            console.error(`[Discovery] Error in batch save details (${items.length} items):`, error);
+            return false;
+        }
+    }
 }
