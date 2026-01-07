@@ -103,12 +103,9 @@ export const CatalogEnrichmentJob = {
                             sector: enhancedData.s || 'N/A'
                         });
                     } else {
-                        await MarketDataService.markCatalogProcessed(symbol, exchange || '');
-                        skippedList.push({
-                            name: ticker,
-                            sector: 'N/A',
-                            reason: 'Sin datos de precio válidos'
-                        });
+                        // If we got here but price is 0 or invalid, behave as failure
+                        console.warn(`[CatalogEnrich] ${ticker} returned empty/invalid data. Marking failed.`);
+                        throw new Error(`Quote not found (empty result) for ${ticker}`);
                     }
 
                     await new Promise(resolve => setTimeout(resolve, 300));
@@ -116,14 +113,17 @@ export const CatalogEnrichmentJob = {
                     const partsInner = ticker.split('.');
                     const errorMsg = e.message || 'Unknown error';
 
-                    // Check if this is a permanent failure (quote not found, internal error)
+                    // Check if this is a permanent failure
+                    // Be more aggressive with error matching
                     const isPermanentFailure =
                         errorMsg.includes('Quote not found') ||
                         errorMsg.includes('internal-error') ||
                         errorMsg.includes('Symbol not found') ||
-                        errorMsg.includes('No data available');
+                        errorMsg.includes('No data available') ||
+                        errorMsg.includes('Not Found');
 
                     if (isPermanentFailure) {
+                        console.log(`[CatalogEnrich] ⛔ MARANDO FALLIDO: ${ticker} (Razón: ${errorMsg})`);
                         // Mark as failed so we skip this ticker in future cycles
                         await MarketDataService.markCatalogFailed(partsInner[0], partsInner[1] || '', errorMsg);
                         skippedList.push({
@@ -132,7 +132,9 @@ export const CatalogEnrichmentJob = {
                             reason: `⛔ MARCADO FALLIDO: ${errorMsg.substring(0, 50)}`
                         });
                     } else {
-                        // Temporary failure - just mark as processed to retry later
+                        console.log(`[CatalogEnrich] ⚠️ Error temporal para ${ticker}: ${errorMsg}`);
+                        // Temporary failure - just mark as processed to retry later (next week)
+                        // This prevents infinite loops in THIS cycle, but allows retry later
                         await MarketDataService.markCatalogProcessed(partsInner[0], partsInner[1] || '');
                         skippedList.push({
                             name: ticker,

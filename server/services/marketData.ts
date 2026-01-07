@@ -1930,13 +1930,29 @@ export const MarketDataService = {
      */
     async markCatalogFailed(symbol: string, exchange: string, reason: string): Promise<void> {
         try {
-            await sql`
+            // First try strict match
+            let result = await sql`
                 UPDATE global_tickers 
                 SET last_processed_at = NOW(), 
                     yahoo_status = 'failed',
                     yahoo_error = ${reason.substring(0, 200)}
                 WHERE symbol = ${symbol} AND exchange = ${exchange}
+                RETURNING id
             `;
+
+            // If no match by strict symbol+exchange, try just symbol if exchange provided is empty/generic
+            // or try matching ignoring exchange if it wasn't found
+            if (result.length === 0) {
+                console.log(`[MarketData] Strict update failed for ${symbol}.${exchange}, trying looser match...`);
+                await sql`
+                    UPDATE global_tickers 
+                    SET last_processed_at = NOW(), 
+                        yahoo_status = 'failed',
+                        yahoo_error = ${reason.substring(0, 200)}
+                    WHERE symbol = ${symbol} 
+                    AND (exchange = ${exchange} OR exchange IS NULL)
+                `;
+            }
         } catch (e) {
             console.error('[MarketData] Error marking ticker as failed:', e);
         }
