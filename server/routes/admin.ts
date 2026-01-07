@@ -273,6 +273,146 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         return { success: true, message: 'Sincronización de librería global iniciada en segundo plano.' };
     })
 
+    // GET: Available and Selected Exchanges for Master Catalog Config
+    .get('/market/exchanges', async ({ query }) => {
+        const forceRefresh = query.refresh === 'true';
+
+        // Get available exchanges from EODHD (with cache)
+        const available = await EODHDService.getAvailableExchanges(forceRefresh);
+
+        // Get currently selected exchanges
+        const configExchanges = await SettingsService.get('GLOBAL_TICKER_EXCHANGES');
+        const selected = configExchanges
+            ? configExchanges.split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+
+        return { available, selected };
+    }, {
+        query: t.Object({
+            refresh: t.Optional(t.String())
+        })
+    })
+
+    // POST: Save Exchange Configuration with Deep Cleanup
+    .post('/market/exchanges', async ({ body }) => {
+        const { exchanges } = body as { exchanges: string[] };
+
+        if (!Array.isArray(exchanges)) {
+            throw new Error('exchanges debe ser un array de códigos');
+        }
+
+        // Import mapping utility
+        const { getYahooSuffix } = await import('../utils/exchangeMapping');
+
+        // Get previous configuration
+        const prevConfig = await SettingsService.get('GLOBAL_TICKER_EXCHANGES');
+        const prevExchanges = prevConfig
+            ? prevConfig.split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+
+        // Identify removed exchanges
+        const removedExchanges = prevExchanges.filter(ex => !exchanges.includes(ex));
+
+        // Save new configuration
+        const newConfig = exchanges.join(',');
+        await SettingsService.set('GLOBAL_TICKER_EXCHANGES', newConfig);
+
+        // Deep cleanup for removed exchanges
+        let cleanupStats = { globalTickers: 0, tickerDetails: 0, discoveryCache: 0 };
+
+        if (removedExchanges.length > 0) {
+            console.log(`[Admin] Limpieza profunda para bolsas eliminadas: ${removedExchanges.join(', ')}`);
+
+            // 1. Delete from global_tickers
+            for (const ex of removedExchanges) {
+                const result = await sql`DELETE FROM global_tickers WHERE exchange = ${ex}`;
+                cleanupStats.globalTickers += result.count;
+            }
+
+            // 2. Delete from ticker_details_cache (using Yahoo suffix)
+            for (const ex of removedExchanges) {
+                const yahooSuffix = getYahooSuffix(ex);
+
+                // Special handling for US (empty suffix = no dot in ticker)
+                if (!yahooSuffix || yahooSuffix === ex) {
+                    // US stocks: tickers without any suffix (no dot)
+                    if (ex === 'US' || ex === 'NYSE' || ex === 'NASDAQ') {
+                        const result = await sql`DELETE FROM ticker_details_cache WHERE ticker NOT LIKE '%.%'`;
+                        cleanupStats.tickerDetails += result.count;
+                    }
+                    // Skip unknown exchanges (don't delete random data)
+                } else {
+                    // International: delete by suffix
+                    const result = await sql`DELETE FROM ticker_details_cache WHERE ticker LIKE ${'%.' + yahooSuffix}`;
+                    cleanupStats.tickerDetails += result.count;
+                }
+            }
+
+            // 3. Clean market_discovery_cache (catalog_global category)
+            try {
+                const catalogData = await sql`
+                    SELECT data FROM market_discovery_cache WHERE category = 'catalog_global'
+                `;
+                if (catalogData.length > 0 && catalogData[0].data) {
+                    const items = catalogData[0].data;
+                    if (Array.isArray(items)) {
+                        // Filter out items from removed exchanges
+                        // Only include non-empty suffixes to avoid deleting all US stocks accidentally
+                        const removedSuffixes = removedExchanges
+                            .map(ex => getYahooSuffix(ex))
+                            .filter(s => s && s.length > 0);  // Exclude empty suffixes
+
+                        const hasUSRemoved = removedExchanges.some(ex =>
+                            ex === 'US' || ex === 'NYSE' || ex === 'NASDAQ'
+                        );
+
+                        const filtered = items.filter((item: any) => {
+                            const ticker = item.t || '';
+                            const hasDot = ticker.includes('.');
+
+                            // If US was removed, filter out tickers without dots
+                            if (hasUSRemoved && !hasDot) return false;
+
+                            // Filter out tickers with removed international suffixes
+                            if (hasDot) {
+                                const suffix = ticker.split('.').pop() || '';
+                                if (removedSuffixes.includes(suffix)) return false;
+                            }
+
+                            return true;
+                        });
+
+                        const removed = items.length - filtered.length;
+                        if (removed > 0) {
+                            await sql`
+                                UPDATE market_discovery_cache 
+                                SET data = ${sql.json(filtered)}, updated_at = NOW()
+                                WHERE category = 'catalog_global'
+                            `;
+                            cleanupStats.discoveryCache = removed;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('[Admin] Error limpiando market_discovery_cache:', e);
+            }
+
+            console.log(`[Admin] Limpieza completada: ${cleanupStats.globalTickers} global_tickers, ${cleanupStats.tickerDetails} ticker_details, ${cleanupStats.discoveryCache} discovery_cache items`);
+        }
+
+        return {
+            success: true,
+            message: `Configuración guardada: ${exchanges.length} bolsas activas.`,
+            cleanup: removedExchanges.length > 0 ? cleanupStats : null,
+            removedExchanges
+        };
+    }, {
+        body: t.Object({
+            exchanges: t.Array(t.String())
+        })
+    })
+
+
     // Manual Trigger for Catalog Enrichment
     .post('/catalog/enrich', async () => {
         console.log('[Admin] Recibida petición manual de enriquecimiento de catálogo');

@@ -23,9 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
-# Necesarios para local
-PROJECT_INDEX.md
-memoria.md
+# Only local dev specific files
+
 
 bun.lock
 

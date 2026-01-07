@@ -10,6 +10,7 @@ import { AIProviders } from '../components/admin/AIProviders';
 import { AdminSMTP } from '../components/admin/AdminSMTP';
 import { DataExplorerTable } from '../components/admin/DataExplorerTable';
 import { MarketIndicesSelector } from '../components/admin/MarketIndicesSelector';
+import { MasterCatalogConfig } from '../components/admin/MasterCatalogConfig';
 
 interface User {
     id: string;
@@ -63,7 +64,7 @@ export const AdminScreen: React.FC = () => {
     const [apiKeys, setApiKeys] = useState({ finnhub: '', google: '', fmp: '', eodhd: '', globalExchanges: '' });
     // AI Model
     const [aiSubTab, setAiSubTab] = useState<'general' | 'providers'>('general');
-    const [marketSubTab, setMarketSubTab] = useState<'sync' | 'indices' | 'discovery'>('sync');
+    const [marketSubTab, setMarketSubTab] = useState<'sync' | 'indices' | 'catalog' | 'discovery'>('sync');
 
     // Legacy AI State removed (moved to components)
 
@@ -785,6 +786,15 @@ export const AdminScreen: React.FC = () => {
                                         Índices de Cabecera
                                     </button>
                                     <button
+                                        onClick={() => setMarketSubTab('catalog')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'catalog'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
+                                    >
+                                        Catálogo Maestro
+                                    </button>
+                                    <button
                                         onClick={() => setMarketSubTab('discovery')}
                                         className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'discovery'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
@@ -976,6 +986,11 @@ export const AdminScreen: React.FC = () => {
                                     <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 w-full animate-fade-in">
                                         <MarketIndicesSelector />
                                     </div>
+                                )}
+
+                                {/* Subtab: Catálogo Maestro */}
+                                {marketSubTab === 'catalog' && (
+                                    <MasterCatalogConfig />
                                 )}
 
                                 {/* Subtab: Discovery Engine */}

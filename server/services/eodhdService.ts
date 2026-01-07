@@ -131,6 +131,92 @@ export class EODHDService {
             }
         }
 
+
         if (onProgress) onProgress('Sincronización mundial completada con éxito.');
+    }
+
+    /**
+     * Get list of all available exchanges from EODHD
+     * Uses 30-day DB cache to conserve API credits
+     */
+    static async getAvailableExchanges(forceRefresh: boolean = false): Promise<any[]> {
+        const CACHE_KEY = 'eodhd_exchanges_list';
+        const CACHE_DAYS = 30;
+
+        try {
+            // Check cache first (unless force refresh)
+            if (!forceRefresh) {
+                const cached = await sql`
+                    SELECT data, expires_at 
+                    FROM market_cache 
+                    WHERE key = ${CACHE_KEY} AND expires_at > NOW()
+                `;
+                if (cached.length > 0) {
+                    console.log('[EODHD] Usando lista de bolsas desde caché');
+                    // Defensive parse in case data is stored as string
+                    const data = cached[0].data;
+                    return Array.isArray(data) ? data : (typeof data === 'string' ? JSON.parse(data) : []);
+                }
+            }
+
+            // Fetch from API
+            const apiKey = await this.getApiKey();
+            if (!apiKey) {
+                console.error('[EODHD] API Key no configurada');
+                return [];
+            }
+
+            console.log('[EODHD] Descargando lista de bolsas mundiales...');
+            const url = `https://eodhd.com/api/exchanges-list/?api_token=${apiKey}&fmt=json`;
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                throw new Error(`API Error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!Array.isArray(data)) {
+                throw new Error('Respuesta inválida (se esperaba array)');
+            }
+
+            // Parse and clean data
+            const exchanges = data.map((ex: any) => ({
+                code: ex.Code,
+                name: ex.Name,
+                country: ex.Country,
+                currency: ex.Currency,
+                operatingMIC: ex.OperatingMIC || null
+            }));
+
+            // Save to cache with 30-day expiry
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + CACHE_DAYS);
+
+            await sql`
+                INSERT INTO market_cache (key, data, expires_at, updated_at)
+                VALUES (${CACHE_KEY}, ${sql.json(exchanges)}, ${expiresAt}, NOW())
+                ON CONFLICT (key) 
+                DO UPDATE SET data = ${sql.json(exchanges)}, expires_at = ${expiresAt}, updated_at = NOW()
+            `;
+
+            console.log(`[EODHD] Guardadas ${exchanges.length} bolsas en caché (válido ${CACHE_DAYS} días)`);
+            return exchanges;
+
+        } catch (error: any) {
+            console.error('[EODHD] Error obteniendo lista de bolsas:', error.message);
+
+            // Fallback: try to return expired cache if exists
+            const expired = await sql`
+                SELECT data FROM market_cache WHERE key = ${CACHE_KEY}
+            `;
+            if (expired.length > 0) {
+                console.log('[EODHD] Usando caché expirada como fallback');
+                const data = expired[0].data;
+                return Array.isArray(data) ? data : (typeof data === 'string' ? JSON.parse(data) : []);
+            }
+
+            return [];
+        }
     }
 }

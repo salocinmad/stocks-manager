@@ -237,6 +237,71 @@ Puedes forzar la actualización pulsando **"Iniciar Sincronización Mundial"**.
 
 ---
 
+## 🌍 Catálogo Maestro de Bolsas (v2.1.0)
+
+Nueva funcionalidad para configurar qué bolsas mundiales alimentan el sistema de descubrimiento.
+
+### Ubicación
+**Admin → Mercado → Catálogo Maestro**
+
+### Funcionalidades
+
+| Función | Descripción |
+|---------|-------------|
+| **Lista de Bolsas** | 74+ bolsas mundiales obtenidas de la API de EODHD |
+| **Búsqueda** | Filtrar por país, código o nombre |
+| **Toggle Seleccionadas** | Ver solo las bolsas activas (click en badge "N seleccionadas") |
+| **Caché Inteligente** | Lista se cachea 30 días para ahorrar créditos API |
+| **Actualizar Lista** | Botón para forzar refresh desde EODHD |
+
+### Códigos y Mapeo
+
+El sistema mapea automáticamente los códigos EODHD a sufijos de Yahoo Finance:
+
+| EODHD | Yahoo | Bolsa |
+|-------|-------|-------|
+| `US` | (sin sufijo) | USA (NYSE, NASDAQ) |
+| `LSE` | `.L` | London Stock Exchange |
+| `XETRA` | `.DE` | Frankfurt Xetra |
+| `MC` | `.MC` | Madrid Exchange |
+| `PA` | `.PA` | Euronext Paris |
+| `HK` | `.HK` | Hong Kong |
+| `TSE` | `.T` | Tokyo Stock Exchange |
+
+> 📁 **Archivo de mapeo**: `server/utils/exchangeMapping.ts` contiene 50+ bolsas mapeadas.
+
+### Limpieza Profunda Automática
+
+Cuando **desmarcas** una bolsa del catálogo:
+
+1. Se eliminan los tickers de esa bolsa de `global_tickers`
+2. Se eliminan los detalles cacheados de `ticker_details_cache`
+3. Se filtran los resultados del Discovery Engine (`market_discovery_cache`)
+
+> ⚠️ **Advertencia**: Esta acción es irreversible para los datos de esa bolsa. Tendrás que volver a sincronizar si quieres recuperar esos tickers.
+
+### Códigos Huérfanos
+
+Si el sistema detecta códigos guardados que **ya no existen** en la lista de EODHD, mostrará un **banner de advertencia naranja**:
+
+- Lista los códigos inválidos (ej: `T, HK, OS, LI`)
+- Botón **"Limpiar códigos inválidos y datos"** que:
+  - Elimina los códigos de la configuración
+  - Ejecuta limpieza profunda de datos asociados
+  - Guarda la configuración automáticamente
+
+### Integración con Discovery Engine
+
+El Discovery Job (`discoveryJob.ts`) ahora lee las regiones activas directamente de la configuración:
+
+1. Lee `GLOBAL_TICKER_EXCHANGES` de `system_settings`
+2. Convierte códigos EODHD a regiones (ej: `LSE` → `GB`)
+3. Selecciona aleatoriamente una región para cada ciclo global
+4. Si no hay configuración, usa regiones por defecto (DE, ES, GB, FR, IT, HK, AU)
+
+
+---
+
 ## 📧 Configuración SMTP
 
 Para que la app pueda enviar emails (alertas, códigos 2FA, etc.):

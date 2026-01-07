@@ -1,6 +1,7 @@
 import { DiscoveryService } from '../services/discoveryService';
 import { MarketDataService } from '../services/marketData';
 import { SettingsService } from '../services/settingsService';
+import { getRegionFromExchange } from '../utils/exchangeMapping';
 
 /**
  * Smart Discovery Crawler 4.0 (Market-Aware Dual Pipeline)
@@ -9,6 +10,7 @@ import { SettingsService } from '../services/settingsService';
  * - Executes BOTH US (Finnhub) and Global (Yahoo) pipelines in every cycle.
  * - Strategy selection based on Market Status (Open vs Closed).
  * - 7-Day Freshness Filter to optimize API calls.
+ * - GLOBAL_REGIONS is loaded dynamically from admin config.
  */
 
 const US_OPEN_SCREENERS = ['day_gainers', 'most_actives'];
@@ -20,7 +22,9 @@ const US_CLOSED_SCREENERS = [
     'top_mutual_funds'
 ];
 
-const GLOBAL_REGIONS = ['DE', 'ES', 'GB', 'FR', 'IT', 'HK', 'AU'];
+// Fallback regions if no config found
+const DEFAULT_REGIONS = ['DE', 'ES', 'GB', 'FR', 'IT', 'HK', 'AU'];
+
 const REGION_CURRENCY_MAP: Record<string, string> = {
     'DE': 'EUR', 'ES': 'EUR', 'FR': 'EUR', 'IT': 'EUR',
     'GB': 'GBP', 'HK': 'HKD', 'AU': 'AUD'
@@ -36,6 +40,22 @@ const REGION_INDEX_MAP: Record<string, string> = {
     'HK': '^HSI',
     'AU': '^AXJO'
 };
+
+/**
+ * Get active regions from configured exchanges
+ */
+async function getActiveRegions(): Promise<string[]> {
+    const configExchanges = await SettingsService.get('GLOBAL_TICKER_EXCHANGES');
+    if (!configExchanges) return DEFAULT_REGIONS;
+
+    const exchanges = configExchanges.split(',').map(s => s.trim()).filter(Boolean);
+    const regions = exchanges
+        .map(ex => getRegionFromExchange(ex))
+        .filter((r): r is string => !!r);
+
+    // Deduplicate and return
+    return [...new Set(regions)].length > 0 ? [...new Set(regions)] : DEFAULT_REGIONS;
+}
 
 export const DiscoveryJob = {
     lastRunTime: 0,
@@ -62,9 +82,12 @@ export const DiscoveryJob = {
             const volFinnhub = parseInt(await SettingsService.get('CRAWLER_VOL_FINNHUB') || '20');
             const volV10 = parseInt(await SettingsService.get('CRAWLER_VOL_YAHOO_V10') || '20');
 
-            // 4. Determine Market Statuses
-            const targetRegion = GLOBAL_REGIONS[Math.floor(Math.random() * GLOBAL_REGIONS.length)];
-            const statusResults = await MarketDataService.getMarketStatus(['^IXIC', REGION_INDEX_MAP[targetRegion]]);
+            // 4. Get active regions dynamically
+            const activeRegions = await getActiveRegions();
+            const targetRegion = activeRegions[Math.floor(Math.random() * activeRegions.length)];
+
+            // 5. Determine Market Statuses
+            const statusResults = await MarketDataService.getMarketStatus(['^IXIC', REGION_INDEX_MAP[targetRegion] || '^GDAXI']);
 
             const usStatus = statusResults.find(s => s.symbol === '^IXIC')?.state || 'CLOSED';
             const globalStatus = statusResults.find(s => s.symbol === REGION_INDEX_MAP[targetRegion])?.state || 'CLOSED';

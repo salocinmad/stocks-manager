@@ -28,6 +28,7 @@ El sistema sigue un modelo **Cliente-Servidor (Monorepo)** desplegado via Docker
 *   **Docker Compose**: Orquesta `stocks_app` (Backend que sirve el Frontend estático) y `stocks_db` (Postgres).
 *   **Jobs**:
     *   `DiscoveryJob`: Crawler de mercado (cada 3 min).
+    *   `CatalogEnrichmentJob`: Enriquecimiento de catálogo maestro.
     *   `BackupJob`: Copias de seguridad automáticas (Stream-to-Disk).
 
 ---
@@ -43,11 +44,28 @@ Es el corazón de la búsqueda de oportunidades.
     *   **Paralelismo**: Procesa activos en lotes de 5 concurrentes.
     *   **Batch Writes**: Ingesta datos masivos en BBDD reduciendo I/O en un 80%.
     *   **Consistencia**: Mantiene frecuencia de 3 minutos sin saturar el servidor.
+    *   **Regiones Dinámicas**: El Discovery Job lee la configuración de bolsas activas desde `system_settings`.
+
+### 🌍 Catálogo Maestro (Master Catalog Management) [NUEVO v2.1]
+Permite al administrador configurar qué bolsas mundiales alimentan el catálogo de empresas.
+*   **Componente UI**: `MasterCatalogConfig.tsx` en Admin > Mercado > Catálogo Maestro.
+*   **Funcionalidades**:
+    *   Lista de 74+ bolsas mundiales obtenidas de **EODHD API**.
+    *   Búsqueda y filtrado por país/código.
+    *   Toggle para ver solo bolsas seleccionadas.
+    *   Detección y limpieza de códigos "huérfanos" (guardados pero no válidos en EODHD).
+    *   **Limpieza Profunda**: Al desmarcar una bolsa, se eliminan automáticamente:
+        *   Registros de `global_tickers` por código de exchange.
+        *   Registros de `ticker_details_cache` por sufijo Yahoo.
+        *   Registros de `market_discovery_cache` (categoría `catalog_global`).
+*   **Caché**: Lista de bolsas EODHD se cachea 30 días en `market_cache`.
+*   **Mapeo de Códigos**: `server/utils/exchangeMapping.ts` contiene el mapeo EODHD → Yahoo (ej: `LSE` → `.L`, `XETRA` → `.DE`).
 
 ### 💰 Gestión de Portafolios
-*   Soporte Multi-Cartera y Multi-Divisa (Conversión automática a EUR).
+*   Soporte Multi-Cartera y Multi-Divisa (Conversión automática a EUR, soporte GBX → GBP).
 *   **Métricas**: PnL Diario, Total, CAGR, Distribución Sectorial.
-*   **Gráficos**: Historia de valor (PnL History) precalcutada diariamente.
+*   **Fair Value (Graham Number)**: Cálculo automático en Discovery con indicador visual.
+*   **Gráficos**: Historia de valor (PnL History) precalculada diariamente.
 
 ### 🤖 Inteligencia Artificial (Multi-Provider)
 Analista financiero personal integrado en el chat.
@@ -69,19 +87,34 @@ Ver `server/init_db.ts` para definición exacta.
 *   `portfolios` -> `positions` -> `transactions`: Jerarquía principal de inversión.
 *   `watchlists`: Seguimiento de activos.
 *   `alerts`: Reglas de vigilancia.
-*   `market_cache` / `ticker_details_cache`: Almacenamientode datos volátiles (Precios, Fundamentales) para no saturar APIs externas.
+*   `market_cache`: Datos volátiles (precios, lista de bolsas EODHD con TTL 30 días).
+*   `ticker_details_cache`: Información fundamental de activos.
+*   `global_tickers`: Catálogo maestro de símbolos (poblado por EODHD sync).
+*   `market_discovery_cache`: Resultados del Discovery Engine (JSON Array).
+*   `system_settings`: Configuración global (API keys, bolsas activas `GLOBAL_TICKER_EXCHANGES`, etc.).
 *   `ai_prompts` / `ai_providers`: Configuración de la IA.
 
 ---
 
-## 5. Historial de Decisiones Recientes (v2.1)
-1.  **Mantener Frecuencia Alta**: Se decidió NO bajar la frecuencia del Crawler (3 min) para tener datos frescos. A cambio, se reescribió el motor (`discoveryJob.ts`) para ser mucho más eficiente (Batch Processing).
-2.  **Seguridad Primero**: Se implementaron transacciones SQL reales para evitar desbalanceos si falla una operación a mitad de camino.
-3.  **Frontend Veloz**: Se migró a componentes `lazy` para mejorar el Time-To-Interactive.
+## 5. Archivos Clave Nuevos (v2.1)
+*   `server/utils/exchangeMapping.ts`: Mapeo EODHD Code → Yahoo Suffix (50+ bolsas).
+*   `src/components/admin/MasterCatalogConfig.tsx`: UI de configuración del catálogo maestro.
+*   `server/routes/admin.ts`: Endpoints `/admin/market/exchanges` (GET/POST).
 
 ---
 
-## 6. Comandos Útiles
+## 6. Historial de Decisiones Recientes (v2.1)
+1.  **Catálogo Maestro Configurable**: Se creó UI para que el admin seleccione bolsas sin editar código.
+2.  **Limpieza Profunda Automática**: Al desmarcar una bolsa, se eliminan TODOS los datos asociados (tickers, cache, discovery).
+3.  **Regiones Dinámicas**: El Discovery Job ahora lee `GLOBAL_TICKER_EXCHANGES` de `system_settings` en lugar de usar valores hardcodeados.
+4.  **Detección de Códigos Huérfanos**: UI muestra warning cuando hay códigos guardados que ya no existen en EODHD.
+5.  **Seguridad Primero**: Se implementaron transacciones SQL reales para evitar desbalanceos.
+6.  **Frontend Veloz**: Componentes `lazy` para mejorar Time-To-Interactive.
+
+---
+
+## 7. Comandos Útiles
 *   **Ver Logs**: `docker compose logs -f stocks_app`
 *   **Backup Manual**: Endpoint POST `/api/admin/backups/create`
 *   **Rebuild**: `docker compose up -d --build` (Necesario tras cambios en Backend o dependencias).
+*   **Tests**: `cd server && bun test` (usa `server/tests/run_tests.ts` con reporte visual).

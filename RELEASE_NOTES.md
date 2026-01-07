@@ -1,14 +1,27 @@
 # 🚀 Stocks Manager v2.1.0
 ## "The Global Vigilante & AI Update"
 
-Esta versión unifica la potencia del motor de **Alertas Globales** con la inteligencia autónoma de descubrimiento, estableciendo v2.1.0 como la versión estable actual.
+Esta versión unifica la potencia del motor de **Alertas Globales** con la inteligencia autónoma de descubrimiento y el nuevo **Catálogo Maestro Configurable**.
 
 ---
 
 ## ✨ Novedades Principales
 
+### 🌍 Catálogo Maestro Configurable [NUEVO]
+Nueva funcionalidad para administradores que permite configurar qué bolsas mundiales alimentan el sistema:
+
+- **Ubicación**: Admin → Mercado → Catálogo Maestro
+- **74+ Bolsas**: Lista completa de bolsas desde EODHD API (US, Europa, Asia, Américas)
+- **Búsqueda**: Filtrado por país, código o nombre
+- **Toggle "Solo Seleccionadas"**: Ver rápidamente qué bolsas están activas
+- **Detección de Códigos Huérfanos**: Warning cuando hay códigos guardados que ya no existen
+- **Limpieza Profunda Automática**: Al desmarcar una bolsa se eliminan:
+  - Registros de `global_tickers`
+  - Datos de `ticker_details_cache`
+  - Entradas de `market_discovery_cache`
+
 ### 🖥️ Dashboard Rediseñado
-Nueva arquitectura de **dos columnas** optimizada para una mejor experiencia visual:
+Nueva arquitectura de **dos columnas** optimizada para mejor experiencia visual:
 
 | Columna Principal (75%) | Columna Lateral (25%) |
 |-------------------------|----------------------|
@@ -17,45 +30,29 @@ Nueva arquitectura de **dos columnas** optimizada para una mejor experiencia vis
 | Top Movers del Día | |
 | Gráfico PnL Histórico | |
 
-- Alturas consistentes en todas las tarjetas
-- Layout responsive adaptado a pantallas grandes
-
 ---
 
 ### 🔔 Sistema de Alertas Mejorado
 
 #### Alertas Globales de Portafolio
 Una única alerta que vigila el cambio porcentual diario de **todos los activos** de un portafolio:
-- **Cooldown por Activo**: Si AAPL dispara (+5%), entra en snooze individualmente mientras los demás siguen vigilados
+- **Cooldown por Activo**: Si AAPL dispara (+5%), entra en snooze individualmente
 - **Configuración rápida**: Nueva pestaña "Global" en el creador de alertas
 
 #### Gestión Avanzada
 - **Botón Restablecer**: Reactiva alertas disparadas con un clic
-- **Reset Global (Admin)**: Herramienta de emergencia para restablecer todas las alertas del sistema
+- **Reset Global (Admin)**: Herramienta de emergencia
 - **Grid de Alta Densidad**: Diseño de 3 columnas para pantallas 2xl
-- **API Consolidada**: Endpoint único `/api/alerts` para alertas individuales y de portafolio
-
----
-
-### 🧠 Motor de IA Multi-Proveedor
-Soporte completo para múltiples proveedores de IA con configuración dinámica desde el panel de administración:
-
-| Proveedor | Tipo |
-|-----------|------|
-| Google Gemini | Cloud |
-| OpenRouter (Claude, GPT-4) | Cloud |
-| Groq | Cloud |
-| Ollama | Local |
-| LM Studio | Local |
 
 ---
 
 ### 🦁 Discovery Engine (Crawler v2)
-Motor de descubrimiento con arquitectura **Split-World**:
+Motor de descubrimiento con arquitectura **Split-World** y **regiones dinámicas**:
 
 - **Pipeline USA**: Finnhub para noticias y trending americano
 - **Pipeline Global**: Yahoo Trending para EU/ASIA
-- **Marcado Inteligente**: Tickers incompatibles se marcan automáticamente para omitir en futuros ciclos
+- **Regiones Dinámicas**: Lee `GLOBAL_TICKER_EXCHANGES` de configuración (no hardcodeado)
+- **Marcado Inteligente**: Tickers incompatibles se marcan para omitir
 - **Gráfico de Velas**: Visualización OHLC con rangos de 30D, 60D y 6M
 
 ---
@@ -64,17 +61,26 @@ Motor de descubrimiento con arquitectura **Split-World**:
 
 | Área | Mejora |
 |------|--------|
-| **Caché** | MarketStatus con 1 llamada/minuto por índice |
-| **Base de Datos** | Nueva tabla `ticker_details_cache` para datos profundos |
-| **Migraciones** | Columna `triggered_assets` (JSONB) auto-aplicada |
-| **Serialización** | Fix de JSON para datos PostgreSQL en endpoints API |
-| **Estabilidad** | Protección contra fugas de memoria en Crawler (Circuit Breaker) |
-| **Backup**      | Optimización Stream-to-Disk + Compresión Rápida (Fix OOM/CPU) |
-| **UX Mercado**  | Normalización de estados Yahoo (POSTPOST -> CERRADO) |
-| **Frontend**    | **Lazy Loading (Code Splitting)** para carga inicial instantánea |
-| **Seguridad**   | **Transacciones Atómicas** (SQL Transaction) para integridad financiera |
-| **Crawler**     | **Ingestión por Lotes (Batch)** y Paralelismo (Misma frecuencia, -80% carga) |
-| **Errores**     | UI de recuperación recursiva y logs técnicos en pantalla |
+| **Catálogo Maestro** | UI configurable para bolsas mundiales |
+| **Mapeo EODHD→Yahoo** | 50+ bolsas mapeadas en `exchangeMapping.ts` |
+| **Caché EODHD** | Lista de bolsas cacheada 30 días en `market_cache` |
+| **Limpieza Profunda** | Eliminación automática de datos al desmarcar bolsas |
+| **Regiones Dinámicas** | Discovery Job lee config de `system_settings` |
+| **Base de Datos** | Consistencia en tablas `global_tickers`, `ticker_details_cache` |
+| **Frontend** | Lazy Loading (Code Splitting) |
+| **Seguridad** | Transacciones Atómicas (SQL Transaction) |
+| **Crawler** | Ingestión por Lotes (Batch) y Paralelismo |
+| **Backup** | Stream-to-Disk + Compresión Rápida |
+
+---
+
+## 📂 Archivos Nuevos (v2.1.0)
+
+| Archivo | Descripción |
+|---------|-------------|
+| `server/utils/exchangeMapping.ts` | Mapeo EODHD Code → Yahoo Suffix |
+| `src/components/admin/MasterCatalogConfig.tsx` | Componente UI catálogo maestro |
+| Endpoints: `GET/POST /admin/market/exchanges` | API de configuración de bolsas |
 
 ---
 
