@@ -106,6 +106,14 @@ export const PortfolioScreen: React.FC = () => {
   // Estado para modal de análisis de posición
   const [analysisPosition, setAnalysisPosition] = useState<Position | null>(null);
 
+  // Estados para modal de venta rápida
+  const [positionToSell, setPositionToSell] = useState<Position | null>(null);
+  const [sellQuantity, setSellQuantity] = useState('');
+  const [sellPrice, setSellPrice] = useState('');
+  const [sellCommission, setSellCommission] = useState('0');
+  const [sellExchangeRate, setSellExchangeRate] = useState('1');
+  const [isSelling, setIsSelling] = useState(false);
+
   // Estados para ordenación y Drag & Drop
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
 
@@ -511,6 +519,71 @@ export const PortfolioScreen: React.FC = () => {
     }
   };
 
+  // Handler para venta rápida
+  const openSellModal = async (pos: Position) => {
+    setPositionToSell(pos);
+    setSellQuantity(String(pos.quantity)); // Pre-rellenar con cantidad total
+    setSellPrice(String(pos.currentPrice || pos.average_buy_price)); // Pre-rellenar con precio actual
+    setSellCommission('0');
+
+    // Obtener tipo de cambio si no es EUR
+    if (pos.currency !== 'EUR') {
+      try {
+        const { data } = await api.get(`/market/exchange-rate?from=${pos.currency}&to=EUR`);
+        if (data?.rate) {
+          setSellExchangeRate(String(data.rate));
+        }
+      } catch (e) {
+        console.error('Error fetching exchange rate:', e);
+        setSellExchangeRate('1');
+      }
+    } else {
+      setSellExchangeRate('1');
+    }
+  };
+
+  const handleSellPosition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!positionToSell || !sellQuantity || !sellPrice) return;
+
+    const qty = parseFloat(sellQuantity);
+    const price = parseFloat(sellPrice);
+    const commission = parseFloat(sellCommission) || 0;
+    const exchangeRate = parseFloat(sellExchangeRate) || 1;
+
+    if (qty <= 0 || qty > positionToSell.quantity) {
+      alert(`Cantidad inválida. Tienes ${positionToSell.quantity} acciones disponibles.`);
+      return;
+    }
+
+    setIsSelling(true);
+    try {
+      await api.post(`/portfolios/${portfolio?.id}/transaction`, {
+        ticker: positionToSell.ticker,
+        type: 'SELL',
+        amount: qty,
+        price_per_unit: price,
+        currency: positionToSell.currency,
+        fees: commission,
+        exchange_rate_to_eur: exchangeRate
+      });
+
+      alert(`Venta registrada: ${qty} x ${positionToSell.ticker} @ ${price} ${positionToSell.currency}`);
+      setPositionToSell(null);
+      setSellQuantity('');
+      setSellPrice('');
+      setSellCommission('0');
+      setSellExchangeRate('1');
+
+      // Refrescar datos
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Error al registrar la venta');
+    } finally {
+      setIsSelling(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="flex-1 flex flex-col h-screen bg-background-light dark:bg-background-dark">
@@ -803,6 +876,13 @@ export const PortfolioScreen: React.FC = () => {
                                   <button onClick={() => setAnalysisPosition(pos)} className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-600 transition-all" title="Análisis Detallado">
                                     <span className="material-symbols-outlined text-lg">analytics</span>
                                   </button>
+                                  <button
+                                    onClick={() => openSellModal(pos)}
+                                    className="p-2 rounded-lg hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500 transition-all"
+                                    title="Vender posición"
+                                  >
+                                    <span className="material-symbols-outlined text-lg">sell</span>
+                                  </button>
                                   <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
                                     <span className="material-symbols-outlined text-lg">edit</span>
                                   </button>
@@ -1043,6 +1123,194 @@ export const PortfolioScreen: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        )
+      }
+
+      {/* Modal Vender Posición */}
+      {
+        positionToSell && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <form onSubmit={handleSellPosition} className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-orange-500 text-2xl">sell</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">Vender {positionToSell.ticker}</h3>
+                  <p className="text-sm text-text-secondary-light">{positionToSell.name}</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                {/* Info de la posición */}
+                <div className="p-4 bg-background-light/50 dark:bg-surface-dark-elevated/50 rounded-xl">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-secondary-light">Tienes:</span>
+                    <span className="font-bold">{positionToSell.quantity} acciones</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-text-secondary-light">Coste total compra:</span>
+                    <span>
+                      {((positionToSell.quantity * positionToSell.average_buy_price) + (Number(positionToSell.commission) || 0)).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-text-secondary-light">Precio actual:</span>
+                    <span className="font-bold text-primary">{positionToSell.currentPrice?.toFixed(2) || '---'} {positionToSell.currency}</span>
+                  </div>
+                </div>
+
+                {/* Cantidad a vender */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary-light mb-2">
+                    Cantidad a vender
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      max={positionToSell.quantity}
+                      value={sellQuantity}
+                      onChange={(e) => setSellQuantity(e.target.value)}
+                      className="flex-1 px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500"
+                      placeholder="Cantidad"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSellQuantity(String(positionToSell.quantity))}
+                      className="px-4 py-3 bg-orange-500/20 text-orange-500 rounded-xl font-bold hover:bg-orange-500/30 transition-all"
+                    >
+                      TODO
+                    </button>
+                  </div>
+                </div>
+
+                {/* Precio de venta */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary-light mb-2">
+                    Precio de venta ({positionToSell.currency})
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={sellPrice}
+                    onChange={(e) => setSellPrice(e.target.value)}
+                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Precio por acción"
+                    required
+                  />
+                </div>
+
+                {/* Comisión de venta */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary-light mb-2">
+                    Comisión de venta ({positionToSell.currency})
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={sellCommission}
+                    onChange={(e) => setSellCommission(e.target.value)}
+                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="0"
+                  />
+                </div>
+
+                {/* Tipo de cambio (solo si no es EUR) */}
+                {positionToSell.currency !== 'EUR' && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary-light mb-2">
+                      Tipo de cambio ({positionToSell.currency} → EUR)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={sellExchangeRate}
+                      onChange={(e) => setSellExchangeRate(e.target.value)}
+                      className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500"
+                      placeholder="1.00"
+                    />
+                    <p className="text-xs text-text-secondary-light mt-1">
+                      1 {positionToSell.currency} = {sellExchangeRate} EUR
+                    </p>
+                  </div>
+                )}
+
+                {/* Resumen */}
+                {sellQuantity && sellPrice && (
+                  <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                    <div className="flex justify-between text-sm">
+                      <span>Total venta:</span>
+                      <span className="font-bold text-orange-500">
+                        {(parseFloat(sellQuantity) * parseFloat(sellPrice)).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
+                      </span>
+                    </div>
+                    {parseFloat(sellCommission) > 0 && (
+                      <div className="flex justify-between text-sm mt-1">
+                        <span>- Comisión:</span>
+                        <span className="text-text-secondary-light">
+                          {parseFloat(sellCommission).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm mt-1 font-bold">
+                      <span>Neto venta:</span>
+                      <span className="text-orange-500">
+                        {((parseFloat(sellQuantity) * parseFloat(sellPrice)) - (parseFloat(sellCommission) || 0)).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
+                      </span>
+                    </div>
+                    {positionToSell.currency !== 'EUR' && (
+                      <div className="flex justify-between text-sm mt-1">
+                        <span>Neto en EUR:</span>
+                        <span className="font-bold">
+                          {(((parseFloat(sellQuantity) * parseFloat(sellPrice)) - (parseFloat(sellCommission) || 0)) * (parseFloat(sellExchangeRate) || 1)).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+                        </span>
+                      </div>
+                    )}
+                    {(() => {
+                      const qty = parseFloat(sellQuantity) || 0;
+                      const sellPriceNum = parseFloat(sellPrice) || 0;
+                      const profit = (sellPriceNum - positionToSell.average_buy_price) * qty - (parseFloat(sellCommission) || 0);
+                      return (
+                        <div className="flex justify-between text-sm mt-2 pt-2 border-t border-orange-500/20">
+                          <span>Ganancia/Pérdida:</span>
+                          <span className={`font-bold ${profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {profit >= 0 ? '+' : ''}{profit.toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPositionToSell(null);
+                    setSellQuantity('');
+                    setSellPrice('');
+                  }}
+                  className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSelling || !sellQuantity || !sellPrice}
+                  className="px-6 py-4 rounded-2xl bg-orange-500 text-white font-bold hover:opacity-90 transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50"
+                >
+                  {isSelling ? 'Vendiendo...' : 'Confirmar Venta'}
+                </button>
+              </div>
+            </form>
           </div>
         )
       }

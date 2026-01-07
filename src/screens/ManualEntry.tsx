@@ -231,8 +231,8 @@ export const ManualEntry: React.FC = () => {
       <div className="max-w-[1200px] mx-auto w-full px-6 py-10 flex flex-col gap-8 pb-32">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Introduce los detalles</h1>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark text-lg">Añade manualmente tus compras y ventas de activos.</p>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Comprar Activo</h1>
+            <p className="text-text-secondary-light dark:text-text-secondary-dark text-lg">Registra una nueva compra para tu cartera.</p>
           </div>
 
           {/* Selector de Portfolio */}
@@ -339,25 +339,6 @@ export const ManualEntry: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 xl:grid-cols-12 gap-10">
           <div className="xl:col-span-8 flex flex-col gap-8">
-            {/* Tipo de operación */}
-            <div className="bg-white dark:bg-surface-dark p-1.5 rounded-full inline-flex self-start border border-border-light dark:border-border-dark shadow-sm">
-              <button
-                type="button"
-                onClick={() => setType('buy')}
-                className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${type === 'buy' ? 'bg-primary text-black' : 'text-text-secondary-light dark:text-text-secondary-dark'
-                  }`}
-              >
-                <span className="material-symbols-outlined">add_circle</span> Compra
-              </button>
-              <button
-                type="button"
-                onClick={() => setType('sell')}
-                className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${type === 'sell' ? 'bg-[#ff4d4d] text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'
-                  }`}
-              >
-                <span className="material-symbols-outlined">remove_circle</span> Venta
-              </button>
-            </div>
 
             <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 border border-border-light dark:border-border-dark shadow-sm flex flex-col gap-6">
               {/* Símbolo con autocompletado */}
