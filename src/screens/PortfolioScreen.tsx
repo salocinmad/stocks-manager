@@ -8,6 +8,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableRow, DragHandleCell } from '../components/SortableRow';
 import { StockNoteModal } from '../components/StockNoteModal';
 import { PositionAnalysisModal } from '../components/PositionAnalysisModal';
+import { BuyAssetModal } from '../components/BuyAssetModal';
 
 type SortKey = 'name' | 'quantity' | 'average_buy_price' | 'currentPrice' | 'currentValue' | 'returnPct';
 type SortDirection = 'asc' | 'desc';
@@ -33,6 +34,7 @@ interface Position {
   lastUpdated?: number;
   commission?: number;
   marketState?: string;
+  portfolio_id?: string;
 }
 
 interface Portfolio {
@@ -113,6 +115,9 @@ export const PortfolioScreen: React.FC = () => {
   const [sellCommission, setSellCommission] = useState('0');
   const [sellExchangeRate, setSellExchangeRate] = useState('1');
   const [isSelling, setIsSelling] = useState(false);
+
+  // Estado para modal de compra
+  const [showBuyModal, setShowBuyModal] = useState(false);
 
   // Estados para ordenación y Drag & Drop
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -546,10 +551,10 @@ export const PortfolioScreen: React.FC = () => {
     e.preventDefault();
     if (!positionToSell || !sellQuantity || !sellPrice) return;
 
-    const qty = parseFloat(sellQuantity);
-    const price = parseFloat(sellPrice);
-    const commission = parseFloat(sellCommission) || 0;
-    const exchangeRate = parseFloat(sellExchangeRate) || 1;
+    const qty = parseFloat(sellQuantity.replace(',', '.'));
+    const price = parseFloat(sellPrice.replace(',', '.'));
+    const commission = parseFloat(sellCommission.replace(',', '.')) || 0;
+    const exchangeRate = parseFloat(sellExchangeRate.replace(',', '.')) || 1;
 
     if (qty <= 0 || qty > positionToSell.quantity) {
       alert(`Cantidad inválida. Tienes ${positionToSell.quantity} acciones disponibles.`);
@@ -557,15 +562,20 @@ export const PortfolioScreen: React.FC = () => {
     }
 
     setIsSelling(true);
+    setIsSelling(true);
     try {
-      await api.post(`/portfolios/${portfolio?.id}/transaction`, {
+      const targetPortfolioId = positionToSell.portfolio_id || portfolio?.id;
+      if (!targetPortfolioId) throw new Error('No se ha especificado el portfolio');
+
+      await api.post(`/portfolios/${targetPortfolioId}/positions`, {
         ticker: positionToSell.ticker,
         type: 'SELL',
         amount: qty,
-        price_per_unit: price,
+        price: price,
         currency: positionToSell.currency,
-        fees: commission,
-        exchange_rate_to_eur: exchangeRate
+        commission: commission,
+        exchange_rate_to_eur: exchangeRate,
+        exchangeRateToEur: exchangeRate
       });
 
       alert(`Venta registrada: ${qty} x ${positionToSell.ticker} @ ${price} ${positionToSell.currency}`);
@@ -717,13 +727,13 @@ export const PortfolioScreen: React.FC = () => {
                 </div>
               )}
 
-              <Link
-                to="/manual-entry"
+              <button
+                onClick={() => setShowBuyModal(true)}
                 className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 self-end md:self-auto"
               >
                 <span className="material-symbols-outlined text-lg">add_circle</span>
                 Añadir Activo
-              </Link>
+              </button>
             </div>
 
             {positions.length === 0 ? (
@@ -735,13 +745,13 @@ export const PortfolioScreen: React.FC = () => {
                 <p className="text-text-secondary-light dark:text-text-secondary-dark mb-10 max-w-sm text-lg leading-relaxed">
                   No hay operaciones registradas en "{portfolio?.name || 'esta cartera'}".
                 </p>
-                <Link
-                  to="/manual-entry"
+                <button
+                  onClick={() => setShowBuyModal(true)}
                   className="flex items-center gap-3 px-8 py-4 rounded-full bg-primary text-black font-bold text-lg hover:scale-105 transition-all shadow-xl shadow-primary/20"
                 >
                   <span className="material-symbols-outlined">add</span>
                   Registrar mi primera compra
-                </Link>
+                </button>
               </div>
             ) : (
               <div className="flex flex-col gap-8">
@@ -1248,35 +1258,48 @@ export const PortfolioScreen: React.FC = () => {
                     <div className="flex justify-between text-sm">
                       <span>Total venta:</span>
                       <span className="font-bold text-orange-500">
-                        {(parseFloat(sellQuantity) * parseFloat(sellPrice)).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
+                        {(parseFloat(sellQuantity.replace(',', '.')) * parseFloat(sellPrice.replace(',', '.'))).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
                       </span>
                     </div>
-                    {parseFloat(sellCommission) > 0 && (
+                    {parseFloat(sellCommission.replace(',', '.')) > 0 && (
                       <div className="flex justify-between text-sm mt-1">
                         <span>- Comisión:</span>
                         <span className="text-text-secondary-light">
-                          {parseFloat(sellCommission).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
+                          {parseFloat(sellCommission.replace(',', '.')).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
                         </span>
                       </div>
                     )}
                     <div className="flex justify-between text-sm mt-1 font-bold">
                       <span>Neto venta:</span>
                       <span className="text-orange-500">
-                        {((parseFloat(sellQuantity) * parseFloat(sellPrice)) - (parseFloat(sellCommission) || 0)).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
+                        {((parseFloat(sellQuantity.replace(',', '.')) * parseFloat(sellPrice.replace(',', '.'))) - (parseFloat(sellCommission.replace(',', '.')) || 0)).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
                       </span>
                     </div>
                     {positionToSell.currency !== 'EUR' && (
                       <div className="flex justify-between text-sm mt-1">
                         <span>Neto en EUR:</span>
                         <span className="font-bold">
-                          {(((parseFloat(sellQuantity) * parseFloat(sellPrice)) - (parseFloat(sellCommission) || 0)) * (parseFloat(sellExchangeRate) || 1)).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+                          {(((parseFloat(sellQuantity.replace(',', '.')) * parseFloat(sellPrice.replace(',', '.'))) - (parseFloat(sellCommission.replace(',', '.')) || 0)) * (parseFloat(sellExchangeRate.replace(',', '.')) || 1)).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
                         </span>
                       </div>
                     )}
                     {(() => {
-                      const qty = parseFloat(sellQuantity) || 0;
-                      const sellPriceNum = parseFloat(sellPrice) || 0;
-                      const profit = (sellPriceNum - positionToSell.average_buy_price) * qty - (parseFloat(sellCommission) || 0);
+                      const qty = parseFloat(sellQuantity.replace(',', '.')) || 0;
+                      const sellPriceNum = parseFloat(sellPrice.replace(',', '.')) || 0;
+                      const sellComm = parseFloat(sellCommission.replace(',', '.')) || 0;
+
+                      // Calcular parte proporcional de la comisión de compra
+                      const positionTotalQty = positionToSell.quantity || 1; // Evitar div por 0
+                      const buyCommProrated = (positionToSell.commission || 0) * (qty / positionTotalQty);
+
+                      // Coste base de lo que se vende (Precio compra + Comisión compra prorrateada)
+                      const costBasis = (positionToSell.average_buy_price * qty) + buyCommProrated;
+
+                      // Ingreso neto de la venta (Precio venta - Comisión venta)
+                      const netProceeds = (sellPriceNum * qty) - sellComm;
+
+                      const profit = netProceeds - costBasis;
+
                       return (
                         <div className="flex justify-between text-sm mt-2 pt-2 border-t border-orange-500/20">
                           <span>Ganancia/Pérdida:</span>
@@ -1401,6 +1424,15 @@ export const PortfolioScreen: React.FC = () => {
           companyName={analysisPosition.name}
         />
       )}
+
+      {/* Modal de Compra de Activo */}
+      <BuyAssetModal
+        isOpen={showBuyModal}
+        onClose={() => setShowBuyModal(false)}
+        portfolios={availablePortfolios}
+        defaultPortfolioId={portfolio?.id}
+        onSuccess={() => window.location.reload()}
+      />
     </main >
   );
 };

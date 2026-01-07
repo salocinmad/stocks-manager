@@ -394,7 +394,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         }
 
         // @ts-ignore
-        const { ticker, amount, price, commission = 0, type, currency, exchangeRateToEur } = body;
+        const { ticker, amount, price, commission = 0, type, currency, exchangeRateToEur, exchange_rate_to_eur } = body;
 
         // Verify ownership
         const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId}`;
@@ -403,7 +403,10 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             throw new Error('Portfolio not found');
         }
 
-        const exchangeRate = exchangeRateToEur || 1.0;
+        const exchangeRate = exchangeRateToEur !== undefined ? exchangeRateToEur : (exchange_rate_to_eur !== undefined ? exchange_rate_to_eur : 1.0);
+
+        console.log('DEBUG: POST /positions payload:', JSON.stringify(body));
+        console.log('DEBUG: Evaluated exchangeRate:', exchangeRate);
 
         try {
             await PortfolioService.addTransaction(
