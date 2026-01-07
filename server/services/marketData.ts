@@ -1212,8 +1212,11 @@ export const MarketDataService = {
 
                     // Mapeo de estados de Yahoo a nuestro formato
                     // Yahoo marketState: 'PRE', 'REGULAR', 'POST', 'CLOSED', 'PREPRE', 'POSTPOST', etc.
-                    // Frontend espera el estado CRUDO para pintar los colores correctamente
-                    const state = price.marketState || 'CLOSED';
+                    let state = price.marketState || 'CLOSED';
+
+                    if (state === 'POSTPOST' || state === 'PREPRE') {
+                        state = 'CLOSED';
+                    }
 
                     // Nombres amigables para exchanges comunes
                     let exchangeName = price.exchangeName || 'UNKNOWN';

@@ -69,6 +69,8 @@ Motor de descubrimiento con arquitectura **Split-World**:
 | **Migraciones** | Columna `triggered_assets` (JSONB) auto-aplicada |
 | **Serialización** | Fix de JSON para datos PostgreSQL en endpoints API |
 | **Estabilidad** | Protección contra fugas de memoria en Crawler (Circuit Breaker) |
+| **Backup**      | Optimización Stream-to-Disk + Compresión Rápida (Fix OOM/CPU) |
+| **UX Mercado**  | Normalización de estados Yahoo (POSTPOST -> CERRADO) |
 
 ---
 
