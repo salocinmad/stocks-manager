@@ -46,7 +46,7 @@ Una única alerta que vigila el cambio porcentual diario de **todos los activos*
 
 ---
 
-### 🦁 Discovery Engine (Crawler v2)
+### 🕸️ Discovery Engine (Crawler v2)
 Motor de descubrimiento con arquitectura **Split-World** y **regiones dinámicas**:
 
 - **Pipeline USA**: Finnhub para noticias y trending americano
@@ -93,5 +93,11 @@ Motor de descubrimiento con arquitectura **Split-World** y **regiones dinámicas
 
 ---
 
-**Versión**: 2.1.0  
+**Versión**: 2.1.0
 **Fecha de Publicación**: 7 Enero 2026
+
+### 🛠️ Correcciones Post-Lanzamiento (Hotfix)
+*   **Precisión Decimal**: Solucionado el problema con separadores decimales (puntos vs comas) en inputs de formularios.
+*   **Tipos de Cambio**: Corregido bug crítico donde las Ventas (SELL) ignoraban el tipo de cambio manual.
+*   **Comisiones**: Alineación del campo `commission` (Frontend) con `fees` (Backend/DB) para asegurar registro correcto.
+*   **Ordenación Dashboard**: Invertido el orden en la tarjeta "Peores del Día" para mostrar primero los valores con menor pérdida (-4%) y al final los de mayor pérdida (-15%), facilitando la lectura visual.

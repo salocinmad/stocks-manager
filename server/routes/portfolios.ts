@@ -217,7 +217,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             const sortedByPerformance = [...performanceList].sort((a, b) => b.changePercent - a.changePercent);
 
             const topGainers = sortedByPerformance.slice(0, 3).filter(p => p.changePercent > 0);
-            const topLosers = sortedByPerformance.slice(-3).reverse().filter(p => p.changePercent < 0);
+            const topLosers = sortedByPerformance.slice(-3).filter(p => p.changePercent < 0);
 
             return {
                 totalValueEur,

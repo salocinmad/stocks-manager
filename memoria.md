@@ -1,120 +1,78 @@
-# 🧠 Memoria del Proyecto - Stocks Manager
+# 🧠 Memoria del Proyecto: Stocks Manager
 
-> **Versión**: v2.1.0
-> **Fecha de Actualización**: 7 Enero 2026
-> **Estado**: Producción (Stable)
+## 1. Identidad y Propósito
+**Stocks Manager** es una aplicación web avanzada para la gestión de carteras de inversión personales, diseñada para ofrecer herramientas profesionales (Análisis Técnico, Métricas de Riesgo, IA) en una interfaz moderna y accesible.
 
-## 1. Visión Global
-**Stocks Manager** es una plataforma web avanzada de gestión de carteras de inversión y descubrimiento de oportunidades de mercado ("Chicharros" y "Compounders").
-A diferencia de un simple tracker, ofrece **Análisis Cuantitativo y Fundamental Automático** (Valuation, Graham Number, Riesgo) y usa **Inteligencia Artificial** (Multi-Proveedor) para generar insights personalizados.
+*   **Versión Actual**: v2.1.0 (Hotfix 7 Enero 2026)
+*   **Estado**: Producción / Estable.
 
-## 2. Arquitectura Técnica
-El sistema sigue un modelo **Cliente-Servidor (Monorepo)** desplegado via Docker.
+## 2. Pila Tecnológica
+### Backend
+*   **Runtime**: Bun v1.2 (Speed focused)
+*   **Framework**: ElysiaJS (High performance API)
+*   **Base de Datos**: PostgreSQL 16 (con `postgres.js` client)
+*   **IA**: Integración multi-provider (Google Gemini, OpenAI, Ollama Local).
 
-### Frontend (`/src`)
-*   **Tecnología**: React 18 (Vite), TypeScript, TailwindCSS.
-*   **Enrutado**: HashRouter (para compatibilidad estática).
-*   **Optimización**: "Lazy Loading" (Code Splitting) en todas las rutas principales para carga instantánea.
-*   **UI/UX**: Diseño moderno "Glassmorphism" y "Dark Mode" nativo.
-
-### Backend (`/server`)
-*   **Tecnología**: Bun (Runtime), ElysiaJS (High-Performance Framework).
-*   **Base de Datos**: PostgreSQL 16 con extensión `uuid-ossp`.
-*   **Seguridad**:
-    *   Autorización JWT (con 2FA opcional).
-    *   **Transacciones Atómicas**: Usa `sql.begin()` para garantizar integridad en operaciones financieras críticas (Compra/Venta/Rebalanceo).
+### Frontend
+*   **Framework**: React 18 + Vite
+*   **Lenguaje**: TypeScript
+*   **Estilos**: TailwindCSS v3.4 + CSS Modules
+*   **Gráficos**: Recharts + Lightweight Charts (TradingView)
 
 ### Infraestructura
-*   **Docker Compose**: Orquesta `stocks_app` (Backend que sirve el Frontend estático) y `stocks_db` (Postgres).
-*   **Jobs**:
-    *   `DiscoveryJob`: Crawler de mercado (cada 3 min).
-    *   `CatalogEnrichmentJob`: Enriquecimiento de catálogo maestro.
-    *   `BackupJob`: Copias de seguridad automáticas (Stream-to-Disk).
+*   **Contenerización**: Docker & Docker Compose
+*   **Proxy inverso recomendados**: Nginx / Cloudflare (Nota: Requiere gestión de caché estricta para actualizaciones).
 
----
+## 3. Arquitectura Modular
 
-## 3. Funcionalidades Clave (Core)
+### 3.1. Gestión de Portafolios (`/portfolios`, `/positions`)
+*   **Multi-Cartera**: Soporte ilimitado de portafolios.
+*   **Transacciones**: Historial inmutable (BUY/SELL/DIVIDEND). Soporte de comisiones y tipos de cambio históricos.
+*   **PnL Engine**: Cálculo en tiempo real de Ganancia/Pérdida, CAGR, y desglose FIFO. Cacheo diario en `pnl_history_cache`.
+*   **Validación**: Control estricto de inputs decimales (comas/puntos) y tipos de cambio.
 
-### 🦁 Discovery Engine (Motor de Descubrimiento)
-Es el corazón de la búsqueda de oportunidades.
-*   **Estrategia Split-World**:
-    *   **Pipeline USA**: Usa Finnhub para datos de EE.UU.
-    *   **Pipeline Global**: Usa Yahoo Finance para Europa y Asia.
-*   **Optimización (v2.1)**:
-    *   **Paralelismo**: Procesa activos en lotes de 5 concurrentes.
-    *   **Batch Writes**: Ingesta datos masivos en BBDD reduciendo I/O en un 80%.
-    *   **Consistencia**: Mantiene frecuencia de 3 minutos sin saturar el servidor.
-    *   **Regiones Dinámicas**: El Discovery Job lee la configuración de bolsas activas desde `system_settings`.
+### 3.2. Datos de Mercado (`/market`)
+*   **Proveedores**:
+    *   **Yahoo Finance**: Datos en tiempo real, histórico de velas y búsquedas globales.
+    *   **Finnhub**: Noticias de mercado y sentiment (US).
+    *   **EODHD**: Catálogo maestro de bolsas (Exchanges).
+*   **Crawler / Discovery Engine**: Jobs en segundo plano (`discoveryJob`) que escanean mercados globales (Split-World Strategy: US vs Global) para encontrar oportunidades ("Compounders", "Cheap Growth").
+*   **Catálogo Maestro**: Sistema configurable para activar/desactivar bolsas por región (`global_tickers`).
 
-### 🌍 Catálogo Maestro (Master Catalog Management) [NUEVO v2.1]
-Permite al administrador configurar qué bolsas mundiales alimentan el catálogo de empresas.
-*   **Componente UI**: `MasterCatalogConfig.tsx` en Admin > Mercado > Catálogo Maestro.
-*   **Funcionalidades**:
-    *   Lista de 74+ bolsas mundiales obtenidas de **EODHD API**.
-    *   Búsqueda y filtrado por país/código.
-    *   Toggle para ver solo bolsas seleccionadas.
-    *   Detección y limpieza de códigos "huérfanos" (guardados pero no válidos en EODHD).
-    *   **Limpieza Profunda**: Al desmarcar una bolsa, se eliminan automáticamente:
-        *   Registros de `global_tickers` por código de exchange.
-        *   Registros de `ticker_details_cache` por sufijo Yahoo.
-        *   Registros de `market_discovery_cache` (categoría `catalog_global`).
-*   **Caché**: Lista de bolsas EODHD se cachea 30 días en `market_cache`.
-*   **Mapeo de Códigos**: `server/utils/exchangeMapping.ts` contiene el mapeo EODHD → Yahoo (ej: `LSE` → `.L`, `XETRA` → `.DE`).
+### 3.3. IA y Análisis (`/ai`)
+*   **ChatBot Financiero**: Asistente contextual que conoce el portafolio del usuario.
+*   **Análisis de Posición**: Generación de informes on-demand sobre activos específicos (Riesgo, Tendencia, Fundamental).
+*   **Prompting**: Sistema de plantillas de sistema gestionables desde DB.
 
-### 💰 Gestión de Portafolios
-*   Soporte Multi-Cartera y Multi-Divisa (Conversión automática a EUR, soporte GBX → GBP).
-*   **Métricas**: PnL Diario, Total, CAGR, Distribución Sectorial.
-*   **Fair Value (Graham Number)**: Cálculo automático en Discovery con indicador visual.
-*   **Gráficos**: Historia de valor (PnL History) precalculada diariamente.
+### 3.4. Sistema de Alertas (`/alerts`)
+*   **Alertas de Precio**: Trigger por cruce de umbral.
+*   **Alertas Globales**: Monitorización del cambio diario total del portafolio (ej: "Avisar si cae > 2%").
+*   **Motor**: CronJob minutal (`portfolioAlertService`) con cooldown inteligente.
 
-### 🤖 Inteligencia Artificial (Multi-Provider)
-Analista financiero personal integrado en el chat.
-*   **Proveedores Soportados**: Google Gemini, OpenAI, Claude (via OpenRouter), Groq, Ollama (Local).
-*   **Prompting**: Perfiles personalizables (Lobo de Wall Street, Profesor, Analista de Riesgos).
-*   **Contexto**: El bot recibe automáticamente el estado del portafolio y precios de mercado antes de responder.
+### 3.5. Administración (`/admin`)
+*   **Backups**: Sistema de copias de seguridad completas (DB + Uploads + Settings) con descarga zip.
+*   **Logs**: Monitor de actividad.
+*   **Configuración**: Gestión de bolsas activas y providers de IA.
 
-### 🔔 Alertas Globales
-Sistema de vigilancia de mercado.
-*   **Alertas de Precio**: "Avísame si AAPL baja de 150".
-*   **Alertas de Portafolio**: "Avísame si MI CARTERA cae un 2% hoy".
+## 4. Base de Datos (Schema)
+El esquema se define en `init.sql`. Puntos clave:
+*   `users`: Autenticación y preferencias.
+*   `transactions`: Tabla central inmutable. Campos críticos: `amount`, `price_per_unit`, `fees` (comisión), `exchange_rate_to_eur`.
+*   `market_discovery_cache` & `market_cache`: Almacenamiento JSONB de datos volátiles.
+*   `system_settings`: Configuración clave-valor (ej: `GLOBAL_TICKER_EXCHANGES`).
+*   `global_tickers`: Catálogo maestro de bolsas mundiales sincronizado desde EODHD.
+*   `portfolio_alerts`: Sistema de alertas globales a nivel de portafolio (PnL diario, exposición sectorial).
 
----
+## 5. Historial de Cambios Recientes (v2.1.0)
+*   **UI Revamp**: Dashboard de 2 columnas, Sidebar con versión y estado.
+*   **Fixes Críticos**:
+    *   Sanitización de decimales en frontend (reemplazo `,` -> `.`).
+    *   Alineación de parámetros Backend (`commission` mapped to `fees`).
+    *   Manejo robusto de `exchange_rate` en ventas.
 
-## 4. Base de Datos (Schema Resumen)
-Ver `server/init_db.ts` para definición exacta.
-
-*   `users`: Credenciales, preferencias, tokens 2FA.
-*   `portfolios` -> `positions` -> `transactions`: Jerarquía principal de inversión.
-*   `watchlists`: Seguimiento de activos.
-*   `alerts`: Reglas de vigilancia.
-*   `market_cache`: Datos volátiles (precios, lista de bolsas EODHD con TTL 30 días).
-*   `ticker_details_cache`: Información fundamental de activos.
-*   `global_tickers`: Catálogo maestro de símbolos (poblado por EODHD sync).
-*   `market_discovery_cache`: Resultados del Discovery Engine (JSON Array).
-*   `system_settings`: Configuración global (API keys, bolsas activas `GLOBAL_TICKER_EXCHANGES`, etc.).
-*   `ai_prompts` / `ai_providers`: Configuración de la IA.
-
----
-
-## 5. Archivos Clave Nuevos (v2.1)
-*   `server/utils/exchangeMapping.ts`: Mapeo EODHD Code → Yahoo Suffix (50+ bolsas).
-*   `src/components/admin/MasterCatalogConfig.tsx`: UI de configuración del catálogo maestro.
-*   `server/routes/admin.ts`: Endpoints `/admin/market/exchanges` (GET/POST).
-
----
-
-## 6. Historial de Decisiones Recientes (v2.1)
-1.  **Catálogo Maestro Configurable**: Se creó UI para que el admin seleccione bolsas sin editar código.
-2.  **Limpieza Profunda Automática**: Al desmarcar una bolsa, se eliminan TODOS los datos asociados (tickers, cache, discovery).
-3.  **Regiones Dinámicas**: El Discovery Job ahora lee `GLOBAL_TICKER_EXCHANGES` de `system_settings` en lugar de usar valores hardcodeados.
-4.  **Detección de Códigos Huérfanos**: UI muestra warning cuando hay códigos guardados que ya no existen en EODHD.
-5.  **Seguridad Primero**: Se implementaron transacciones SQL reales para evitar desbalanceos.
-6.  **Frontend Veloz**: Componentes `lazy` para mejorar Time-To-Interactive.
-
----
-
-## 7. Comandos Útiles
-*   **Ver Logs**: `docker compose logs -f stocks_app`
-*   **Backup Manual**: Endpoint POST `/api/admin/backups/create`
-*   **Rebuild**: `docker compose up -d --build` (Necesario tras cambios en Backend o dependencias).
-*   **Tests**: `cd server && bun test` (usa `server/tests/run_tests.ts` con reporte visual).
+## 6. Notas de Despliegue
+*   **Cache Busting**: Debido a la naturaleza SPA (Single Page Application), es crítico limpiar cachés de CDN (Cloudflare) o Proxies (Nginx) tras cada despliegue.
+*   **Comandos**:
+    *   Build: `docker compose up -d --build`
+    *   Clean Nginx: `rm -rf /var/cache/nginx/*`
+    *   Verify Version: `docker exec stocks_app grep '"version":' package.json`
