@@ -15,65 +15,55 @@ export const PortfolioService = {
         commission: number = 0,
         exchangeRate: number = 1.0
     ) {
-        // 1. Record Transaction
-        await sql`
-            INSERT INTO transactions (portfolio_id, ticker, type, amount, price_per_unit, currency, exchange_rate_to_eur, fees)
-            VALUES (${portfolioId}, ${ticker}, ${type}, ${amount}, ${price}, ${currency}, ${exchangeRate}, ${commission})
-        `;
-
-        // 2. Update Position
-        const [existing] = await sql`SELECT * FROM positions WHERE portfolio_id = ${portfolioId} AND ticker = ${ticker}`;
-
-        if (!existing) {
-            if (type === 'SELL') throw new Error('Cannot sell asset you do not own');
-
-            // Initial Buy: Use RAW price (commission is separate)
-            // Note: Before the 'commission' column existed, we stored Effective Price ((Qty*Price + Comm)/Qty).
-            // Now we store Raw Price and Commission separately.
-
-            await sql`
-                INSERT INTO positions (portfolio_id, ticker, asset_type, quantity, average_buy_price, commission, currency)
-                VALUES (${portfolioId}, ${ticker}, 'STOCK', ${amount}, ${price}, ${commission}, ${currency})
+        // Wrap everything in a Transaction Block
+        await sql.begin(async (tx) => {
+            // 1. Record Transaction (Use 'tx' instead of 'sql')
+            await tx`
+                INSERT INTO transactions (portfolio_id, ticker, type, amount, price_per_unit, currency, exchange_rate_to_eur, fees)
+                VALUES (${portfolioId}, ${ticker}, ${type}, ${amount}, ${price}, ${currency}, ${exchangeRate}, ${commission})
             `;
-        } else {
-            let newQty = Number(existing.quantity);
-            let newAvg = Number(existing.average_buy_price);
-            let newCommission = Number(existing.commission || 0);
 
-            if (type === 'BUY') {
-                // Weighted Average Calculation (RAW Prices)
-                // Treat existing.average_buy_price as current unit cost (Raw or Effective-from-old-data).
-                // If existing is Old Data (Comm=0), it's Total Effective Cost. 
-                // Since Comm=0, adding NewComm works out to preserve Total Cost Basis correctly.
-                const currentCost = newQty * newAvg;
-                const newCost = Number(amount) * Number(price); // Raw cost of new batch (Excludes comm)
+            // 2. Update Position
+            const [existing] = await tx`SELECT * FROM positions WHERE portfolio_id = ${portfolioId} AND ticker = ${ticker} FOR UPDATE`;
+            // Added FOR UPDATE to lock the row and prevent race conditions
 
-                const totalCost = currentCost + newCost;
+            if (!existing) {
+                if (type === 'SELL') throw new Error('Cannot sell asset you do not own');
 
-                newQty += Number(amount);
-                newAvg = totalCost / newQty;
-
-                newCommission += Number(commission);
-            } else {
-                // SELL: Reduce quantity
-                // FIFO/Weighted Average Rules: Average Unit Price DOES NOT change on Sell.
-                newQty -= Number(amount);
-
-                // For sells, do NOT add commission to Cost Basis of remaining shares.
-                // Commission is only tracked in Transactions for realized PnL analysis.
-
-                if (newQty < 0) throw new Error('Insufficient balance');
-            }
-
-            if (newQty === 0) {
-                await sql`DELETE FROM positions WHERE id = ${existing.id}`;
-            } else {
-                await sql`
-                    UPDATE positions 
-                    SET quantity = ${newQty}, average_buy_price = ${newAvg}, commission = ${newCommission}, updated_at = NOW()
-                    WHERE id = ${existing.id}
+                // Initial Buy
+                await tx`
+                    INSERT INTO positions (portfolio_id, ticker, asset_type, quantity, average_buy_price, commission, currency)
+                    VALUES (${portfolioId}, ${ticker}, 'STOCK', ${amount}, ${price}, ${commission}, ${currency})
                 `;
+            } else {
+                let newQty = Number(existing.quantity);
+                let newAvg = Number(existing.average_buy_price);
+                let newCommission = Number(existing.commission || 0);
+
+                if (type === 'BUY') {
+                    const currentCost = newQty * newAvg;
+                    const newCost = Number(amount) * Number(price);
+                    const totalCost = currentCost + newCost;
+
+                    newQty += Number(amount);
+                    newAvg = totalCost / newQty;
+                    newCommission += Number(commission);
+                } else {
+                    // SELL
+                    newQty -= Number(amount);
+                    if (newQty < 0) throw new Error('Insufficient balance');
+                }
+
+                if (newQty === 0) {
+                    await tx`DELETE FROM positions WHERE id = ${existing.id}`;
+                } else {
+                    await tx`
+                        UPDATE positions 
+                        SET quantity = ${newQty}, average_buy_price = ${newAvg}, commission = ${newCommission}, updated_at = NOW()
+                        WHERE id = ${existing.id}
+                    `;
+                }
             }
-        }
+        }); // End of Transaction (Commit happens automatically here. Rollback on Error.)
     }
 };

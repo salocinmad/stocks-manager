@@ -173,9 +173,15 @@ export const ManualEntry: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const [extendedError, setExtendedError] = useState<any>(null); // New state for technical logs
+
+  // ... (inside handleSubmit, catch block)
+  // Replicated here for context, but I will target the handleSubmit function body below
+
+  const handleSubmit = async (e?: React.FormEvent) => { // Made argument optional for Retry button
+    if (e) e.preventDefault();
     setError('');
+    setExtendedError(null);
 
     if (!selectedPortfolioId) {
       setError('Debes seleccionar un portfolio para registrar la operación.');
@@ -203,10 +209,11 @@ export const ManualEntry: React.FC = () => {
       navigate('/portfolio');
     } catch (err: any) {
       console.error('Submit error:', err);
+      setExtendedError(err); // Capture full error object
       if (err.response?.data?.error) {
         setError(err.response.data.error);
       } else {
-        setError('Error al registrar la operación. Inténtalo de nuevo.');
+        setError('Error crítico al registrar la operación. Se ha revertido cualquier cambio.');
       }
     } finally {
       setLoading(false);
@@ -291,8 +298,42 @@ export const ManualEntry: React.FC = () => {
         </div>
 
         {error && (
-          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm">
-            {error}
+          <div className="p-6 rounded-3xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm flex flex-col gap-4 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-3 font-bold text-lg">
+              <span className="material-symbols-outlined text-red-500 text-2xl">gpp_maybe</span> {/* Shield icon indicating protection */}
+              {error}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => handleSubmit()}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">refresh</span>
+                Reintentar Operación
+              </button>
+
+              <button
+                onClick={() => {
+                  const logInfo = JSON.stringify(extendedError?.response?.data || extendedError?.message || extendedError, null, 2);
+                  navigator.clipboard.writeText(logInfo);
+                  alert("Log copiado al portapapeles");
+                }}
+                className="px-4 py-2 bg-red-500/20 text-red-700 dark:text-red-300 rounded-lg font-bold hover:bg-red-500/30 transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">content_copy</span>
+                Copiar Log Técnico
+              </button>
+            </div>
+
+            {extendedError && (
+              <details className="mt-2 bg-black/10 dark:bg-black/30 p-4 rounded-xl">
+                <summary className="cursor-pointer font-mono text-xs opacity-70 mb-2">Ver detalles del error (Debug)</summary>
+                <pre className="text-[10px] font-mono whitespace-pre-wrap overflow-x-auto text-text-secondary-light">
+                  {JSON.stringify(extendedError?.response?.data || extendedError?.message || extendedError, null, 2)}
+                </pre>
+              </details>
+            )}
           </div>
         )}
 
