@@ -31,11 +31,22 @@ const getOrderedTables = (allTables: string[]) => {
 };
 
 export const BackupService = {
-    // Generate Full Backup (JSON + Uploads) in Buffer (ZIP)
-    // Supports optional password encryption (AES-256 via archiver-zip-encrypted)
-    generateBackupZip: async (password?: string): Promise<Buffer> => {
+    // Generate Full Backup (JSON + Uploads) Streaming to Disk
+    // Returns path to temporary ZIP file
+    generateBackupZip: async (password?: string): Promise<string> => {
         return new Promise(async (resolve, reject) => {
+            let output: fs.WriteStream | null = null;
+            let tempFilePath = '';
+
             try {
+                const tempDir = path.join(process.cwd(), 'temp');
+                if (!fs.existsSync(tempDir)) {
+                    fs.mkdirSync(tempDir, { recursive: true });
+                }
+
+                tempFilePath = path.join(tempDir, `backup-${Date.now()}.zip`);
+                output = fs.createWriteStream(tempFilePath);
+
                 // 1. Generar JSON con los datos de la DB
                 const tablesResult = await sql`
                     SELECT table_name 
@@ -54,6 +65,9 @@ export const BackupService = {
                 };
 
                 for (const tableName of tableNames) {
+                    // Use cursor or smaller chunks if tables are huge, but for now full select is okay-ish 
+                    // as long as JSON stringify doesn't blow up. 
+                    // Ideally we should stream JSON too, but let's fix the ZIP buffering first which is the main culprit (images).
                     const rows = await sql.unsafe(`SELECT * FROM "${tableName}"`);
                     backupData[tableName] = rows;
                 }
@@ -61,36 +75,31 @@ export const BackupService = {
                 const backupJson = JSON.stringify({ metadata, data: backupData }, null, 2);
 
                 // 2. Crear ZIP con Archiver
-                // Configurar opciones de archivo
                 let archive: archiver.Archiver;
 
                 if (password) {
-                    // @ts-ignore - registerFormat is triggered by import, allowing 'zip-encrypted'
+                    // @ts-ignore
                     archive = archiver('zip-encrypted', {
-                        zlib: { level: 9 },
+                        zlib: { level: 1 }, // CPU Optimization: Fast compression
                         encryptionMethod: 'aes256',
                         password: password
                     });
                 } else {
                     archive = archiver('zip', {
-                        zlib: { level: 9 }
+                        zlib: { level: 1 } // CPU Optimization: Fast compression
                     });
                 }
 
-                // Buffer para almacenar el ZIP en memoria
-                const buffers: Buffer[] = [];
+                // Pipe archive data to the file
+                archive.pipe(output);
 
-                archive.on('data', (data) => {
-                    buffers.push(data);
+                output.on('close', () => {
+                    console.log(`[BackupService] Archive created: ${archive.pointer()} total bytes`);
+                    resolve(tempFilePath);
                 });
 
                 archive.on('error', (err) => {
                     reject(err);
-                });
-
-                archive.on('end', () => {
-                    const finalBuffer = Buffer.concat(buffers);
-                    resolve(finalBuffer);
                 });
 
                 // Añadir JSON al ZIP
@@ -107,6 +116,11 @@ export const BackupService = {
 
             } catch (error: any) {
                 console.error('Error generating backup ZIP:', error);
+                // Try cleanup if failed
+                if (output) output.close();
+                if (tempFilePath && fs.existsSync(tempFilePath)) {
+                    try { fs.unlinkSync(tempFilePath); } catch (e) { }
+                }
                 reject(new Error(`Error generando backup: ${error.message}`));
             }
         });

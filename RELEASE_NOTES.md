@@ -68,6 +68,7 @@ Motor de descubrimiento con arquitectura **Split-World**:
 | **Base de Datos** | Nueva tabla `ticker_details_cache` para datos profundos |
 | **Migraciones** | Columna `triggered_assets` (JSONB) auto-aplicada |
 | **Serialización** | Fix de JSON para datos PostgreSQL en endpoints API |
+| **Estabilidad** | Protección contra fugas de memoria en Crawler (Circuit Breaker) |
 
 ---
 
@@ -81,4 +82,4 @@ Motor de descubrimiento con arquitectura **Split-World**:
 ---
 
 **Versión**: 2.1.0  
-**Fecha de Publicación**: 6 Enero 2026
+**Fecha de Publicación**: 7 Enero 2026

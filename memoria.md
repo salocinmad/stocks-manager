@@ -187,3 +187,23 @@ return rows.map(row => ({
 
 ### Tabla historical_data
 Almacena datos OHLC para gráficos de velas. Actualmente contiene ~187,000+ registros principalmente de acciones de Hong Kong (.HK) y otros mercados. Usa índice `(ticker, date)` para consultas eficientes.
+
+### 7.3 Mejora Crítica de Estabilidad (Crawler V2 - Enero 2026)
+**Problema Detectado:** El sistema sufría colapsos de memoria RAM por bucles infinitos de reintentos sobre tickers fallidos (ej. `0ABZ.LSE`), saturando la base de datos.
+**Solución:** Se implementó un "Circuit Breaker" a nivel de catálogo:
+1.  **Detección:** Se identifican errores terminales ("Quote not found", "Not Found").
+2.  **Lista Negra:** Se marcan permanentemente en BD (`yahoo_status='failed'`) y se excluyen de futuros ciclos.
+3.  **Filtrado:** Los ciclos futuros saltan automáticamente estos tickers para proteger recursos.
+
+### 7.4 Comandos de Depuración
+En caso de problemas de rendimiento o bloqueos:
+```bash
+# Ver estadísticas de recursos en tiempo real
+docker stats
+
+# Ver logs de errores recientes (filtros: pnl, job, error)
+docker compose logs app --since 6h | grep -i "pnl\|job\|error"
+
+# Verificar estado de PostgreSQL (conexiones activas)
+docker compose exec db psql -U admin -d stocks_manager -c "SELECT count(*) FROM pg_stat_activity;"
+```

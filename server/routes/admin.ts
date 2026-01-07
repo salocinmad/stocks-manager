@@ -1048,12 +1048,13 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
             throw new Error(`Error al crear backup: ${error.message}`);
         }
     })
-    // Modificado: Backup ahora devuelve un ZIP con el JSON t las imagenes
+    // Modificado: Backup ahora devuelve un ZIP con el JSON t las imagenes (Stream from Disk)
     .get('/backup/zip', async ({ set }) => {
         try {
-            const zipBuffer = await BackupService.generateBackupZip();
+            const filePath = await BackupService.generateBackupZip();
+            const file = Bun.file(filePath);
 
-            return new Response(zipBuffer as any, {
+            return new Response(file, {
                 headers: {
                     'Content-Type': 'application/zip',
                     'Content-Disposition': `attachment; filename="stocks-manager-backup-${new Date().toISOString()}.zip"`

@@ -26,6 +26,7 @@ dist-ssr
 # Necesarios para local
 PROJECT_INDEX.md
 memoria.md
+
 bun.lock
 
 
