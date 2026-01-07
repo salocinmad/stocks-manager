@@ -1,108 +1,87 @@
-# 🧠 Memoria Técnica - Stocks Manager v2.1.0
+# 🧠 Memoria del Proyecto - Stocks Manager
 
-> **Estado del Proyecto**: V2.1.0 (Producción)
-> **Última Actualización**: 7 Enero 2026
-> **Tecnologías**: Bun, ElysiaJS, React 19, PostgreSQL, TailwindCSS 3.4.
+> **Versión**: v2.1.0
+> **Fecha de Actualización**: 7 Enero 2026
+> **Estado**: Producción (Stable)
 
-Este documento sirve como referencia global del estado técnico y funcional del proyecto "Stocks Manager".
+## 1. Visión Global
+**Stocks Manager** es una plataforma web avanzada de gestión de carteras de inversión y descubrimiento de oportunidades de mercado ("Chicharros" y "Compounders").
+A diferencia de un simple tracker, ofrece **Análisis Cuantitativo y Fundamental Automático** (Valuation, Graham Number, Riesgo) y usa **Inteligencia Artificial** (Multi-Proveedor) para generar insights personalizados.
 
----
+## 2. Arquitectura Técnica
+El sistema sigue un modelo **Cliente-Servidor (Monorepo)** desplegado via Docker.
 
-## 1. Arquitectura del Sistema
+### Frontend (`/src`)
+*   **Tecnología**: React 18 (Vite), TypeScript, TailwindCSS.
+*   **Enrutado**: HashRouter (para compatibilidad estática).
+*   **Optimización**: "Lazy Loading" (Code Splitting) en todas las rutas principales para carga instantánea.
+*   **UI/UX**: Diseño moderno "Glassmorphism" y "Dark Mode" nativo.
 
-El sistema es una aplicación monolítica modularizada corriendo sobre **Bun** (Runtime).
+### Backend (`/server`)
+*   **Tecnología**: Bun (Runtime), ElysiaJS (High-Performance Framework).
+*   **Base de Datos**: PostgreSQL 16 con extensión `uuid-ossp`.
+*   **Seguridad**:
+    *   Autorización JWT (con 2FA opcional).
+    *   **Transacciones Atómicas**: Usa `sql.begin()` para garantizar integridad en operaciones financieras críticas (Compra/Venta/Rebalanceo).
 
-### 1.1 Backend (`/server`)
-- **Runtime**: Bun 1.2
-- **Framework**: ElysiaJS (High-performance framework)
-- **Base de Datos**: PostgreSQL 16 (ver `init.sql` para esquema de 23 tablas).
-- **ORM**: `postgres.js` (Librería SQL nativa, sin ORM pesado por rendimiento).
-- **Autenticación**: JWT + Cookies. Soporta 2FA (TOTP) y Códigos de Backup.
-
-### 1.2 Frontend (`/src`)
-- **Framework**: React 19 (Vite).
-- **Estilos**: TailwindCSS 3.4 + `lucide-react` para iconos.
-- **Gráficos**: `lightweight-charts` (TradingView) para velas, `recharts` para tartas/líneas simples.
-- **Diseño**: Interfaz "Dark Premium" inspirada en brokers profesionales.
-
----
-
-## 2. Base de Datos (Esquema v2.1)
-
-El sistema cuenta con **23 tablas** principales en el esquema `public`.
-
-### Núcleo de Usuario
-- `users`: Gestión de cuentas, preferencias (divisa), seguridad (2FA).
-- `portfolios`: Carteras de inversión (múltiples por usuario). Favorito por defecto.
-- `positions`: Activos comprados (Stocks, ETFs, Crypto). Soporta Stop/Limit y Notas Markdown.
-- `transactions`: Historial de operaciones (Compra, Venta, Dividendo).
-
-### Inteligencia de Mercado
-- `historical_data`: Precios diarios OHLCV.
-- `global_tickers`: Catálogo Maestro (~70k tickers). Sincronizado con EODHD/Yahoo.
-- `market_discovery_cache`: Cache del Discovery Engine (por categoría).
-- `ticker_details_cache`: Datos profundos (perfil, métricas) para modales.
-- `market_cache`: Cache general de precios en tiempo real (TTL corto).
-
-### Sistema AI
-- `ai_providers`: Configuración dinámica de LLMs (Gemini, OpenAI, Ollama Local).
-- `ai_prompts`: Plantillas de sistema (Lobo de Wall Street, Profesor, Risk Manager).
-- `chat_conversations` / `chat_messages`: Historial de chat persistente.
-
-### Herramientas
-- `alerts`: Alertas de precio y técnicas (RSI, SMA).
-- `portfolio_alerts`: Alertas globales sobre el valor total de la cartera.
-- `watchlists`: Listas de seguimiento.
-- `financial_events`: Calendario de dividendos/earnings.
-- `system_settings`: Configuración global KV (versión, flags del crawler).
+### Infraestructura
+*   **Docker Compose**: Orquesta `stocks_app` (Backend que sirve el Frontend estático) y `stocks_db` (Postgres).
+*   **Jobs**:
+    *   `DiscoveryJob`: Crawler de mercado (cada 3 min).
+    *   `BackupJob`: Copias de seguridad automáticas (Stream-to-Disk).
 
 ---
 
-## 3. Subsistemas Críticos
+## 3. Funcionalidades Clave (Core)
 
-### 3.1 Discovery Engine V4.0 (El "Crawler")
-Sistema autónomo que busca y enriquece oportunidades de inversión.
-- **Dual Pipeline**:
-  - **US Pipeline**: Usa Finnhub para mercado americano.
-  - **Global Pipeline**: Usa Yahoo Finance V10 para Europa/Asia (GB, DE, ES, HK...). Prioriza `day_gainers` si el mercado está abierto.
-- **Efficiency Layer**: Filtro de "Freshness" (7 días). No re-inverstiga tickers actualizados recientemente.
-- **Circuit Breaker**: Detecta tickers fallidos permanentemente (`yahoo_status='failed'`) y los excluye para evitar bucles infinitos y OOM.
-- **Control Maestro**: Switch global en Admin para apagar/encender todo el motor.
+### 🦁 Discovery Engine (Motor de Descubrimiento)
+Es el corazón de la búsqueda de oportunidades.
+*   **Estrategia Split-World**:
+    *   **Pipeline USA**: Usa Finnhub para datos de EE.UU.
+    *   **Pipeline Global**: Usa Yahoo Finance para Europa y Asia.
+*   **Optimización (v2.1)**:
+    *   **Paralelismo**: Procesa activos en lotes de 5 concurrentes.
+    *   **Batch Writes**: Ingesta datos masivos en BBDD reduciendo I/O en un 80%.
+    *   **Consistencia**: Mantiene frecuencia de 3 minutos sin saturar el servidor.
 
-### 3.2 Backup System (Stream-to-Disk)
-Sistema robusto para copias de seguridad completas.
-- **Ruta**: `/api/backup/zip`
-- **Estrategia**: "Stream-to-Disk". Genera el ZIP directamente en un archivo temporal en disco (`temp/`) para no saturar la RAM, incluso con bases de datos grandes.
-- **Compresión**: Nivel 1 (Fastest) para evitar saturación de CPU (102% -> 5%).
-- **Contenido**: JSON completo de la DB + Carpeta `uploads/` (imágenes de noticias/avatares).
+### 💰 Gestión de Portafolios
+*   Soporte Multi-Cartera y Multi-Divisa (Conversión automática a EUR).
+*   **Métricas**: PnL Diario, Total, CAGR, Distribución Sectorial.
+*   **Gráficos**: Historia de valor (PnL History) precalcutada diariamente.
 
-### 3.3 Gestión de Precios y GBX
-- **Normalización**: Soporte nativo para Peniques Británicos (GBX). El sistema detecta GBX y divide por 100 para mostrar GBP en totales, manteniendo GBX en precios unitarios.
-- **Mercado UX**: Mapeo inteligente de estados de Yahoo (`POSTPOST`/`PREPRE` -> `CLOSED`) para que el usuario vea claramente cuando el mercado está cerrado.
+### 🤖 Inteligencia Artificial (Multi-Provider)
+Analista financiero personal integrado en el chat.
+*   **Proveedores Soportados**: Google Gemini, OpenAI, Claude (via OpenRouter), Groq, Ollama (Local).
+*   **Prompting**: Perfiles personalizables (Lobo de Wall Street, Profesor, Analista de Riesgos).
+*   **Contexto**: El bot recibe automáticamente el estado del portafolio y precios de mercado antes de responder.
 
----
-
-## 4. Notas de Implementación (Dev)
-
-### Jobs (`server/jobs`)
-Se ejecutan vía `cron` interno o triggers manuales:
-- `backupJob.ts`: Copias automáticas (Semanal/Mensual).
-- `catalogEnrichmentJob.ts`: Procesa la cola de `global_tickers`.
-- `discoveryJob.ts`: Busca nuevos candidatos en screeners externos.
-- `alertJob.ts`: Verifica condiciones de alertas cada X minutos.
-- `pnlHistoryJob.ts`: Calcula y guarda la foto fija del patrimonio diario.
-
-### Comandos Útiles
-- **Docker**: `docker compose up -d --build` (Rebuild completo).
-- **Tests**: `bun test` (Ejecuta suite completa con runner personalizado colorizado).
-- **Limpieza**: El sistema limpia temporales al reinicio, pero s recomienda purgar `temp/` si el disco se llena.
+### 🔔 Alertas Globales
+Sistema de vigilancia de mercado.
+*   **Alertas de Precio**: "Avísame si AAPL baja de 150".
+*   **Alertas de Portafolio**: "Avísame si MI CARTERA cae un 2% hoy".
 
 ---
 
-## 5. Roadmap & Pendientes
-- [x] Optimización de Backup (Done v2.1.0)
-- [x] Corrección Estados Mercado (Done v2.1.0)
-- [ ] Implementación de WebSockets para precios en tiempo real (Futuro).
-- [ ] Soporte para Opciones/Derivados (Futuro).
+## 4. Base de Datos (Schema Resumen)
+Ver `server/init_db.ts` para definición exacta.
 
-**Este documento debe ser consultado por cualquier agente antes de iniciar modificaciones estructurales.**
+*   `users`: Credenciales, preferencias, tokens 2FA.
+*   `portfolios` -> `positions` -> `transactions`: Jerarquía principal de inversión.
+*   `watchlists`: Seguimiento de activos.
+*   `alerts`: Reglas de vigilancia.
+*   `market_cache` / `ticker_details_cache`: Almacenamientode datos volátiles (Precios, Fundamentales) para no saturar APIs externas.
+*   `ai_prompts` / `ai_providers`: Configuración de la IA.
+
+---
+
+## 5. Historial de Decisiones Recientes (v2.1)
+1.  **Mantener Frecuencia Alta**: Se decidió NO bajar la frecuencia del Crawler (3 min) para tener datos frescos. A cambio, se reescribió el motor (`discoveryJob.ts`) para ser mucho más eficiente (Batch Processing).
+2.  **Seguridad Primero**: Se implementaron transacciones SQL reales para evitar desbalanceos si falla una operación a mitad de camino.
+3.  **Frontend Veloz**: Se migró a componentes `lazy` para mejorar el Time-To-Interactive.
+
+---
+
+## 6. Comandos Útiles
+*   **Ver Logs**: `docker compose logs -f stocks_app`
+*   **Backup Manual**: Endpoint POST `/api/admin/backups/create`
+*   **Rebuild**: `docker compose up -d --build` (Necesario tras cambios en Backend o dependencias).

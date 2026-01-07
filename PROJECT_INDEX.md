@@ -1,138 +1,89 @@
-# 🗂️ Índice Maestro del Proyecto Stocks Manager
+# 🗂️ Stocks Manager - Project Index
 
-Este documento es la **fuente de verdad** sobre la estructura, arquitectura y funcionalidad de cada archivo en el proyecto. Está diseñado para que cualquier agente de IA o desarrollador pueda obtener una comprensión profunda del sistema en minutos.
+> **Versión**: v2.1.0 (Stable)  
+> **Estado**: Optimizado (Lazy Loading, Atomic Tx, Crawler Batching)  
+> **Fecha**: 7 Enero 2026
 
----
+Este documento sirve como índice maestro para navegar por el código fuente y la documentación del proyecto **Stocks Manager**.
 
-## 🏗️ 1. Inicialización de Base de Datos (Crítico)
-Estos archivos definen la estructura de datos. **Cualquier cambio en el modelo de datos debe reflejarse aquí.**
+## 📚 Documentación Clave
 
-- **`i:\dev\stocks-manager\init.sql`**
-    - **Tipo**: Script SQL (PostgreSQL).
-    - **Propósito**: Define el esquema base para inicializaciones externas. Contiene las **23 tablas** del sistema:
-      1. `users`: Usuarios y seguridad.
-      2. `password_resets`: Tokens de recuperación.
-      3. `portfolios`: Carteras.
-      4. `positions`: Activos en posesión.
-      5. `transactions`: Historial de operaciones.
-      6. `watchlists`: Listas de seguimiento.
-      7. `alerts`: Alertas técnicas y de precio.
-      8. `notification_channels`: Configuración de notificaciones.
-      9. `system_settings`: KV Store global.
-      10. `historical_data`: Precios diarios.
-      11. `position_notes`: Notas Markdown.
-      12. `market_cache`: Cache de mercado.
-      13. `financial_events`: Dividendos y Earnings.
-      14. `ai_prompts`: Plantillas de sistema.
-      15. `ai_providers`: Configuración de LLMs.
-      16. `chat_conversations`: Historial.
-      17. `chat_messages`: Mensajes.
-      18. `pnl_history_cache`: Gráfico de patrimonio.
-      19. `market_discovery_cache`: Discovery Engine.
-      19.5 `ticker_details_cache`: Datos profundos.
-      20. `global_tickers`: Catálogo maestro mundial.
-      21. `position_analysis_cache`: Métricas de riesgo (Sharpe/VaR).
-      22. `portfolio_alerts`: Alertas globales de cartera.
-    - **Uso**: Referencia principal del esquema relacional y paridad con `init_db.ts`.
-
-- **`i:\dev\stocks-manager\server\init_db.ts`**
-    - **Tipo**: Script TypeScript (Ejecución automática).
-    - **Propósito**: **Gestor de arranque y migraciones**. Se ejecuta cada vez que inicia el servidor (`index.ts`).
-    - **Funciones**:
-        - Verifica conexión a PostgreSQL.
-        - Aplica **migraciones evolutivas** (ej. `position_analysis_cache`, `ai_providers`).
-        - **Siembra datos** (Seed): Crea proveedores por defecto (Gemini, OpenRouter, Ollama) y usuario admin.
+*   **[memoria.md](./memoria.md)**: Visión global del proyecto, arquitectura y estado actual. (Lectura obligatoria para IA).
+*   **[API_CATALOG.md](./API_CATALOG.md)**: Catálogo detallado de endpoints del Backend (`/auth`, `/portfolios`, etc.).
+*   **[RELEASE_NOTES.md](./RELEASE_NOTES.md)**: Historial de cambios y novedades de la versión v2.1.0.
+*   **[GUIA_ADMINISTRADOR.md](./GUIA_ADMINISTRADOR.md)**: Manual para gestión del servidor, backups y crawler.
+*   **[MANUAL_USUARIO.md](./MANUAL_USUARIO.md)**: Guía funcional para el usuario final.
 
 ---
 
-## ⚙️ 2. Configuración y Raíz
-Archivos que controlan el entorno de ejecución y construcción.
+## 🏗️ Arquitectura y Stack
 
-- **`package.json`**: Gestor de dependencias (Bun). Scripts principales: `dev` (backend auto-reload), `build:frontend` (Vite), `start` (prod).
-- **`docker-compose.yml`**: Orquestación. Define servicio `app` (Puerto 3000) y `db` (PostgreSQL 16). Gestiona volúmenes persistentes.
-- **`vite.config.ts`**: Configuración de compilación del Frontend (React). Define alias y proxies.
-- **`tailwind.config.js`**: Sistema de diseño. Configuración de colores corporativos (`primary`, `background-dark`), fuentes y plugins.
-- **`tsconfig.json`**: Reglas de TypeScript (Strict mode, paths).
+El proyecto es una aplicación web Full-Stack moderna (Cliente-Servidor).
 
----
-
-## 🖥️ 3. Backend (`server/`)
-Arquitectura basada en **Bun** + **ElysiaJS**.
-
-### 🧠 Core
-- **`index.ts`**: **Punto de Entrada**. Inicializa servidor Web, Swagger, CORS, Cron Jobs (`CalendarJob`, `DiscoveryJob`) y monta el enrutador principal en `/api`.
-- **`db.ts`**: Capa de acceso a datos. Instancia singleton del cliente `postgres.js`.
-
-### 🛠️ Servicios (`server/services/`)
-Lógica de negocio pura. Independiente del transporte HTTP.
-- **`aiService.ts`**: **Cerebro de IA**. Gestiona proveedores dinámicos (Gemini, OpenAI, Ollama Local).
-- **`authService.ts`**: Seguridad. Registro, Login, Refresh Tokens, Hashing (bcrypt).
-- **`backupService.ts`**: **Sistema de Respaldo Optimizado**. Genera ZIPs usando **Stream-to-Disk** para evitar OOM.
-- **`calendarService.ts`**: **Calendario Financiero**. Sincroniza eventos de ganancias y dividendos.
-- **`discoveryService.ts`**: **Discovery Engine**. CRUD para la caché de oportunidades de mercado.
-- **`eodhdService.ts`**: **Librería Global**. Sincroniza `global_tickers` desde EODHD (70k+ tickers).
-- **`marketData.ts`**: **Proveedor de Datos Unificado**.
-    - Fuente primaria: Yahoo Finance V10.
-    - **UX**: Normaliza estados `POSTPOST`/`PREPRE` a `CLOSED`.
-    - **GBX**: Soporte para peniques británicos.
-- **`pnlService.ts`**: **Motor Matemático**. Calcula PnL (Realizado/No Realizado), ROI, Costo Base.
-- **`portfolioService.ts`**: Gestión de Activos. CRUD de carteras, transacciones.
-- **`settingsService.ts`**: Configuración dinámica KV.
-- **`positionAnalysisService.ts`**: **Análisis de Riesgo**. Calcula Sharpe, Sortino, VaR95% y Beta.
-
-### 🛣️ Rutas API (`server/routes/`)
-Controladores HTTP REST.
-- **`admin.ts`**: Panel Admin (`GET /users`, `GET /backup/zip`).
-- **`ai.ts`**: Chat (`POST /chat`), Gestión Proveedores (`GET/POST /providers`).
-- **`calendar.ts`**: Calendario (`GET /events`).
-- **`dashboard.ts`**: Resumen (`GET /summary`).
-- **`discovery.ts`**: Discovery (`GET /candidates`).
-- **`market.ts`**: Mercado (`GET /quote/:ticker`, `GET /search`).
-- **`alerts.ts`**: Alertas Unificadas y Globales de Portfolio.
-
-### ⏱️ Cron Jobs (`server/jobs/`)
-Tareas programadas.
-- **`discoveryJob.ts`**: (**Ciclos Dinámicos**) **Crawler Inteligente**. Dual Pipeline (US/Global).
-- **`catalogEnrichmentJob.ts`**: Enriquecimiento de segundo plano.
-- **`backupJob.ts`**: Copias automáticas.
-
-### 🧪 Tests (`server/tests/`)
-Pruebas de integración (`bun test`).
-- **`auth.test.ts`**, **`market.test.ts`**, **`pnl.service.test.ts`**, **`alerts.test.ts`**.
+*   **Frontend**: React 18, Vite, TypeScript, TailwindCSS.
+    *   Arquitectura "Lazy Loading" para carga rápida.
+    *   Componentes en `src/screens` y `src/components`.
+*   **Backend**: Node.js (Bun runtime), ElysiaJS (Framework tipo Express pero más rápido).
+    *   API REST en `server/routes`.
+    *   Jobs en segundo plano en `server/jobs` (Crawler, PnL).
+    *   Transacciones Atómicas con `postgres.js`.
+*   **Base de Datos**: PostgreSQL 16.
+    *   Esquema definido en `server/init_db.ts`.
+*   **Infraestructura**: Docker & Docker Compose.
 
 ---
 
-## 🎨 4. Frontend (`src/`)
-SPA construida con **React 19**, **Vite** y **TailwindCSS**.
+## 📂 Estructura de Directorios
 
-### 🧩 Contexto (`src/context/`)
-- **`AuthContext.tsx`**: Sesión global.
-- **`ToastContext.tsx`**: Notificaciones no intrusivas.
+### Raíz
+*   `docker-compose.yml`: Orquestación de contenedores (App + DB).
+*   `Dockerfile`: Construcción de la imagen de producción.
+*   `.env`: Variables de entorno (Secretos, Configuración).
 
-### 📱 Pantallas (`src/screens/`)
-- **`Dashboard.tsx`**: Layout "Premium" 2 columnas. AI Insight, Top Movers, PnL Chart.
-- **`PortfolioScreen.tsx`**: Gestión de inversiones.
-- **`MarketAnalysis.tsx`**: Screener técnico.
-- **`AdminScreen.tsx`**: Panel de Control con pestañas (General, IA, Mercado, Backup).
+### Frontend (`/src`)
+*   `/screens`: Páginas principales (Dashboard, Portfolio, Market, Admin).
+*   `/components`: Bloques reutilizables (Tablas, Gráficas, Modales).
+*   `/services/api.ts`: Cliente HTTP (Axios) para comunicarse con el Backend.
 
-### 🧩 Componentes Clave
-- **`Sidebar.tsx`**: Navegación Glassmorphism.
-- **`Header.tsx`**: Cabecera con Breadcrumbs.
-- **`PositionAnalysisModal.tsx`**: Modal "Green Leader" de análisis profundo (6 pestañas).
-
----
-
-## 5. Documentación
-- **`memoria.md`**: Referencia técnica Global (V2.1.0).
-- **`RELEASE_NOTES.md`**: Historial de versiones y cambios recientes.
-- **`PROJECT_INDEX.md`**: Índice técnico maestro.
+### Backend (`/server`)
+*   `index.ts`: Punto de entrada. Configura servidor y Cron Jobs.
+*   `db.ts`: Conexión a Base de Datos.
+*   `/routes`: Endpoints de la API (ver `API_CATALOG.md`).
+*   `/services`: Lógica de negocio (Discovery, Portfolio, MarketData).
+*   `/jobs`: Tareas en segundo plano (Crawler, Backups).
+    *   `discoveryJob.ts`: Crawler optimizado (Lotes + Paralelo).
+    *   `backupJob.ts`: Sistema de copias de seguridad.
 
 ---
 
-## 🐳 6. Ejecución (Docker)
-**IMPORTANTE**: El entorno es Windows sin Bun local. Todo debe correrse en Docker.
+## 🚀 Comandos Principales
 
-```powershell
+### Desarrollo (Local)
+```bash
+# Iniciar todo (Backend + Frontend + DB)
+docker compose up -d
+
+# Ver logs en tiempo real
+docker compose logs -f stocks_app
+
+# Reconstruir tras cambios en Backend
 docker compose up -d --build
-docker compose exec app bun test
 ```
+
+### Gestión
+```bash
+# Copia de seguridad manual
+docker exec stocks_app curl -X POST http://localhost:3000/api/admin/backups/create
+
+# Resetear BBDD (Peligroso)
+docker compose down -v
+```
+
+---
+
+## 💡 Estado Actual del Proyecto (v2.1.0)
+El sistema ha alcanzado un estado de madurez y estabilidad (**v2.1.0**).
+Se ha priorizado el **rendimiento** en esta última iteración:
+1.  **Crawler Agresivo pero Eficiente**: Mantiene ciclos de 3 min pero usa procesamiento en lotes para no saturar la CPU/DB.
+2.  **Seguridad Financiera**: Todas las operaciones monetarias usan transacciones SQL atómicas.
+3.  **UX**: Carga diferida y manejo robusto de errores.

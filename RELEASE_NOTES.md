@@ -71,6 +71,10 @@ Motor de descubrimiento con arquitectura **Split-World**:
 | **Estabilidad** | Protección contra fugas de memoria en Crawler (Circuit Breaker) |
 | **Backup**      | Optimización Stream-to-Disk + Compresión Rápida (Fix OOM/CPU) |
 | **UX Mercado**  | Normalización de estados Yahoo (POSTPOST -> CERRADO) |
+| **Frontend**    | **Lazy Loading (Code Splitting)** para carga inicial instantánea |
+| **Seguridad**   | **Transacciones Atómicas** (SQL Transaction) para integridad financiera |
+| **Crawler**     | **Ingestión por Lotes (Batch)** y Paralelismo (Misma frecuencia, -80% carga) |
+| **Errores**     | UI de recuperación recursiva y logs técnicos en pantalla |
 
 ---
 
