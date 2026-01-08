@@ -113,6 +113,18 @@ Modal de análisis completo para cada posición:
 - **Comisiones**: Alineación `commission` ↔ `fees`
 - **Ordenación Dashboard**: Invertido orden en "Peores del Día"
 
+### Hotfix 8 Enero 2026 (Update 3 - Transaction History)
+- **Editor de Historial de Transacciones** (`TransactionHistoryModal.tsx`):
+  - Nueva columna "Empresa" con nombre completo (JOIN con `global_tickers`).
+  - Traducciones: BUY→COMPRA, SELL→VENTA, DIVIDEND→DIVIDENDO.
+  - Preservación de scroll al editar filas consecutivas.
+  - Estabilidad de ordenación (preserva hora original al editar fecha).
+- **Previsualización FIFO de Venta**:
+  - Nuevo endpoint `GET /portfolios/:id/positions/:ticker/simulate-sell`.
+  - Modal de venta muestra PnL estimado y Coste Base FIFO en tiempo real.
+- **Backend**: Lógica FIFO estricta en `portfolioService.ts` (`calculateFIFOQueue`, `simulateSell`, `recalculatePositionFromHistory`).
+- **Database Fix**: Añadida constraint `UNIQUE(portfolio_id, ticker)` a tabla `positions`.
+
 ---
 
 ## 📜 Versiones Anteriores

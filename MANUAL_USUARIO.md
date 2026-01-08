@@ -201,17 +201,48 @@ El portfolio favorito es el que se muestra por defecto en el Dashboard:
 
 ### Historial de Operaciones
 
-Puedes ver todas tus operaciones en:
+Puedes ver y **editar** todas tus operaciones desde el nuevo Editor de Historial:
 
-1. Abre una posición
-2. Ve a la pestaña **"Historial"** u **"Operaciones"**
+1. Abre tu portfolio
+2. Haz clic en el botón **"Historial"** (icono de reloj) en la cabecera
+3. Se abrirá un modal con la lista cronológica de todas las transacciones
 
-Verás una lista con:
-- Tipo (Compra/Venta)
-- Cantidad
-- Precio
-- Fecha
-- P&L de la operación
+#### Columnas del Historial
+| Columna | Descripción |
+|---------|-------------|
+| Fecha | Fecha de la operación |
+| Ticker | Símbolo del activo |
+| **Empresa** | Nombre completo de la compañía (nuevo) |
+| Tipo | COMPRA / VENTA / DIVIDENDO |
+| Cantidad | Número de acciones |
+| Precio | Precio por unidad |
+| Comisión | Comisiones del broker |
+| Divisa | Moneda de la operación |
+| FX (a EUR) | Tipo de cambio usado |
+| Acciones | Botón de edición |
+
+#### Editar una Transacción
+
+1. Haz clic en el icono de **lápiz** (✏️) de la fila
+2. Modifica los campos editables (fecha, cantidad, precio, comisión, divisa, FX)
+3. Haz clic en **✓** para guardar o **✗** para cancelar
+4. El sistema **recalculará automáticamente** la posición actual (precio medio, cantidad)
+
+> 💡 **Scroll Inteligente**: Al guardar cambios, la tabla mantiene tu posición de scroll para que puedas seguir editando filas consecutivas sin perderte.
+
+> ⚠️ **Importante**: Editar transacciones antiguas corrige la posición actual pero no regenera el gráfico PnL histórico instantáneamente.
+
+### Previsualización FIFO de Venta (NUEVO)
+
+Al vender una posición, el sistema ahora muestra una **previsualización en tiempo real** del impacto financiero:
+
+1. En tu portfolio, haz clic en **"Vender"** en una posición
+2. Introduce la cantidad a vender
+3. El sistema calcula automáticamente:
+   - **Coste Base FIFO**: El coste de adquisición de las acciones específicas que vas a vender (primeras en entrar, primeras en salir)
+   - **PnL Estimado**: Ganancia o pérdida esperada basada en el precio de venta introducido
+
+> 🎯 Esta función te ayuda a tomar decisiones informadas antes de confirmar la operación.
 
 ### Importar desde Broker
 

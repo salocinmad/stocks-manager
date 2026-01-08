@@ -18,7 +18,7 @@ Este archivo actúa como índice maestro de la estructura del proyecto y su func
 | Archivo | Descripción |
 |---------|-------------|
 | `auth.ts` | Login, Registro, 2FA, Reset Password |
-| `portfolios.ts` | CRUD Portafolios, Posiciones, Transacciones |
+| `portfolios.ts` | CRUD Portafolios, Posiciones, Transacciones, Historial, Simulación FIFO |
 | `market.ts` | Proxy a Yahoo Finance, EODHD, Búsquedas |
 | `ai.ts` | ChatBot y Análisis de posición |
 | `alerts.ts` | Alertas de precio, técnicas y globales |
@@ -79,6 +79,7 @@ Este archivo actúa como índice maestro de la estructura del proyecto y su func
 | `BuyAssetModal.tsx` | Modal de compra/venta |
 | `PositionAnalysisModal.tsx` | Análisis de posición (6 tabs) |
 | `GlobalSearchModal.tsx` | Búsqueda global (Ctrl+K) |
+| `TransactionHistoryModal.tsx` | Editor cronológico de transacciones |
 
 #### Admin Components (`/components/admin`)
 | Archivo | Descripción |

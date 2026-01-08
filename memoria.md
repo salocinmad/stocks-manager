@@ -45,6 +45,12 @@
 *   **PnL Engine**: Cálculo en tiempo real (FIFO). Cacheo diario en `pnl_history_cache`.
 *   **Soporte GBX**: Conversión automática de peniques a libras para mercado UK.
 *   **Validación**: Sanitización de decimales (`,` → `.`), validación de tipos de cambio.
+*   **Editor de Historial**: Modal para editar transacciones pasadas con recálculo automático de posiciones.
+    *   Columna "Empresa" (nombre completo vía JOIN con `global_tickers`).
+    *   Traducción de tipos: BUY→COMPRA, SELL→VENTA, DIVIDEND→DIVIDENDO.
+    *   Preservación de scroll durante ediciones.
+    *   Tiempo original preservado al editar fechas (estabilidad de ordenación).
+*   **Previsualización FIFO de Venta**: Simulación en tiempo real de PnL antes de confirmar venta.
 
 ### 3.2. Datos de Mercado (`/market`)
 *   **Proveedores**:
@@ -148,7 +154,7 @@ server/
 │   ├── marketData.ts     # Cliente Yahoo/Finnhub
 │   ├── eodhdService.ts   # Cliente EODHD
 │   ├── aiService.ts      # Orquestador LLMs
-│   ├── portfolioService.ts
+│   ├── portfolioService.ts  # Lógica FIFO, simulateSell, recalculatePositionFromHistory
 │   ├── discoveryService.ts
 │   └── backupService.ts
 ├── jobs/
@@ -172,6 +178,7 @@ src/
 │   ├── Sidebar.tsx
 │   ├── ChatBot.tsx
 │   ├── PositionAnalysisModal.tsx
+│   ├── TransactionHistoryModal.tsx  # Editor cronológico de transacciones
 │   └── admin/
 │       ├── MasterCatalogConfig.tsx
 │       └── DataExplorerTable.tsx

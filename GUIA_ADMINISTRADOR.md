@@ -500,6 +500,18 @@ Nuevo modal grande (80% del viewport) que proporciona análisis profundo de cada
 - **Técnico/Riesgo**: Job cada 6 horas.
 - **Fundamental**: Caché de 14 días (debido a la baja frecuencia de cambios en reportes trimestrales).
 
+### Lógica FIFO en Backend (v2.1.0)
+
+El servicio `portfolioService.ts` implementa lógica FIFO estricta para:
+
+| Función | Propósito |
+|---------|-----------|
+| `calculateFIFOQueue` | Construye cola de lotes de compra ordenados cronológicamente |
+| `simulateSell` | Calcula coste base FIFO sin modificar BD (para previsualizaciones) |
+| `recalculatePositionFromHistory` | Reconstruye una posición desde cero tras editar historial |
+
+**API Nuevo**: `GET /portfolios/:id/positions/:ticker/simulate-sell?amount=X` devuelve el coste base FIFO para X acciones.
+
 ---
 
 ## 🔔 Alertas Avanzadas (v2.1.0)
