@@ -1,14 +1,11 @@
 import sql from '../db';
 import { MarketDataService } from '../services/marketData';
+import { log } from '../utils/logger';
 
 /**
  * Market Events Sync Job
  * 
  * Syncs calendar events for US Top 20 + IBEX 35 + All User Portfolio Tickers.
- * 
- * Schedules:
- * 1. Daily at 1:00 AM: Full sync (4 tickers every 2 min)
- * 2. On Startup: Full sync (3 tickers every 2 min)
  */
 
 // Base list: US Top 20 + IBEX 35 tickers
@@ -25,49 +22,36 @@ const BASE_MARKET_TICKERS = [
 ];
 
 const MAX_RETRIES = 3;
-const DAILY_START_HOUR = 1; // 1:00 AM
+const DAILY_START_HOUR = 1;
 
-// Sync state
 let isRunning = false;
-let failedTickers: Map<string, number> = new Map(); // ticker -> retry count
+let failedTickers: Map<string, number> = new Map();
 
 export const MarketEventsSyncJob = {
-    /**
-     * Start the scheduler
-     */
     startScheduler() {
-        console.log(`[MarketEventsSync] Scheduler initialized. Daily run at ${DAILY_START_HOUR}:00`);
+        log.info('[MarketEventsSync]', `Scheduler initialized. Daily run at ${DAILY_START_HOUR}:00`);
 
-        // 1. Daily Scheduler (Check every minute)
         setInterval(() => {
             const now = new Date();
-            // Run at 1:00 AM if not running
             if (now.getHours() === DAILY_START_HOUR && now.getMinutes() === 0 && !isRunning) {
-                console.log('[MarketEventsSync] Triggering Daily Sync (4 tickers / 2 min)...');
-                this.runFullCycle(4, 2 * 60 * 1000); // 4 tickers every 2 min
+                log.info('[MarketEventsSync]', 'Triggering Daily Sync...');
+                this.runFullCycle(4, 2 * 60 * 1000);
             }
         }, 60 * 1000);
 
-        // 2. Startup Sync (Runs 1 min after startup)
-        // 3 tickers every 2 min
         setTimeout(() => {
-            console.log('[MarketEventsSync] Triggering Startup Sync (3 tickers / 2 min)...');
+            log.info('[MarketEventsSync]', 'Triggering Startup Sync...');
             this.runFullCycle(3, 2 * 60 * 1000);
         }, 60 * 1000);
     },
 
-    /**
-     * Build the full list of tickers: Base List + User Portfolios
-     */
     async getAllTickers(): Promise<string[]> {
         try {
-            // Get all distinct tickers from user positions
             const userTickersResult = await sql`
                 SELECT DISTINCT ticker FROM positions WHERE ticker IS NOT NULL
             `;
             const userTickers = userTickersResult.map(r => r.ticker);
 
-            // Combine and deduplicate
             const uniqueTickers = new Set([
                 ...BASE_MARKET_TICKERS,
                 ...userTickers
@@ -75,19 +59,14 @@ export const MarketEventsSyncJob = {
 
             return Array.from(uniqueTickers);
         } catch (error) {
-            console.error('[MarketEventsSync] Error fetching tickers:', error);
-            return BASE_MARKET_TICKERS; // Fallback to base list
+            log.error('[MarketEventsSync]', 'Error fetching tickers:', error);
+            return BASE_MARKET_TICKERS;
         }
     },
 
-    /**
-     * Run a full sync cycle
-     * @param batchSize Number of tickers per batch
-     * @param intervalMs Interval between batches in ms
-     */
     async runFullCycle(batchSize: number, intervalMs: number) {
         if (isRunning) {
-            console.log('[MarketEventsSync] Cycle already in progress, skipping request.');
+            log.warn('[MarketEventsSync]', 'Cycle already in progress, skipping.');
             return;
         }
 
@@ -96,53 +75,41 @@ export const MarketEventsSyncJob = {
 
         try {
             const allTickers = await this.getAllTickers();
-            console.log(`[MarketEventsSync] Starting cycle. Total tickers: ${allTickers.length}`);
-            console.log(`[MarketEventsSync] Configuration: Batch=${batchSize}, Interval=${intervalMs / 1000}s`);
+            log.info('[MarketEventsSync]', `Starting cycle. Total: ${allTickers.length} tickers`);
 
-            // First pass
             await this.processTickerList(allTickers, batchSize, intervalMs);
 
             // Retries
             while (failedTickers.size > 0) {
                 const tickersToRetry = Array.from(failedTickers.keys()).filter(t => failedTickers.get(t)! < MAX_RETRIES);
-
                 if (tickersToRetry.length === 0) break;
 
-                console.log(`[MarketEventsSync] Retrying ${tickersToRetry.length} failed tickers...`);
-                // Use same pacing for retries
+                log.verbose('[MarketEventsSync]', `Retrying ${tickersToRetry.length} failed tickers...`);
                 await this.processTickerList(tickersToRetry, batchSize, intervalMs);
             }
 
-            console.log(`[MarketEventsSync] Cycle completed at ${new Date().toISOString()}`);
+            log.summary('[MarketEventsSync]', `✅ Cycle completed. ${allTickers.length} tickers processed.`);
 
         } catch (e: any) {
-            console.error('[MarketEventsSync] Cycle failed:', e.message);
+            log.error('[MarketEventsSync]', 'Cycle failed:', e.message);
         } finally {
             isRunning = false;
         }
     },
 
-    /**
-     * Process list in batches
-     */
     async processTickerList(tickers: string[], batchSize: number, intervalMs: number) {
         for (let i = 0; i < tickers.length; i += batchSize) {
             const batch = tickers.slice(i, i + batchSize);
-            console.log(`[MarketEventsSync] Batch ${Math.ceil((i + 1) / batchSize)}/${Math.ceil(tickers.length / batchSize)}: ${batch.join(', ')}`);
+            log.debug('[MarketEventsSync]', `Batch ${Math.ceil((i + 1) / batchSize)}/${Math.ceil(tickers.length / batchSize)}: ${batch.join(', ')}`);
 
-            // Process batch in parallel
             await Promise.all(batch.map(ticker => this.syncTicker(ticker)));
 
-            // Wait interval (unless it's the last batch)
             if (i + batchSize < tickers.length) {
                 await new Promise(resolve => setTimeout(resolve, intervalMs));
             }
         }
     },
 
-    /**
-     * Sync single ticker
-     */
     async syncTicker(ticker: string): Promise<boolean> {
         try {
             const events = await MarketDataService.getCalendarEvents(ticker);
@@ -157,7 +124,6 @@ export const MarketEventsSyncJob = {
 
                 const eventDate = e.date.split('T')[0];
 
-                // Check for existing event for this ticker/date/type (User ID NULL)
                 const existing = await sql`
                     SELECT id FROM financial_events
                     WHERE ticker = ${ticker} 
@@ -168,7 +134,6 @@ export const MarketEventsSyncJob = {
                 `;
 
                 if (existing.length > 0) {
-                    // Update existing
                     await sql`
                         UPDATE financial_events SET
                             status = 'confirmed',
@@ -180,7 +145,6 @@ export const MarketEventsSyncJob = {
                         WHERE id = ${existing[0].id}
                     `;
                 } else {
-                    // Insert new
                     await sql`
                         INSERT INTO financial_events (
                             user_id, ticker, event_type, event_date, 
@@ -197,14 +161,14 @@ export const MarketEventsSyncJob = {
                 synced++;
             }
 
-            console.log(`[MarketEventsSync] ✓ ${ticker}: ${synced} events`);
+            log.debug('[MarketEventsSync]', `✓ ${ticker}: ${synced} events`);
             failedTickers.delete(ticker);
             return true;
 
         } catch (err: any) {
             const retryCount = (failedTickers.get(ticker) || 0) + 1;
             failedTickers.set(ticker, retryCount);
-            console.error(`[MarketEventsSync] ✗ ${ticker} (attempt ${retryCount}/${MAX_RETRIES}): ${err.message}`);
+            log.verbose('[MarketEventsSync]', `✗ ${ticker} (attempt ${retryCount}/${MAX_RETRIES}): ${err.message}`);
             return false;
         }
     },

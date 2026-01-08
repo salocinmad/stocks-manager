@@ -1,7 +1,8 @@
 import sql from './db';
+import { log } from './utils/logger';
 
 export async function initDatabase() {
-  console.log('Initializing database schema...');
+  log.info('[InitDB]', 'Initializing database schema...');
 
   try {
     // 0. Ensure UUID extension

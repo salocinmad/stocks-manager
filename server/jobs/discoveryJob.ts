@@ -2,6 +2,7 @@ import { DiscoveryService } from '../services/discoveryService';
 import { MarketDataService } from '../services/marketData';
 import { SettingsService } from '../services/settingsService';
 import { getRegionFromExchange } from '../utils/exchangeMapping';
+import { log } from '../utils/logger';
 
 /**
  * Smart Discovery Crawler 4.0 (Market-Aware Dual Pipeline)
@@ -62,6 +63,9 @@ export const DiscoveryJob = {
 
     async runDiscoveryCycle() {
         const now = Date.now();
+        let usaCount = 0;
+        let globalCount = 0;
+        let errors = 0;
 
         try {
             // 1. Maestro Switch
@@ -76,7 +80,7 @@ export const DiscoveryJob = {
             if (minutesSinceLast < cooldownMinutes) return;
 
             this.lastRunTime = now;
-            console.log(`[DiscoveryJob] Iniciando Ciclo Market-Aware (${cyclesPerHour}/hr)...`);
+            log.info('[DiscoveryJob]', `Iniciando Ciclo Market-Aware (${cyclesPerHour}/hr)...`);
 
             // 3. Load Tuning params
             const volFinnhub = parseInt(await SettingsService.get('CRAWLER_VOL_FINNHUB') || '20');
@@ -95,7 +99,7 @@ export const DiscoveryJob = {
             const isUsOpen = usStatus === 'REGULAR';
             const isGlobalOpen = globalStatus === 'REGULAR';
 
-            console.log(`[DiscoveryJob] Status -> USA: ${usStatus}, ${targetRegion}: ${globalStatus}`);
+            log.verbose('[DiscoveryJob]', `Status -> USA: ${usStatus}, ${targetRegion}: ${globalStatus}`);
 
             // === PIPELINE 1: USA (Finnhub Engine) ===
             try {
@@ -109,7 +113,7 @@ export const DiscoveryJob = {
                 if (screener.includes('technology')) fhCategory = 'technology';
                 if (screener.includes('growth') || screener.includes('undervalued')) fhCategory = 'business';
 
-                console.log(`[DiscoveryJob] USA Pipeline -> Motor: Finnhub, Estrategia: ${screener} (${fhCategory})`);
+                log.info('[DiscoveryJob]', `USA Pipeline -> Motor: Finnhub, Estrategia: ${screener}`);
 
                 const fhItems = await MarketDataService.getDiscoveryCandidatesFinnhub(fhCategory, 50);
 
@@ -121,6 +125,8 @@ export const DiscoveryJob = {
                     // Optimization: Process in Batches of 5 for Concurrency
                     const BATCH_SIZE = 5;
                     const candidatesToProcess = fhItems.filter(item => !freshSet.has(item.t));
+
+                    log.debug('[DiscoveryJob]', `USA: ${fhItems.length} candidatos, ${candidatesToProcess.length} a procesar`);
 
                     for (let i = 0; i < candidatesToProcess.length; i += BATCH_SIZE) {
                         if (selected.length >= volFinnhub) break;
@@ -163,11 +169,13 @@ export const DiscoveryJob = {
 
                     if (selected.length > 0) {
                         await DiscoveryService.saveDiscoveryData(`us_${fhCategory}`, selected);
-                        console.log(`[DiscoveryJob] USA -> Añadidos/Actualizados ${selected.length} items.`);
+                        usaCount = selected.length;
+                        log.verbose('[DiscoveryJob]', `USA -> ${selected.length} items añadidos`);
                     }
                 }
             } catch (e: any) {
-                console.error(`[DiscoveryJob] USA Error: ${e.message}`);
+                errors++;
+                log.error('[DiscoveryJob]', `USA Error: ${e.message}`);
             }
 
             // === PIPELINE 2: GLOBAL (Yahoo Engine) ===
@@ -175,7 +183,7 @@ export const DiscoveryJob = {
                 const targetCurrency = REGION_CURRENCY_MAP[targetRegion];
                 const screenerId = isGlobalOpen ? 'day_gainers' : 'most_actives';
 
-                console.log(`[DiscoveryJob] Global Pipeline -> Region: ${targetRegion}, Estrategia: ${screenerId}`);
+                log.info('[DiscoveryJob]', `Global Pipeline -> Region: ${targetRegion}, Estrategia: ${screenerId}`);
 
                 // Fetch pool
                 let pool = await MarketDataService.getDiscoveryCandidates(screenerId, 100, targetRegion, targetCurrency);
@@ -189,6 +197,8 @@ export const DiscoveryJob = {
                     // Optimization: Batch Process
                     const BATCH_SIZE = 5;
                     const candidatesToProcess = pool.filter(cand => !freshSet.has(cand.t));
+
+                    log.debug('[DiscoveryJob]', `Global: ${pool.length} candidatos, ${candidatesToProcess.length} a procesar`);
 
                     for (let i = 0; i < candidatesToProcess.length; i += BATCH_SIZE) {
                         if (selected.length >= volV10) break;
@@ -230,17 +240,20 @@ export const DiscoveryJob = {
 
                     if (selected.length > 0) {
                         await DiscoveryService.saveDiscoveryData(`global_${targetRegion.toLowerCase()}`, selected);
-                        console.log(`[DiscoveryJob] Global -> Añadidos/Actualizados ${selected.length} items en ${targetRegion}.`);
+                        globalCount = selected.length;
+                        log.verbose('[DiscoveryJob]', `Global -> ${selected.length} items en ${targetRegion}`);
                     }
                 }
             } catch (e: any) {
-                console.error(`[DiscoveryJob] Global Error: ${e.message}`);
+                errors++;
+                log.error('[DiscoveryJob]', `Global Error: ${e.message}`);
             }
 
-            console.log(`[DiscoveryJob] Ciclo finalizado a las ${new Date().toISOString()}`);
+            // Summary (always shown in production)
+            log.summary('[DiscoveryJob]', `✅ Ciclo completado: USA=${usaCount}, Global=${globalCount}, Errores=${errors}`);
 
         } catch (error) {
-            console.error('[DiscoveryJob] Critical Error:', error);
+            log.error('[DiscoveryJob]', 'Critical Error:', error);
         }
     },
 

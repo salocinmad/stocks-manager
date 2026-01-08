@@ -26,6 +26,7 @@ import { SettingsService } from './services/settingsService';
 import { AlertService } from './services/alertService';
 import { MarketDataService } from './services/marketData';
 import { schedulePnLJob, calculatePnLForAllPortfolios } from './jobs/pnlJob';
+import { log } from './utils/logger';
 
 // Initialize DB and load settings
 // Initialize DB and load settings
@@ -64,8 +65,8 @@ schedulePnLJob();
 
 // Initial PnL calculation if cache is empty (run once on startup)
 setTimeout(() => {
-    console.log('[Startup] Running initial PnL pre-calculation...');
-    calculatePnLForAllPortfolios().catch(e => console.error('Initial PnL Calc Error:', e));
+    log.info('[Startup]', 'Running initial PnL pre-calculation...');
+    calculatePnLForAllPortfolios().catch(e => log.error('[Startup]', 'Initial PnL Calc Error:', e));
 }, 5000); // Wait 5s for other services to initialize
 
 // Daily Cron Job (04:00 AM Europe/Madrid)
@@ -85,11 +86,11 @@ setInterval(() => {
     // Ejecutar a las 4:00 AM una vez por día
     if (hours === 4 && minutes === 0 && day !== lastRunDay) {
         lastRunDay = day;
-        console.log('⏰ Running Daily Data Sync (04:00 Madrid)...');
+        log.info('[DailySync]', 'Running Daily Data Sync (04:00 Madrid)...');
 
         // Sincronizar último mes (1)
-        MarketDataService.syncPortfolioHistory(1).catch(e => console.error('Daily Portfolio Sync Error:', e));
-        MarketDataService.syncCurrencyHistory(1).catch(e => console.error('Daily Currency Sync Error:', e));
+        MarketDataService.syncPortfolioHistory(1).catch(e => log.error('[DailySync]', 'Portfolio Sync Error:', e));
+        MarketDataService.syncCurrencyHistory(1).catch(e => log.error('[DailySync]', 'Currency Sync Error:', e));
     }
 }, 60000); // Check every minute
 
@@ -102,8 +103,8 @@ setInterval(() => {
 
 // Initial Discovery Run (After 30s)
 setTimeout(() => {
-    console.log('[Startup] Running Initial Discovery Cycle...');
-    DiscoveryJob.runDiscoveryCycle().catch(e => console.error('Initial DiscoveryJob Error:', e));
+    log.info('[Startup]', 'Running Initial Discovery Cycle...');
+    DiscoveryJob.runDiscoveryCycle().catch(e => log.error('[Startup]', 'Initial DiscoveryJob Error:', e));
 }, 30000);
 
 // Catalog Enrichment Job (Runs every 3 mins like Discovery)
@@ -115,8 +116,8 @@ setInterval(() => {
 
 // Initial Catalog Enrichment Run (After 1min)
 setTimeout(() => {
-    console.log('[Startup] Running Initial Catalog Enrichment Cycle...');
-    CatalogEnrichmentJob.runEnrichmentCycle().catch(e => console.error('Initial CatalogEnrichmentJob Error:', e));
+    log.info('[Startup]', 'Running Initial Catalog Enrichment Cycle...');
+    CatalogEnrichmentJob.runEnrichmentCycle().catch(e => log.error('[Startup]', 'Initial CatalogEnrichmentJob Error:', e));
 }, 60000);
 
 // Calendar Sync Job (Every 6h)
@@ -128,8 +129,8 @@ setInterval(() => {
 
 // Initial Calendar Run (After 60s)
 setTimeout(() => {
-    console.log('[Startup] Running Initial Calendar Sync...');
-    CalendarJob.run().catch(e => console.error('Initial CalendarJob Error:', e));
+    log.info('[Startup]', 'Running Initial Calendar Sync...');
+    CalendarJob.run().catch(e => log.error('[Startup]', 'Initial CalendarJob Error:', e));
 }, 60000);
 
 // Market Events Sync Job (Daily at 1:00 AM, 2 tickers every 5 min)
@@ -156,8 +157,8 @@ setInterval(() => {
 
 // Initial Analysis Run (After 90s)
 setTimeout(() => {
-    console.log('[Startup] Running Initial Position Analysis...');
-    runPositionAnalysisJob().catch(e => console.error('Initial PositionAnalysisJob Error:', e));
+    log.info('[Startup]', 'Running Initial Position Analysis...');
+    runPositionAnalysisJob().catch(e => log.error('[Startup]', 'Initial PositionAnalysisJob Error:', e));
 }, 90000);
 
 // Backup Job (Every Minute)

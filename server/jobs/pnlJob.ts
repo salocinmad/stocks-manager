@@ -9,10 +9,11 @@
 import sql from '../db';
 import { MarketDataService } from '../services/marketData';
 import { PnLService } from '../services/pnlService';
+import { log } from '../utils/logger';
 
 // Calculate PnL for a specific date range (uses only trading days)
 async function calculatePnLForDateRange(portfolioId: string, startDate: Date, endDate: Date): Promise<void> {
-    console.log(`[PnL Job] Portfolio ${portfolioId}: calculating from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+    log.verbose('[PnL Job]', `Portfolio ${portfolioId}: ${startDate.toISOString().split('T')[0]} → ${endDate.toISOString().split('T')[0]}`);
 
     // Get all tickers from transactions for this portfolio FIRST
     const allTickers = await sql`
@@ -21,12 +22,11 @@ async function calculatePnLForDateRange(portfolioId: string, startDate: Date, en
     const tickers = allTickers.map((t: any) => t.ticker).filter(Boolean);
 
     if (tickers.length === 0) {
-        console.log(`[PnL Job] Portfolio ${portfolioId} has no transactions, skipping.`);
+        log.debug('[PnL Job]', `Portfolio ${portfolioId} has no transactions, skipping.`);
         return;
     }
 
     // Get ONLY trading days (dates that exist in historical_data for ANY of the tickers)
-    // This avoids weekends and holidays automatically
     const tradingDays = await sql`
         SELECT DISTINCT date::date as date
         FROM historical_data
@@ -39,11 +39,11 @@ async function calculatePnLForDateRange(portfolioId: string, startDate: Date, en
     const dates = tradingDays.map((row: any) => new Date(row.date).toISOString().split('T')[0]);
 
     if (dates.length === 0) {
-        console.log(`[PnL Job] Portfolio ${portfolioId} has no trading days in range, skipping.`);
+        log.debug('[PnL Job]', `Portfolio ${portfolioId} has no trading days in range, skipping.`);
         return;
     }
 
-    console.log(`[PnL Job] Portfolio ${portfolioId}: found ${dates.length} trading days`);
+    log.debug('[PnL Job]', `Portfolio ${portfolioId}: found ${dates.length} trading days`);
 
     // Fetch historical prices for all tickers
     const historyData: Record<string, any[]> = {};
@@ -60,7 +60,7 @@ async function calculatePnLForDateRange(portfolioId: string, startDate: Date, en
             `;
             historyData[ticker] = hist;
         } catch (err) {
-            console.error(`[PnL Job] Error fetching history for ${ticker}:`, err);
+            log.error('[PnL Job]', `Error fetching history for ${ticker}:`, err);
             historyData[ticker] = [];
         }
     }
@@ -96,7 +96,7 @@ async function calculatePnLForDateRange(portfolioId: string, startDate: Date, en
             }
             currencyData[currency] = hist;
         } catch (err) {
-            console.error(`[PnL Job] Error fetching currency ${currency}:`, err);
+            log.error('[PnL Job]', `Error fetching currency ${currency}:`, err);
             currencyData[currency] = [];
         }
     }
@@ -117,13 +117,11 @@ async function calculatePnLForDateRange(portfolioId: string, startDate: Date, en
 
     // Calculate PnL for each date
     for (const dateStr of dates) {
-        // Reconstruct portfolio state for this date using the Service
         const positionsMap = await PnLService.getPositionsOnDate(portfolioId, dateStr);
         const positions = Array.from(positionsMap.values());
 
         if (positions.length === 0) continue;
 
-        // Prepare price and rate maps for the service
         const prices: Record<string, number> = {};
         const rates: Record<string, number> = { 'EUR': 1.0 };
 
@@ -132,10 +130,8 @@ async function calculatePnLForDateRange(portfolioId: string, startDate: Date, en
             rates[pos.currency] = getRateAtDate(pos.currency, dateStr);
         }
 
-        // Calculate pure math via Service
         const dailyPnl = PnLService.calculateDailyUnrealizedPnL(positions, prices, rates);
 
-        // Upsert into cache
         await sql`
             INSERT INTO pnl_history_cache (portfolio_id, date, pnl_eur, calculated_at)
             VALUES (${portfolioId}, ${dateStr}::date, ${dailyPnl}, NOW())
@@ -144,12 +140,12 @@ async function calculatePnLForDateRange(portfolioId: string, startDate: Date, en
         `;
     }
 
-    console.log(`[PnL Job] Portfolio ${portfolioId}: ${dates.length} days processed.`);
+    log.verbose('[PnL Job]', `Portfolio ${portfolioId}: ${dates.length} days processed.`);
 }
 
 // Daily update: Last 5 days
 export async function calculatePnLDaily(): Promise<void> {
-    console.log('[PnL Job] Running DAILY update (last 5 days)...');
+    log.info('[PnL Job]', 'Running DAILY update (last 5 days)...');
 
     const endDate = new Date();
     const startDate = new Date();
@@ -160,12 +156,12 @@ export async function calculatePnLDaily(): Promise<void> {
         await calculatePnLForDateRange(portfolio.id, startDate, endDate);
     }
 
-    console.log('[PnL Job] Daily update completed.');
+    log.summary('[PnL Job]', `✅ Daily update completed (${portfolios.length} portfolios)`);
 }
 
 // Weekly update: Full 6 months
 export async function calculatePnLWeekly(): Promise<void> {
-    console.log('[PnL Job] Running WEEKLY update (full 6 months)...');
+    log.info('[PnL Job]', 'Running WEEKLY update (full 6 months)...');
 
     const endDate = new Date();
     const startDate = new Date();
@@ -176,7 +172,7 @@ export async function calculatePnLWeekly(): Promise<void> {
         await calculatePnLForDateRange(portfolio.id, startDate, endDate);
     }
 
-    console.log('[PnL Job] Weekly update completed.');
+    log.summary('[PnL Job]', `✅ Weekly update completed (${portfolios.length} portfolios)`);
 }
 
 // Schedule the job
@@ -194,12 +190,11 @@ export function schedulePnLJob(): void {
         }
 
         const msUntil4AM = next4AM.getTime() - madTime.getTime();
-        console.log(`[PnL Job] Next run in ${Math.round(msUntil4AM / 1000 / 60)} minutes (at 4:00 AM Madrid)`);
+        log.info('[PnL Job]', `Next run in ${Math.round(msUntil4AM / 1000 / 60)} minutes (at 4:00 AM Madrid)`);
 
         setTimeout(() => {
-            // Check if it's Sunday for weekly run
             const runDate = new Date();
-            const dayOfWeek = runDate.getDay(); // 0 = Sunday
+            const dayOfWeek = runDate.getDay();
 
             if (dayOfWeek === 0) {
                 calculatePnLWeekly();
@@ -207,7 +202,6 @@ export function schedulePnLJob(): void {
                 calculatePnLDaily();
             }
 
-            // Schedule to run every 24 hours
             setInterval(() => {
                 const checkDate = new Date();
                 if (checkDate.getDay() === 0) {
@@ -224,19 +218,18 @@ export function schedulePnLJob(): void {
 
 // For initial population or manual trigger
 export async function calculatePnLForAllPortfolios(): Promise<void> {
-    console.log('[PnL Job] Manual trigger: Full calculation...');
+    log.info('[PnL Job]', 'Manual trigger: Full calculation...');
     await calculatePnLWeekly();
 }
 
 // For admin-triggered FULL recalculation (from first transaction date)
 export async function recalculateAllHistory(): Promise<void> {
-    console.log('[PnL Job] Recalculating FULL PnL history for ALL portfolios...');
+    log.info('[PnL Job]', 'Recalculating FULL PnL history for ALL portfolios...');
 
     const portfolios = await sql`SELECT id FROM portfolios`;
     const endDate = new Date();
 
     for (const portfolio of portfolios) {
-        // Find the earliest transaction date for this portfolio
         const firstTx = await sql`
             SELECT MIN(date) as first_date FROM transactions WHERE portfolio_id = ${portfolio.id}
         `;
@@ -245,7 +238,6 @@ export async function recalculateAllHistory(): Promise<void> {
         if (firstTx[0]?.first_date) {
             startDate = new Date(firstTx[0].first_date);
         } else {
-            // No transactions - skip or use 6 months back
             const sixMonthsAgo = new Date();
             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
             startDate = sixMonthsAgo;
@@ -254,5 +246,5 @@ export async function recalculateAllHistory(): Promise<void> {
         await calculatePnLForDateRange(portfolio.id, startDate, endDate);
     }
 
-    console.log('[PnL Job] Full history recalculation completed.');
+    log.summary('[PnL Job]', `✅ Full history recalculation completed (${portfolios.length} portfolios)`);
 }

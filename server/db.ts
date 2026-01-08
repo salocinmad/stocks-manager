@@ -5,7 +5,10 @@ const sql = postgres(process.env.DATABASE_URL || 'postgres://admin:securepasswor
     max_lifetime: 60 * 30,
     transform: {
         undefined: null
-    }
+    },
+    // Suppress PostgreSQL NOTICE messages (e.g., "relation already exists, skipping")
+    onnotice: () => { } // Silent - prevents verbose "already exists" messages during migrations
 });
 
 export default sql;
+

@@ -706,6 +706,94 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
         })
     })
 
+    // === LOG LEVEL SETTINGS ===
+    .get('/settings/logs', async () => {
+        const { log } = await import('../utils/logger');
+        const levelStr = await SettingsService.get('LOG_LEVEL');
+        const level = parseInt(levelStr || '1', 10);
+        const storage = log.getTotalLogsSize();
+        const dates = log.getAvailableLogDates();
+
+        return {
+            level,
+            levelName: ['PRODUCTION', 'STANDARD', 'VERBOSE', 'DEBUG'][level] || 'UNKNOWN',
+            storage,
+            availableDates: dates
+        };
+    })
+    .post('/settings/logs/level', async ({ body }) => {
+        // @ts-ignore
+        const { level } = body;
+        const validLevel = Math.min(Math.max(parseInt(level, 10), 0), 3);
+
+        await SettingsService.set('LOG_LEVEL', String(validLevel));
+
+        // Force refresh logger cache
+        const { log } = await import('../utils/logger');
+        await log.refreshLevel();
+
+        const levelNames = ['PRODUCTION', 'STANDARD', 'VERBOSE', 'DEBUG'];
+        return {
+            success: true,
+            message: `Nivel de log cambiado a ${levelNames[validLevel]}`,
+            level: validLevel
+        };
+    }, {
+        body: t.Object({
+            level: t.Numeric()
+        })
+    })
+    .get('/settings/logs/download', async ({ query, set }) => {
+        const { log } = await import('../utils/logger');
+        const { startDate, endDate, levelFilter } = query;
+
+        if (!startDate || !endDate) {
+            throw new Error('startDate y endDate son requeridos');
+        }
+
+        const logs = log.getLogsForDateRange(startDate, endDate, levelFilter);
+
+        if (!logs) {
+            set.status = 404;
+            return { error: 'No logs found for the specified date range' };
+        }
+
+        // Return as downloadable text file
+        set.headers['Content-Type'] = 'text/plain; charset=utf-8';
+        set.headers['Content-Disposition'] = `attachment; filename="logs_${startDate}_to_${endDate}.log"`;
+
+        return logs;
+    }, {
+        query: t.Object({
+            startDate: t.String(),
+            endDate: t.String(),
+            levelFilter: t.Optional(t.String())
+        })
+    })
+    .delete('/settings/logs', async ({ body }) => {
+        const { log } = await import('../utils/logger');
+        // @ts-ignore
+        const { startDate, endDate } = body;
+
+        if (!startDate || !endDate) {
+            throw new Error('startDate y endDate son requeridos');
+        }
+
+        const result = log.deleteLogsForDateRange(startDate, endDate);
+
+        return {
+            success: true,
+            message: `Eliminados ${result.deleted} archivos de log (${(result.freed / 1024).toFixed(1)} KB liberados)`,
+            deleted: result.deleted,
+            freedBytes: result.freed
+        };
+    }, {
+        body: t.Object({
+            startDate: t.String(),
+            endDate: t.String()
+        })
+    })
+
     // Market Display Settings (Header Ticker)
     .get('/settings/market-display', async () => {
         const stored = await SettingsService.get('HEADER_INDICES');

@@ -8,9 +8,10 @@
 import sql from '../db';
 import { MarketDataService } from '../services/marketData';
 import { PositionAnalysisService } from '../services/positionAnalysisService';
+import { log } from '../utils/logger';
 
 export async function runPositionAnalysisJob() {
-    console.log('[PositionAnalysisJob] Starting scheduled analysis calculations...');
+    log.info('[PositionAnalysisJob]', 'Starting scheduled analysis calculations...');
     const startTime = Date.now();
 
     try {
@@ -21,7 +22,7 @@ export async function runPositionAnalysisJob() {
             WHERE p.quantity > 0.00000001
         `;
 
-        console.log(`[PositionAnalysisJob] Found ${positions.length} active positions to analyze.`);
+        log.verbose('[PositionAnalysisJob]', `Found ${positions.length} active positions to analyze.`);
 
         let successCount = 0;
         let errorCount = 0;
@@ -32,7 +33,7 @@ export async function runPositionAnalysisJob() {
                 const history = await MarketDataService.getDetailedHistory(pos.ticker, 1);
 
                 if (history.length < 30) {
-                    console.warn(`[PositionAnalysisJob] Insufficient history for ${pos.ticker}, skipping.`);
+                    log.debug('[PositionAnalysisJob]', `Insufficient history for ${pos.ticker}, skipping.`);
                     continue;
                 }
 
@@ -58,16 +59,16 @@ export async function runPositionAnalysisJob() {
                 await new Promise(resolve => setTimeout(resolve, 200));
 
             } catch (e: any) {
-                console.error(`[PositionAnalysisJob] Error analyzing ${pos.ticker}:`, e.message);
+                log.error('[PositionAnalysisJob]', `Error analyzing ${pos.ticker}:`, e.message);
                 errorCount++;
             }
         }
 
         const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-        console.log(`[PositionAnalysisJob] Completed in ${duration}s. Success: ${successCount}, Errors: ${errorCount}`);
+        log.summary('[PositionAnalysisJob]', `✅ Completed in ${duration}s. Success: ${successCount}, Errors: ${errorCount}`);
 
     } catch (e) {
-        console.error('[PositionAnalysisJob] Critical error:', e);
+        log.error('[PositionAnalysisJob]', 'Critical error:', e);
     }
 }
 

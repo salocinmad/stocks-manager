@@ -1,4 +1,5 @@
 import { EODHDService } from '../services/eodhdService';
+import { log } from '../utils/logger';
 
 /**
  * Job para sincronizar la librería global de tickers el día 1 de cada mes
@@ -19,15 +20,15 @@ export function scheduleGlobalTickerJob(): void {
         // Ejecutar el día 1 del mes, a las 02:00 AM, una vez al mes
         if (day === 1 && hours === 2 && month !== lastSyncMonth) {
             lastSyncMonth = month;
-            console.log('[Job] Iniciando sincronización mensual de Librería Global de Tickers...');
+            log.info('[GlobalTickerJob]', 'Starting monthly global library sync...');
             try {
                 await EODHDService.syncAllExchanges((msg) => {
-                    console.log(`[Job-Progress] ${msg}`);
+                    log.verbose('[GlobalTickerJob]', msg);
                 });
-                console.log('[Job] Sincronización mensual completada con éxito.');
+                log.summary('[GlobalTickerJob]', '✅ Monthly sync completed successfully.');
             } catch (error) {
-                console.error('[Job] Error en sincronización mensual de tickers:', error);
+                log.error('[GlobalTickerJob]', 'Monthly sync error:', error);
             }
         }
-    }, 60 * 60 * 1000); // Comprobar cada hora
+    }, 60 * 60 * 1000); // Check every hour
 }

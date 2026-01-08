@@ -11,6 +11,7 @@ import { AdminSMTP } from '../components/admin/AdminSMTP';
 import { DataExplorerTable } from '../components/admin/DataExplorerTable';
 import { MarketIndicesSelector } from '../components/admin/MarketIndicesSelector';
 import { MasterCatalogConfig } from '../components/admin/MasterCatalogConfig';
+import { LogsManager } from '../components/admin/LogsManager';
 
 interface User {
     id: string;
@@ -51,7 +52,7 @@ export const AdminScreen: React.FC = () => {
     const { addToast } = useToast();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<Tab>('general');
-    const [generalSubTab, setGeneralSubTab] = useState<'config' | 'smtp' | 'alerts'>('config');
+    const [generalSubTab, setGeneralSubTab] = useState<'config' | 'smtp' | 'alerts' | 'logs'>('config');
     const [users, setUsers] = useState<User[]>([]);
     const [stats, setStats] = useState<SystemStats | null>(null);
     const [loading, setLoading] = useState(true);
@@ -668,6 +669,15 @@ export const AdminScreen: React.FC = () => {
                                     >
                                         Alarmas
                                     </button>
+                                    <button
+                                        onClick={() => setGeneralSubTab('logs')}
+                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${generalSubTab === 'logs'
+                                            ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                                            : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
+                                            }`}
+                                    >
+                                        Logs
+                                    </button>
                                 </div>
 
                                 {generalSubTab === 'config' && (
@@ -759,6 +769,10 @@ export const AdminScreen: React.FC = () => {
                                             </button>
                                         </div>
                                     </div>
+                                )}
+
+                                {generalSubTab === 'logs' && (
+                                    <LogsManager />
                                 )}
                             </div>
                         )}
