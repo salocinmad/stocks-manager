@@ -9,6 +9,7 @@ import { SortableRow, DragHandleCell } from '../components/SortableRow';
 import { StockNoteModal } from '../components/StockNoteModal';
 import { PositionAnalysisModal } from '../components/PositionAnalysisModal';
 import { BuyAssetModal } from '../components/BuyAssetModal';
+import { TransactionHistoryModal } from '../components/TransactionHistoryModal';
 
 type SortKey = 'name' | 'quantity' | 'average_buy_price' | 'currentPrice' | 'currentValue' | 'returnPct';
 type SortDirection = 'asc' | 'desc';
@@ -115,6 +116,37 @@ export const PortfolioScreen: React.FC = () => {
   const [sellCommission, setSellCommission] = useState('0');
   const [sellExchangeRate, setSellExchangeRate] = useState('1');
   const [isSelling, setIsSelling] = useState(false);
+  const [fifoSimulation, setFifoSimulation] = useState<{ costBasis: number; currency: string; error?: string } | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  // Effect: Trigger Simulation when Quantity Changes
+  useEffect(() => {
+    if (!positionToSell || !sellQuantity) {
+      setFifoSimulation(null);
+      return;
+    }
+    const qty = parseFloat(sellQuantity.replace(',', '.'));
+    if (isNaN(qty) || qty <= 0) {
+      setFifoSimulation(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSimulating(true);
+      try {
+        const { data } = await api.get(`/portfolios/${portfolio?.id}/positions/${positionToSell.ticker}/simulate-sell?amount=${qty}`);
+        setFifoSimulation(data);
+      } catch (e) {
+        setFifoSimulation(null);
+      } finally {
+        setIsSimulating(false);
+      }
+    }, 500); // Debounce 500ms
+    return () => clearTimeout(timer);
+  }, [sellQuantity, positionToSell, portfolio, api]);
+
+  // Estado para modal de historial
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Estado para modal de compra
   const [showBuyModal, setShowBuyModal] = useState(false);
@@ -619,6 +651,18 @@ export const PortfolioScreen: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Botón Historial */}
+
+            {portfolio && (
+              <button
+                onClick={() => setShowHistoryModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:border-primary/50 text-text-secondary-light hover:text-primary transition-all font-bold text-xs uppercase tracking-wider"
+                title="Editar Historial de Transacciones"
+              >
+                <span className="material-symbols-outlined text-lg">history_edu</span>
+                <span className="hidden sm:inline">Historial</span>
+              </button>
+            )}
             <div className="relative group">
               <div
                 onClick={() => setShowDropdown(!showDropdown)}
@@ -727,222 +771,226 @@ export const PortfolioScreen: React.FC = () => {
                 </div>
               )}
 
-              <button
-                onClick={() => setShowBuyModal(true)}
-                className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 self-end md:self-auto"
-              >
-                <span className="material-symbols-outlined text-lg">add_circle</span>
-                Añadir Activo
-              </button>
             </div>
 
-            {positions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="size-24 rounded-full bg-primary/10 flex items-center justify-center mb-8">
-                  <span className="material-symbols-outlined text-5xl text-primary">account_balance_wallet</span>
-                </div>
-                <h4 className="text-2xl font-bold mb-4">Esta cartera está vacía</h4>
-                <p className="text-text-secondary-light dark:text-text-secondary-dark mb-10 max-w-sm text-lg leading-relaxed">
-                  No hay operaciones registradas en "{portfolio?.name || 'esta cartera'}".
-                </p>
-                <button
-                  onClick={() => setShowBuyModal(true)}
-                  className="flex items-center gap-3 px-8 py-4 rounded-full bg-primary text-black font-bold text-lg hover:scale-105 transition-all shadow-xl shadow-primary/20"
-                >
-                  <span className="material-symbols-outlined">add</span>
-                  Registrar mi primera compra
-                </button>
+
+
+            <button
+              onClick={() => setShowBuyModal(true)}
+              className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 self-end md:self-auto"
+            >
+              <span className="material-symbols-outlined text-lg">add_circle</span>
+              Añadir Activo
+            </button>
+          </div>
+
+          {positions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="size-24 rounded-full bg-primary/10 flex items-center justify-center mb-8">
+                <span className="material-symbols-outlined text-5xl text-primary">account_balance_wallet</span>
               </div>
-            ) : (
-              <div className="flex flex-col gap-8">
-                {/* Sorting indicator */}
-                {sortConfig && (
-                  <div className="flex items-center gap-2 text-sm text-text-secondary-light">
-                    <span>Ordenado por: <strong>{sortConfig.key}</strong> ({sortConfig.direction === 'asc' ? '↑' : '↓'})</span>
-                    <button
-                      onClick={() => setSortConfig(null)}
-                      className="px-2 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-all"
-                    >
-                      Limpiar
-                    </button>
-                  </div>
-                )}
-                <div className="overflow-x-auto">
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                    modifiers={[restrictToVerticalAxis]}
+              <h4 className="text-2xl font-bold mb-4">Esta cartera está vacía</h4>
+              <p className="text-text-secondary-light dark:text-text-secondary-dark mb-10 max-w-sm text-lg leading-relaxed">
+                No hay operaciones registradas en "{portfolio?.name || 'esta cartera'}".
+              </p>
+              <button
+                onClick={() => setShowBuyModal(true)}
+                className="flex items-center gap-3 px-8 py-4 rounded-full bg-primary text-black font-bold text-lg hover:scale-105 transition-all shadow-xl shadow-primary/20"
+              >
+                <span className="material-symbols-outlined">add</span>
+                Registrar mi primera compra
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-8">
+              {/* Sorting indicator */}
+              {sortConfig && (
+                <div className="flex items-center gap-2 text-sm text-text-secondary-light">
+                  <span>Ordenado por: <strong>{sortConfig.key}</strong> ({sortConfig.direction === 'asc' ? '↑' : '↓'})</span>
+                  <button
+                    onClick={() => setSortConfig(null)}
+                    className="px-2 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-all"
                   >
-                    <table className="w-full text-left border-separate border-spacing-0">
-                      <thead>
-                        <tr className="text-xs font-bold uppercase tracking-[0.1em] text-text-secondary-light">
-                          {/* Drag handle column - only show when not sorting */}
-                          {!sortConfig && (
-                            <th className="px-2 py-3 border-b border-border-light dark:border-border-dark w-8"></th>
-                          )}
-                          <th onClick={() => handleSort('name')} className="px-6 py-3 border-b border-border-light dark:border-border-dark cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center gap-1">
-                              Activo
-                              {sortConfig?.key === 'name' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th onClick={() => handleSort('quantity')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center justify-end gap-1">
-                              Cantidad
-                              {sortConfig?.key === 'quantity' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th onClick={() => handleSort('average_buy_price')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center justify-end gap-1">
-                              Precio Medio
-                              {sortConfig?.key === 'average_buy_price' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th onClick={() => handleSort('currentPrice')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center justify-end gap-1">
-                              Coti. Actual
-                              {sortConfig?.key === 'currentPrice' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th onClick={() => handleSort('currentValue')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center justify-end gap-1">
-                              Valor Mercado
-                              {sortConfig?.key === 'currentValue' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th onClick={() => handleSort('returnPct')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center justify-end gap-1">
-                              Rentabilidad
-                              {sortConfig?.key === 'returnPct' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th className="px-6 py-3 border-b border-border-light dark:border-border-dark text-center w-24">Acciones</th>
-                        </tr>
-                      </thead>
-                      <SortableContext items={sortedPositions.map(p => p.id)} strategy={verticalListSortingStrategy}>
-                        <tbody className="text-sm">
-                          {sortedPositions.map((pos) => (
-                            <SortableRow key={pos.id} id={pos.id} disabled={!!sortConfig}>
-                              {/* Drag handle - only show when not sorting */}
-                              {!sortConfig && (
-                                <DragHandleCell className="px-2 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-text-secondary-light">
-                                  <span className="material-symbols-outlined text-lg">drag_indicator</span>
-                                </DragHandleCell>
-                              )}
-                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30">
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-base text-text-primary-light dark:text-white truncate max-w-[180px]" title={pos.name || pos.ticker}>{pos.name || pos.ticker}</span>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
-                                    {pos.marketState && (
-                                      <div
-                                        className={`size-1.5 rounded-full ${pos.marketState === 'REGULAR' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
-                                          ['PRE', 'POST'].includes(pos.marketState) ? 'bg-orange-500' :
-                                            'bg-red-500/30'
-                                          }`}
-                                        title={`Mercado: ${pos.marketState === 'REGULAR' ? 'Abierto' : ['PRE', 'POST'].includes(pos.marketState) ? 'Pre/Post Market' : 'Cerrado'}`}
-                                      />
-                                    )}
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right font-mono font-medium">
-                                {pos.quantity.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}
-                              </td>
-                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                                {formatPrice(pos.average_buy_price, pos.currency)}
-                              </td>
-                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                                <div className="flex flex-col items-end">
-                                  <span className="font-bold font-mono">{formatPrice(pos.currentPrice || 0, pos.currency)}</span>
-                                  {(pos.change !== undefined && pos.changePercent !== undefined) && (
-                                    <div className={`flex items-center gap-1 text-xs font-bold leading-none mt-1 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
-                                      <span className="material-symbols-outlined text-[20px] font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>{(pos.change >= 0) ? 'arrow_drop_up' : 'arrow_drop_down'}</span>
-                                      <span>{formatChange(pos.change, pos.changePercent)}</span>
-                                    </div>
+                    Limpiar
+                  </button>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                  modifiers={[restrictToVerticalAxis]}
+                >
+                  <table className="w-full text-left border-separate border-spacing-0">
+                    <thead>
+                      <tr className="text-xs font-bold uppercase tracking-[0.1em] text-text-secondary-light">
+                        {/* Drag handle column - only show when not sorting */}
+                        {!sortConfig && (
+                          <th className="px-2 py-3 border-b border-border-light dark:border-border-dark w-8"></th>
+                        )}
+                        <th onClick={() => handleSort('name')} className="px-6 py-3 border-b border-border-light dark:border-border-dark cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center gap-1">
+                            Activo
+                            {sortConfig?.key === 'name' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th onClick={() => handleSort('quantity')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center justify-end gap-1">
+                            Cantidad
+                            {sortConfig?.key === 'quantity' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th onClick={() => handleSort('average_buy_price')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center justify-end gap-1">
+                            Precio Medio
+                            {sortConfig?.key === 'average_buy_price' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th onClick={() => handleSort('currentPrice')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center justify-end gap-1">
+                            Coti. Actual
+                            {sortConfig?.key === 'currentPrice' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th onClick={() => handleSort('currentValue')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center justify-end gap-1">
+                            Valor Mercado
+                            {sortConfig?.key === 'currentValue' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th onClick={() => handleSort('returnPct')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center justify-end gap-1">
+                            Rentabilidad
+                            {sortConfig?.key === 'returnPct' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th className="px-6 py-3 border-b border-border-light dark:border-border-dark text-center w-24">Acciones</th>
+                      </tr>
+                    </thead>
+                    <SortableContext items={sortedPositions.map(p => p.id)} strategy={verticalListSortingStrategy}>
+                      <tbody className="text-sm">
+                        {sortedPositions.map((pos) => (
+                          <SortableRow key={pos.id} id={pos.id} disabled={!!sortConfig}>
+                            {/* Drag handle - only show when not sorting */}
+                            {!sortConfig && (
+                              <DragHandleCell className="px-2 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-text-secondary-light">
+                                <span className="material-symbols-outlined text-lg">drag_indicator</span>
+                              </DragHandleCell>
+                            )}
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-base text-text-primary-light dark:text-white truncate max-w-[180px]" title={pos.name || pos.ticker}>{pos.name || pos.ticker}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
+                                  {pos.marketState && (
+                                    <div
+                                      className={`size-1.5 rounded-full ${pos.marketState === 'REGULAR' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                                        ['PRE', 'POST'].includes(pos.marketState) ? 'bg-orange-500' :
+                                          'bg-red-500/30'
+                                        }`}
+                                      title={`Mercado: ${pos.marketState === 'REGULAR' ? 'Abierto' : ['PRE', 'POST'].includes(pos.marketState) ? 'Pre/Post Market' : 'Cerrado'}`}
+                                    />
                                   )}
                                 </div>
-                              </td>
-                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right font-bold text-base">
-                                {pos.currentValue ? pos.currentValue.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) : '---'}
-                              </td>
-                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                                <div className={`flex flex-col items-end justify-center px-3 py-1.5 rounded-lg border w-fit ml-auto transition-all ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
-                                  <span className="font-bold">{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
-                                  <span className="text-xs opacity-90 font-medium">
-                                    {((pos.currentValue || 0) - ((pos.quantity * pos.average_buy_price) + (Number(pos.commission) || 0))).toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30">
-                                <div className="flex items-center justify-center gap-1">
-                                  <button onClick={() => setNotePosition(pos)} className="p-2 rounded-lg hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all" title="Ver/Editar Nota">
-                                    <span className="material-symbols-outlined text-lg">description</span>
-                                  </button>
-                                  <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Crear Alerta de Precio">
-                                    <span className="material-symbols-outlined text-lg">notifications_active</span>
-                                  </button>
-                                  <button onClick={() => setAnalysisPosition(pos)} className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-600 transition-all" title="Análisis Detallado">
-                                    <span className="material-symbols-outlined text-lg">analytics</span>
-                                  </button>
-                                  <button
-                                    onClick={() => openSellModal(pos)}
-                                    className="p-2 rounded-lg hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500 transition-all"
-                                    title="Vender posición"
-                                  >
-                                    <span className="material-symbols-outlined text-lg">sell</span>
-                                  </button>
-                                  <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
-                                    <span className="material-symbols-outlined text-lg">edit</span>
-                                  </button>
-                                  <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar posición">
-                                    <span className="material-symbols-outlined text-lg">delete</span>
-                                  </button>
-                                </div>
-                              </td>
-                            </SortableRow>
-                          ))}
-                        </tbody>
-                      </SortableContext>
-                    </table>
-                  </DndContext>
-                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right font-mono font-medium">
+                              {pos.quantity.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                              {formatPrice(pos.average_buy_price, pos.currency)}
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                              <div className="flex flex-col items-end">
+                                <span className="font-bold font-mono">{formatPrice(pos.currentPrice || 0, pos.currency)}</span>
+                                {(pos.change !== undefined && pos.changePercent !== undefined) && (
+                                  <div className={`flex items-center gap-1 text-xs font-bold leading-none mt-1 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
+                                    <span className="material-symbols-outlined text-[20px] font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>{(pos.change >= 0) ? 'arrow_drop_up' : 'arrow_drop_down'}</span>
+                                    <span>{formatChange(pos.change, pos.changePercent)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right font-bold text-base">
+                              {pos.currentValue ? pos.currentValue.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) : '---'}
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                              <div className={`flex flex-col items-end justify-center px-3 py-1.5 rounded-lg border w-fit ml-auto transition-all ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
+                                <span className="font-bold">{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
+                                <span className="text-xs opacity-90 font-medium">
+                                  {((pos.currentValue || 0) - ((pos.quantity * pos.average_buy_price) + (Number(pos.commission) || 0))).toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30">
+                              <div className="flex items-center justify-center gap-1">
+                                <button onClick={() => setNotePosition(pos)} className="p-2 rounded-lg hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all" title="Ver/Editar Nota">
+                                  <span className="material-symbols-outlined text-lg">description</span>
+                                </button>
+                                <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Crear Alerta de Precio">
+                                  <span className="material-symbols-outlined text-lg">notifications_active</span>
+                                </button>
+                                <button onClick={() => setAnalysisPosition(pos)} className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-600 transition-all" title="Análisis Detallado">
+                                  <span className="material-symbols-outlined text-lg">analytics</span>
+                                </button>
+                                <button
+                                  onClick={() => openSellModal(pos)}
+                                  className="p-2 rounded-lg hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500 transition-all"
+                                  title="Vender posición"
+                                >
+                                  <span className="material-symbols-outlined text-lg">sell</span>
+                                </button>
+                                <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
+                                  <span className="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar posición">
+                                  <span className="material-symbols-outlined text-lg">delete</span>
+                                </button>
+                              </div>
+                            </td>
+                          </SortableRow>
+                        ))}
+                      </tbody>
+                    </SortableContext>
+                  </table>
+                </DndContext>
+              </div>
 
-                {/* Resumen Final Superior */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-                  <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
-                    <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Valor Total</p>
-                    <p className="text-3xl font-black text-text-primary-light dark:text-white">
-                      {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+              {/* Resumen Final Superior */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+                <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
+                  <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Valor Total</p>
+                  <p className="text-3xl font-black text-text-primary-light dark:text-white">
+                    {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+                  </p>
+                </div>
+                <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
+                  <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Inversión Coste</p>
+                  <p className="text-3xl font-black text-text-primary-light dark:text-white">
+                    {positions.reduce((sum, p) => sum + (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+                  </p>
+                </div>
+                <div className={`p-6 rounded-3xl border ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
+                  ? 'bg-green-500/5 border-green-500/20'
+                  : 'bg-red-500/5 border-red-500/20'
+                  }`}>
+                  <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Ganancia Total</p>
+                  <div className="flex flex-col">
+                    <p className={`text-3xl font-black ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
+                      ? 'text-green-500'
+                      : 'text-red-500'
+                      }`}>
+                      {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
                     </p>
-                  </div>
-                  <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
-                    <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Inversión Coste</p>
-                    <p className="text-3xl font-black text-text-primary-light dark:text-white">
-                      {positions.reduce((sum, p) => sum + (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
-                    </p>
-                  </div>
-                  <div className={`p-6 rounded-3xl border ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
-                    ? 'bg-green-500/5 border-green-500/20'
-                    : 'bg-red-500/5 border-red-500/20'
-                    }`}>
-                    <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Ganancia Total</p>
-                    <div className="flex flex-col">
-                      <p className={`text-3xl font-black ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
-                        ? 'text-green-500'
-                        : 'text-red-500'
-                        }`}>
-                        {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
-                      </p>
-                    </div>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        </div >
+            </div>
+          )}
+        </div>
       </div >
+
       {/* Modal de Confirmación de Borrado */}
       {
         portfolioToDelete && (
@@ -1141,179 +1189,146 @@ export const PortfolioScreen: React.FC = () => {
       {
         positionToSell && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <form onSubmit={handleSellPosition} className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-orange-500 text-2xl">sell</span>
+            <form onSubmit={handleSellPosition} className="bg-white dark:bg-surface-dark rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-orange-500 text-xl">sell</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold">Vender {positionToSell.ticker}</h3>
-                  <p className="text-sm text-text-secondary-light">{positionToSell.name}</p>
+                  <h3 className="text-lg font-bold leading-tight">Vender {positionToSell.ticker}</h3>
+                  <p className="text-xs text-text-secondary-light">{positionToSell.name}</p>
                 </div>
               </div>
 
               <div className="space-y-4 mb-6">
-                {/* Info de la posición */}
-                <div className="p-4 bg-background-light/50 dark:bg-surface-dark-elevated/50 rounded-xl">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-text-secondary-light">Tienes:</span>
-                    <span className="font-bold">{positionToSell.quantity} acciones</span>
-                  </div>
-                  <div className="flex justify-between text-sm mt-1">
-                    <span className="text-text-secondary-light">Coste total compra:</span>
-                    <span>
-                      {((positionToSell.quantity * positionToSell.average_buy_price) + (Number(positionToSell.commission) || 0)).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm mt-1">
-                    <span className="text-text-secondary-light">Precio actual:</span>
-                    <span className="font-bold text-primary">{positionToSell.currentPrice?.toFixed(2) || '---'} {positionToSell.currency}</span>
-                  </div>
-                </div>
-
-                {/* Cantidad a vender */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary-light mb-2">
-                    Cantidad a vender
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      max={positionToSell.quantity}
-                      value={sellQuantity}
-                      onChange={(e) => setSellQuantity(e.target.value)}
-                      className="flex-1 px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500"
-                      placeholder="Cantidad"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setSellQuantity(String(positionToSell.quantity))}
-                      className="px-4 py-3 bg-orange-500/20 text-orange-500 rounded-xl font-bold hover:bg-orange-500/30 transition-all"
-                    >
-                      TODO
-                    </button>
-                  </div>
-                </div>
-
-                {/* Precio de venta */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary-light mb-2">
-                    Precio de venta ({positionToSell.currency})
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={sellPrice}
-                    onChange={(e) => setSellPrice(e.target.value)}
-                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="Precio por acción"
-                    required
-                  />
-                </div>
-
-                {/* Comisión de venta */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary-light mb-2">
-                    Comisión de venta ({positionToSell.currency})
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={sellCommission}
-                    onChange={(e) => setSellCommission(e.target.value)}
-                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="0"
-                  />
-                </div>
-
-                {/* Tipo de cambio (solo si no es EUR) */}
-                {positionToSell.currency !== 'EUR' && (
+                {/* Info Compacta */}
+                <div className="flex justify-between items-center text-xs bg-background-light/50 dark:bg-surface-dark-elevated/50 p-2 rounded-lg">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary-light mb-2">
-                      Tipo de cambio ({positionToSell.currency} → EUR)
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={sellExchangeRate}
-                      onChange={(e) => setSellExchangeRate(e.target.value)}
-                      className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500"
-                      placeholder="1.00"
-                    />
-                    <p className="text-xs text-text-secondary-light mt-1">
-                      1 {positionToSell.currency} = {sellExchangeRate} EUR
-                    </p>
+                    <span className="text-text-secondary-light block text-[10px] uppercase font-bold">Tienes</span>
+                    <span className="font-bold">{positionToSell.quantity}</span>
                   </div>
-                )}
+                  <div>
+                    <span className="text-text-secondary-light block text-[10px] uppercase font-bold">Coste Avg</span>
+                    <span className="font-mono">{formatPrice(positionToSell.average_buy_price, positionToSell.currency)}</span>
+                  </div>
+                  <div>
+                    <span className="text-text-secondary-light block text-[10px] uppercase font-bold">Actual</span>
+                    <span className="font-bold text-primary">{positionToSell.currentPrice ? formatPrice(positionToSell.currentPrice, positionToSell.currency) : '---'}</span>
+                  </div>
+                </div>
 
-                {/* Resumen */}
+                {/* Inputs Grid */}
+                <div className="space-y-3">
+                  {/* Cantidad */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-text-secondary-light mb-1">Cantidad</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        max={positionToSell.quantity}
+                        value={sellQuantity}
+                        onChange={(e) => setSellQuantity(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500 text-sm font-bold"
+                        placeholder="0"
+                        required
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSellQuantity(String(positionToSell.quantity))}
+                        className="px-3 py-2 bg-orange-500/10 text-orange-500 rounded-xl text-xs font-bold hover:bg-orange-500/20"
+                      >
+                        TODO
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Precio */}
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-text-secondary-light mb-1">Precio</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={sellPrice}
+                        onChange={(e) => setSellPrice(e.target.value)}
+                        className="w-full px-3 py-2 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500 text-sm"
+                        placeholder="Price"
+                        required
+                      />
+                    </div>
+                    {/* Comisión */}
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-text-secondary-light mb-1">Comisión</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={sellCommission}
+                        onChange={(e) => setSellCommission(e.target.value)}
+                        className="w-full px-3 py-2 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500 text-sm"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  {/* FX (Condicional) */}
+                  {positionToSell.currency !== 'EUR' && (
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-text-secondary-light mb-1">FX ({positionToSell.currency}→EUR)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={sellExchangeRate}
+                        onChange={(e) => setSellExchangeRate(e.target.value)}
+                        className="w-full px-3 py-2 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500 text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Resumen Compacto con FIFO */}
                 {sellQuantity && sellPrice && (
-                  <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
-                    <div className="flex justify-between text-sm">
-                      <span>Total venta:</span>
+                  <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-xl space-y-2">
+                    <div className="flex justify-between items-end text-xs">
+                      <span className="text-text-secondary-light font-medium">Neto Venta:</span>
                       <span className="font-bold text-orange-500">
-                        {(parseFloat(sellQuantity.replace(',', '.')) * parseFloat(sellPrice.replace(',', '.'))).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
+                        {(() => {
+                          const net = (parseFloat(sellQuantity) * parseFloat(sellPrice)) - (parseFloat(sellCommission) || 0);
+                          return isNaN(net) ? '...' : net.toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency });
+                        })()}
                       </span>
                     </div>
-                    {parseFloat(sellCommission.replace(',', '.')) > 0 && (
-                      <div className="flex justify-between text-sm mt-1">
-                        <span>- Comisión:</span>
-                        <span className="text-text-secondary-light">
-                          {parseFloat(sellCommission.replace(',', '.')).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-sm mt-1 font-bold">
-                      <span>Neto venta:</span>
-                      <span className="text-orange-500">
-                        {((parseFloat(sellQuantity.replace(',', '.')) * parseFloat(sellPrice.replace(',', '.'))) - (parseFloat(sellCommission.replace(',', '.')) || 0)).toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
+
+                    {/* FIFO Simulation Result */}
+                    <div className="flex justify-between items-end text-xs border-t border-orange-500/10 pt-2">
+                      <span className="text-text-secondary-light font-medium flex items-center gap-1">
+                        Ganancia/Pérdida (FIFO)
+                        {isSimulating && <span className="w-2 h-2 rounded-full border-2 border-orange-500 border-t-transparent animate-spin"></span>}
+                      </span>
+                      <span className={`font-black ${!fifoSimulation ? 'text-gray-400' :
+                        (() => {
+                          const net = (parseFloat(sellQuantity) * parseFloat(sellPrice)) - (parseFloat(sellCommission) || 0);
+                          const pnl = net - fifoSimulation.costBasis;
+                          return pnl >= 0 ? 'text-green-500' : 'text-red-500';
+                        })()
+                        }`}>
+                        {isSimulating ? '...' :
+                          fifoSimulation ?
+                            (() => {
+                              const net = (parseFloat(sellQuantity) * parseFloat(sellPrice)) - (parseFloat(sellCommission) || 0);
+                              const pnl = net - fifoSimulation.costBasis;
+                              return `${pnl >= 0 ? '+' : ''}${pnl.toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}`;
+                            })()
+                            : '---'}
                       </span>
                     </div>
-                    {positionToSell.currency !== 'EUR' && (
-                      <div className="flex justify-between text-sm mt-1">
-                        <span>Neto en EUR:</span>
-                        <span className="font-bold">
-                          {(((parseFloat(sellQuantity.replace(',', '.')) * parseFloat(sellPrice.replace(',', '.'))) - (parseFloat(sellCommission.replace(',', '.')) || 0)) * (parseFloat(sellExchangeRate.replace(',', '.')) || 1)).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
-                        </span>
-                      </div>
-                    )}
-                    {(() => {
-                      const qty = parseFloat(sellQuantity.replace(',', '.')) || 0;
-                      const sellPriceNum = parseFloat(sellPrice.replace(',', '.')) || 0;
-                      const sellComm = parseFloat(sellCommission.replace(',', '.')) || 0;
-
-                      // Calcular parte proporcional de la comisión de compra
-                      const positionTotalQty = positionToSell.quantity || 1; // Evitar div por 0
-                      const buyCommProrated = (positionToSell.commission || 0) * (qty / positionTotalQty);
-
-                      // Coste base de lo que se vende (Precio compra + Comisión compra prorrateada)
-                      const costBasis = (positionToSell.average_buy_price * qty) + buyCommProrated;
-
-                      // Ingreso neto de la venta (Precio venta - Comisión venta)
-                      const netProceeds = (sellPriceNum * qty) - sellComm;
-
-                      const profit = netProceeds - costBasis;
-
-                      return (
-                        <div className="flex justify-between text-sm mt-2 pt-2 border-t border-orange-500/20">
-                          <span>Ganancia/Pérdida:</span>
-                          <span className={`font-bold ${profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            {profit >= 0 ? '+' : ''}{profit.toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}
-                          </span>
-                        </div>
-                      );
-                    })()}
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -1321,16 +1336,16 @@ export const PortfolioScreen: React.FC = () => {
                     setSellQuantity('');
                     setSellPrice('');
                   }}
-                  className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
+                  className="px-4 py-3 rounded-xl border border-border-light dark:border-border-dark font-bold text-sm hover:bg-background-light dark:hover:bg-white/5 transition-all"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSelling || !sellQuantity || !sellPrice}
-                  className="px-6 py-4 rounded-2xl bg-orange-500 text-white font-bold hover:opacity-90 transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50"
+                  className="px-4 py-3 rounded-xl bg-orange-500 text-white font-bold text-sm hover:opacity-90 transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50"
                 >
-                  {isSelling ? 'Vendiendo...' : 'Confirmar Venta'}
+                  {isSelling ? '...' : 'Confirmar Venta'}
                 </button>
               </div>
             </form>
@@ -1406,33 +1421,56 @@ export const PortfolioScreen: React.FC = () => {
       }
 
       {/* Modal de Notas */}
-      {notePosition && (
-        <StockNoteModal
-          positionId={notePosition.id}
-          ticker={notePosition.ticker}
-          onClose={() => setNotePosition(null)}
-        />
-      )}
+      {
+        notePosition && (
+          <StockNoteModal
+            positionId={notePosition.id}
+            ticker={notePosition.ticker}
+            onClose={() => setNotePosition(null)}
+          />
+        )
+      }
 
       {/* Modal de Análisis de Posición */}
-      {analysisPosition && (
-        <PositionAnalysisModal
-          isOpen={!!analysisPosition}
-          onClose={() => setAnalysisPosition(null)}
-          positionId={analysisPosition.id}
-          ticker={analysisPosition.ticker}
-          companyName={analysisPosition.name}
-        />
-      )}
+      {
+        analysisPosition && (
+          <PositionAnalysisModal
+            isOpen={!!analysisPosition}
+            onClose={() => setAnalysisPosition(null)}
+            positionId={analysisPosition.id}
+            ticker={analysisPosition.ticker}
+            companyName={analysisPosition.name}
+          />
+        )
+      }
 
-      {/* Modal de Compra de Activo */}
-      <BuyAssetModal
-        isOpen={showBuyModal}
-        onClose={() => setShowBuyModal(false)}
-        portfolios={availablePortfolios}
-        defaultPortfolioId={portfolio?.id}
-        onSuccess={() => window.location.reload()}
-      />
+      {/* Modal de Compra */}
+      {
+        showBuyModal && (
+          <BuyAssetModal
+            isOpen={showBuyModal}
+            onClose={() => setShowBuyModal(false)}
+            onSuccess={() => {
+              loadPortfolioDetails(portfolio?.id || '');
+              handleManualRefresh();
+            }}
+            defaultPortfolioId={portfolio?.id}
+            portfolios={availablePortfolios}
+          />
+        )
+      }
+
+      {
+        showHistoryModal && portfolio && (
+          <TransactionHistoryModal
+            portfolioId={portfolio.id}
+            onClose={() => {
+              setShowHistoryModal(false);
+              loadPortfolioDetails(portfolio.id); // Refresh portfolio on close in case of edits
+            }}
+          />
+        )
+      }
     </main >
   );
 };

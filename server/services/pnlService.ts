@@ -127,10 +127,6 @@ export const PnLService = {
             const fees = Number(tx.fees) || 0;
             const rate = Number(tx.exchange_rate_to_eur) || 1.0;
 
-            // Normalize everything to base currency (EUR) for tax purposes if needed, 
-            // but usually you match in original currency then convert PnL.
-            // Let's stick to standard practice: Match lots, calculate Gain in base currency.
-
             if (!openLots.has(ticker)) {
                 openLots.set(ticker, []);
             }
@@ -138,57 +134,59 @@ export const PnLService = {
 
             if (type === 'BUY') {
                 // Add new lot
-                // Cost Basis includes fees for BUYs
-                const totalCostEur = ((amount * price) + fees) * rate; // Rough approximation for total basis in EUR
-                const unitCostBase = (price + (fees / amount)); // effective unit price in asset currency
-
+                // Track commission SEPARATELY to be precise
                 lots.push({
                     date: tx.date,
                     quantity: amount,
-                    unitPrice: unitCostBase, // Basis per share
+                    unitPrice: price, // Pure price
                     currency: tx.currency,
                     rateToEur: rate,
-                    originalFees: fees
+                    originalFees: fees,
+                    initialQuantity: amount // Needed to calculate proportional fee per share
                 });
             }
             else if (type === 'SELL') {
                 let remainingToSell = amount;
-                let usageFees = fees; // We distribute sell fees proportionally or just subtract from total PnL
 
                 // Realized PnL for this specific SELL transaction
-                // We might match against multiple BUY lots
-
                 while (remainingToSell > 0.00000001 && lots.length > 0) {
                     const matchLot = lots[0]; // First In
 
                     const quantityMatched = Math.min(remainingToSell, matchLot.quantity);
 
-                    // Logic:
-                    // Sell Proceeds = (Qty * SellPrice) - (Pro-rated Sell Fees)
-                    // Cost Basis = (Qty * BuyPriceWithBuyFees)
+                    // 1. Calculate Proportional Buy Commission for this chunk
+                    // (Quantity Matched / Initial Lot Quantity) * Original Lot Fees
+                    const buyFeesAllocated = (quantityMatched / matchLot.initialQuantity) * matchLot.originalFees;
 
-                    // Pro-rate sell fees for this chunk
-                    const portion = quantityMatched / amount;
-                    const sellFeesForChunk = usageFees * portion;
+                    // 2. Calculate Proportional Sell Commission for this chunk
+                    // (Quantity Matched / Total Sell Quantity) * Total Sell Fees
+                    const sellFeesAllocated = (quantityMatched / amount) * fees;
 
-                    // Proceeds in EUR
-                    const proceedsEur = ((quantityMatched * price) * rate) - (sellFeesForChunk * rate);
+                    // 3. Proceeds in EUR (Current Rate)
+                    // Pure Sale amount - Allocated Sell Fees
+                    const sellValueEur = (quantityMatched * price * rate);
+                    const sellFeesEur = sellFeesAllocated * rate;
+                    const netProceedsEur = sellValueEur - sellFeesEur;
 
-                    // Cost in EUR (using historical rate of the BUY)
-                    // If we want accurate "Multi-Currency" tax handling, we typically compare Cost(HistoricalEUR) vs Proceeds(CurrentEUR).
-                    const costEur = (quantityMatched * matchLot.unitPrice) * matchLot.rateToEur;
+                    // 4. Cost in EUR (Historical Rate)
+                    // Pure Buy amount + Allocated Buy Fees
+                    const buyValueEur = (quantityMatched * matchLot.unitPrice * matchLot.rateToEur);
+                    const buyFeesEur = buyFeesAllocated * matchLot.rateToEur;
+                    const totalCostEur = buyValueEur + buyFeesEur;
 
-                    const gainEur = proceedsEur - costEur;
+                    const gainEur = netProceedsEur - totalCostEur;
 
                     realizedOperations.push({
                         ticker,
                         sellDate: tx.date,
                         buyDate: matchLot.date,
                         quantity: quantityMatched,
-                        buyPriceEur: (matchLot.unitPrice * matchLot.rateToEur).toFixed(4),
-                        sellPriceEur: (price * rate).toFixed(4),
+                        buyPriceEur: Number(totalCostEur.toFixed(4)), // Cost Basis (Value + Fees)
+                        sellPriceEur: Number(netProceedsEur.toFixed(4)), // Net Proceeds (Value - Fees)
                         buyPriceOrig: matchLot.unitPrice,
                         sellPriceOrig: price,
+                        buyFeesEur: Number(buyFeesEur.toFixed(4)),
+                        sellFeesEur: Number(sellFeesEur.toFixed(4)),
                         buyRate: matchLot.rateToEur,
                         sellRate: rate,
                         gainEur: Number(gainEur.toFixed(2)),

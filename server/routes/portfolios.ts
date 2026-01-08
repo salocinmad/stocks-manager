@@ -595,10 +595,93 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
                 // If no cache, trigger initial calculation (runs in background)
                 calculatePnLWeekly().catch(e => console.error('[PnL] Background calc error:', e));
             }
-
             return result;
         } catch (error) {
             console.error('[PnL History] Error:', error);
             return [];
+        }
+    })
+    // List All Transactions for Portfolio (Chronological)
+    .get('/:id/transactions/all', async ({ userId, params }) => {
+        const { id } = params;
+
+        // Verify ownership
+        const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId}`;
+        if (!portfolio) throw new Error('Portfolio not found');
+
+        const transactions = await sql`
+            SELECT t.id, t.ticker, t.type, t.amount, t.price_per_unit, t.fees, t.currency, t.exchange_rate_to_eur, t.date,
+                   gt.name as company_name
+            FROM transactions t
+            LEFT JOIN global_tickers gt ON t.ticker = gt.symbol
+            WHERE t.portfolio_id = ${id}
+            ORDER BY t.date ASC, t.created_at ASC
+        `;
+
+        return [...transactions].map(t => ({
+            ...t,
+            amount: Number(t.amount),
+            price_per_unit: Number(t.price_per_unit),
+            fees: Number(t.fees),
+            exchange_rate_to_eur: Number(t.exchange_rate_to_eur)
+        }));
+    })
+    // Update Transaction
+    .put('/:id/transactions/:transactionId', async ({ userId, params, body }) => {
+        const { id, transactionId } = params;
+        // @ts-ignore
+        const { date, amount, price, fees, currency, exchangeRate } = body;
+
+        // Verify ownership
+        const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId} `;
+        if (!portfolio) throw new Error('Portfolio not found');
+
+        try {
+            await PortfolioService.updateTransaction(transactionId, id, {
+                date,
+                amount: amount ? Number(amount) : undefined,
+                price: price ? Number(price) : undefined,
+                fees: fees !== undefined ? Number(fees) : undefined,
+                currency,
+                exchange_rate: exchangeRate ? Number(exchangeRate) : undefined
+            });
+
+            return { success: true };
+        } catch (error: any) {
+            console.error('Update Transaction Error:', error);
+            throw new Error(error.message || 'Failed to update transaction');
+        }
+    }, {
+        body: t.Object({
+            date: t.Optional(t.String()),
+            amount: t.Optional(t.Number()),
+            price: t.Optional(t.Number()),
+            fees: t.Optional(t.Number()),
+            currency: t.Optional(t.String()),
+            exchangeRate: t.Optional(t.Number())
+        })
+    })
+    // Simulate Sell (FIFO Preview)
+    .get('/:id/positions/:ticker/simulate-sell', async ({ userId, params, query, set }) => {
+        const { id, ticker } = params;
+        // @ts-ignore
+        const { amount } = query;
+
+        if (!amount) {
+            set.status = 400;
+            return { error: 'Amount is required' };
+        }
+
+        // Verify ownership
+        const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId} `;
+        if (!portfolio) throw new Error('Portfolio not found');
+
+        try {
+            const result = await PortfolioService.simulateSell(id, ticker, Number(amount));
+            return result;
+        } catch (error: any) {
+            console.error('Simulate Sell Error:', error);
+            set.status = 400;
+            return { error: error.message || 'Simulation failed' };
         }
     });
