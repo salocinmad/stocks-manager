@@ -53,6 +53,7 @@ Este archivo actúa como índice maestro de la estructura del proyecto y su func
 | Archivo | Descripción |
 |---------|-------------|
 | `exchangeMapping.ts` | Mapeo EODHD Code → Yahoo Suffix |
+| `logger.ts` | Sistema de logging centralizado (niveles, rotación) |
 
 ---
 
@@ -87,6 +88,7 @@ Este archivo actúa como índice maestro de la estructura del proyecto y su func
 | `AIGeneral.tsx` | Configuración IA |
 | `AIProviders.tsx` | Gestión providers IA |
 | `AdminSMTP.tsx` | Configuración SMTP |
+| `LogsManager.tsx` | Gestión de logs del sistema (descarga/limpieza) |
 
 #### Context (`/context`)
 | Archivo | Descripción |
@@ -118,6 +120,7 @@ Este archivo actúa como índice maestro de la estructura del proyecto y su func
 - `alerts`, `portfolio_alerts`
 - `global_tickers` (catálogo maestro)
 - `market_cache`, `market_discovery_cache`, `ticker_details_cache`
+- `financial_events` (calendario con `updated_at`, `eps`)
 - `position_analysis_cache`, `pnl_history_cache`
 - `system_settings`, `ai_providers`, `ai_prompts`
 - `chat_conversations`, `chat_messages`

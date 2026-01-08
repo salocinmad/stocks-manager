@@ -101,6 +101,12 @@ Modal de análisis completo para cada posición:
 - **Bolsas US**: Añadidas NYSE, NASDAQ, AMEX al catálogo maestro
 - **Cosecha Mundial**: Botón disponible en Catálogo Maestro (antes solo en Sincronización)
 
+### Hotfix 8 Enero 2026 (Update 2)
+- **Sistema de Logging**: Implementado logger centralizado con niveles (DEBUG/VERBOSE/STANDARD/PRODUCTION).
+- **Admin UI**: Nueva pestaña "Logs" para descargar, limpiar y configurar nivel de log en caliente.
+- **Base de Datos**: Corregido esquema `financial_events` (añadido `updated_at`) y suprimidos avisos NOTICE en migraciones.
+- **Jobs**: Migración completa de jobs al nuevo sistema de trazas con timestamps locales (Madrid).
+
 ### Hotfix 7 Enero 2026
 - **Precisión Decimal**: Solucionado separadores (puntos vs comas)
 - **Tipos de Cambio**: Corregido bug en ventas (SELL)

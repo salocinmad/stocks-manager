@@ -371,6 +371,10 @@ export async function initDatabase() {
 
     // Calendar Migrations (New Columns)
     try {
+      await sql`ALTER TABLE financial_events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`;
+      console.log('Applied migration: financial_events.updated_at');
+    } catch (e: any) { console.error('Migration error (financial_events.updated_at):', e.message); }
+    try {
       await sql`ALTER TABLE financial_events ADD COLUMN IF NOT EXISTS estimated_eps DECIMAL`;
       console.log('Applied migration: financial_events.estimated_eps');
     } catch (e: any) { console.error('Migration error (financial_events.estimated_eps):', e.message); }

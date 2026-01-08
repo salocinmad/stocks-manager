@@ -191,6 +191,7 @@ CREATE TABLE IF NOT EXISTS financial_events (
     dividend_amount DECIMAL,
     status VARCHAR(20) DEFAULT 'estimated',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, ticker, event_type, event_date)
 );
 CREATE INDEX IF NOT EXISTS idx_events_user_date ON financial_events(user_id, event_date);

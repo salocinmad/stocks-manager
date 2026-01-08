@@ -23,6 +23,11 @@
 
 ### Infraestructura
 *   **Contenerización**: Docker & Docker Compose
+*   **Logging Centralizado**:
+    *   **Niveles**: PRODUCTION, STANDARD, VERBOSE, DEBUG
+    *   **Persistencia**: Archivos diarios rotativos (`logs/app-YYYY-MM-DD.log`)
+    *   **Formato**: Timestamps (Europe/Madrid), Tags de módulo, Colores
+    *   **Gestión**: UI Admin para descarga, visualización y purga
 *   **Proxy inverso recomendado**: Nginx / Cloudflare
 
 ### IA Multi-Provider
@@ -84,6 +89,7 @@
 *   **Cosecha Mundial**: Botón para sincronizar tickers de bolsas seleccionadas.
 *   **Backups**: ZIP cifrado (AES-256), envío por email, programación (diario/semanal/mensual).
 *   **Discovery Engine**: Configuración de ciclos, volúmenes V8/V10, Finnhub.
+*   **Logs del Sistema**: Control total de logging (Nivel dinámico, Descarga de trazas, Limpieza).
 
 ## 4. Base de Datos (Schema - `init.sql`)
 
@@ -106,6 +112,7 @@
 | `ai_providers` | Proveedores de IA configurados |
 | `ai_prompts` | System prompts para ChatBot |
 | `chat_conversations` / `chat_messages` | Historial de chat |
+| `financial_events` | Calendario económico (Incluye `updated_at`, `estimated_eps`). |
 
 ### Campos Críticos en `transactions`
 *   `amount`: Cantidad de unidades.
