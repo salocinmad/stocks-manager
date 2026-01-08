@@ -1,6 +1,6 @@
 # 📖 Manual de Usuario - Stocks Manager
 
-Versión 2.0 | Última actualización: Diciembre 2025
+Versión 2.1.0 | Última actualización: Enero 2026
 
 ---
 
@@ -11,12 +11,14 @@ Versión 2.0 | Última actualización: Diciembre 2025
 3. [Dashboard](#-dashboard)
 4. [Gestión de Portfolios](#-gestión-de-portfolios)
 5. [Operaciones de Compra/Venta](#-operaciones-de-compraventa)
-6. [Alertas de Precio](#-alertas-de-precio)
-7. [Watchlists](#-watchlists)
-8. [Reportes Fiscales](#-reportes-fiscales)
-9. [ChatBot IA](#-chatbot-ia)
-10. [Configuración de Perfil](#-configuración-de-perfil)
-11. [Preguntas Frecuentes](#-preguntas-frecuentes)
+6. [Análisis de Posiciones](#-análisis-de-posiciones-nuevo)
+7. [Alertas de Precio](#-alertas-de-precio)
+8. [Watchlists](#-watchlists)
+9. [Reportes Fiscales](#-reportes-fiscales)
+10. [ChatBot IA](#-chatbot-ia)
+11. [Calendario Financiero](#-calendario-financiero)
+12. [Configuración de Perfil](#-configuración-de-perfil)
+13. [Preguntas Frecuentes](#-preguntas-frecuentes)
 
 ---
 
@@ -78,31 +80,41 @@ La autenticación de dos factores protege tu cuenta:
 
 ## 📊 Dashboard
 
-El Dashboard es tu página principal con un resumen de toda tu cartera.
+El Dashboard es tu página principal con un resumen de toda tu cartera. Presenta un **layout de dos columnas** para optimizar la visualización.
+
+### Layout del Dashboard (v2.1.0)
+
+**Columna Principal (75%):**
+- **Fila 1**: Tarjetas de resumen (Patrimonio Neto, Variación Diaria, Ganancia Total)
+- **Análisis IA**: Resultado del análisis aparece aquí cuando se genera
+- **Fila 2**: Mejores del Día y Peores del Día (activos con mayor subida/bajada)
+- **Fila 3**: Gráfico PnL (evolución de rentabilidad)
+
+**Columna Lateral (25%):**
+- **Análisis IA**: Botón para solicitar análisis estratégico con inteligencia artificial
+- **Distribución por Sector**: Gráfico circular de tu cartera por sectores
 
 ### Elementos del Dashboard
 
 | Sección | Descripción |
 |---------|-------------|
-| **Valor Total** | El valor actual de todas tus inversiones en EUR |
-| **PnL Total** | Ganancia o pérdida total (Profit & Loss) |
+| **Patrimonio Neto** | El valor actual de todas tus inversiones en EUR |
+| **Variación Diaria** | Cambio en el valor de tu cartera hoy |
+| **Ganancia Total** | Ganancia o pérdida total desde la inversión inicial |
+| **Mejores/Peores del Día** | Top 3 activos con mayor subida/bajada hoy |
 | **Gráfico PnL** | Evolución de tu rentabilidad en el tiempo |
-| **Mercado** | Estado del mercado (abierto/cerrado) |
-| **Asignación Sectorial** | Distribución de tu cartera por sectores |
+| **Distribución por Sector** | Desglose de tu cartera por sectores industriales |
 
 ### Filtros del Gráfico PnL
 
 Puedes filtrar el periodo del gráfico:
-- **1S** - Última semana
 - **1M** - Último mes
 - **3M** - Últimos 3 meses
-- **6M** - Últimos 6 meses
-- **1A** - Último año
-- **Todo** - Todo el histórico
+- **1Y** - Último año
 
 ### Cambiar de Portfolio
 
-Si tienes varios portfolios, puedes cambiar entre ellos desde el selector en la parte superior.
+Si tienes varios portfolios, puedes cambiar entre ellos desde el selector en la parte superior (dropdown premium).
 
 ---
 
@@ -140,6 +152,26 @@ El portfolio favorito es el que se muestra por defecto en el Dashboard:
    - Fecha de compra
    - Moneda
 5. Haz clic en **"Guardar"**
+ 
+ > 💡 **Soporte GBX (Londres)**: Si operas en la bolsa de Londres (LSE), puedes elegir la moneda **GBX** (Peniques). Introduce el precio en peniques (ej: 594.5) y el sistema calculará automáticamente el equivalente en EUR usando el tipo de cambio correcto.
+ 
+ ### Editar una Posición
+ 
+ Si necesitas corregir datos de una posición existente (ej: ajustar el precio medio o las comisiones):
+ 1. En tu portfolio, haz clic en el icono de **lápiz** (✏️) junto a la posición.
+ 2. Modifica:
+    - Cantidad
+    - Precio Promedio de Compra
+    - **Comisión Total Acumulada**
+ 3. Guarda los cambios. El PnL se recalculará automáticamente.
+
+ ### Actualización de Precios (NUEVO)
+
+ Los precios de tu cartera se actualizan siguiendo estas reglas:
+ - **Automático**: El sistema refresca los precios cada **5 minutos** si mantienes la página abierta.
+ - **Manual**: Puedes forzar una actualización pulsando el botón **"Actualizar"** ubicado en la cabecera de la tabla de activos.
+   - 🕒 Este botón tiene un **tiempo de espera de 60 segundos** entre usos para evitar saturar el servidor.
+   - ⏳ Un contador te indicará cuántos segundos faltan para poder volver a actualizar.
 
 ---
 
@@ -169,17 +201,48 @@ El portfolio favorito es el que se muestra por defecto en el Dashboard:
 
 ### Historial de Operaciones
 
-Puedes ver todas tus operaciones en:
+Puedes ver y **editar** todas tus operaciones desde el nuevo Editor de Historial:
 
-1. Abre una posición
-2. Ve a la pestaña **"Historial"** u **"Operaciones"**
+1. Abre tu portfolio
+2. Haz clic en el botón **"Historial"** (icono de reloj) en la cabecera
+3. Se abrirá un modal con la lista cronológica de todas las transacciones
 
-Verás una lista con:
-- Tipo (Compra/Venta)
-- Cantidad
-- Precio
-- Fecha
-- P&L de la operación
+#### Columnas del Historial
+| Columna | Descripción |
+|---------|-------------|
+| Fecha | Fecha de la operación |
+| Ticker | Símbolo del activo |
+| **Empresa** | Nombre completo de la compañía (nuevo) |
+| Tipo | COMPRA / VENTA / DIVIDENDO |
+| Cantidad | Número de acciones |
+| Precio | Precio por unidad |
+| Comisión | Comisiones del broker |
+| Divisa | Moneda de la operación |
+| FX (a EUR) | Tipo de cambio usado |
+| Acciones | Botón de edición |
+
+#### Editar una Transacción
+
+1. Haz clic en el icono de **lápiz** (✏️) de la fila
+2. Modifica los campos editables (fecha, cantidad, precio, comisión, divisa, FX)
+3. Haz clic en **✓** para guardar o **✗** para cancelar
+4. El sistema **recalculará automáticamente** la posición actual (precio medio, cantidad)
+
+> 💡 **Scroll Inteligente**: Al guardar cambios, la tabla mantiene tu posición de scroll para que puedas seguir editando filas consecutivas sin perderte.
+
+> ⚠️ **Importante**: Editar transacciones antiguas corrige la posición actual pero no regenera el gráfico PnL histórico instantáneamente.
+
+### Previsualización FIFO de Venta (NUEVO)
+
+Al vender una posición, el sistema ahora muestra una **previsualización en tiempo real** del impacto financiero:
+
+1. En tu portfolio, haz clic en **"Vender"** en una posición
+2. Introduce la cantidad a vender
+3. El sistema calcula automáticamente:
+   - **Coste Base FIFO**: El coste de adquisición de las acciones específicas que vas a vender (primeras en entrar, primeras en salir)
+   - **PnL Estimado**: Ganancia o pérdida esperada basada en el precio de venta introducido
+
+> 🎯 Esta función te ayuda a tomar decisiones informadas antes de confirmar la operación.
 
 ### Importar desde Broker
 
@@ -193,6 +256,49 @@ Si tu broker permite exportar operaciones:
 
 ---
 
+---
+
+## 🔬 Análisis de Posiciones (NUEVO)
+
+Stocks Manager 2.1.0 introduce una potente herramienta de análisis para cada activo de tu cartera.
+
+### Acceder al Análisis
+1. En tu portfolio, haz clic en el icono de **gráficas** (📊) situado a la derecha de cualquier posición.
+2. Se abrirá un modal con **6 pestañas de información detallada**.
+
+### 1. 📈 Posición
+Resumen de tu inversión: PnL, Precio Medio, Peso en Cartera y Desglose de Operaciones.
+
+### 2. 📊 Técnico
+Indicadores calculados automáticamente (RSI, Medias Móviles):
+- **RSI (14)**: Indica si el activo está sobrecomprado (>70) o sobrevendido (<30).
+- **Tendencia**: Detecta cruces de medias (Golden Cross / Death Cross).
+
+### 3. ⚠️ Riesgo
+Métricas avanzadas para evaluar la volatilidad:
+- **Sharpe/Sortino Ratio**: Rentabilidad ajustada al riesgo.
+- **VaR (Value at Risk)**: Pérdida máxima estimada en un día normal.
+- **Score**: Puntuación de riesgo del 1 al 10.
+
+### 4. 🏢 Fundamental (NUEVO)
+Salud financiera y valoración de la empresa:
+- **Valoración**: PER, PEG Ratio, EV/EBITDA y **Fair Value (Graham)** (Valor intrínseco teórico).
+- **Rentabilidad**: ROE, Márgenes Operativos y Netos.
+- **Dividendos**: Rentabilidad por dividendo (Yield) y fechas de pago.
+- **Salud**: Deuda Total y disponibilidad de Caja.
+
+### 5. 🎯 Analistas
+Consenso de mercado provisto por Yahoo Finance:
+- Recomendación media (Comprar/Vender).
+- Precio Objetivo (Target Price) estimado por analistas.
+
+### 6. 🔮 Simulador "What-If"
+Herramienta para proyectar escenarios:
+- *¿Qué pasa si compro 10 acciones más?*
+- *¿Cómo cambia mi PnL si el precio sube un 5%?*
+
+---
+
 ## 🔔 Alertas de Precio
 
 Las alertas te notifican cuando un activo alcanza un precio objetivo.
@@ -203,9 +309,17 @@ Las alertas te notifican cuando un activo alcanza un precio objetivo.
 2. Haz clic en **"+ Nueva Alerta"**
 3. Busca el ticker del activo
 4. Configura:
-   - **Condición**: "Mayor que" o "Menor que"
-   - **Precio objetivo**: El precio que dispara la alerta
-5. Guarda la alerta
+   - **Tipo**: Precio, Cambio %, Volumen o **Global**.
+   - **Condición/Umbral**: El valor que dispara la alerta.
+
+### Alertas Globales de Portafolio (NUEVO v2.4)
+Esta potente función te permite vigilar **todos los activos** de un portafolio a la vez.
+
+1. Selecciona la pestaña **"Global"**.
+2. Elige el portafolio que quieres monitorizar.
+3. Define un **Umbral de Movimiento (%)** (ej. 5%).
+4. **¿Cómo funciona?**: El sistema revisará cada acción de tu cartera. Si **CUALQUIERA** de ellas sube o baja más de un 5% en el día, recibirás una notificación específica para esa acción (ej. "AAPL se mueve un +6%").
+5. **Cooldown Inteligente**: Si AAPL dispara la alerta, esa acción específica "descansará" el tiempo que configures (ej. 24h), pero el resto de tu cartera (MSFT, GOOGL...) seguirá siendo vigilada activamente.
 
 ### Tipos de Notificación
 
@@ -282,10 +396,26 @@ Si tienes inversiones en activos extranjeros por valor superior a 50.000€, el 
 El ChatBot usa inteligencia artificial para ayudarte con análisis y consultas.
 
 ### Cómo Usar el ChatBot
+ 
+ 1. Haz clic en el icono del **bot** (💬) en la esquina inferior
+ 2. **Selecciona la Personalidad**: Arriba a la derecha del chat, puedes elegir entre:
+    - 👔 **Asistente Estándar**: Profesional y equilibrado.
+    - 🐺 **El Lobo**: Agresivo, busca rendimiento, tono desafiante.
+    - 👨‍🏫 **Profesor**: Explicaciones sencillas y educativas.
+    - *Y más opciones configuradas por el administrador (ej: Consultor Estratégico).*
 
-1. Haz clic en el icono del **bot** (💬) en la esquina inferior
-2. Escribe tu pregunta
-3. Espera la respuesta
+ 3. **Contexto Financiero**:
+    El chatbot ahora tiene acceso a:
+    - 📰 **Noticias recientes** sobre las empresas que mencionas.
+    - 📊 **Datos Fundamentales** (PER, Capitalización, Precio Objetivo).
+    - 📈 **Análisis Técnico** (RSI, Tendencias).
+    - 🌍 **Sugerencias de Mercado**: Conoce las tendencias actuales del Motor de Descubrimiento.
+
+ 4. **Escribe tu consulta**:
+    - *"Analiza mi cartera y dime si estoy muy expuesto a tecnología"*
+    - *"¿Qué opinas de las acciones que son tendencia hoy?"*
+    - *"Dame un análisis fundamental de AAPL"*
+ 5. **Espera la respuesta**
 
 ### Ejemplos de Preguntas
 
@@ -300,6 +430,28 @@ El ChatBot usa inteligencia artificial para ayudarte con análisis y consultas.
 - El ChatBot no tiene acceso a información en tiempo real de todos los mercados
 - Sus consejos son orientativos, no recomendaciones de inversión profesionales
 - No puede ejecutar operaciones por ti
+
+---
+
+## 📅 Calendario Financiero
+
+El calendario te ayuda a planificar en función de eventos clave del mercado y de tus acciones.
+
+### Vistas Disponibles
+
+1. **Mis Eventos**: Muestra solo los eventos relacionados con las acciones que tienes actualmente en tu portafolio.
+2. **Mercado**: Muestra eventos destacados del mercado general (ej. resultados de Apple, Microsoft, datos de inflación).
+
+### Datos Mostrados
+
+Para cada día con eventos, verás tarjetas con:
+- **Tipo de Evento**: Resultados (Earnings), Dividendos, Reuniones Fed/BCE.
+- **EPS Estimado**: Beneficio por acción esperado por los analistas.
+- **Monto Dividendo**: Cantidad a pagar por acción.
+
+### Sincronización
+
+El sistema actualiza los datos automáticamente cada 6 horas. Puedes forzar una actualización manual pulsando el botón **"Sincronizar"**.
 
 ---
 
@@ -335,7 +487,14 @@ En **Perfil → Seguridad** puedes:
 
 - **Idioma**: Español / Inglés
 - **Moneda preferida**: EUR, USD, GBP...
-- **Tema**: Claro / Oscuro
+ - **Tema**: Claro / Oscuro
+
+### Búsqueda Global (v2.1.0)
+Puedes navegar por la aplicación instantáneamente pulsando `Ctrl + K`.
+- Escribe el nombre de una **pantalla** para ir a ella.
+- Busca un **ticker** para ver su análisis.
+- Busca una **cartera** para abrirla directamente.
+- Usa `Enter` para viajar al destino seleccionado.
 
 ---
 
@@ -355,7 +514,15 @@ Los datos de mercado provienen de **Yahoo Finance**, que ofrece precios con 15-2
 
 ### ¿Puedo usar la app desde el móvil?
 
-Sí. La interfaz es responsive y funciona en cualquier dispositivo con navegador.
+Sí. La aplicación está **completamente optimizada para móvil** (v2.1.0):
+
+- **Bottom Navigation**: Barra inferior fija con acceso rápido a Dashboard, Cartera, Mercado, Alertas y Menú
+- **Drawer Lateral**: Menú deslizante accesible desde el icono ☰ con todas las opciones
+- **Vistas Adaptadas**:
+  - **Cartera**: Las posiciones se muestran como tarjetas en lugar de tabla
+  - **Dashboard**: Columnas apiladas verticalmente
+  - **Admin**: Tabs con iconos y scroll horizontal
+- **Gestos Táctiles**: Swipe para cerrar drawer, pull-to-refresh en listas
 
 ### ¿Cómo recupero mi contraseña?
 
@@ -382,4 +549,4 @@ Si tienes problemas o sugerencias:
 
 ---
 
-*Stocks Manager v2.0 - Gestión Inteligente de Inversiones*
+*Stocks Manager v2.1.0 - Gestión Inteligente de Inversiones*

@@ -8,6 +8,7 @@ interface SymbolResult {
   name: string;
   exchange: string;
   type: string;
+  currency?: string;
 }
 
 interface Portfolio {
@@ -15,7 +16,7 @@ interface Portfolio {
   name: string;
 }
 
-const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'AUD'];
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'GBX', 'CHF', 'JPY', 'CAD', 'AUD'];
 
 export const ManualEntry: React.FC = () => {
   const navigate = useNavigate();
@@ -50,10 +51,9 @@ export const ManualEntry: React.FC = () => {
   const loadPortfolios = useCallback(async () => {
     setLoadingPortfolios(true);
     try {
-      console.log('Loading portfolios...');
-      const { data } = await api.get('/portfolios');
-      console.log('Portfolios loaded:', data);
 
+
+      const { data } = await api.get('/portfolios');
       if (Array.isArray(data)) {
         setPortfolios(data);
         // Seleccionar el primero por defecto si no hay nada seleccionado
@@ -144,11 +144,12 @@ export const ManualEntry: React.FC = () => {
   }, [formData.currency, api]);
 
   const handleSelectSymbol = async (result: SymbolResult) => {
-    // 1. Establecer datos básicos
+    // 1. Establecer datos básicos y moneda devuelta por búsqueda
     setFormData(prev => ({
       ...prev,
       symbol: result.symbol,
-      symbolName: result.name
+      symbolName: result.name,
+      currency: result.currency || prev.currency
     }));
     setShowDropdown(false);
     setSearchResults([]);
@@ -172,9 +173,15 @@ export const ManualEntry: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const [extendedError, setExtendedError] = useState<any>(null); // New state for technical logs
+
+  // ... (inside handleSubmit, catch block)
+  // Replicated here for context, but I will target the handleSubmit function body below
+
+  const handleSubmit = async (e?: React.FormEvent) => { // Made argument optional for Retry button
+    if (e) e.preventDefault();
     setError('');
+    setExtendedError(null);
 
     if (!selectedPortfolioId) {
       setError('Debes seleccionar un portfolio para registrar la operación.');
@@ -189,7 +196,6 @@ export const ManualEntry: React.FC = () => {
     setLoading(true);
 
     try {
-      console.log(`Submitting operation to portfolio ${selectedPortfolioId}`);
       await api.post(`/portfolios/${selectedPortfolioId}/positions`, {
         ticker: formData.symbol,
         amount: parseFloat(formData.quantity),
@@ -203,10 +209,11 @@ export const ManualEntry: React.FC = () => {
       navigate('/portfolio');
     } catch (err: any) {
       console.error('Submit error:', err);
+      setExtendedError(err); // Capture full error object
       if (err.response?.data?.error) {
         setError(err.response.data.error);
       } else {
-        setError('Error al registrar la operación. Inténtalo de nuevo.');
+        setError('Error crítico al registrar la operación. Se ha revertido cualquier cambio.');
       }
     } finally {
       setLoading(false);
@@ -220,12 +227,12 @@ export const ManualEntry: React.FC = () => {
 
   return (
     <main className="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-y-auto">
-      <Header title="Registro de Operación" />
+
       <div className="max-w-[1200px] mx-auto w-full px-6 py-10 flex flex-col gap-8 pb-32">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Introduce los detalles</h1>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark text-lg">Añade manualmente tus compras y ventas de activos.</p>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Comprar Activo</h1>
+            <p className="text-text-secondary-light dark:text-text-secondary-dark text-lg">Registra una nueva compra para tu cartera.</p>
           </div>
 
           {/* Selector de Portfolio */}
@@ -291,32 +298,47 @@ export const ManualEntry: React.FC = () => {
         </div>
 
         {error && (
-          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm">
-            {error}
+          <div className="p-6 rounded-3xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm flex flex-col gap-4 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-3 font-bold text-lg">
+              <span className="material-symbols-outlined text-red-500 text-2xl">gpp_maybe</span> {/* Shield icon indicating protection */}
+              {error}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => handleSubmit()}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">refresh</span>
+                Reintentar Operación
+              </button>
+
+              <button
+                onClick={() => {
+                  const logInfo = JSON.stringify(extendedError?.response?.data || extendedError?.message || extendedError, null, 2);
+                  navigator.clipboard.writeText(logInfo);
+                  alert("Log copiado al portapapeles");
+                }}
+                className="px-4 py-2 bg-red-500/20 text-red-700 dark:text-red-300 rounded-lg font-bold hover:bg-red-500/30 transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">content_copy</span>
+                Copiar Log Técnico
+              </button>
+            </div>
+
+            {extendedError && (
+              <details className="mt-2 bg-black/10 dark:bg-black/30 p-4 rounded-xl">
+                <summary className="cursor-pointer font-mono text-xs opacity-70 mb-2">Ver detalles del error (Debug)</summary>
+                <pre className="text-[10px] font-mono whitespace-pre-wrap overflow-x-auto text-text-secondary-light">
+                  {JSON.stringify(extendedError?.response?.data || extendedError?.message || extendedError, null, 2)}
+                </pre>
+              </details>
+            )}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 xl:grid-cols-12 gap-10">
           <div className="xl:col-span-8 flex flex-col gap-8">
-            {/* Tipo de operación */}
-            <div className="bg-white dark:bg-surface-dark p-1.5 rounded-full inline-flex self-start border border-border-light dark:border-border-dark shadow-sm">
-              <button
-                type="button"
-                onClick={() => setType('buy')}
-                className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${type === 'buy' ? 'bg-primary text-black' : 'text-text-secondary-light dark:text-text-secondary-dark'
-                  }`}
-              >
-                <span className="material-symbols-outlined">add_circle</span> Compra
-              </button>
-              <button
-                type="button"
-                onClick={() => setType('sell')}
-                className={`px-8 py-3 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${type === 'sell' ? 'bg-[#ff4d4d] text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'
-                  }`}
-              >
-                <span className="material-symbols-outlined">remove_circle</span> Venta
-              </button>
-            </div>
 
             <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 border border-border-light dark:border-border-dark shadow-sm flex flex-col gap-6">
               {/* Símbolo con autocompletado */}
@@ -365,6 +387,11 @@ export const ManualEntry: React.FC = () => {
                           <p className="text-sm text-text-secondary-light">{result.exchange}</p>
                         </div>
                         <div className="flex items-center gap-2">
+                          {result.currency && (
+                            <span className="text-xs font-bold text-text-secondary-light border border-border-light dark:border-border-dark px-1.5 py-0.5 rounded">
+                              {result.currency}
+                            </span>
+                          )}
                           <span className="font-mono text-sm bg-primary/20 text-primary px-2 py-1 rounded-lg">
                             {result.symbol}
                           </span>
@@ -428,7 +455,8 @@ export const ManualEntry: React.FC = () => {
                     onChange={e => setFormData({ ...formData, currency: e.target.value })}
                     className="w-full px-5 py-4 bg-background-light dark:bg-surface-dark-elevated border-none rounded-2xl focus:ring-2 focus:ring-primary text-text-primary-light dark:text-white"
                   >
-                    {CURRENCIES.map(curr => (
+                    {/* Incluir la moneda actual si no está en la lista de favoritas */}
+                    {[...new Set([...CURRENCIES, formData.currency])].map(curr => (
                       <option key={curr} value={curr}>{curr}</option>
                     ))}
                   </select>
@@ -476,7 +504,7 @@ export const ManualEntry: React.FC = () => {
                 <div className="flex justify-between text-sm opacity-60"><span>Cartera:</span><span>{portfolios.find(p => p.id === selectedPortfolioId)?.name || '...'}</span></div>
                 <div className="pt-4 border-t border-white/10 flex justify-between items-end">
                   <span className="text-sm font-bold uppercase">Total EUR</span>
-                  <span className="text-2xl font-bold text-primary">{totalInEur.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</span>
+                  <span className="text-2xl font-bold text-primary">{totalInEur.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
                 </div>
               </div>
               <button

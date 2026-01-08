@@ -45,6 +45,16 @@ export const calendarRoutes = new Elysia({ prefix: '/calendar' })
         return { success: true, synced };
     })
 
+    // Get generic market events (Earnings Screener)
+    .get('/market', async ({ query }) => {
+        const days = query.days ? parseInt(query.days) : 30;
+        return await CalendarService.getMarketEvents(days);
+    }, {
+        query: t.Object({
+            days: t.Optional(t.String())
+        })
+    })
+
     // Create custom event
     .post('/events', async ({ userId, body }) => {
         const event = await CalendarService.createEvent(userId, body as any);

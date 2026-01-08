@@ -6,6 +6,10 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableRow, DragHandleCell } from '../components/SortableRow';
+import { StockNoteModal } from '../components/StockNoteModal';
+import { PositionAnalysisModal } from '../components/PositionAnalysisModal';
+import { BuyAssetModal } from '../components/BuyAssetModal';
+import { TransactionHistoryModal } from '../components/TransactionHistoryModal';
 
 type SortKey = 'name' | 'quantity' | 'average_buy_price' | 'currentPrice' | 'currentValue' | 'returnPct';
 type SortDirection = 'asc' | 'desc';
@@ -28,6 +32,10 @@ interface Position {
   name?: string;
   currentValueEUR?: number;
   costBasisEUR?: number;
+  lastUpdated?: number;
+  commission?: number;
+  marketState?: string;
+  portfolio_id?: string;
 }
 
 interface Portfolio {
@@ -87,12 +95,61 @@ export const PortfolioScreen: React.FC = () => {
   const [positionToEdit, setPositionToEdit] = useState<Position | null>(null);
   const [editQuantity, setEditQuantity] = useState('');
   const [editPrice, setEditPrice] = useState('');
+  const [editCommission, setEditCommission] = useState('');
 
   // Estados para alerta rápida
   const [positionToAlert, setPositionToAlert] = useState<Position | null>(null);
   const [alertTargetPrice, setAlertTargetPrice] = useState('');
   const [alertCondition, setAlertCondition] = useState<'above' | 'below'>('below');
   const [isCreatingAlert, setIsCreatingAlert] = useState(false);
+
+  // Estado para modal de notas
+  const [notePosition, setNotePosition] = useState<Position | null>(null);
+
+  // Estado para modal de análisis de posición
+  const [analysisPosition, setAnalysisPosition] = useState<Position | null>(null);
+
+  // Estados para modal de venta rápida
+  const [positionToSell, setPositionToSell] = useState<Position | null>(null);
+  const [sellQuantity, setSellQuantity] = useState('');
+  const [sellPrice, setSellPrice] = useState('');
+  const [sellCommission, setSellCommission] = useState('0');
+  const [sellExchangeRate, setSellExchangeRate] = useState('1');
+  const [isSelling, setIsSelling] = useState(false);
+  const [fifoSimulation, setFifoSimulation] = useState<{ costBasis: number; currency: string; error?: string } | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  // Effect: Trigger Simulation when Quantity Changes
+  useEffect(() => {
+    if (!positionToSell || !sellQuantity) {
+      setFifoSimulation(null);
+      return;
+    }
+    const qty = parseFloat(sellQuantity.replace(',', '.'));
+    if (isNaN(qty) || qty <= 0) {
+      setFifoSimulation(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSimulating(true);
+      try {
+        const { data } = await api.get(`/portfolios/${portfolio?.id}/positions/${positionToSell.ticker}/simulate-sell?amount=${qty}`);
+        setFifoSimulation(data);
+      } catch (e) {
+        setFifoSimulation(null);
+      } finally {
+        setIsSimulating(false);
+      }
+    }, 500); // Debounce 500ms
+    return () => clearTimeout(timer);
+  }, [sellQuantity, positionToSell, portfolio, api]);
+
+  // Estado para modal de historial
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Estado para modal de compra
+  const [showBuyModal, setShowBuyModal] = useState(false);
 
   // Estados para ordenación y Drag & Drop
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -102,6 +159,50 @@ export const PortfolioScreen: React.FC = () => {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // State for current time to update "time ago"
+  const [now, setNow] = useState(Date.now());
+
+  // Refresh control states
+  const [lastRefreshTime, setLastRefreshTime] = useState<number>(Date.now());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Constants for refresh timing
+  const REFRESH_COOLDOWN = 60 * 1000; // 60 seconds
+  const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+  // Calculate if refresh button should be enabled
+  const canRefresh = useMemo(() => {
+    return (now - lastRefreshTime) >= REFRESH_COOLDOWN;
+  }, [now, lastRefreshTime]);
+
+  // Time until refresh is available (for visual feedback)
+  const cooldownRemaining = useMemo(() => {
+    const remaining = Math.max(0, REFRESH_COOLDOWN - (now - lastRefreshTime));
+    return Math.ceil(remaining / 1000);
+  }, [now, lastRefreshTime]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000); // Update every second
+    return () => clearInterval(interval);
+  }, []);
+
+  const lastUpdateTime = useMemo(() => {
+    if (!positions.length) return 0;
+    return Math.max(...positions.map(p => p.lastUpdated || 0));
+  }, [positions]);
+
+  const getTimeAgo = (timestamp: number) => {
+    if (!timestamp) return '';
+    const diff = Math.max(0, Math.floor((now - timestamp) / 1000));
+
+    if (diff < 60) return `hace ${diff} seg`;
+
+    const minutes = Math.floor(diff / 60);
+    const seconds = diff % 60;
+
+    return `hace ${minutes} min ${seconds} seg`;
+  };
 
   // Computed: positions ordenadas (memoizado)
   const sortedPositions = useMemo(() => {
@@ -153,7 +254,6 @@ export const PortfolioScreen: React.FC = () => {
 
   const loadPortfolioDetails = useCallback(async (id: string) => {
     try {
-      console.log(`[Portfolio] Fetching details for ID: ${id}`);
       const { data: portfolioDetails } = await api.get(`/portfolios/${id}`);
 
       if (!portfolioDetails) {
@@ -194,13 +294,17 @@ export const PortfolioScreen: React.FC = () => {
               const changePercent = quote?.dp || 0;
               const qty = Number(pos.quantity) || 0;
               const avgPrice = Number(pos.average_buy_price) || 0;
+
               const name = quote?.name || pos.ticker;
+              const lastUpdated = quote?.lastUpdated || 0;
               const currency = pos.currency || 'USD'; // Fallback a USD si no hay moneda
 
               const rate = currency === 'EUR' ? 1 : (exchangeRates[currency] || 1);
 
+              const commission = Number(pos.commission) || 0;
               const currentValue = qty * currentPrice;
-              const costBasis = qty * avgPrice;
+              // Cost Basis = (Quantity * Average Price) + Commission
+              const costBasis = (qty * avgPrice) + commission;
 
               // Valores en EUR para totales
               const currentValueEUR = currentValue * rate;
@@ -219,7 +323,10 @@ export const PortfolioScreen: React.FC = () => {
                 returnPct,
                 change,
                 changePercent,
-                name
+
+                name,
+                lastUpdated,
+                marketState: quote?.state || 'CLOSED'
               };
             } catch (e) {
               console.error(`[Portfolio] Error fetching quote for ${pos.ticker}:`, e);
@@ -254,7 +361,7 @@ export const PortfolioScreen: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('[Portfolio] Fetching list...');
+
       const { data: portfoliosList } = await api.get('/portfolios');
 
       if (!portfoliosList || !Array.isArray(portfoliosList) || portfoliosList.length === 0) {
@@ -285,6 +392,36 @@ export const PortfolioScreen: React.FC = () => {
   useEffect(() => {
     loadPortfolios();
   }, [loadPortfolios]);
+
+  // Manual refresh handler
+  const handleManualRefresh = useCallback(async () => {
+    if (!portfolio || isRefreshing) return;
+
+    setIsRefreshing(true);
+    try {
+      await loadPortfolioDetails(portfolio.id);
+      setLastRefreshTime(Date.now());
+    } catch (err) {
+      console.error('Error refreshing portfolio:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [portfolio, isRefreshing, loadPortfolioDetails]);
+
+  // Auto-refresh every 5 minutes after last refresh
+  useEffect(() => {
+    if (!portfolio) return;
+
+    const checkAutoRefresh = () => {
+      const timeSinceLastRefresh = Date.now() - lastRefreshTime;
+      if (timeSinceLastRefresh >= AUTO_REFRESH_INTERVAL) {
+        handleManualRefresh();
+      }
+    };
+
+    const autoRefreshInterval = setInterval(checkAutoRefresh, 10000); // Check every 10s
+    return () => clearInterval(autoRefreshInterval);
+  }, [portfolio, lastRefreshTime, handleManualRefresh]);
 
   const handlePortfolioChange = (newId: string) => {
     if (newId) {
@@ -357,8 +494,9 @@ export const PortfolioScreen: React.FC = () => {
 
     const quantity = parseFloat(editQuantity);
     const averagePrice = parseFloat(editPrice);
+    const commission = parseFloat(editCommission);
 
-    if (isNaN(quantity) || isNaN(averagePrice) || quantity <= 0 || averagePrice <= 0) {
+    if (isNaN(quantity) || isNaN(averagePrice) || quantity <= 0 || averagePrice <= 0 || isNaN(commission) || commission < 0) {
       alert('Por favor, introduce valores válidos');
       return;
     }
@@ -366,11 +504,13 @@ export const PortfolioScreen: React.FC = () => {
     try {
       await api.put(`/portfolios/${portfolio.id}/positions/${positionToEdit.id}`, {
         quantity,
-        averagePrice
+        averagePrice,
+        commission
       });
       setPositionToEdit(null);
       setEditQuantity('');
       setEditPrice('');
+      setEditCommission('');
       // Recargar portfolio
       await loadPortfolioDetails(portfolio.id);
     } catch (err: any) {
@@ -381,8 +521,10 @@ export const PortfolioScreen: React.FC = () => {
   // Abrir modal de edición
   const openEditModal = (pos: Position) => {
     setPositionToEdit(pos);
-    setEditQuantity(pos.quantity.toString());
-    setEditPrice(pos.average_buy_price.toString());
+    // Convert to Number first to strip trailing zeros (e.g. "2.510000" -> 2.51), then to string for input
+    setEditQuantity(Number(pos.quantity).toString());
+    setEditPrice(Number(pos.average_buy_price).toString());
+    setEditCommission(Number(pos.commission || 0).toString());
   };
 
   // Abrir modal de alerta
@@ -414,10 +556,80 @@ export const PortfolioScreen: React.FC = () => {
     }
   };
 
+  // Handler para venta rápida
+  const openSellModal = async (pos: Position) => {
+    setPositionToSell(pos);
+    setSellQuantity(String(pos.quantity)); // Pre-rellenar con cantidad total
+    setSellPrice(String(pos.currentPrice || pos.average_buy_price)); // Pre-rellenar con precio actual
+    setSellCommission('0');
+
+    // Obtener tipo de cambio si no es EUR
+    if (pos.currency !== 'EUR') {
+      try {
+        const { data } = await api.get(`/market/exchange-rate?from=${pos.currency}&to=EUR`);
+        if (data?.rate) {
+          setSellExchangeRate(String(data.rate));
+        }
+      } catch (e) {
+        console.error('Error fetching exchange rate:', e);
+        setSellExchangeRate('1');
+      }
+    } else {
+      setSellExchangeRate('1');
+    }
+  };
+
+  const handleSellPosition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!positionToSell || !sellQuantity || !sellPrice) return;
+
+    const qty = parseFloat(sellQuantity.replace(',', '.'));
+    const price = parseFloat(sellPrice.replace(',', '.'));
+    const commission = parseFloat(sellCommission.replace(',', '.')) || 0;
+    const exchangeRate = parseFloat(sellExchangeRate.replace(',', '.')) || 1;
+
+    if (qty <= 0 || qty > positionToSell.quantity) {
+      alert(`Cantidad inválida. Tienes ${positionToSell.quantity} acciones disponibles.`);
+      return;
+    }
+
+    setIsSelling(true);
+    setIsSelling(true);
+    try {
+      const targetPortfolioId = positionToSell.portfolio_id || portfolio?.id;
+      if (!targetPortfolioId) throw new Error('No se ha especificado el portfolio');
+
+      await api.post(`/portfolios/${targetPortfolioId}/positions`, {
+        ticker: positionToSell.ticker,
+        type: 'SELL',
+        amount: qty,
+        price: price,
+        currency: positionToSell.currency,
+        commission: commission,
+        exchange_rate_to_eur: exchangeRate,
+        exchangeRateToEur: exchangeRate
+      });
+
+      alert(`Venta registrada: ${qty} x ${positionToSell.ticker} @ ${price} ${positionToSell.currency}`);
+      setPositionToSell(null);
+      setSellQuantity('');
+      setSellPrice('');
+      setSellCommission('0');
+      setSellExchangeRate('1');
+
+      // Refrescar datos
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Error al registrar la venta');
+    } finally {
+      setIsSelling(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="flex-1 flex flex-col h-screen bg-background-light dark:bg-background-dark">
-        <Header title="Mi Portafolio" />
+
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
           <p className="text-text-secondary-light font-medium animate-pulse">Cargando tus activos...</p>
@@ -428,7 +640,7 @@ export const PortfolioScreen: React.FC = () => {
 
   return (
     <main className="flex-1 flex flex-col h-screen bg-background-light dark:bg-background-dark overflow-y-auto">
-      <Header title="Mi Portafolio" />
+
       <div className="flex flex-col gap-8 px-6 py-10 md:px-10 max-w-[1600px] mx-auto w-full pb-32">
 
         {/* Header de la sección */}
@@ -439,6 +651,18 @@ export const PortfolioScreen: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Botón Historial */}
+
+            {portfolio && (
+              <button
+                onClick={() => setShowHistoryModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:border-primary/50 text-text-secondary-light hover:text-primary transition-all font-bold text-xs uppercase tracking-wider"
+                title="Editar Historial de Transacciones"
+              >
+                <span className="material-symbols-outlined text-lg">history_edu</span>
+                <span className="hidden sm:inline">Historial</span>
+              </button>
+            )}
             <div className="relative group">
               <div
                 onClick={() => setShowDropdown(!showDropdown)}
@@ -509,441 +733,831 @@ export const PortfolioScreen: React.FC = () => {
 
         <div className="w-full rounded-[2.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-xl shadow-black/5 overflow-hidden">
           <div className="p-8">
-            <div className="flex items-center justify-between mb-8">
-              <h3 className="text-xl font-bold flex items-center gap-3">
+            <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4 relative">
+              <h3 className="text-xl font-bold flex items-center gap-3 self-start md:self-auto">
                 <span className="material-symbols-outlined text-primary">pie_chart</span>
                 Composición de Activos
               </h3>
-              <Link
-                to="/manual-entry"
-                className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20"
-              >
-                <span className="material-symbols-outlined text-lg">add_circle</span>
-                Añadir Activo
-              </Link>
+
+              {/* Global Timestamp + Refresh Button - Centered on Desktop, Stacked on Mobile */}
+              {lastUpdateTime > 0 && (
+                <div className="flex md:absolute md:left-1/2 md:-translate-x-1/2 items-center gap-2 order-3 md:order-none w-full md:w-auto justify-center">
+                  <div className="flex items-center gap-2 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark bg-background-light/50 dark:bg-white/5 px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark">
+                    <span className="material-symbols-outlined text-[14px] text-primary">schedule</span>
+                    <span>Actualizado {getTimeAgo(lastUpdateTime)}</span>
+                  </div>
+
+                  {/* Refresh Button */}
+                  <button
+                    onClick={handleManualRefresh}
+                    disabled={!canRefresh || isRefreshing}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${canRefresh && !isRefreshing
+                      ? 'bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:scale-105 active:scale-95 cursor-pointer'
+                      : 'bg-background-light/50 dark:bg-white/5 border-border-light dark:border-border-dark text-text-secondary-light cursor-not-allowed opacity-60'
+                      }`}
+                    title={canRefresh ? 'Actualizar precios' : `Disponible en ${cooldownRemaining}s`}
+                  >
+                    <span
+                      className={`material-symbols-outlined text-[14px] ${isRefreshing ? 'animate-spin' : ''}`}
+                    >
+                      {isRefreshing ? 'progress_activity' : 'refresh'}
+                    </span>
+                    {!canRefresh && !isRefreshing && (
+                      <span className="tabular-nums">{cooldownRemaining}s</span>
+                    )}
+                    {canRefresh && !isRefreshing && <span>Actualizar</span>}
+                    {isRefreshing && <span>Actualizando...</span>}
+                  </button>
+                </div>
+              )}
+
             </div>
 
-            {positions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="size-24 rounded-full bg-primary/10 flex items-center justify-center mb-8">
-                  <span className="material-symbols-outlined text-5xl text-primary">account_balance_wallet</span>
-                </div>
-                <h4 className="text-2xl font-bold mb-4">Esta cartera está vacía</h4>
-                <p className="text-text-secondary-light dark:text-text-secondary-dark mb-10 max-w-sm text-lg leading-relaxed">
-                  No hay operaciones registradas en "{portfolio?.name || 'esta cartera'}".
-                </p>
-                <Link
-                  to="/manual-entry"
-                  className="flex items-center gap-3 px-8 py-4 rounded-full bg-primary text-black font-bold text-lg hover:scale-105 transition-all shadow-xl shadow-primary/20"
-                >
-                  <span className="material-symbols-outlined">add</span>
-                  Registrar mi primera compra
-                </Link>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-8">
-                {/* Sorting indicator */}
-                {sortConfig && (
-                  <div className="flex items-center gap-2 text-sm text-text-secondary-light">
-                    <span>Ordenado por: <strong>{sortConfig.key}</strong> ({sortConfig.direction === 'asc' ? '↑' : '↓'})</span>
-                    <button
-                      onClick={() => setSortConfig(null)}
-                      className="px-2 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-all"
-                    >
-                      Limpiar
-                    </button>
-                  </div>
-                )}
-                <div className="overflow-x-auto">
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                    modifiers={[restrictToVerticalAxis]}
-                  >
-                    <table className="w-full text-left border-separate border-spacing-0">
-                      <thead>
-                        <tr className="text-xs font-bold uppercase tracking-[0.1em] text-text-secondary-light">
-                          {/* Drag handle column - only show when not sorting */}
-                          {!sortConfig && (
-                            <th className="px-2 py-5 border-b border-border-light dark:border-border-dark w-8"></th>
-                          )}
-                          <th onClick={() => handleSort('name')} className="px-6 py-5 border-b border-border-light dark:border-border-dark cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center gap-1">
-                              Activo
-                              {sortConfig?.key === 'name' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th onClick={() => handleSort('quantity')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center justify-end gap-1">
-                              Cantidad
-                              {sortConfig?.key === 'quantity' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th onClick={() => handleSort('average_buy_price')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center justify-end gap-1">
-                              Precio Medio
-                              {sortConfig?.key === 'average_buy_price' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th onClick={() => handleSort('currentPrice')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center justify-end gap-1">
-                              Coti. Actual
-                              {sortConfig?.key === 'currentPrice' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th onClick={() => handleSort('currentValue')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center justify-end gap-1">
-                              Valor Mercado
-                              {sortConfig?.key === 'currentValue' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th onClick={() => handleSort('returnPct')} className="px-6 py-5 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
-                            <div className="flex items-center justify-end gap-1">
-                              Rentabilidad
-                              {sortConfig?.key === 'returnPct' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
-                            </div>
-                          </th>
-                          <th className="px-6 py-5 border-b border-border-light dark:border-border-dark text-center w-24">Acciones</th>
-                        </tr>
-                      </thead>
-                      <SortableContext items={sortedPositions.map(p => p.id)} strategy={verticalListSortingStrategy}>
-                        <tbody className="text-sm">
-                          {sortedPositions.map((pos) => (
-                            <SortableRow key={pos.id} id={pos.id} disabled={!!sortConfig}>
-                              {/* Drag handle - only show when not sorting */}
-                              {!sortConfig && (
-                                <DragHandleCell className="px-2 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-text-secondary-light">
-                                  <span className="material-symbols-outlined text-lg">drag_indicator</span>
-                                </DragHandleCell>
-                              )}
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30">
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-base text-text-primary-light dark:text-white truncate max-w-[180px]" title={pos.name || pos.ticker}>{pos.name || pos.ticker}</span>
-                                  <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right font-mono font-medium">
-                                {pos.quantity.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}
-                              </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                                {formatPrice(pos.average_buy_price, pos.currency)}
-                              </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                                <div className="flex flex-col items-end">
-                                  <span className="font-bold text-base text-text-primary-light dark:text-white">
-                                    {pos.currentPrice ? formatPrice(pos.currentPrice, pos.currency) : '---'}
-                                  </span>
-                                  {(pos.change !== undefined && pos.changePercent !== undefined) && (
-                                    <div className={`flex items-center gap-1 text-xs font-bold leading-none mt-1 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
-                                      <span className="material-symbols-outlined text-[20px] font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>{(pos.change >= 0) ? 'arrow_drop_up' : 'arrow_drop_down'}</span>
-                                      <span>{formatChange(pos.change, pos.changePercent)}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right font-bold text-base">
-                                {pos.currentValue ? pos.currentValue.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) : '---'}
-                              </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30 text-right">
-                                <div className={`flex flex-col items-end justify-center px-3 py-1.5 rounded-lg border w-fit ml-auto transition-all ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
-                                  <span className="font-bold">{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
-                                  <span className="text-xs opacity-90 font-medium">
-                                    {((pos.currentValue || 0) - (pos.quantity * pos.average_buy_price)).toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-6 border-b border-border-light/50 dark:border-border-dark/30">
-                                <div className="flex items-center justify-center gap-1">
-                                  <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Crear Alerta de Precio">
-                                    <span className="material-symbols-outlined text-lg">notifications_active</span>
-                                  </button>
-                                  <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
-                                    <span className="material-symbols-outlined text-lg">edit</span>
-                                  </button>
-                                  <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar posición">
-                                    <span className="material-symbols-outlined text-lg">delete</span>
-                                  </button>
-                                </div>
-                              </td>
-                            </SortableRow>
-                          ))}
-                        </tbody>
-                      </SortableContext>
-                    </table>
-                  </DndContext>
-                </div>
 
-                {/* Resumen Final Superior */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-                  <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
-                    <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Valor Total</p>
-                    <p className="text-3xl font-black text-text-primary-light dark:text-white">
-                      {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
-                    </p>
-                  </div>
-                  <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
-                    <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Inversión Coste</p>
-                    <p className="text-3xl font-black text-text-primary-light dark:text-white">
-                      {positions.reduce((sum, p) => sum + (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
-                    </p>
-                  </div>
-                  <div className={`p-6 rounded-3xl border ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
-                    ? 'bg-green-500/5 border-green-500/20'
-                    : 'bg-red-500/5 border-red-500/20'
-                    }`}>
-                    <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Ganancia Total</p>
-                    <div className="flex flex-col">
-                      <p className={`text-3xl font-black ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
-                        ? 'text-green-500'
-                        : 'text-red-500'
+
+            <button
+              onClick={() => setShowBuyModal(true)}
+              className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 self-end md:self-auto"
+            >
+              <span className="material-symbols-outlined text-lg">add_circle</span>
+              Añadir Activo
+            </button>
+          </div>
+
+          {positions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="size-24 rounded-full bg-primary/10 flex items-center justify-center mb-8">
+                <span className="material-symbols-outlined text-5xl text-primary">account_balance_wallet</span>
+              </div>
+              <h4 className="text-2xl font-bold mb-4">Esta cartera está vacía</h4>
+              <p className="text-text-secondary-light dark:text-text-secondary-dark mb-10 max-w-sm text-lg leading-relaxed">
+                No hay operaciones registradas en "{portfolio?.name || 'esta cartera'}".
+              </p>
+              <button
+                onClick={() => setShowBuyModal(true)}
+                className="flex items-center gap-3 px-8 py-4 rounded-full bg-primary text-black font-bold text-lg hover:scale-105 transition-all shadow-xl shadow-primary/20"
+              >
+                <span className="material-symbols-outlined">add</span>
+                Registrar mi primera compra
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-8">
+              {/* Sorting indicator */}
+              {sortConfig && (
+                <div className="flex items-center gap-2 text-sm text-text-secondary-light">
+                  <span>Ordenado por: <strong>{sortConfig.key}</strong> ({sortConfig.direction === 'asc' ? '↑' : '↓'})</span>
+                  <button
+                    onClick={() => setSortConfig(null)}
+                    className="px-2 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-all"
+                  >
+                    Limpiar
+                  </button>
+                </div>
+              )}
+              {/* ===== VISTA MÓVIL: Cards ===== */}
+              <div className="md:hidden flex flex-col gap-3">
+                {sortedPositions.map((pos) => (
+                  <div
+                    key={pos.id}
+                    className="bg-background-light/50 dark:bg-surface-dark-elevated/40 rounded-2xl border border-border-light dark:border-border-dark p-4"
+                  >
+                    {/* Header: Nombre + Ticker + Estado */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-base truncate">{pos.name || pos.ticker}</p>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
+                          {pos.marketState && (
+                            <div
+                              className={`size-1.5 rounded-full ${pos.marketState === 'REGULAR' ? 'bg-green-500' :
+                                ['PRE', 'POST'].includes(pos.marketState) ? 'bg-orange-500' : 'bg-red-500/30'
+                                }`}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      {/* Rentabilidad Badge */}
+                      <div className={`px-2.5 py-1 rounded-lg text-sm font-bold ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
                         }`}>
-                        {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
-                      </p>
+                        {(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%
+                      </div>
+                    </div>
+
+                    {/* Datos principales en grid 2x2 */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Cantidad</p>
+                        <p className="font-mono font-medium">{pos.quantity.toLocaleString('es-ES', { maximumFractionDigits: 4 })}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Precio Actual</p>
+                        <p className="font-mono font-bold">{formatPrice(pos.currentPrice || 0, pos.currency)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Coste Medio</p>
+                        <p className="font-mono text-sm">{formatPrice(pos.average_buy_price, pos.currency)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Valor Total</p>
+                        <p className="font-bold">{pos.currentValue?.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) || '---'}</p>
+                      </div>
+                    </div>
+
+                    {/* Variación del día */}
+                    {(pos.change !== undefined && pos.changePercent !== undefined) && (
+                      <div className={`flex items-center gap-1 text-xs font-bold mb-3 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
+                        <span className="material-symbols-outlined text-[16px]">{pos.change >= 0 ? 'trending_up' : 'trending_down'}</span>
+                        <span>Hoy: {formatChange(pos.change, pos.changePercent)}</span>
+                      </div>
+                    )}
+
+                    {/* Acciones */}
+                    <div className="flex items-center justify-between pt-2 border-t border-border-light/50 dark:border-border-dark/50">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setAnalysisPosition(pos)} className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-600 transition-all" title="Análisis">
+                          <span className="material-symbols-outlined text-lg">analytics</span>
+                        </button>
+                        <button onClick={() => setNotePosition(pos)} className="p-2 rounded-lg hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all" title="Nota">
+                          <span className="material-symbols-outlined text-lg">description</span>
+                        </button>
+                        <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Alerta">
+                          <span className="material-symbols-outlined text-lg">notifications_active</span>
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => openSellModal(pos)} className="p-2 rounded-lg hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500 transition-all" title="Vender">
+                          <span className="material-symbols-outlined text-lg">sell</span>
+                        </button>
+                        <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar">
+                          <span className="material-symbols-outlined text-lg">edit</span>
+                        </button>
+                        <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar">
+                          <span className="material-symbols-outlined text-lg">delete</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+
+              {/* ===== VISTA DESKTOP: Tabla ===== */}
+              <div className="hidden md:block overflow-x-auto">
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                  modifiers={[restrictToVerticalAxis]}
+                >
+                  <table className="w-full text-left border-separate border-spacing-0">
+                    <thead>
+                      <tr className="text-xs font-bold uppercase tracking-[0.1em] text-text-secondary-light">
+                        {/* Drag handle column - only show when not sorting */}
+                        {!sortConfig && (
+                          <th className="px-2 py-3 border-b border-border-light dark:border-border-dark w-8"></th>
+                        )}
+                        <th onClick={() => handleSort('name')} className="px-6 py-3 border-b border-border-light dark:border-border-dark cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center gap-1">
+                            Activo
+                            {sortConfig?.key === 'name' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th onClick={() => handleSort('quantity')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center justify-end gap-1">
+                            Cantidad
+                            {sortConfig?.key === 'quantity' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th onClick={() => handleSort('average_buy_price')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center justify-end gap-1">
+                            Precio Medio
+                            {sortConfig?.key === 'average_buy_price' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th onClick={() => handleSort('currentPrice')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center justify-end gap-1">
+                            Coti. Actual
+                            {sortConfig?.key === 'currentPrice' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th onClick={() => handleSort('currentValue')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center justify-end gap-1">
+                            Valor Mercado
+                            {sortConfig?.key === 'currentValue' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th onClick={() => handleSort('returnPct')} className="px-6 py-3 border-b border-border-light dark:border-border-dark text-right cursor-pointer hover:text-primary transition-colors select-none">
+                          <div className="flex items-center justify-end gap-1">
+                            Rentabilidad
+                            {sortConfig?.key === 'returnPct' && <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
+                          </div>
+                        </th>
+                        <th className="px-6 py-3 border-b border-border-light dark:border-border-dark text-center w-24">Acciones</th>
+                      </tr>
+                    </thead>
+                    <SortableContext items={sortedPositions.map(p => p.id)} strategy={verticalListSortingStrategy}>
+                      <tbody className="text-sm">
+                        {sortedPositions.map((pos) => (
+                          <SortableRow key={pos.id} id={pos.id} disabled={!!sortConfig}>
+                            {/* Drag handle - only show when not sorting */}
+                            {!sortConfig && (
+                              <DragHandleCell className="px-2 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-text-secondary-light">
+                                <span className="material-symbols-outlined text-lg">drag_indicator</span>
+                              </DragHandleCell>
+                            )}
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-base text-text-primary-light dark:text-white truncate max-w-[180px]" title={pos.name || pos.ticker}>{pos.name || pos.ticker}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
+                                  {pos.marketState && (
+                                    <div
+                                      className={`size-1.5 rounded-full ${pos.marketState === 'REGULAR' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                                        ['PRE', 'POST'].includes(pos.marketState) ? 'bg-orange-500' :
+                                          'bg-red-500/30'
+                                        }`}
+                                      title={`Mercado: ${pos.marketState === 'REGULAR' ? 'Abierto' : ['PRE', 'POST'].includes(pos.marketState) ? 'Pre/Post Market' : 'Cerrado'}`}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right font-mono font-medium">
+                              {pos.quantity.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                              {formatPrice(pos.average_buy_price, pos.currency)}
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                              <div className="flex flex-col items-end">
+                                <span className="font-bold font-mono">{formatPrice(pos.currentPrice || 0, pos.currency)}</span>
+                                {(pos.change !== undefined && pos.changePercent !== undefined) && (
+                                  <div className={`flex items-center gap-1 text-xs font-bold leading-none mt-1 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
+                                    <span className="material-symbols-outlined text-[20px] font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>{(pos.change >= 0) ? 'arrow_drop_up' : 'arrow_drop_down'}</span>
+                                    <span>{formatChange(pos.change, pos.changePercent)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right font-bold text-base">
+                              {pos.currentValue ? pos.currentValue.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) : '---'}
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30 text-right">
+                              <div className={`flex flex-col items-end justify-center px-3 py-1.5 rounded-lg border w-fit ml-auto transition-all ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
+                                <span className="font-bold">{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
+                                <span className="text-xs opacity-90 font-medium">
+                                  {((pos.currentValue || 0) - ((pos.quantity * pos.average_buy_price) + (Number(pos.commission) || 0))).toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30">
+                              <div className="flex items-center justify-center gap-1">
+                                <button onClick={() => setNotePosition(pos)} className="p-2 rounded-lg hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all" title="Ver/Editar Nota">
+                                  <span className="material-symbols-outlined text-lg">description</span>
+                                </button>
+                                <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Crear Alerta de Precio">
+                                  <span className="material-symbols-outlined text-lg">notifications_active</span>
+                                </button>
+                                <button onClick={() => setAnalysisPosition(pos)} className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-600 transition-all" title="Análisis Detallado">
+                                  <span className="material-symbols-outlined text-lg">analytics</span>
+                                </button>
+                                <button
+                                  onClick={() => openSellModal(pos)}
+                                  className="p-2 rounded-lg hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500 transition-all"
+                                  title="Vender posición"
+                                >
+                                  <span className="material-symbols-outlined text-lg">sell</span>
+                                </button>
+                                <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
+                                  <span className="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar posición">
+                                  <span className="material-symbols-outlined text-lg">delete</span>
+                                </button>
+                              </div>
+                            </td>
+                          </SortableRow>
+                        ))}
+                      </tbody>
+                    </SortableContext>
+                  </table>
+                </DndContext>
+              </div>
+
+              {/* Resumen Final Superior */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+                <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
+                  <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Valor Total</p>
+                  <p className="text-3xl font-black text-text-primary-light dark:text-white">
+                    {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+                  </p>
+                </div>
+                <div className="bg-background-light/50 dark:bg-surface-dark-elevated/40 p-6 rounded-3xl border border-border-light dark:border-border-dark">
+                  <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Inversión Coste</p>
+                  <p className="text-3xl font-black text-text-primary-light dark:text-white">
+                    {positions.reduce((sum, p) => sum + (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+                  </p>
+                </div>
+                <div className={`p-6 rounded-3xl border ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
+                  ? 'bg-green-500/5 border-green-500/20'
+                  : 'bg-red-500/5 border-red-500/20'
+                  }`}>
+                  <p className="text-xs font-bold text-text-secondary-light uppercase mb-2">Ganancia Total</p>
+                  <div className="flex flex-col">
+                    <p className={`text-3xl font-black ${positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0) >= 0
+                      ? 'text-green-500'
+                      : 'text-red-500'
+                      }`}>
+                      {positions.reduce((sum, p) => sum + (p.currentValueEUR || 0) - (p.costBasisEUR || 0), 0).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+                    </p>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      </div>
+      </div >
+
       {/* Modal de Confirmación de Borrado */}
-      {portfolioToDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200">
-            <div className="size-16 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-6">
-              <span className="material-symbols-outlined text-4xl">warning</span>
-            </div>
-            <h3 className="text-2xl font-bold mb-3 tracking-tight">¿Eliminar cartera?</h3>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark mb-8 leading-relaxed">
-              Estás a punto de eliminar <strong>"{portfolioToDelete.name}"</strong>. Esta acción borrará permanentemente todos los activos y operaciones asociados a esta cartera.
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setPortfolioToDelete(null)}
-                className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDelete}
-                className="px-6 py-4 rounded-2xl bg-red-500 text-white font-bold hover:bg-red-600 transition-all active:scale-95 shadow-lg shadow-red-500/20"
-              >
-                Eliminar todo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Modal de Creación de Cartera */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
-          <form
-            onSubmit={handleCreatePortfolio}
-            className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200"
-          >
-            <div className="size-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6">
-              <span className="material-symbols-outlined text-4xl">add_business</span>
-            </div>
-            <h3 className="text-2xl font-bold mb-2 tracking-tight">Nueva Cartera</h3>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark mb-8 text-sm leading-relaxed">
-              Organiza tus activos en diferentes carteras para un mejor seguimiento.
-            </p>
-
-            <div className="flex flex-col gap-2 mb-8">
-              <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4">Nombre de la Cartera</label>
-              <input
-                autoFocus
-                type="text"
-                placeholder="Ej: Inversión a Largo Plazo"
-                className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all"
-                value={newPortfolioName}
-                onChange={(e) => setNewPortfolioName(e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isCreating || !newPortfolioName.trim()}
-                className="px-6 py-4 rounded-2xl bg-primary text-black font-bold hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-primary/20 disabled:opacity-50"
-              >
-                {isCreating ? 'Creando...' : 'Crear Cartera'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Modal Confirmar Eliminar Posición */}
-      {positionToDelete && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-red-500 text-2xl">delete</span>
+      {
+        portfolioToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
+            <div className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+              <div className="size-16 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-6">
+                <span className="material-symbols-outlined text-4xl">warning</span>
               </div>
-              <h3 className="text-xl font-bold">Eliminar Posición</h3>
-            </div>
-            <p className="text-text-secondary-light mb-6">
-              ¿Estás seguro de eliminar <strong className="text-text-primary-light dark:text-white">{positionToDelete.ticker}</strong>?
-              Esta acción eliminará la posición <strong>y todas sus transacciones</strong> de forma permanente.
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setPositionToDelete(null)}
-                className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeletePosition}
-                className="px-6 py-4 rounded-2xl bg-red-500 text-white font-bold hover:bg-red-600 transition-all shadow-lg"
-              >
-                Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Editar Posición */}
-      {positionToEdit && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-primary text-2xl">edit</span>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold">Editar Posición</h3>
-                <p className="text-sm text-text-secondary-light">{positionToEdit.ticker}</p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 mb-6">
-              <div>
-                <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                  Cantidad
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={editQuantity}
-                  onChange={(e) => setEditQuantity(e.target.value)}
-                  className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
-                  placeholder="Cantidad de acciones"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
-                  Precio Medio de Compra ({positionToEdit.currency})
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={editPrice}
-                  onChange={(e) => setEditPrice(e.target.value)}
-                  className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
-                  placeholder="Precio medio"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => {
-                  setPositionToEdit(null);
-                  setEditQuantity('');
-                  setEditPrice('');
-                }}
-                className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleUpdatePosition}
-                className="px-6 py-4 rounded-2xl bg-primary text-black font-bold hover:opacity-90 transition-all shadow-lg shadow-primary/20"
-              >
-                Guardar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Crear Alerta */}
-      {positionToAlert && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
-          <form
-            onSubmit={handleCreateAlert}
-            className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200"
-          >
-            <div className="size-16 rounded-2xl bg-yellow-500/10 text-yellow-500 flex items-center justify-center mb-6">
-              <span className="material-symbols-outlined text-4xl font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
-            </div>
-            <h3 className="text-2xl font-bold mb-2 tracking-tight">Crear Alerta</h3>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark mb-6 text-sm">
-              Recibirás una notificación cuando <strong>{positionToAlert.ticker}</strong> cumpla la condición.
-            </p>
-
-            <div className="flex flex-col gap-4 mb-8">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4 mb-2 block">Condición</label>
-                <select
-                  value={alertCondition}
-                  onChange={e => setAlertCondition(e.target.value as 'above' | 'below')}
-                  className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all appearance-none cursor-pointer"
+              <h3 className="text-2xl font-bold mb-3 tracking-tight">¿Eliminar cartera?</h3>
+              <p className="text-text-secondary-light dark:text-text-secondary-dark mb-8 leading-relaxed">
+                Estás a punto de eliminar <strong>"{portfolioToDelete.name}"</strong>. Esta acción borrará permanentemente todos los activos y operaciones asociados a esta cartera.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => setPortfolioToDelete(null)}
+                  className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
                 >
-                  <option value="below">Precio menor que</option>
-                  <option value="above">Precio mayor que</option>
-                </select>
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="px-6 py-4 rounded-2xl bg-red-500 text-white font-bold hover:bg-red-600 transition-all active:scale-95 shadow-lg shadow-red-500/20"
+                >
+                  Eliminar todo
+                </button>
               </div>
+            </div>
+          </div>
+        )
+      }
+      {/* Modal de Creación de Cartera */}
+      {
+        showCreateModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
+            <form
+              onSubmit={handleCreatePortfolio}
+              className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200"
+            >
+              <div className="size-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6">
+                <span className="material-symbols-outlined text-4xl">add_business</span>
+              </div>
+              <h3 className="text-2xl font-bold mb-2 tracking-tight">Nueva Cartera</h3>
+              <p className="text-text-secondary-light dark:text-text-secondary-dark mb-8 text-sm leading-relaxed">
+                Organiza tus activos en diferentes carteras para un mejor seguimiento.
+              </p>
 
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4 mb-2 block">Precio Objetivo ({positionToAlert.currency})</label>
+              <div className="flex flex-col gap-2 mb-8">
+                <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4">Nombre de la Cartera</label>
                 <input
                   autoFocus
-                  type="number"
-                  step="any"
-                  placeholder="0.00"
+                  type="text"
+                  placeholder="Ej: Inversión a Largo Plazo"
                   className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all"
-                  value={alertTargetPrice}
-                  onChange={(e) => setAlertTargetPrice(e.target.value)}
+                  value={newPortfolioName}
+                  onChange={(e) => setNewPortfolioName(e.target.value)}
                 />
-                <p className="text-xs text-text-secondary-light mt-2 ml-4">
-                  Precio actual: <strong>{positionToAlert.currentPrice ? formatPrice(positionToAlert.currentPrice, positionToAlert.currency) : '---'}</strong>
-                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreating || !newPortfolioName.trim()}
+                  className="px-6 py-4 rounded-2xl bg-primary text-black font-bold hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-primary/20 disabled:opacity-50"
+                >
+                  {isCreating ? 'Creando...' : 'Crear Cartera'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )
+      }
+
+      {/* Modal Confirmar Eliminar Posición */}
+      {
+        positionToDelete && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-red-500 text-2xl">delete</span>
+                </div>
+                <h3 className="text-xl font-bold">Eliminar Posición</h3>
+              </div>
+              <p className="text-text-secondary-light mb-6">
+                ¿Estás seguro de eliminar <strong className="text-text-primary-light dark:text-white">{positionToDelete.ticker}</strong>?
+                Esta acción eliminará la posición <strong>y todas sus transacciones</strong> de forma permanente.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => setPositionToDelete(null)}
+                  className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDeletePosition}
+                  className="px-6 py-4 rounded-2xl bg-red-500 text-white font-bold hover:bg-red-600 transition-all shadow-lg"
+                >
+                  Eliminar
+                </button>
               </div>
             </div>
+          </div>
+        )
+      }
 
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setPositionToAlert(null)}
-                className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isCreatingAlert || !alertTargetPrice}
-                className="px-6 py-4 rounded-2xl bg-yellow-400 text-black font-bold hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-yellow-400/20 disabled:opacity-50"
-              >
-                {isCreatingAlert ? 'Creando...' : 'Crear Alerta'}
-              </button>
+      {/* Modal Editar Posición */}
+      {
+        positionToEdit && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-surface-dark rounded-3xl p-8 max-w-md w-full shadow-2xl">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-primary text-2xl">edit</span>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">Editar Posición</h3>
+                  <p className="text-sm text-text-secondary-light">{positionToEdit.ticker}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4 mb-6">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
+                    Cantidad
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editQuantity}
+                    onChange={(e) => setEditQuantity(e.target.value)}
+                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+                    placeholder="Cantidad de acciones"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
+                    Precio Medio de Compra ({positionToEdit.currency})
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editPrice}
+                    onChange={(e) => setEditPrice(e.target.value)}
+                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+                    placeholder="Precio medio"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-text-secondary-light mb-2">
+                    Comisión Total ({positionToEdit.currency})
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editCommission}
+                    onChange={(e) => setEditCommission(e.target.value)}
+                    className="w-full px-4 py-3 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-primary"
+                    placeholder="Comisión"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => {
+                    setPositionToEdit(null);
+                    setEditQuantity('');
+                    setEditPrice('');
+                    setEditCommission('');
+                  }}
+                  className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleUpdatePosition}
+                  className="px-6 py-4 rounded-2xl bg-primary text-black font-bold hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+                >
+                  Guardar
+                </button>
+              </div>
             </div>
-          </form>
-        </div>
-      )}
-    </main>
+          </div>
+        )
+      }
+
+      {/* Modal Vender Posición */}
+      {
+        positionToSell && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <form onSubmit={handleSellPosition} className="bg-white dark:bg-surface-dark rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-orange-500 text-xl">sell</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold leading-tight">Vender {positionToSell.ticker}</h3>
+                  <p className="text-xs text-text-secondary-light">{positionToSell.name}</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                {/* Info Compacta */}
+                <div className="flex justify-between items-center text-xs bg-background-light/50 dark:bg-surface-dark-elevated/50 p-2 rounded-lg">
+                  <div>
+                    <span className="text-text-secondary-light block text-[10px] uppercase font-bold">Tienes</span>
+                    <span className="font-bold">{positionToSell.quantity}</span>
+                  </div>
+                  <div>
+                    <span className="text-text-secondary-light block text-[10px] uppercase font-bold">Coste Avg</span>
+                    <span className="font-mono">{formatPrice(positionToSell.average_buy_price, positionToSell.currency)}</span>
+                  </div>
+                  <div>
+                    <span className="text-text-secondary-light block text-[10px] uppercase font-bold">Actual</span>
+                    <span className="font-bold text-primary">{positionToSell.currentPrice ? formatPrice(positionToSell.currentPrice, positionToSell.currency) : '---'}</span>
+                  </div>
+                </div>
+
+                {/* Inputs Grid */}
+                <div className="space-y-3">
+                  {/* Cantidad */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-text-secondary-light mb-1">Cantidad</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        max={positionToSell.quantity}
+                        value={sellQuantity}
+                        onChange={(e) => setSellQuantity(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500 text-sm font-bold"
+                        placeholder="0"
+                        required
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSellQuantity(String(positionToSell.quantity))}
+                        className="px-3 py-2 bg-orange-500/10 text-orange-500 rounded-xl text-xs font-bold hover:bg-orange-500/20"
+                      >
+                        TODO
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Precio */}
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-text-secondary-light mb-1">Precio</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={sellPrice}
+                        onChange={(e) => setSellPrice(e.target.value)}
+                        className="w-full px-3 py-2 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500 text-sm"
+                        placeholder="Price"
+                        required
+                      />
+                    </div>
+                    {/* Comisión */}
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-text-secondary-light mb-1">Comisión</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={sellCommission}
+                        onChange={(e) => setSellCommission(e.target.value)}
+                        className="w-full px-3 py-2 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500 text-sm"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  {/* FX (Condicional) */}
+                  {positionToSell.currency !== 'EUR' && (
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-text-secondary-light mb-1">FX ({positionToSell.currency}→EUR)</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={sellExchangeRate}
+                        onChange={(e) => setSellExchangeRate(e.target.value)}
+                        className="w-full px-3 py-2 bg-background-light dark:bg-surface-dark-elevated rounded-xl border-none focus:ring-2 focus:ring-orange-500 text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Resumen Compacto con FIFO */}
+                {sellQuantity && sellPrice && (
+                  <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-xl space-y-2">
+                    <div className="flex justify-between items-end text-xs">
+                      <span className="text-text-secondary-light font-medium">Neto Venta:</span>
+                      <span className="font-bold text-orange-500">
+                        {(() => {
+                          const net = (parseFloat(sellQuantity) * parseFloat(sellPrice)) - (parseFloat(sellCommission) || 0);
+                          return isNaN(net) ? '...' : net.toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency });
+                        })()}
+                      </span>
+                    </div>
+
+                    {/* FIFO Simulation Result */}
+                    <div className="flex justify-between items-end text-xs border-t border-orange-500/10 pt-2">
+                      <span className="text-text-secondary-light font-medium flex items-center gap-1">
+                        Ganancia/Pérdida (FIFO)
+                        {isSimulating && <span className="w-2 h-2 rounded-full border-2 border-orange-500 border-t-transparent animate-spin"></span>}
+                      </span>
+                      <span className={`font-black ${!fifoSimulation ? 'text-gray-400' :
+                        (() => {
+                          const net = (parseFloat(sellQuantity) * parseFloat(sellPrice)) - (parseFloat(sellCommission) || 0);
+                          const pnl = net - fifoSimulation.costBasis;
+                          return pnl >= 0 ? 'text-green-500' : 'text-red-500';
+                        })()
+                        }`}>
+                        {isSimulating ? '...' :
+                          fifoSimulation ?
+                            (() => {
+                              const net = (parseFloat(sellQuantity) * parseFloat(sellPrice)) - (parseFloat(sellCommission) || 0);
+                              const pnl = net - fifoSimulation.costBasis;
+                              return `${pnl >= 0 ? '+' : ''}${pnl.toLocaleString('es-ES', { style: 'currency', currency: positionToSell.currency })}`;
+                            })()
+                            : '---'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPositionToSell(null);
+                    setSellQuantity('');
+                    setSellPrice('');
+                  }}
+                  className="px-4 py-3 rounded-xl border border-border-light dark:border-border-dark font-bold text-sm hover:bg-background-light dark:hover:bg-white/5 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSelling || !sellQuantity || !sellPrice}
+                  className="px-4 py-3 rounded-xl bg-orange-500 text-white font-bold text-sm hover:opacity-90 transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50"
+                >
+                  {isSelling ? '...' : 'Confirmar Venta'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )
+      }
+
+      {/* Modal Crear Alerta */}
+      {
+        positionToAlert && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/40 animate-in fade-in duration-200">
+            <form
+              onSubmit={handleCreateAlert}
+              className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200"
+            >
+              <div className="size-16 rounded-2xl bg-yellow-500/10 text-yellow-500 flex items-center justify-center mb-6">
+                <span className="material-symbols-outlined text-4xl font-variation-fill" style={{ fontVariationSettings: "'FILL' 1" }}>notifications</span>
+              </div>
+              <h3 className="text-2xl font-bold mb-2 tracking-tight">Crear Alerta</h3>
+              <p className="text-text-secondary-light dark:text-text-secondary-dark mb-6 text-sm">
+                Recibirás una notificación cuando <strong>{positionToAlert.ticker}</strong> cumpla la condición.
+              </p>
+
+              <div className="flex flex-col gap-4 mb-8">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4 mb-2 block">Condición</label>
+                  <select
+                    value={alertCondition}
+                    onChange={e => setAlertCondition(e.target.value as 'above' | 'below')}
+                    className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="below">Precio menor que</option>
+                    <option value="above">Precio mayor que</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light ml-4 mb-2 block">Precio Objetivo ({positionToAlert.currency})</label>
+                  <input
+                    autoFocus
+                    type="number"
+                    step="any"
+                    placeholder="0.00"
+                    className="w-full px-6 py-4 rounded-2xl bg-background-light dark:bg-surface-dark-elevated border border-border-light dark:border-border-dark outline-none focus:ring-2 focus:ring-primary font-bold transition-all"
+                    value={alertTargetPrice}
+                    onChange={(e) => setAlertTargetPrice(e.target.value)}
+                  />
+                  <p className="text-xs text-text-secondary-light mt-2 ml-4">
+                    Precio actual: <strong>{positionToAlert.currentPrice ? formatPrice(positionToAlert.currentPrice, positionToAlert.currency) : '---'}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setPositionToAlert(null)}
+                  className="px-6 py-4 rounded-2xl border border-border-light dark:border-border-dark font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all active:scale-95"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingAlert || !alertTargetPrice}
+                  className="px-6 py-4 rounded-2xl bg-yellow-400 text-black font-bold hover:opacity-90 transition-all active:scale-95 shadow-lg shadow-yellow-400/20 disabled:opacity-50"
+                >
+                  {isCreatingAlert ? 'Creando...' : 'Crear Alerta'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )
+      }
+
+      {/* Modal de Notas */}
+      {
+        notePosition && (
+          <StockNoteModal
+            positionId={notePosition.id}
+            ticker={notePosition.ticker}
+            onClose={() => setNotePosition(null)}
+          />
+        )
+      }
+
+      {/* Modal de Análisis de Posición */}
+      {
+        analysisPosition && (
+          <PositionAnalysisModal
+            isOpen={!!analysisPosition}
+            onClose={() => setAnalysisPosition(null)}
+            positionId={analysisPosition.id}
+            ticker={analysisPosition.ticker}
+            companyName={analysisPosition.name}
+          />
+        )
+      }
+
+      {/* Modal de Compra */}
+      {
+        showBuyModal && (
+          <BuyAssetModal
+            isOpen={showBuyModal}
+            onClose={() => setShowBuyModal(false)}
+            onSuccess={() => {
+              loadPortfolioDetails(portfolio?.id || '');
+              handleManualRefresh();
+            }}
+            defaultPortfolioId={portfolio?.id}
+            portfolios={availablePortfolios}
+          />
+        )
+      }
+
+      {
+        showHistoryModal && portfolio && (
+          <TransactionHistoryModal
+            portfolioId={portfolio.id}
+            onClose={() => {
+              setShowHistoryModal(false);
+              loadPortfolioDetails(portfolio.id); // Refresh portfolio on close in case of edits
+            }}
+          />
+        )
+      }
+    </main >
   );
 };

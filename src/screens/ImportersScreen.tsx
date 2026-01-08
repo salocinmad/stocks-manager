@@ -8,7 +8,7 @@ export const ImportersScreen: React.FC = () => {
 
     return (
         <main className="flex-1 overflow-y-auto w-full p-6 md:p-10 lg:px-16 flex flex-col gap-10 bg-background-light dark:bg-background-dark">
-            <Header title="Centro de Importación" />
+
 
             <div className="max-w-7xl mx-auto w-full flex flex-col gap-8">
 
@@ -17,8 +17,8 @@ export const ImportersScreen: React.FC = () => {
                     <button
                         onClick={() => setActiveTab('myinvestor')}
                         className={`px-6 py-3 rounded-t-2xl font-bold text-sm md:text-base transition-all flex items-center gap-2 ${activeTab === 'myinvestor'
-                                ? 'bg-primary text-black shadow-[0_-4px_10px_rgba(252,233,3,0.1)] translate-y-[1px]'
-                                : 'text-text-secondary-light dark:text-text-secondary-dark hover:bg-black/5 dark:hover:bg-white/5'
+                            ? 'bg-primary text-black shadow-[0_-4px_10px_rgba(252,233,3,0.1)] translate-y-[1px]'
+                            : 'text-text-secondary-light dark:text-text-secondary-dark hover:bg-black/5 dark:hover:bg-white/5'
                             }`}
                     >
                         <span className="material-symbols-outlined">account_balance</span>

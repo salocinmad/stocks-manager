@@ -1,6 +1,6 @@
 # 🛠️ Guía de Administrador - Stocks Manager
 
-Versión 2.0 | Última actualización: Diciembre 2025
+Versión 2.1.0 | Última actualización: Enero 2026
 
 ---
 
@@ -15,7 +15,10 @@ Versión 2.0 | Última actualización: Diciembre 2025
 7. [Configuración de IA](#-configuración-de-ia)
 8. [Sincronización de Mercado](#-sincronización-de-mercado)
 9. [Backup y Restauración](#-backup-y-restauración)
-10. [Monitorización](#-monitorización)
+10. [Panel de Análisis de Posición (v2.1.0)](#-panel-de-análisis-de-posición-v210)
+11. [Alertas Avanzadas (v2.1.0)](#-alertas-avanzadas-v210)
+12. [Atajos de Teclado (v2.1.0)](#️-atajos-de-teclado-v210)
+13. [Monitorización](#-monitorización)
 
 ---
 
@@ -27,22 +30,36 @@ Versión 2.0 | Última actualización: Diciembre 2025
 - 2GB RAM mínimo
 - 10GB espacio en disco
 
-### Despliegue con Docker Compose
+### Despliegue con Imagen Oficial (Recomendado)
 
-```bash
-# Clonar repositorio
-git clone <tu-repo> stocks-manager
-cd stocks-manager
+No es necesario descargar el código fuente.
 
-# Crear archivo de variables de entorno
-cp server/env.example .env
 
-# Editar variables (ver sección siguiente)
-nano .env
+1. **Crear directorio de trabajo**:
+   ```bash
+   mkdir stocks-manager && cd stocks-manager
+   ```
 
-# Desplegar
-docker compose up -d --build
-```
+2. **Descargar configuración e instalador**:
+   ```bash
+   # 1. Configuración de entorno
+   wget https://raw.githubusercontent.com/salocinmad/stocks-manager/main/.env.example -O .env
+   
+   # 2. Archivo Docker Compose (Producción)
+   wget https://raw.githubusercontent.com/salocinmad/stocks-manager/main/docker-compose.prod.yml -O docker-compose.yml
+   ```
+
+3. **Editar configuración**:
+   ```bash
+   nano .env
+   # IMPORTANTE: Configura DB_USER, DB_PASSWORD y sobre todo JWT_SECRET
+   ```
+
+4. **Arrancar**:
+   ```bash
+   docker compose up -d
+   ```
+   El sistema descargará automáticamente la última versión de la imagen y arrancará los servicios.
 
 ### Variables de Entorno (.env)
 
@@ -57,8 +74,9 @@ DB_PASSWORD=tu_password_seguro
 # JWT
 JWT_SECRET=clave_secreta_muy_larga_y_segura
 
-# APIs (opcional al inicio)
-FINNHUB_API_KEY=
+# APIs
+FINNHUB_API_KEY=tu_clave_gratuita
+# Opcionales (Solo para Google News vieja escuela, ahora obsoleta)
 GOOGLE_API_KEY=
 
 # SMTP (para emails)
@@ -67,11 +85,15 @@ SMTP_PORT=587
 SMTP_USER=tu@email.com
 SMTP_PASSWORD=app_password
 SMTP_FROM=tu@email.com
+SMTP_FROM=tu@email.com
 ```
+
+> ⚠️ **IMPORTANTE**: La variable `JWT_SECRET` actúa como llave maestra para **encriptar** datos sensibles (API Keys, contraseñas SMTP) en la base de datos.
+> **Guarda una copia segura de tu archivo .env**. Si pierdes esta clave en una reinstalación, los backups de la base de datos serán inútiles para recuperar esa configuración encriptada.
 
 ### Acceso Inicial
 
-1. Accede a `http://tu-servidor:3000`
+1. Accede a `http://localhost:3000`
 2. Regístrate con el primer usuario (se convierte en admin automáticamente)
 3. Ve al panel de administración
 
@@ -88,14 +110,23 @@ SMTP_FROM=tu@email.com
 
 | Pestaña | Función |
 |---------|---------|
-| **General** | URL pública y configuración básica |
-| **IA** | Configuración de Gemini y prompts |
-| **Mercado** | Sincronización de datos históricos |
+| **General** | Config URL, Crawlers y Toggle de Descubrimiento |
+| **IA** | Configuración de Proveedores (Gemini, Ollama, etc) y Prompts |
+| **Mercado** | Sincronización de datos históricos y Crawler Manual |
 | **Usuarios** | Gestión de cuentas |
 | **Claves API** | Configuración de Finnhub |
 | **SMTP** | Configuración de email |
-| **Backup** | Exportar/importar datos |
-| **Estadísticas** | Métricas del sistema |
+| **Backup** | Exportar/importar datos (ZIP/SQL) |
+| **Estadísticas** | Métricas del sistema y Crawler |
+
+### Acceso desde Móvil (v2.1.0)
+
+El panel de administración está optimizado para dispositivos móviles:
+
+- **Tabs principales**: Scroll horizontal, solo iconos en pantallas pequeñas
+- **Subtabs**: Compactas con scroll horizontal
+- **Usuarios**: Vista de cards en móvil (nombre, email, badges, acciones)
+- **Estadísticas**: Grid de 2 columnas optimizado
 
 ---
 
@@ -151,6 +182,38 @@ Tras resetear, el usuario podrá configurar 2FA de nuevo.
 |-------|-------------|
 | **URL Pública** | URL donde está desplegada la app (ej: `https://stocks.tudominio.com`). Se usa en notificaciones por email. |
 
+### Pestaña Discovery Engine (v2.1.0)
+
+Control total sobre el comportamiento del crawler de mercado.
+
+#### Presets (Modos Rápidos)
+- **🐢 Stealth**: 2 ciclos/hora, bajo volumen. Para servidores con pocos recursos.
+- **⚖️ Balanced**: 6 ciclos/hora (cada 10 min), volumen medio. Recomendado.
+- **🐺 Wolf Mode**: 12 ciclos/hora (cada 5 min), alto volumen (80 items/worker). **Alto consumo de CPU/Red**.
+
+#### Controles Granulares
+- **Frecuencia de Ciclos**: Define cuántas veces por hora se ejecuta el crawler (1 a 30).
+- **Volúmenes por Worker**:
+    - **Yahoo V8 (Técnico)**: Cantidad de acciones a escanear buscando patrones técnicos.
+    - **Yahoo V10 (Fundamental)**: Cantidad de acciones para análisis profundo de calidad.
+    - **Finnhub (Noticias)**: Cantidad de acciones para buscar noticias recientes.
+- **Priorizar Market Open**: Si está activo, detecta si la bolsa (US/EU) está abierta y fuerza la búsqueda de "Day Gainers" y "Most Actives" en lugar de la rotación habitual.
+
+#### Arquitectura Split-World (v2.1.0)
+El crawler ahora opera bajo un modelo de segmentación geográfica:
+- **Pipeline USA**: Optimizado para mercados americanos usando Finnhub y Yahoo V10.
+- **Pipeline Global**: Especializado en mercados Europeos y Asiáticos (ES, DE, FR, GB, HK) usando la API de trending de Yahoo.
+- **Enriquecimiento**: Cualquier activo detectado sin sector se consulta automáticamente para completar su perfil.
+
+#### Control Maestro (Kill Switch)
+Ubicado en **Admin → General**. Si el interruptor principal está **OFF**, toda actividad del crawler se detiene, incluyendo las ejecuciones manuales por script.
+
+#### Persistencia y Recolección Progresiva (v2.1.0)
+El sistema utiliza una estrategia de **Merge/Append**. A diferencia de versiones anteriores, el motor no sobreescribe el catálogo en cada ciclo, sino que añade las nuevas empresas descubiertas a la base de datos existente. Esto asegura que el "Discovery Engine" actúe como una bola de nieve, creciendo constantemente en activos analizados.
+
+#### Explorador de Mercado (v2.2.0 - Planificado)
+Desde la pestaña **Estadísticas**, el administrador puede acceder a un explorador paginado para auditar cada activo procesado, realizar búsquedas por ticker y visualizar el objeto JSON completo con todas las métricas técnicas y fundamentales.
+
 ---
 
 ## 🔑 Claves API
@@ -162,7 +225,17 @@ Tras resetear, el usuario podrá configurar 2FA de nuevo.
 3. Introduce tu key
 4. Guarda
 
-> 💡 Finnhub proporciona datos complementarios como noticias y métricas.
+> 💡 Finnhub proporciona datos complementarios como noticias y métricas, pero ya **no es estrictamente necesario** para ver si el mercado está abierto (se usa Yahoo V10 por defecto).
+
+### EOD Historical Data (EODHD) - Librería Global
+
+1. Obtén una API key en [eodhd.com](https://eodhd.com/register)
+2. Ve a **Admin → Claves API**
+3. Introduce tu key en el campo **EODHD API Key**.
+4. Configura el listado de bolsas en **Bolsas para Cosecha Global** (Ej: `MC,PA,LSE,NSE...`).
+5. Guarda.
+
+> 💡 **Librería Global**: El sistema utiliza EODHD para descargar la lista maestra de tickers mundiales con su ISIN. Esta lista alimenta al Discovery Engine para encontrar nuevas oportunidades fuera de USA.
 
 ### Google Gemini (IA)
 
@@ -170,7 +243,106 @@ Tras resetear, el usuario podrá configurar 2FA de nuevo.
 2. Ve a **Admin → Inteligencia Artificial**
 3. Pega la key
 4. Selecciona el modelo (recomendado: `gemini-1.5-flash`)
-5. Guarda
+5. Guarda.
+
+---
+
+## 🌎 Librería Global de Tickers
+
+### Configuración
+Ubicada en **Admin → Mercado → Librería Global de Tickers**. 
+Permite sincronizar de golpe miles de activos internacionales para que el sistema "conozca" su existencia antes de enriquecer su perfil.
+
+> ⚠️ **Filtro de activos**: El sistema sincroniza exclusivamente **Acciones Comunes (Common Stock)**. Quedan excluidos automáticamente los ETFs, Fondos de Inversión y otros instrumentos financieros no deseados.
+
+### Sincronización Automática
+El sistema incluye un job interno (`globalTickerJob`) que se ejecuta el **día 1 de cada mes a las 02:00 AM** para mantener la librería actualizada con las nuevas salidas a bolsa (IPOs) y cambios de nombre.
+
+### Sincronización Manual
+Puedes forzar la actualización pulsando **"Iniciar Sincronización Mundial"**. 
+> ⏳ **IMPORTANTE**: Debido a los límites de la cuenta gratuita de EODHD (20 créditos/día), el sistema espera **1 minuto** entre cada bolsa. La sincronización completa de las 20 bolsas principales tardará unos 20 minutos. El progreso se muestra en tiempo real en la pantalla.
+
+---
+
+## 🌍 Catálogo Maestro de Bolsas (v2.1.0)
+
+Nueva funcionalidad para configurar qué bolsas mundiales alimentan el sistema de descubrimiento.
+
+### Ubicación
+**Admin → Mercado → Catálogo Maestro**
+
+### Funcionalidades
+
+| Función | Descripción |
+|---------|-------------|
+| **Lista de Bolsas** | 74+ bolsas mundiales obtenidas de la API de EODHD |
+| **Búsqueda** | Filtrar por país, código o nombre |
+| **Toggle Seleccionadas** | Ver solo las bolsas activas (click en badge "N seleccionadas") |
+| **Caché Inteligente** | Lista se cachea 30 días para ahorrar créditos API |
+| **Actualizar Lista** | Botón para forzar refresh desde EODHD |
+
+### Códigos y Mapeo
+
+El sistema mapea automáticamente los códigos EODHD a sufijos de Yahoo Finance:
+
+| EODHD | Yahoo | Bolsa |
+|-------|-------|-------|
+| `NYSE` | (sin sufijo) | New York Stock Exchange |
+| `NASDAQ` | (sin sufijo) | NASDAQ Stock Exchange |
+| `AMEX` | (sin sufijo) | NYSE American |
+| `US` | (sin sufijo) | USA genérico (no recomendado) |
+| `LSE` | `.L` | London Stock Exchange |
+| `XETRA` | `.DE` | Frankfurt Xetra |
+| `MC` | `.MC` | Madrid Exchange |
+| `PA` | `.PA` | Euronext Paris |
+| `HK` | `.HK` | Hong Kong |
+| `TSE` | `.T` | Tokyo Stock Exchange |
+
+> 📁 **Archivo de mapeo**: `server/utils/exchangeMapping.ts` contiene 50+ bolsas mapeadas.
+
+### Cosecha Mundial (Sincronización de Tickers)
+
+El botón **"Iniciar Cosecha Mundial"** está disponible en dos ubicaciones:
+- **Admin → Mercado → Sincronización** (sección Librería Global)
+- **Admin → Mercado → Catálogo Maestro** (debajo del listado de bolsas)
+
+Este botón:
+1. Lee la configuración `GLOBAL_TICKER_EXCHANGES`
+2. Conecta con EODHD API para cada bolsa seleccionada
+3. Descarga todos los tickers (Common Stocks) con sus ISINs
+4. Guarda/actualiza en la tabla `global_tickers`
+
+> ⏱️ **Tiempo estimado**: ~1 minuto por bolsa para respetar límites de API.
+
+### Limpieza Profunda Automática
+
+Cuando **desmarcas** una bolsa del catálogo:
+
+1. Se eliminan los tickers de esa bolsa de `global_tickers`
+2. Se eliminan los detalles cacheados de `ticker_details_cache`
+3. Se filtran los resultados del Discovery Engine (`market_discovery_cache`)
+
+> ⚠️ **Advertencia**: Esta acción es irreversible para los datos de esa bolsa. Tendrás que volver a sincronizar si quieres recuperar esos tickers.
+
+### Códigos Huérfanos
+
+Si el sistema detecta códigos guardados que **ya no existen** en la lista de EODHD, mostrará un **banner de advertencia naranja**:
+
+- Lista los códigos inválidos (ej: `T, HK, OS, LI`)
+- Botón **"Limpiar códigos inválidos y datos"** que:
+  - Elimina los códigos de la configuración
+  - Ejecuta limpieza profunda de datos asociados
+  - Guarda la configuración automáticamente
+
+### Integración con Discovery Engine
+
+El Discovery Job (`discoveryJob.ts`) ahora lee las regiones activas directamente de la configuración:
+
+1. Lee `GLOBAL_TICKER_EXCHANGES` de `system_settings`
+2. Convierte códigos EODHD a regiones (ej: `LSE` → `GB`)
+3. Selecciona aleatoriamente una región para cada ciclo global
+4. Si no hay configuración, usa regiones por defecto (DE, ES, GB, FR, IT, HK, AU)
+
 
 ---
 
@@ -204,99 +376,234 @@ Si usas Gmail:
 
 ---
 
-## 🤖 Configuración de IA
+## 🤖 Configuración de IA (Multi-Proveedor)
 
-### Modelo
+El sistema ahora soporta múltiples proveedores de IA, tanto en la nube como locales.
 
-Selecciona el modelo de Gemini a usar:
+### 🧠 Proveedores Soportados
 
-| Modelo | Características |
-|--------|-----------------|
-| `gemini-1.5-flash` | Rápido, económico, recomendado |
-| `gemini-1.5-pro` | Más potente, más lento |
-| `gemini-2.0-flash` | Última versión experimental |
+1.  **Google Gemini** (Nube - Default): Rápido y económico.
+2.  **OpenRouter** (Nube): Acceso a Claude 3.5, GPT-4, Llama 3 via API unificada.
+3.  **Groq** (Nube): Inferencia ultrarrápida (Llama 3, Mixtral).
+4.  **Ollama** (Local): Privacidad total. Requiere correr Ollama en el servidor/PC.
+5.  **LM Studio** (Local): Otra opción para LLMs locales.
 
-### Prompts Personalizables
+### Configuración de Claves
 
-Puedes personalizar el comportamiento de la IA editando los prompts:
+Las claves API se gestionan en **Admin → Claves API** o mediante variables de entorno en el `.env`:
 
-**ChatBot (Conversacional)**
-- Variables disponibles: `{{CHAT_HISTORY}}`, `{{MARKET_DATA}}`
-- Usado en el chat con el usuario
+| Variable | Proveedor |
+|----------|-----------|
+| `GOOGLE_GENAI_API_KEY` | Google Gemini |
+| `OPENROUTER_API_KEY` | OpenRouter |
+| `GROQ_API_KEY` | Groq |
 
-**Análisis (Reporte)**
-- Variables: `{{PORTFOLIO_CONTEXT}}`, `{{MARKET_CONTEXT}}`, `{{USER_MESSAGE}}`
-- Usado para análisis detallados de cartera
+### Gestión de Modelos
 
-### Refrescar Modelos
+1. Ve a **Admin → Inteligencia Artificial**.
+2. Selecciona el **Proveedor Activo**.
+3. Configura el **Modelo** específico (ej: `gemini-1.5-flash`, `anthropic/claude-3.5-sonnet`).
+4. **Habilita/Deshabilita** proveedores según lo que quieras ofrecer a tus usuarios.
 
-Si Google lanza nuevos modelos:
-1. Haz clic en **"Refrescar"** junto al selector
-2. Se actualizará la lista de modelos disponibles
+### 🎭 Prompts y Personas
+
+Puedes crear y editar "Personas" para el ChatBot (ej: "Lobo de Wall Street", "Profesor", "Asesor Conservador").
+- Ve a la sección **Prompts**.
+- Edita el texto del prompt del sistema para cambiar la personalidad de la IA.
+- Marca como **Activo** los que quieras que aparezcan en el selector del chat.
 
 ---
 
-## 📈 Sincronización de Mercado
+## 📈 Sincronización de Mercado (Layout Renovado)
 
-### ¿Qué Sincroniza?
+La pestaña de **Mercado** ha sido reorganizada en un formato de **2 columnas** para mayor claridad y control.
 
-- **Precios históricos** de acciones (Yahoo Finance)
-- **Tipos de cambio** de divisas (EUR/USD, EUR/GBP, etc.)
+### Columna Izquierda: Operaciones Diarias
+Herramientas para la gestión habitual de datos.
 
-### Sincronización Automática
+1.  **Sincronización Manual**:
+    - Periodos predefinidos (5 Días, 1 Mes, 1 Año...).
+    - Botones para sincronizar **Todo**, solo **Acciones** o solo **Divisas**.
+    - Incluye soporte nativo para `GBX` (Peniques) y tipos de cambio cruzados.
 
-- **Diaria a las 04:00 AM** (hora Madrid): Últimos 5 días
-- **Domingos a las 04:00 AM**: Últimos 6 meses completos
+    - Herramienta para regenerar el historial de Ganancias/Pérdidas de todas las carteras si detectas inconsistencias en los gráficos.
+3.  **Optimización de Estado de Mercado (v2.3.0)**:
+    - El sistema implementa un **cache global de 60 segundos** para el estado de los mercados (Abierto/Cerrado).
+    - Esto reduce drásticamente las llamadas a Yahoo Finance cuando hay múltiples usuarios conectados simultáneamente.
 
-### Sincronización Manual
+### Columna Derecha: Infraestructura Global
+Herramientas avanzadas para la gestión del catálogo.
 
-1. Ve a **Admin → Mercado**
-2. Selecciona el periodo:
-   - 5 Días
-   - 1 Mes
-   - 6 Meses
-   - 1 Año
-   - 2 Años
-   - 5 Años
-3. Haz clic en:
-   - **Sincronizar TODO** (recomendado)
-   - Solo Acciones
-   - Solo Divisas
+1.  **Librería Global (Cosecha)**:
+    - Estado de la sincronización con EODHD (IPOs, cambios de ISIN).
+    - Botón para iniciar la "Cosecha Mundial" (lento, respeta límites de API).
 
-> ⚠️ Periodos largos pueden tardar varios minutos
+2.  **Enriquecimiento (V10)**:
+    - Trigger manual para procesar activos descubiertos con datos fundamentales de Yahoo V10.
+
+3.  **⛔ ZONA DE PELIGRO**:
+    - **Borrar Datos Discovery**: Botón rojo para eliminar **TODOS** los datos del motor de descubrimiento (`global_tickers`, `market_discovery_cache`).
+    - **Seguridad**: Requiere **DOBLE confirmación**:
+      1. Click en el botón y aceptar el diálogo.
+      2. Escribir la palabra clave `BORRAR` (en mayúsculas) en el segundo prompt.
+    - *Úsalo solo si quieres reiniciar el catálogo desde cero.*
 
 ---
 
 ## 💾 Backup y Restauración
 
 ### Exportar Backup
+ 
+ **Formato ZIP (Completo - Recomendado)**:
+ 1. Ve a **Admin → Backup → Manual**
+ 2. Haz clic en **"Descargar ZIP Completo"**
+ 3. Se descarga un archivo `.zip` que contiene:
+    - `database_dump.json`: Todos los datos de la base de datos.
+    - `uploads/`: Carpeta con imágenes, avatares y archivos subidos por los usuarios.
+ 
+ **Formato SQL (Solo Estructura/Datos)**:
+ 1. Haz clic en **"Descargar SQL"**
+ 2. Genera un script SQL puro (útil para migraciones manuales o debug).
 
-**Formato JSON** (recomendado):
-1. Ve a **Admin → Backup**
-2. Haz clic en **"Descargar JSON"**
-3. Se descarga `stocks-manager-backup-YYYY-MM-DD.json`
+### 📅 Programador de Backups (Nuevo)
 
-**Formato SQL**:
-1. Haz clic en **"Descargar SQL"**
-2. Se descarga un script SQL con todos los datos
+Ahora puedes automatizar el envío de copias de seguridad a tu correo electrónico.
+
+1. Ve a **Admin → Backup → Programación**.
+2. **Activar**: Enciende el interruptor "Habilitar Programador".
+3. **Email**: Define la dirección de correo donde recibirás los backups.
+4. **Frecuencia**:
+   - **Diario**: Se envía todos los días a la hora configurada.
+   - **Semanal**: Se envía un día específico de la semana (seleccionable: Lunes a Domingo).
+   - **Mensual**: Se envía un día específico del mes (seleccionable: 1 al 28).
+5. **Hora**: Selecciona la hora exacta de ejecución (Hora del Servidor).
+6. **Protección**: (Opcional) Establece una contraseña para cifrar el archivo ZIP adjunto.
+   > 🔒 Si configuras una contraseña, el ZIP no se podrá abrir sin ella.
+
+**Limitaciones de Correo:**
+- Si el backup supera los **25 MB**, no se adjuntará al correo.
+- En su lugar, recibirás una notificación indicando que el backup se generó correctamente pero debes descargarlo manualmente desde el panel por motivos de tamaño.
+
+**Prueba Inmediata:**
+- Usa el botón **"Enviar Ahora"** para forzar una ejecución inmediata y verificar que recibes el correo correctamente.
 
 ### Restaurar Backup
 
 > ⚠️ **CUIDADO**: Esto REEMPLAZA todos los datos actuales
 
-1. Ve a **Admin → Backup**
+1. Ve a **Admin → Backup → Manual**
 2. Haz clic en **"Restaurar desde archivo"**
-3. Selecciona tu archivo `.json` o `.sql`
+3. Selecciona tu archivo `.zip` (generado por el sistema), `.json` o `.sql`
 4. Confirma la restauración
 5. Cierra sesión y vuelve a entrar
 
 ### Recomendaciones
 
-- Haz backup **semanal** como mínimo
-- Guarda backups en ubicación externa (cloud, NAS)
-- Prueba restaurar en entorno de test periódicamente
+- Activa el **backup semanal** automatizado al correo.
+- Usa contraseña para los backups por email si usas un servicio de correo público.
+- Si tu instancia tiene muchas imágenes, es probable que superes los 25MB pronto; revisa tu correo para las notificaciones.
+
+### ⚠️ Seguridad Crítica: JWT_SECRET
+
+El sistema utiliza la variable `JWT_SECRET` (definida en tu `.env`) no solo para las sesiones de usuario, sino también como **llave maestra de cifrado** para datos sensibles en la base de datos (`system_settings`), como:
+- API Keys (Finnhub, Google Gemini, etc.)
+- Contraseñas SMTP
+- Contraseñas de Backup
+
+**¿Qué pasa si pierdo el JWT_SECRET?**
+Si reinstalas la aplicación desde cero y no conservas el `JWT_SECRET` original:
+1. Podrás restaurar el backup de la base de datos (usuarios, carteras, transacciones).
+2. **PERDERÁS** el acceso a las configuraciones cifradas mencionadas arriba. El sistema no podrá desencriptarlas con la nueva clave.
+3. Tendrás que volver a introducir manualmente todas las API Keys y configuraciones de correo.
+
+**Recomendación:**
+> 🛡️ Guarda una copia de seguridad de tu archivo `.env` en un lugar seguro (gestor de contraseñas), separado de los backups de la base de datos.
 
 ---
+
+## 📊 Panel de Análisis de Posición (v2.1.0)
+
+### Descripción
+
+Nuevo modal grande (80% del viewport) que proporciona análisis profundo de cada posición. Accesible desde la pantalla de Cartera pulsando el icono 📊 (analytics) en cualquier posición.
+
+### 6 Pestañas Disponibles
+
+| Tab | Contenido |
+|-----|-----------|
+| **📈 Posición** | Cantidad, precio medio, PnL (€/%), peso en cartera |
+| **📊 Técnico** | RSI (14), SMA 50, SMA 200, tendencia (alcista/bajista), timestamp último cálculo |
+| **⚠️ Riesgo** | Volatilidad anualizada, Sharpe, Sortino, Max Drawdown, Beta, VaR, Score (1-10) |
+| **🏢 Fundamental** | **NUEVO**: Valoración (PER, EV), Rentabilidad (ROE, Márgenes), Salud (Deuda), Dividendos |
+| **🎯 Analistas** | Consenso (Comprar/Mantener/Vender), precio objetivo, desglose, insiders |
+| **🔮 What-If** | Simulador interactivo: comprar más acciones, vender parcialmente, simular cambios de precio |
+
+### Cálculos Automáticos y Caché
+
+- **Técnico/Riesgo**: Job cada 6 horas.
+- **Fundamental**: Caché de 14 días (debido a la baja frecuencia de cambios en reportes trimestrales).
+
+### Lógica FIFO en Backend (v2.1.0)
+
+El servicio `portfolioService.ts` implementa lógica FIFO estricta para:
+
+| Función | Propósito |
+|---------|-----------|
+| `calculateFIFOQueue` | Construye cola de lotes de compra ordenados cronológicamente |
+| `simulateSell` | Calcula coste base FIFO sin modificar BD (para previsualizaciones) |
+| `recalculatePositionFromHistory` | Reconstruye una posición desde cero tras editar historial |
+
+**API Nuevo**: `GET /portfolios/:id/positions/:ticker/simulate-sell?amount=X` devuelve el coste base FIFO para X acciones.
+
+---
+
+## 🔔 Alertas Avanzadas (v2.1.0)
+
+### Nuevos Tipos de Alertas
+
+| Tipo | Descripción |
+|------|-------------|
+| `price` | Alerta de precio (por encima/debajo de umbral) |
+| `percent_change` | Cambio porcentual diario |
+| `volume` | Volumen inusual (x veces el promedio) |
+| `rsi` | **NUEVO**: Sobrecompra (RSI > 70) o Sobreventa (RSI < 30) |
+| `sma_cross` | **NUEVO**: Golden Cross (SMA50 > SMA200) o Death Cross |
+
+### Alertas de Portfolio
+
+Ahora es posible crear alertas a nivel de cartera completa:
+
+- **PnL absoluto**: Notificar si la ganancia/pérdida supera un umbral en €
+- **PnL porcentual**: Notificar si el rendimiento supera un % objetivo
+- **Valor total**: Notificar si el valor de la cartera alcanza un umbral
+- **Exposición sectorial**: Notificar si un sector representa más del X% de la cartera
+
+---
+
+## ⌨️ Atajos de Teclado (v2.1.0)
+
+### Hotkeys Disponibles
+
+| Atajo | Acción |
+|-------|--------|
+| `Ctrl + K` | Abrir búsqueda global (Command Palette) |
+| `Ctrl + D` | Ir a Dashboard |
+| `Ctrl + P` | Ir a Cartera |
+| `Ctrl + A` | Ir a Alertas |
+| `Ctrl + W` | Ir a Watchlist |
+| `Ctrl + N` | Nueva operación (Registrar compra/venta) |
+| `?` | Mostrar panel de ayuda de atajos |
+| `Escape` | Cerrar modal activo |
+
+### Búsqueda Global (Ctrl+K)
+
+La búsqueda global permite navegar rápidamente por la aplicación:
+
+- **Pantallas**: Dashboard, Cartera, Alertas, Noticias, etc.
+- **Tickers**: Busca acciones por nombre o símbolo
+- **Carteras**: Accede a tus carteras directamente
+
+Usa las flechas ↑↓ para navegar y Enter para seleccionar.
 
 ## 📊 Monitorización
 
@@ -388,4 +695,29 @@ El primer usuario registrado se convierte automáticamente en admin. Después:
 
 ---
 
-*Stocks Manager v2.0 - Guía de Administrador*
+*Stocks Manager v2.1.0 - Guía de Administrador*
+
+---
+
+## 🧪 Ejecución de Tests
+
+El sistema incluye una suite de pruebas automatizadas.
+
+### Cómo ejecutar los tests
+
+```bash
+docker compose exec app npm test
+```
+
+### Interpretación
+
+1.  **✅ CHECKS VERDES (Pasados)**: Aparecen **al principio**.
+2.  **❌ FALLOS ROJOS (Fallidos)**: Aparecen **al final**.
+
+> **Nota Importante**: En la terminal NO verás el "stack trace" (detalle técnico) del error. Solo verás qué test falló.
+
+Para ver el detalle completo (línea de código, diferencia de variables, etc.), el sistema genera automáticamente un fichero de log:
+
+`server/tests/test_debug.log`
+
+Si hay fallos, el test runner te recordará esta ruta al finalizar.

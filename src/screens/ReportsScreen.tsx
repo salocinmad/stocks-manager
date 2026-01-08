@@ -82,20 +82,21 @@ export const ReportsScreen: React.FC = () => {
     if (!reportData?.operations) return;
 
     // Headers
-    let csv = 'Ticker;Fecha Venta;Fecha Compra (Origen);Cantidad;Precio Venta (EUR);Precio Compra (EUR);Ganancia/Pérdida (EUR);Divisa Original\n';
+    let csv = 'Ticker;Fecha Compra (Origen);Fecha Venta;Cantidad;Precio Venta (Orig);Divisa;Tasa Venta;Precio Compra (Orig);Tasa Compra;Ganancia/Pérdida (EUR)\n';
 
     // Rows
     reportData.operations.forEach((op: any) => {
       const row = [
         op.ticker,
-        new Date(op.saleDate).toLocaleDateString(),
         typeof op.buyDate === 'string' && op.buyDate.startsWith('N/A') ? op.buyDate : new Date(op.buyDate).toLocaleDateString(),
-        // Cantidad: Sin separador de miles para CSV, coma decimal si es necesario, sin ceros extra.
+        new Date(op.saleDate).toLocaleDateString(),
         Number(op.qty).toLocaleString('es-ES', { maximumFractionDigits: 6, useGrouping: false }),
-        op.salePriceEur.toFixed(4).replace('.', ','),
-        op.buyPriceEur.toFixed(4).replace('.', ','),
-        op.gainLossEur.toFixed(2).replace('.', ','),
-        op.currency
+        op.salePriceOrig.toFixed(4).replace('.', ','),
+        op.currency,
+        op.saleRate.toFixed(6).replace('.', ','),
+        op.buyPriceOrig.toFixed(4).replace('.', ','),
+        op.buyRate.toFixed(6).replace('.', ','),
+        op.gainLossEur.toFixed(2).replace('.', ',')
       ];
       csv += row.join(';') + '\n';
     });
@@ -121,7 +122,7 @@ export const ReportsScreen: React.FC = () => {
   return (
     <main className="flex-1 overflow-y-auto w-full p-6 md:p-10 lg:px-16 flex flex-col gap-10 bg-background-light dark:bg-background-dark print:p-0 print:bg-white print:block print:h-auto print:overflow-visible">
       <div className="print:hidden">
-        <Header title="Centro de Informes Fiscales" />
+
       </div>
 
       <div className="max-w-6xl mx-auto w-full flex flex-col gap-8">
@@ -224,27 +225,37 @@ export const ReportsScreen: React.FC = () => {
                   <thead>
                     <tr className="border-b-2 border-primary text-sm uppercase tracking-wider opacity-60">
                       <th className="py-3 px-2">Ticker</th>
-                      <th className="py-3 px-2">Fecha Venta</th>
                       <th className="py-3 px-2">Fecha Compra</th>
+                      <th className="py-3 px-2">Fecha Venta</th>
                       <th className="py-3 px-2 text-right">Cant.</th>
-                      <th className="py-3 px-2 text-right">Precio Venta (EUR)</th>
-                      <th className="py-3 px-2 text-right">Coste Base (EUR)</th>
-                      <th className="py-3 px-2 text-right">Resultado</th>
+                      <th className="py-3 px-2 text-right">Precio Venta</th>
+                      <th className="py-3 px-2 text-right">Coste Base</th>
+                      <th className="py-3 px-2 text-right">Resultado (EUR)</th>
                     </tr>
                   </thead>
                   <tbody className="text-sm divide-y divide-border-light dark:divide-border-dark">
                     {reportData.operations.map((op: any, idx: number) => (
                       <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-white/5">
                         <td className="py-3 px-2 font-bold">{op.ticker}</td>
-                        <td className="py-3 px-2">{new Date(op.saleDate).toLocaleDateString()}</td>
                         <td className="py-3 px-2 opacity-70">
                           {typeof op.buyDate === 'string' && op.buyDate.startsWith('N/A') ? op.buyDate : new Date(op.buyDate).toLocaleDateString()}
                         </td>
+                        <td className="py-3 px-2">{new Date(op.saleDate).toLocaleDateString()}</td>
                         <td className="py-3 px-2 text-right">
                           {Number(op.qty).toLocaleString('es-ES', { maximumFractionDigits: 6 })}
                         </td>
-                        <td className="py-3 px-2 text-right">{op.salePriceEur.toFixed(2)} €</td>
-                        <td className="py-3 px-2 text-right">{op.buyPriceEur.toFixed(2)} €</td>
+                        <td className="py-3 px-2 text-right">
+                          <div className="font-bold">{op.salePriceEur.toFixed(2)} €</div>
+                          {op.currency !== 'EUR' && (
+                            <div className="text-[10px] opacity-50">{op.salePriceOrig.toFixed(2)} {op.currency} (@{op.saleRate.toFixed(4)})</div>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          <div className="font-bold">{op.buyPriceEur.toFixed(2)} €</div>
+                          {op.currency !== 'EUR' && (
+                            <div className="text-[10px] opacity-50">{op.buyPriceOrig.toFixed(2)} {op.currency} (@{op.buyRate.toFixed(4)})</div>
+                          )}
+                        </td>
                         <td className={`py-3 px-2 text-right font-bold ${op.gainLossEur >= 0 ? 'text-green-500' : 'text-red-500'} print:text-black`}>
                           {op.gainLossEur >= 0 ? '+' : ''}{op.gainLossEur.toFixed(2)} €
                         </td>

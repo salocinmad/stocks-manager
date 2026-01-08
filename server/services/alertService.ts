@@ -7,11 +7,11 @@ import { NotificationService } from './notificationService';
 export const AlertService = {
     // Check all active alerts (supports price, percent_change, volume types)
     checkAlerts: async () => {
-        console.log('Running Alert Service check...');
+
 
         // Fetch active alerts (include repeatable ones that may have been triggered before)
         const alerts = await sql`
-            SELECT a.*, a.deactivation_token, u.email 
+            SELECT a.*, u.email 
             FROM alerts a
             JOIN users u ON a.user_id = u.id
             WHERE a.is_active = true 
@@ -25,7 +25,7 @@ export const AlertService = {
         `;
 
         if (alerts.length > 0) {
-            console.log(`Checking ${alerts.length} active alerts...`);
+
         } else {
             return;
         }
@@ -86,10 +86,74 @@ export const AlertService = {
                     const ratio = (currentVolume / avgVolume).toFixed(1);
                     notificationMessage = `Volumen inusual en ${alert.ticker}: ${ratio}x el promedio.\n\nVolumen: ${currentVolume.toLocaleString()}`;
                 }
+            } else if (alertType === 'rsi') {
+                // RSI Alert: Check from cached analysis data
+                try {
+                    const cached = await sql`
+                        SELECT rsi, calculated_at FROM position_analysis_cache 
+                        WHERE ticker = ${alert.ticker}
+                        ORDER BY calculated_at DESC LIMIT 1
+                    `;
+
+                    if (cached.length > 0 && cached[0].rsi) {
+                        const rsi = Number(cached[0].rsi);
+                        const rsiThreshold = alert.rsi_threshold || 70;
+                        const rsiCondition = alert.rsi_condition || 'overbought';
+                        const lastValue = Number(alert.last_indicator_value) || 0;
+
+                        // Only trigger if RSI crosses the threshold (avoid repeated alerts)
+                        if (rsiCondition === 'overbought' && rsi >= rsiThreshold && lastValue < rsiThreshold) {
+                            conditionMet = true;
+                            notificationMessage = `📈 RSI de ${alert.ticker} indica SOBRECOMPRA.\n\nRSI actual: ${rsi.toFixed(1)} (umbral: ${rsiThreshold})\nPrecio: ${currentPrice.toFixed(2)}`;
+                        } else if (rsiCondition === 'oversold' && rsi <= rsiThreshold && lastValue > rsiThreshold) {
+                            conditionMet = true;
+                            notificationMessage = `📉 RSI de ${alert.ticker} indica SOBREVENTA.\n\nRSI actual: ${rsi.toFixed(1)} (umbral: ${rsiThreshold})\nPrecio: ${currentPrice.toFixed(2)}`;
+                        }
+
+                        // Update last indicator value
+                        await sql`UPDATE alerts SET last_indicator_value = ${rsi} WHERE id = ${alert.id}`;
+                    }
+                } catch (e) {
+                    console.error(`Error checking RSI alert for ${alert.ticker}:`, e);
+                }
+            } else if (alertType === 'sma_cross') {
+                // SMA Cross Alert: Golden Cross (SMA50 > SMA200) or Death Cross (SMA50 < SMA200)
+                try {
+                    const cached = await sql`
+                        SELECT sma_50, sma_200, calculated_at FROM position_analysis_cache 
+                        WHERE ticker = ${alert.ticker}
+                        ORDER BY calculated_at DESC LIMIT 1
+                    `;
+
+                    if (cached.length > 0 && cached[0].sma_50 && cached[0].sma_200) {
+                        const sma50 = Number(cached[0].sma_50);
+                        const sma200 = Number(cached[0].sma_200);
+                        const smaType = alert.sma_type || 'golden_cross';
+                        const lastValue = Number(alert.last_indicator_value) || 0;
+
+                        // Calculate current ratio (positive = SMA50 above SMA200)
+                        const currentRatio = sma50 - sma200;
+
+                        if (smaType === 'golden_cross' && currentRatio > 0 && lastValue <= 0) {
+                            // SMA50 crossed above SMA200
+                            conditionMet = true;
+                            notificationMessage = `🌟 GOLDEN CROSS en ${alert.ticker}!\n\nSMA50 (${sma50.toFixed(2)}) ha cruzado por encima de SMA200 (${sma200.toFixed(2)}).\nEsto es una señal alcista.\n\nPrecio: ${currentPrice.toFixed(2)}`;
+                        } else if (smaType === 'death_cross' && currentRatio < 0 && lastValue >= 0) {
+                            // SMA50 crossed below SMA200
+                            conditionMet = true;
+                            notificationMessage = `💀 DEATH CROSS en ${alert.ticker}!\n\nSMA50 (${sma50.toFixed(2)}) ha cruzado por debajo de SMA200 (${sma200.toFixed(2)}).\nEsto es una señal bajista.\n\nPrecio: ${currentPrice.toFixed(2)}`;
+                        }
+
+                        // Update last indicator value
+                        await sql`UPDATE alerts SET last_indicator_value = ${currentRatio} WHERE id = ${alert.id}`;
+                    }
+                } catch (e) {
+                    console.error(`Error checking SMA cross alert for ${alert.ticker}:`, e);
+                }
             }
 
             if (conditionMet) {
-                console.log(`Alert triggered for ${alert.ticker} (type: ${alertType})`);
+
 
                 const companyName = quote.name || alert.ticker;
 
@@ -141,6 +205,7 @@ export const AlertService = {
 
 
     sendAlertEmail: async (to: string, alert: any, currentPrice: number, notificationMessage?: string) => {
+        if (process.env.NODE_ENV === 'test') return;
         const smtpConfig = await SettingsService.getSmtpConfig();
 
         if (!smtpConfig.host || !smtpConfig.user) {
@@ -187,7 +252,7 @@ export const AlertService = {
 
         try {
             await transporter.sendMail(mailOptions);
-            console.log(`Email sent to ${to} for ${alert.ticker}`);
+
         } catch (error) {
             console.error('Error sending alert email:', error);
         }

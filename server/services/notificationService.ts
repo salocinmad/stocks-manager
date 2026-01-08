@@ -1,5 +1,7 @@
+
 import sql from '../db';
 import { SettingsService } from './settingsService';
+import nodemailer from 'nodemailer';
 
 interface NotificationConfig {
     webhookUrl?: string; // For Discord, Teams
@@ -91,6 +93,36 @@ export const NotificationService = {
         }
     },
 
+    sendEmail: async (to: string, subject: string, html: string) => {
+        try {
+            const smtpConfig = await SettingsService.getSmtpConfig();
+            if (!smtpConfig) {
+                console.warn('[Notification] SMTP not configured, cannot send email.');
+                return;
+            }
+
+            const transporter = nodemailer.createTransport({
+                host: smtpConfig.host,
+                port: Number(smtpConfig.port) || 587,
+                secure: Number(smtpConfig.port) === 465, // true for 465, false for other ports
+                auth: {
+                    user: smtpConfig.user,
+                    pass: smtpConfig.password, // Correct property
+                },
+            });
+
+            await transporter.sendMail({
+                from: `Stocks Manager <${smtpConfig.from || smtpConfig.user}>`,
+                to,
+                subject,
+                html,
+            });
+            // console.log(`[Notification] Email sent to ${to}`);
+        } catch (e: any) {
+            console.error('Failed to send Email:', e.message);
+        }
+    },
+
     // --- High Level Dispatcher ---
 
     /**
@@ -108,16 +140,8 @@ export const NotificationService = {
 
             if (channels.length === 0) return;
 
-            console.log(`Dispatching notification for users ${userId} via ${channels.length} channels.`);
-
             // 2. Formatting
-            // Telegram supports basic HTML. Discord Markdown. Teams HTML-ish.
-            // We use simple formatted string for now.
-
-            // Telegram Message (supports HTML)
             const telegramMsg = `<b>${title}</b>\n\n${message}`;
-
-            // Discord Message (Markdown)
             const discordMsg = `**${title}**\n${message}`;
 
             // 3. Send in parallel
@@ -133,7 +157,6 @@ export const NotificationService = {
                 // If decryption returned empty string (failed), skip
                 if ((ch.channel_type !== 'telegram' && !config.webhookUrl) ||
                     (ch.channel_type === 'telegram' && (!config.botToken || !config.chatId))) {
-                    console.warn(`Skipping ${ch.channel_type} for user ${userId} due to decryption failure or missing config.`);
                     continue;
                 }
 
@@ -150,6 +173,33 @@ export const NotificationService = {
 
         } catch (error) {
             console.error('Error dispatching notifications:', error);
+        }
+    },
+
+    /**
+     * Sends a critical system alert to the Administrator (Configured SMTP User).
+     */
+    notifyAdmin: async (title: string, message: string) => {
+        try {
+            const smtpConfig = await SettingsService.getSmtpConfig();
+            if (!smtpConfig) return; // Silent fail if no email setup
+
+            const adminEmail = smtpConfig.user; // Default to sender
+
+            const html = `
+                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e74c3c; border-radius: 5px;">
+                    <h2 style="color: #e74c3c; margin-top: 0;">🚨 ${title}</h2>
+                    <p style="font-size: 16px;">${message.replace(/\n/g, '<br>')}</p>
+                    <hr>
+                    <p style="font-size: 12px; color: #666;">Stocks Manager System Alert</p>
+                    <a href="${process.env.APP_URL || '#'}" style="background: #333; color: #fff; padding: 10px 15px; text-decoration: none; border-radius: 4px;">Ir al Panel</a>
+                </div>
+            `;
+
+            await NotificationService.sendEmail(adminEmail, `🚨 ALERTA CRÍTICA: ${title}`, html);
+            console.log('[NotificationService] Admin Alert Email Sent.');
+        } catch (e) {
+            console.error('Failed to notify admin:', e);
         }
     }
 };

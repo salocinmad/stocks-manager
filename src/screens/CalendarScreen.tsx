@@ -10,6 +10,9 @@ interface CalendarEvent {
     title: string;
     description: string | null;
     is_custom: boolean;
+    estimated_eps?: number;
+    dividend_amount?: number;
+    status?: string; // 'estimated', 'confirmed'
 }
 
 const EVENT_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -29,6 +32,9 @@ export const CalendarScreen: React.FC = () => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [showCreateModal, setShowCreateModal] = useState(false);
 
+    // View Mode: 'portfolio' (Mis Acciones) | 'market' (Mercado)
+    const [viewMode, setViewMode] = useState<'portfolio' | 'market'>('portfolio');
+
     // Form state
     const [newEvent, setNewEvent] = useState({
         title: '',
@@ -38,44 +44,60 @@ export const CalendarScreen: React.FC = () => {
         description: ''
     });
 
+    // Helper to format date as YYYY-MM-DD in local time
+    const formatDateLocal = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     const fetchEvents = useCallback(async () => {
         try {
             setLoading(true);
-            const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-            const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
 
-            const response = await api.get(`/calendar/events?from=${startOfMonth.toISOString().split('T')[0]}&to=${endOfMonth.toISOString().split('T')[0]}`);
+            let data: CalendarEvent[] = [];
 
-            // Handle potential error responses
-            if (response.data && Array.isArray(response.data)) {
-                setEvents(response.data as CalendarEvent[]);
+            if (viewMode === 'portfolio') {
+                // Determine start and end of month in LOCAL time logic
+                const year = currentMonth.getFullYear();
+                const month = currentMonth.getMonth(); // 0-indexed
+
+                const startOfMonth = new Date(year, month, 1);
+                const endOfMonth = new Date(year, month + 1, 0); // Last day of current month
+
+                const fromStr = formatDateLocal(startOfMonth);
+                const toStr = formatDateLocal(endOfMonth);
+
+                console.log(`[Calendar] Fetching portfolio events: ${fromStr} to ${toStr}`);
+
+                const response = await api.get(`/calendar/events?from=${fromStr}&to=${toStr}`);
+                if (response.data && Array.isArray(response.data)) {
+                    data = response.data;
+                }
             } else {
-                setEvents([]);
+                // Market Mode: Fetch general events
+                const response = await api.get('/calendar/market?days=45');
+                if (response.data && Array.isArray(response.data)) {
+                    data = response.data;
+                }
             }
+            setEvents(data);
         } catch (err: any) {
             console.error('Error fetching events:', err);
-            // Don't crash - just show empty events
             setEvents([]);
         } finally {
             setLoading(false);
         }
-    }, [currentMonth]); // Remove api from deps to prevent re-fetch loops
+    }, [currentMonth, viewMode]); // Re-fetch when month OR mode changes
 
     useEffect(() => {
-        // Only fetch if component is mounted
         let isMounted = true;
-
         const doFetch = async () => {
-            if (isMounted) {
-                await fetchEvents();
-            }
+            if (isMounted) await fetchEvents();
         };
-
         doFetch();
-
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, [fetchEvents]);
 
     const handleSync = async () => {
@@ -83,7 +105,7 @@ export const CalendarScreen: React.FC = () => {
         try {
             await api.post('/calendar/sync');
             await fetchEvents();
-            alert('Eventos sincronizados correctamente');
+            alert('Sincronización completada con éxito.');
         } catch (err) {
             console.error('Sync error:', err);
             alert('Error al sincronizar');
@@ -100,7 +122,7 @@ export const CalendarScreen: React.FC = () => {
                 ticker: newEvent.ticker || null
             });
             setShowCreateModal(false);
-            setNewEvent({ title: '', event_type: 'custom', event_date: new Date().toISOString().split('T')[0], ticker: '', description: '' });
+            setNewEvent({ title: '', event_type: 'custom', event_date: formatDateLocal(new Date()), ticker: '', description: '' });
             fetchEvents();
         } catch (err) {
             console.error('Create error:', err);
@@ -141,7 +163,7 @@ export const CalendarScreen: React.FC = () => {
 
     const getEventsForDay = (date: Date | null) => {
         if (!date) return [];
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = formatDateLocal(date);
         return events.filter(e => e.event_date === dateStr);
     };
 
@@ -152,12 +174,16 @@ export const CalendarScreen: React.FC = () => {
     };
 
     const days = getDaysInMonth(currentMonth);
-    const selectedDateStr = selectedDate.toISOString().split('T')[0];
-    const selectedEvents = events.filter(e => e.event_date === selectedDateStr);
+    // Get today's date string in local format for filtering upcoming events
+    const todayStr = formatDateLocal(new Date());
+    // Show all upcoming events from today onwards, sorted by date
+    const upcomingEvents = events
+        .filter(e => e.event_date >= todayStr)
+        .sort((a, b) => a.event_date.localeCompare(b.event_date));
 
     return (
         <main className="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
-            <Header title="Calendario Financiero" />
+
             <div className="flex-1 flex flex-col lg:flex-row overflow-hidden p-6 gap-6">
                 {/* Calendar Grid */}
                 <div className="flex-1 flex flex-col bg-white dark:bg-surface-dark rounded-3xl border border-border-light dark:border-border-dark p-6 overflow-hidden">
@@ -189,7 +215,7 @@ export const CalendarScreen: React.FC = () => {
                     <div className="grid grid-cols-7 gap-1 flex-1">
                         {days.map((day, idx) => {
                             const dayEvents = getEventsForDay(day);
-                            const isSelected = day && day.toISOString().split('T')[0] === selectedDateStr;
+                            const isSelected = day && formatDateLocal(day) === formatDateLocal(selectedDate);
                             const isToday = day && day.toDateString() === new Date().toDateString();
 
                             return (
@@ -197,7 +223,7 @@ export const CalendarScreen: React.FC = () => {
                                     key={idx}
                                     onClick={() => day && setSelectedDate(day)}
                                     className={`
-                                        min-h-[60px] p-1 rounded-xl border transition-all cursor-pointer
+                                        h-32 p-1.5 rounded-md border transition-all cursor-pointer flex flex-col
                                         ${day ? 'hover:border-primary' : ''}
                                         ${isSelected ? 'border-primary bg-primary/5' : 'border-transparent'}
                                         ${isToday ? 'bg-primary/10' : ''}
@@ -208,18 +234,32 @@ export const CalendarScreen: React.FC = () => {
                                             <div className={`text-sm font-bold mb-1 ${isToday ? 'text-primary' : ''}`}>
                                                 {day.getDate()}
                                             </div>
-                                            <div className="flex flex-wrap gap-0.5">
-                                                {dayEvents.slice(0, 3).map((e, i) => (
-                                                    <div
-                                                        key={i}
-                                                        className={`w-2 h-2 rounded-full ${EVENT_COLORS[e.event_type]?.text || 'text-gray-500'}`}
-                                                        style={{ backgroundColor: 'currentColor' }}
-                                                        title={e.title}
-                                                    />
-                                                ))}
-                                                {dayEvents.length > 3 && (
-                                                    <span className="text-[8px] text-text-secondary-light">+{dayEvents.length - 3}</span>
-                                                )}
+                                            <div className="flex flex-col gap-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700">
+                                                {dayEvents.map((e, i) => {
+                                                    const colors = EVENT_COLORS[e.event_type] || EVENT_COLORS.custom;
+                                                    const isConfirmed = e.status === 'confirmed';
+                                                    return (
+                                                        <div
+                                                            key={i}
+                                                            className={`text-[9px] leading-tight rounded-md p-1 ${colors.bg} border shrink-0`}
+                                                            title={e.description || e.title}
+                                                        >
+                                                            <div className="flex items-center gap-1">
+                                                                <div
+                                                                    className={`w-2 h-2 rounded-full flex-shrink-0 ${isConfirmed ? 'bg-green-500' : 'bg-yellow-500'}`}
+                                                                    title={isConfirmed ? 'Confirmado' : 'Estimado'}
+                                                                />
+                                                                <span className="font-bold truncate">{e.ticker}</span>
+                                                                <span className={`${colors.text} truncate`}>{colors.label}</span>
+                                                            </div>
+                                                            {e.description && (
+                                                                <div className="text-[8px] text-yellow-600 dark:text-yellow-400/70 truncate mt-0.5">
+                                                                    {e.description}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </>
                                     )}
@@ -232,15 +272,38 @@ export const CalendarScreen: React.FC = () => {
                 {/* Sidebar with events */}
                 <aside className="w-full lg:w-[380px] bg-white dark:bg-surface-dark rounded-3xl border border-border-light dark:border-border-dark p-6 flex flex-col overflow-hidden">
                     {/* Actions */}
-                    <div className="flex gap-2 mb-6">
+                    <div className="flex bg-gray-100 dark:bg-background-dark/50 p-1 rounded-xl mb-4">
                         <button
-                            onClick={handleSync}
-                            disabled={syncing}
-                            className="flex-1 py-3 rounded-xl bg-primary/10 text-primary font-bold text-sm hover:bg-primary/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            onClick={() => setViewMode('portfolio')}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${viewMode === 'portfolio'
+                                ? 'bg-white dark:bg-surface-dark-elevated shadow-sm text-primary'
+                                : 'text-text-secondary-light hover:text-text-primary-light'
+                                }`}
                         >
-                            <span className="material-symbols-outlined text-lg">sync</span>
-                            {syncing ? 'Sincronizando...' : 'Sincronizar'}
+                            Mis Eventos
                         </button>
+                        <button
+                            onClick={() => setViewMode('market')}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${viewMode === 'market'
+                                ? 'bg-white dark:bg-surface-dark-elevated shadow-sm text-primary'
+                                : 'text-text-secondary-light hover:text-text-primary-light'
+                                }`}
+                        >
+                            Mercado
+                        </button>
+                    </div>
+
+                    <div className="flex gap-2 mb-6">
+                        {viewMode === 'portfolio' && (
+                            <button
+                                onClick={handleSync}
+                                disabled={syncing}
+                                className="flex-1 py-3 rounded-xl bg-primary/10 text-primary font-bold text-sm hover:bg-primary/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined text-lg">sync</span>
+                                {syncing ? 'Sincronizando...' : 'Sincronizar'}
+                            </button>
+                        )}
                         <button
                             onClick={() => setShowCreateModal(true)}
                             className="flex-1 py-3 rounded-xl bg-primary text-black font-bold text-sm hover:bg-primary/90 transition-all flex items-center justify-center gap-2"
@@ -250,25 +313,35 @@ export const CalendarScreen: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Selected date info */}
+                    {/* Upcoming events header */}
                     <h3 className="text-lg font-bold mb-4">
-                        {selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        Próximos Eventos
                     </h3>
 
                     {/* Events list */}
                     <div className="flex-1 overflow-y-auto flex flex-col gap-3">
                         {loading ? (
                             <p className="text-center text-text-secondary-light py-8">Cargando...</p>
-                        ) : selectedEvents.length === 0 ? (
-                            <p className="text-center text-text-secondary-light py-8">No hay eventos para este día</p>
+                        ) : upcomingEvents.length === 0 ? (
+                            <p className="text-center text-text-secondary-light py-8">No hay próximos eventos</p>
                         ) : (
-                            selectedEvents.map(event => {
+                            upcomingEvents.map(event => {
                                 const colors = EVENT_COLORS[event.event_type] || EVENT_COLORS.custom;
+                                // Format the event date for display
+                                const eventDateObj = new Date(event.event_date + 'T00:00:00');
+                                const formattedDate = eventDateObj.toLocaleDateString('es-ES', {
+                                    weekday: 'short',
+                                    day: 'numeric',
+                                    month: 'short'
+                                });
                                 return (
                                     <div key={event.id} className={`p-4 rounded-2xl border ${colors.bg} flex flex-col gap-2`}>
                                         <div className="flex items-start justify-between">
                                             <div>
-                                                <span className={`text-xs font-bold uppercase ${colors.text}`}>{colors.label}</span>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`text-xs font-bold uppercase ${colors.text}`}>{colors.label}</span>
+                                                    <span className="text-xs text-text-secondary-light">• {formattedDate}</span>
+                                                </div>
                                                 <h4 className="font-bold">{event.title}</h4>
                                                 {event.ticker && <p className="text-xs text-text-secondary-light">{event.ticker}</p>}
                                             </div>
@@ -282,6 +355,24 @@ export const CalendarScreen: React.FC = () => {
                                             )}
                                         </div>
                                         {event.description && <p className="text-sm text-text-secondary-light">{event.description}</p>}
+
+                                        {/* Financial Data */}
+                                        {(event.estimated_eps != null || event.dividend_amount != null) && (
+                                            <div className="flex gap-4 mt-2 pt-2 border-t border-dashed border-border-light dark:border-border-dark">
+                                                {event.estimated_eps != null && (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] text-text-secondary-light uppercase">Est. EPS</span>
+                                                        <span className="font-bold text-sm">{Number(event.estimated_eps).toFixed(2)}</span>
+                                                    </div>
+                                                )}
+                                                {event.dividend_amount != null && (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] text-text-secondary-light uppercase">Dividendo</span>
+                                                        <span className="font-bold text-sm text-green-500">${Number(event.dividend_amount).toFixed(2)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })

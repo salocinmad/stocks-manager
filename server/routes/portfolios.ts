@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import sql from '../db';
 import { MarketDataService } from '../services/marketData';
+import { PortfolioService } from '../services/portfolioService';
 import { calculatePnLWeekly } from '../jobs/pnlJob';
 
 export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
@@ -27,14 +28,14 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             throw new Error('Unauthorized: Invalid token');
         }
 
-        console.log('Authenticated user:', profile.sub);
+
         return { userId: profile.sub as string };
     })
     // List Portfolios
     // List Portfolios
     .get('/', async ({ userId }) => {
         try {
-            console.log(`Fetching portfolios for user ${userId}`);
+
             const portfolios = await sql`
                 SELECT id, name, is_public, is_favorite, created_at, 
                 (SELECT COUNT(*) FROM positions WHERE portfolio_id = portfolios.id) as positions_count
@@ -42,7 +43,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
                 WHERE user_id = ${userId}
                 ORDER BY is_favorite DESC, created_at ASC
             `;
-            console.log(`Found ${portfolios.length} portfolios for user ${userId}`);
+
             // Force plain array conversion to avoid serialization issues
             return [...portfolios].map(p => ({
                 id: p.id,
@@ -92,7 +93,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             }
 
             // 2. Obtener tickers únicos para consultar precios
-            const tickers = [...new Set(positions.map(p => p.ticker))];
+            const tickers = [...new Set(positions.map(p => p.ticker))] as string[];
             const quotes: Record<string, any> = {};
 
             await Promise.all(tickers.map(async (ticker) => {
@@ -100,51 +101,67 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             }));
 
             // 3. Obtener tipos de cambio necesarios a EUR
-            const currencies = [...new Set(positions.map(p => p.currency))];
-            const rates: Record<string, number> = { 'EUR': 1.0 };
+            const uniqueCurrencies = new Set<string>();
+            positions.forEach(p => { if (p.currency) uniqueCurrencies.add(p.currency); });
+            // Add quote currencies for accurate live rate conversion
+            Object.values(quotes).forEach((q: any) => { if (q && q.currency) uniqueCurrencies.add(q.currency); });
 
-            await Promise.all(currencies.map(async (curr) => {
+            const rates: Record<string, number> = { 'EUR': 1.0 };
+            // console.log(`[Summary] Currencies (pos+quote): ${Array.from(uniqueCurrencies).join(', ')}`);
+
+            await Promise.all(Array.from(uniqueCurrencies).map(async (curr) => {
                 if (curr !== 'EUR') {
                     const rate = await MarketDataService.getExchangeRate(curr, 'EUR');
                     rates[curr] = rate || 1.0;
                 }
             }));
 
+            // 3b. Obtener sectores
+            const sectors = await MarketDataService.getSectors(tickers);
+
             // 4. Calcular métricas consolidadas
             let totalValueEur = 0;
             let totalPrevValueEur = 0;
             let totalCostEur = 0;
             const distMap: Record<string, number> = {};
+            const sectorMap: Record<string, number> = {};
 
             positions.forEach(p => {
                 const quote = quotes[p.ticker];
-                const rate = rates[p.currency || 'EUR'] || 1.0;
+                const posRate = rates[p.currency || 'EUR'] || 1.0;
                 const qty = Number(p.quantity);
                 const avgPrice = Number(p.average_buy_price) || 0;
 
-                // Costo total en EUR
-                const costEur = qty * avgPrice * rate;
+                // Costo total en EUR (Usar moneda de la posición)
+                const costEur = qty * avgPrice * posRate;
                 totalCostEur += costEur;
 
+                let currentValEur = 0;
+                let prevValEur = 0;
+
                 if (quote && quote.c) {
-                    const currentValEur = qty * quote.c * rate;
-                    const prevValEur = qty * (quote.pc || quote.c) * rate;
+                    // CRITICAL: Use Quote Currency for Live Price (Handles GBP vs GBX mismatch)
+                    const quoteRate = rates[quote.currency] || 1.0;
+                    currentValEur = qty * quote.c * quoteRate;
+                    prevValEur = qty * (quote.pc || quote.c) * quoteRate;
 
                     totalValueEur += currentValEur;
                     totalPrevValueEur += prevValEur;
-
-                    // Distribución
-                    const type = p.asset_type || 'STOCK';
-                    distMap[type] = (distMap[type] || 0) + currentValEur;
                 } else {
-                    // Fallback a precio medio si no hay quote
-                    const val = qty * avgPrice * rate;
+                    // Fallback to position currency/price if no quote
+                    const val = qty * avgPrice * posRate;
                     totalValueEur += val;
-                    totalPrevValueEur += val; // Sin cambio si no hay datos
-
-                    const type = p.asset_type || 'STOCK';
-                    distMap[type] = (distMap[type] || 0) + val;
+                    totalPrevValueEur += val;
+                    currentValEur = val;
                 }
+
+                // Distribución por Tipo de Activo
+                const type = p.asset_type || 'STOCK';
+                distMap[type] = (distMap[type] || 0) + currentValEur;
+
+                // Distribución por Sector
+                const sector = sectors[p.ticker] || 'Unknown';
+                sectorMap[sector] = (sectorMap[sector] || 0) + currentValEur;
             });
 
             const dailyChangeEur = totalValueEur - totalPrevValueEur;
@@ -159,13 +176,59 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
                 color: name === 'STOCK' ? '#fce903' : name === 'CRYPTO' ? '#94a3b8' : '#3b82f6'
             })).filter(d => d.value > 0);
 
+            const sectorAllocation = Object.entries(sectorMap).map(([name, value]) => ({
+                name,
+                value
+            })).sort((a, b) => b.value - a.value).filter(d => d.value > 0);
+
+            // 5. Calcular Ganadores y Perdedores (Top 3)
+            const performanceList = positions.map(p => {
+                const quote = quotes[p.ticker];
+                let changePercent = 0;
+                let change = 0;
+                let price = 0;
+
+                if (quote) {
+                    price = quote.c || 0;
+                    if (quote.dp !== undefined && quote.dp !== null) {
+                        changePercent = quote.dp;
+                    } else if (quote.c && quote.pc) {
+                        changePercent = ((quote.c - quote.pc) / quote.pc) * 100;
+                    }
+
+                    if (quote.d !== undefined && quote.d !== null) {
+                        change = quote.d;
+                    } else if (quote.c && quote.pc) {
+                        change = quote.c - quote.pc;
+                    }
+                }
+
+                return {
+                    ticker: p.ticker,
+                    name: p.portfolio_name, // Optional context
+                    price,
+                    change,
+                    changePercent,
+                    currency: quote?.currency || p.currency
+                };
+            }).filter(p => p.price > 0); // Exclude items with no price data
+
+            // Sort by Change % Descending (High to Low)
+            const sortedByPerformance = [...performanceList].sort((a, b) => b.changePercent - a.changePercent);
+
+            const topGainers = sortedByPerformance.slice(0, 3).filter(p => p.changePercent > 0);
+            const topLosers = sortedByPerformance.slice(-3).filter(p => p.changePercent < 0);
+
             return {
                 totalValueEur,
                 dailyChangeEur,
                 dailyChangePercent,
                 totalGainEur,
                 totalGainPercent,
-                distribution
+                distribution,
+                sectorAllocation,
+                topGainers,
+                topLosers
             };
 
         } catch (error) {
@@ -283,7 +346,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         // @ts-ignore
         const { orderedIds } = body;
 
-        console.log(`Reordering portfolio ${id}, items: ${orderedIds?.length}`);
+
 
         if (!orderedIds || !Array.isArray(orderedIds)) {
             set.status = 400;
@@ -321,11 +384,9 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         })
     })
     // Add/Update Position (Simplified logic: Upsert)
-    .post('/:id/positions', async ({ userId, params, body }) => {
+    .post('/:id/positions', async ({ userId, params, body, set }) => {
         const { id } = params;
-        console.log('POST /:id/positions - params:', params);
-        console.log('POST /:id/positions - userId:', userId);
-        console.log('POST /:id/positions - body:', body);
+
 
         if (!id || id === 'undefined' || id === 'null') {
             console.error('Invalid portfolio ID:', id);
@@ -333,7 +394,7 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         }
 
         // @ts-ignore
-        const { ticker, amount, price, commission = 0, type, currency, exchangeRateToEur } = body;
+        const { ticker, amount, price, commission = 0, type, currency, exchangeRateToEur, exchange_rate_to_eur } = body;
 
         // Verify ownership
         const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId}`;
@@ -342,52 +403,25 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             throw new Error('Portfolio not found');
         }
 
-        const exchangeRate = exchangeRateToEur || 1.0;
+        const exchangeRate = exchangeRateToEur !== undefined ? exchangeRateToEur : (exchange_rate_to_eur !== undefined ? exchange_rate_to_eur : 1.0);
 
-        // 1. Record Transaction (con tipo de cambio y comisión)
-        await sql`
-        INSERT INTO transactions (portfolio_id, ticker, type, amount, price_per_unit, currency, exchange_rate_to_eur, fees)
-        VALUES (${id}, ${ticker}, ${type}, ${amount}, ${price}, ${currency}, ${exchangeRate}, ${commission})
-    `;
+        console.log('DEBUG: POST /positions payload:', JSON.stringify(body));
+        console.log('DEBUG: Evaluated exchangeRate:', exchangeRate);
 
-        // 2. Update Position
-        // Incluir comisión en el cálculo del precio medio efectivo
-        const [existing] = await sql`SELECT * FROM positions WHERE portfolio_id = ${id} AND ticker = ${ticker}`;
-
-        if (!existing) {
-            if (type === 'SELL') throw new Error('Cannot sell asset you do not own');
-            // Para compra inicial: precio efectivo = (cantidad * precio + comisión) / cantidad
-            const effectivePrice = (Number(amount) * Number(price) + Number(commission)) / Number(amount);
-            await sql`
-            INSERT INTO positions (portfolio_id, ticker, asset_type, quantity, average_buy_price, currency)
-            VALUES (${id}, ${ticker}, 'STOCK', ${amount}, ${effectivePrice}, ${currency})
-        `;
-        } else {
-            let newQty = Number(existing.quantity);
-            let newAvg = Number(existing.average_buy_price);
-
-            if (type === 'BUY') {
-                // Coste total = inversión actual + nueva inversión (incluyendo comisión)
-                const currentCost = newQty * newAvg;
-                const newCost = Number(amount) * Number(price) + Number(commission);
-                const totalCost = currentCost + newCost;
-                newQty += Number(amount);
-                newAvg = totalCost / newQty;
-            } else {
-                // Venta: solo reduce cantidad (comisión se registra para reporting)
-                newQty -= Number(amount);
-                if (newQty < 0) throw new Error('Insufficient balance');
-            }
-
-            if (newQty === 0) {
-                await sql`DELETE FROM positions WHERE id = ${existing.id}`;
-            } else {
-                await sql`
-                UPDATE positions 
-                SET quantity = ${newQty}, average_buy_price = ${newAvg}, updated_at = NOW()
-                WHERE id = ${existing.id}
-            `;
-            }
+        try {
+            await PortfolioService.addTransaction(
+                id,
+                ticker,
+                type as 'BUY' | 'SELL',
+                Number(amount),
+                Number(price),
+                currency,
+                Number(commission),
+                Number(exchangeRate)
+            );
+        } catch (error: any) {
+            set.status = 400;
+            return { error: error.message || 'Failed to process transaction' };
         }
 
         return { success: true };
@@ -424,14 +458,14 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         // Eliminar también las transacciones asociadas (eliminación completa por error de entrada)
         await sql`DELETE FROM transactions WHERE portfolio_id = ${id} AND ticker = ${position.ticker}`;
 
-        console.log(`Deleted position ${positionId} (${position.ticker}) and associated transactions from portfolio ${id}`);
+
         return { success: true, message: `Posición ${position.ticker} y sus transacciones eliminadas` };
     })
     // Editar una posición (cantidad y precio medio)
     .put('/:id/positions/:positionId', async ({ userId, params, body }) => {
         const { id, positionId } = params;
         // @ts-ignore
-        const { quantity, averagePrice } = body;
+        const { quantity, averagePrice, commission } = body;
 
         // Verificar propiedad del portfolio
         const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId}`;
@@ -448,24 +482,20 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         // Actualizar la posición
         await sql`
             UPDATE positions 
-            SET quantity = ${quantity}, average_buy_price = ${averagePrice}, updated_at = NOW()
+            SET quantity = ${quantity}, average_buy_price = ${averagePrice}, commission = ${commission || 0}, updated_at = NOW()
             WHERE id = ${positionId}
         `;
 
-        console.log(`Updated position ${positionId} (${position.ticker}): quantity=${quantity}, avgPrice=${averagePrice}`);
+
         return { success: true, message: `Posición ${position.ticker} actualizada` };
     }, {
         body: t.Object({
             quantity: t.Number(),
-            averagePrice: t.Number()
-        })
-    }, {
-        body: t.Object({
-            quantity: t.Number(),
-            averagePrice: t.Number()
+            averagePrice: t.Number(),
+            commission: t.Optional(t.Number())
         })
     })
-    // PnL History for Chart (Reads from pre-calculated cache, updated daily at 4:00 AM)
+    // PnL History for Chart (Reads from pre-calculated cache + TODAY's live value)
     .get('/:id/pnl-history', async ({ userId, params, query }) => {
         const { id } = params;
         const period = (query as any)?.period || '3M'; // Default 3 months
@@ -479,8 +509,12 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
         cutoffDate.setMonth(cutoffDate.getMonth() - monthsBack);
         const cutoffStr = cutoffDate.toISOString().split('T')[0];
 
+        // Format for today
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
         try {
-            // Read from cache (pre-calculated by job at 4:00 AM)
+            // 1. Read historical from cache (pre-calculated by job at 4:00 AM)
             const cachedData = await sql`
                 SELECT date, pnl_eur 
                 FROM pnl_history_cache 
@@ -489,29 +523,165 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
                 ORDER BY date ASC
             `;
 
-            if (cachedData && cachedData.length > 0) {
-                // Format for lightweight-charts (YYYY-MM-DD)
-                return cachedData.map(row => {
-                    const d = new Date(row.date);
-                    const day = String(d.getDate()).padStart(2, '0');
-                    const month = String(d.getMonth() + 1).padStart(2, '0');
-                    const year = d.getFullYear();
-                    return {
-                        time: `${year}-${month}-${day}`,
-                        value: Number(row.pnl_eur) || 0
-                    };
+            // Format historical data
+            const result = cachedData.map(row => {
+                const d = new Date(row.date);
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                return {
+                    time: `${year}-${month}-${day}`,
+                    value: Number(row.pnl_eur) || 0
+                };
+            });
+
+            // 2. Calculate TODAY's live PnL using real-time quotes
+            const positions = await sql`
+                SELECT ticker, quantity, average_buy_price, currency, asset_type 
+                FROM positions 
+                WHERE portfolio_id = ${id} AND quantity > 0
+            `;
+
+            if (positions.length > 0) {
+                // Get live quotes
+                const quotes: Record<string, any> = {};
+                const tickers = positions.map(p => p.ticker);
+                await Promise.all(tickers.map(async (ticker) => {
+                    quotes[ticker] = await MarketDataService.getQuote(ticker);
+                }));
+
+                // Get exchange rates
+                const currencies = [...new Set(positions.map(p => p.currency))];
+                const rates: Record<string, number> = { 'EUR': 1.0 };
+                await Promise.all(currencies.map(async (curr) => {
+                    if (curr !== 'EUR') {
+                        const rate = await MarketDataService.getExchangeRate(curr, 'EUR');
+                        rates[curr] = rate || 1.0;
+                    }
+                }));
+
+                // Calculate live PnL (same as summary)
+                let totalValueEur = 0;
+                let totalCostEur = 0;
+
+                positions.forEach(p => {
+                    const quote = quotes[p.ticker];
+                    const rate = rates[p.currency || 'EUR'] || 1.0;
+                    const qty = Number(p.quantity);
+                    const avgPrice = Number(p.average_buy_price) || 0;
+
+                    const costEur = qty * avgPrice * rate;
+                    totalCostEur += costEur;
+
+                    if (quote && quote.c) {
+                        totalValueEur += qty * quote.c * rate;
+                    } else {
+                        totalValueEur += qty * avgPrice * rate;
+                    }
                 });
+
+                const livePnl = Number((totalValueEur - totalCostEur).toFixed(2));
+
+                // 3. Add or replace today's entry
+                const existingTodayIndex = result.findIndex(r => r.time === todayStr);
+                if (existingTodayIndex >= 0) {
+                    result[existingTodayIndex].value = livePnl;
+                } else {
+                    result.push({ time: todayStr, value: livePnl });
+                }
             }
 
-            // If no cache, trigger initial calculation (runs in background)
-            console.log(`[PnL] No cache for portfolio ${id}. Triggering initial calculation...`);
-
-            // Don't await - let it run in background
-            calculatePnLWeekly().catch(e => console.error('[PnL] Background calc error:', e));
-
-            return []; // Return empty for now, will have data after background job finishes
+            if (result.length === 0) {
+                // If no cache, trigger initial calculation (runs in background)
+                calculatePnLWeekly().catch(e => console.error('[PnL] Background calc error:', e));
+            }
+            return result;
         } catch (error) {
             console.error('[PnL History] Error:', error);
             return [];
+        }
+    })
+    // List All Transactions for Portfolio (Chronological)
+    .get('/:id/transactions/all', async ({ userId, params }) => {
+        const { id } = params;
+
+        // Verify ownership
+        const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId}`;
+        if (!portfolio) throw new Error('Portfolio not found');
+
+        const transactions = await sql`
+            SELECT t.id, t.ticker, t.type, t.amount, t.price_per_unit, t.fees, t.currency, t.exchange_rate_to_eur, t.date,
+                   gt.name as company_name
+            FROM transactions t
+            LEFT JOIN global_tickers gt ON t.ticker = gt.symbol
+            WHERE t.portfolio_id = ${id}
+            ORDER BY t.date ASC, t.created_at ASC
+        `;
+
+        return [...transactions].map(t => ({
+            ...t,
+            amount: Number(t.amount),
+            price_per_unit: Number(t.price_per_unit),
+            fees: Number(t.fees),
+            exchange_rate_to_eur: Number(t.exchange_rate_to_eur)
+        }));
+    })
+    // Update Transaction
+    .put('/:id/transactions/:transactionId', async ({ userId, params, body }) => {
+        const { id, transactionId } = params;
+        // @ts-ignore
+        const { date, amount, price, fees, currency, exchangeRate } = body;
+
+        // Verify ownership
+        const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId} `;
+        if (!portfolio) throw new Error('Portfolio not found');
+
+        try {
+            await PortfolioService.updateTransaction(transactionId, id, {
+                date,
+                amount: amount ? Number(amount) : undefined,
+                price: price ? Number(price) : undefined,
+                fees: fees !== undefined ? Number(fees) : undefined,
+                currency,
+                exchange_rate: exchangeRate ? Number(exchangeRate) : undefined
+            });
+
+            return { success: true };
+        } catch (error: any) {
+            console.error('Update Transaction Error:', error);
+            throw new Error(error.message || 'Failed to update transaction');
+        }
+    }, {
+        body: t.Object({
+            date: t.Optional(t.String()),
+            amount: t.Optional(t.Number()),
+            price: t.Optional(t.Number()),
+            fees: t.Optional(t.Number()),
+            currency: t.Optional(t.String()),
+            exchangeRate: t.Optional(t.Number())
+        })
+    })
+    // Simulate Sell (FIFO Preview)
+    .get('/:id/positions/:ticker/simulate-sell', async ({ userId, params, query, set }) => {
+        const { id, ticker } = params;
+        // @ts-ignore
+        const { amount } = query;
+
+        if (!amount) {
+            set.status = 400;
+            return { error: 'Amount is required' };
+        }
+
+        // Verify ownership
+        const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId} `;
+        if (!portfolio) throw new Error('Portfolio not found');
+
+        try {
+            const result = await PortfolioService.simulateSell(id, ticker, Number(amount));
+            return result;
+        } catch (error: any) {
+            console.error('Simulate Sell Error:', error);
+            set.status = 400;
+            return { error: error.message || 'Simulation failed' };
         }
     });

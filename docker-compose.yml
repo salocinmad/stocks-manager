@@ -37,9 +37,7 @@ services:
     networks:
       - stocks_net
     volumes:
-      - ./server:/app/server
-      # NO montar dist - el build ocurre dentro del contenedor
-      # - ./dist:/app/dist
+      - stock_uploads:/app/uploads # Persistir imágenes y avatares
 
 networks:
   stocks_net:
@@ -47,3 +45,4 @@ networks:
 
 volumes:
   postgres_data:
+  stock_uploads:

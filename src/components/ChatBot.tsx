@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import ReactMarkdown from 'react-markdown';
+// @ts-ignore
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   id?: string;
@@ -22,7 +24,7 @@ interface ChatBotProps {
 }
 
 export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
-  const { api } = useAuth();
+  const { api, token } = useAuth();
   const [isOpen, setIsOpen] = useState(embedded);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -104,25 +106,57 @@ export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
 
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
 
+    // Optimistically add user message
+    const tempUserMsgId = Date.now().toString();
+    const tempAiMsgId = (Date.now() + 1).toString();
+
+    setMessages(prev => [
+      ...prev,
+      { id: tempUserMsgId, role: 'user', content: userMessage, created_at: new Date().toISOString() },
+      { id: tempAiMsgId, role: 'model', content: '', created_at: new Date().toISOString() } // Empty AI message placeholder
+    ]);
+
     try {
-      const { data } = await api.post(`/chat/conversations/${conversationId}/messages`, {
-        message: userMessage
+      const response = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ message: userMessage })
       });
 
-      setMessages(prev => [
-        ...prev.slice(0, -1), // Remove temp user message
-        { ...data.userMessage, content: data.userMessage.content },
-        { ...data.aiMessage, content: data.aiMessage.content }
-      ]);
+      if (!response.body) throw new Error("No response body");
 
-      // Refresh conversations list to update title
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let aiContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value, { stream: true });
+        aiContent += text;
+
+        // Update the last message (AI) with new content
+        setMessages(prev => {
+          const newMsgs = [...prev];
+          const lastMsg = newMsgs[newMsgs.length - 1];
+          if (lastMsg.role === 'model') {
+            lastMsg.content = aiContent;
+          }
+          return newMsgs;
+        });
+      }
+
+      // Refresh conversations list to update title deferred
       loadConversations();
+
     } catch (error) {
       console.error('Error sending message:', error);
-      setMessages(prev => [...prev, {
+      setMessages(prev => [...prev.slice(0, -1), { // Remove placeholder and show error
         role: 'model',
         content: 'Vaya, parece que hay un problema de conexión. Intenta de nuevo.'
       }]);
@@ -214,7 +248,7 @@ export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
   // Closed state (floating button)
   if (!isOpen && !embedded) {
     return (
-      <div className="fixed bottom-8 right-8 z-50">
+      <div className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-50">
         <button
           onClick={() => setIsOpen(true)}
           className="group relative size-16 bg-primary text-black rounded-[2rem] shadow-2xl flex items-center justify-center hover:scale-110 hover:-rotate-6 active:scale-95 transition-all duration-300 ring-4 ring-primary/20"
@@ -238,7 +272,7 @@ export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
 
   const wrapperClass = embedded
     ? 'w-full h-screen bg-background-light dark:bg-background-dark'
-    : 'fixed bottom-8 right-8 z-50 flex items-end justify-end';
+    : 'fixed bottom-24 md:bottom-8 right-4 md:right-8 z-50 flex items-end justify-end';
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -423,6 +457,7 @@ export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
                       }`}>
                       {m.role === 'model' ? (
                         <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
                           components={{
                             strong: ({ children }) => <strong className="font-bold text-primary">{children}</strong>,
                             h3: ({ children }) => <h3 className="font-bold text-base mt-3 mb-1">{children}</h3>,
@@ -430,9 +465,12 @@ export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
                             ol: ({ children }) => <ol className="list-decimal list-inside my-2 space-y-1">{children}</ol>,
                             li: ({ children }) => <li className="ml-2">{children}</li>,
                             p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                            table: ({ children }) => <table className="w-full my-2 border-collapse text-xs">{children}</table>,
-                            th: ({ children }) => <th className="border border-border-light dark:border-border-dark p-1 bg-gray-100 dark:bg-black/20 font-bold">{children}</th>,
-                            td: ({ children }) => <td className="border border-border-light dark:border-border-dark p-1">{children}</td>,
+                            table: ({ children }) => <div className="overflow-x-auto my-2"><table className="w-full border-collapse text-xs table-auto">{children}</table></div>,
+                            thead: ({ children }) => <thead className="bg-gray-100 dark:bg-white/10">{children}</thead>,
+                            tbody: ({ children }) => <tbody className="divide-y divide-border-light dark:divide-white/10">{children}</tbody>,
+                            tr: ({ children }) => <tr className="hover:bg-primary/5 dark:hover:bg-white/5 transition-colors">{children}</tr>,
+                            th: ({ children }) => <th className="border border-border-light dark:border-white/10 p-2 text-left font-bold whitespace-nowrap">{children}</th>,
+                            td: ({ children }) => <td className="border border-border-light dark:border-white/10 p-2 whitespace-nowrap">{children}</td>,
                           }}
                         >
                           {m.content}

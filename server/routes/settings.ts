@@ -79,7 +79,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
             process.env.FINNHUB_API_KEY = finnhub;
             process.env.GOOGLE_GENAI_API_KEY = google;
 
-            console.log("Updated API Keys in .env and process.env");
+
 
             return { success: true, message: 'Keys updated. Restart container if issues persist.' };
 

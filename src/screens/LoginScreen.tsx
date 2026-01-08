@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export const LoginScreen: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, api } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -13,6 +14,7 @@ export const LoginScreen: React.FC = () => {
 
   const [mode, setMode] = useState<'login' | 'forgot' | '2fa'>('login');
   const [successMessage, setSuccessMessage] = useState('');
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState('');
 
   // 2FA State
   const [sessionToken, setSessionToken] = useState('');
@@ -23,6 +25,16 @@ export const LoginScreen: React.FC = () => {
 
   // Remember Me
   const [rememberMe, setRememberMe] = useState(true);
+
+  // Check for session expired parameter
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('expired') === 'true') {
+      setSessionExpiredMessage('Tu sesión ha expirado. Por favor, inicia sesión de nuevo.');
+      // Clean URL without reloading
+      window.history.replaceState({}, '', '/#/login');
+    }
+  }, [location.search]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,7 +100,7 @@ export const LoginScreen: React.FC = () => {
 
     try {
       const response = await api.post('/auth/forgot-password', { email });
-      setSuccessMessage(response.data.message || 'Si el correo existe, recibirás una nueva contraseña.');
+      setSuccessMessage(response.data.message || 'Si el correo existe, recibirás un enlace de recuperación.');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Error al solicitar recuperación.');
     } finally {
@@ -122,6 +134,14 @@ export const LoginScreen: React.FC = () => {
                   : 'Introduce el código de tu aplicación autenticadora.'
                 : 'Introduce tu email para restablecer tu contraseña.'}
           </p>
+
+          {/* Sesión expirada */}
+          {sessionExpiredMessage && (
+            <div className="mb-6 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 text-sm flex items-center gap-3">
+              <span className="material-symbols-outlined text-lg">schedule</span>
+              {sessionExpiredMessage}
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm">

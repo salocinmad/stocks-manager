@@ -21,6 +21,9 @@ Estas herramientas hacen posible la experiencia visual en tu navegador.
 | **TailwindCSS** | Framework de estilos utility-first. | MIT | [Tailwind Labs](https://tailwindcss.com) |
 | **PostCSS** | Procesador de CSS moderno. | MIT | [PostCSS Contributors](https://postcss.org) |
 | **Autoprefixer** | Añade prefijos CSS automáticamente. | MIT | [Andrey Sitnik](https://github.com/postcss/autoprefixer) |
+| **Lucide React** | Iconos vectoriales limpios y modernos. | ISC | [Lucide Contributors](https://lucide.dev) |
+| **React Markdown** | Renderizado de Markdown seguro. | MIT | [unist](https://github.com/remarkjs/react-markdown) |
+| **MD Editor** | Editor de Markdown interactivo. | MIT | [uiw](https://github.com/uiwjs/react-md-editor) |
 
 ---
 
@@ -43,8 +46,13 @@ Estas tecnologías procesan datos, manejan la seguridad y conectan con servicios
 | **otpauth** | Generación de códigos TOTP (2FA). | MIT | [Héctor Molinero](https://github.com/hectorm/otpauth) |
 | **qrcode** | Generación de códigos QR. | MIT | [Ryan Day](https://github.com/soldair/node-qrcode) |
 | **@google/generative-ai** | SDK de Google Gemini AI. | Apache 2.0 | [Google](https://ai.google.dev) |
+| **EOD Historical Data** | Datos de infraestructura y tickers mundiales. | Propietaria | [EODHD](https://eodhd.com) |
 | **Axios** | Cliente HTTP para peticiones. | MIT | [Matt Zabriskie](https://axios-http.com) |
 | **dotenv** | Carga de variables de entorno. | BSD-2-Clause | [Scott Motte](https://github.com/motdotla/dotenv) |
+| **archiver** | Creación de archivos ZIP/TAR (Stream). | MIT | [Chris Talkington](https://github.com/archiverjs/node-archiver) |
+| **archiver-zip-encrypted** | Encriptación de archivos ZIP. | MIT | [Chris Talkington](https://github.com/archiverjs/node-archiver-zip-encrypted) |
+| **adm-zip** | Manipulación de archivos ZIP en memoria. | MIT | [cthackers](https://github.com/cthackers/adm-zip) |
+| **unzipper** | Extracción fiable de archivos ZIP. | MIT | [Evan Oxfeld](https://github.com/ZJONSSON/node-unzipper) |
 
 ---
 
@@ -77,4 +85,4 @@ Sin su trabajo desinteresado, el desarrollo de software sería mucho más difíc
 
 ---
 
-*Documento generado para Stocks Manager v2.0*
+*Documento generado para Stocks Manager v2.1.0*

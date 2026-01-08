@@ -63,7 +63,7 @@ export const NotificationChannelsContent: React.FC = () => {
 export const NotificationChannelsScreen: React.FC = () => {
     return (
         <main className="flex-1 overflow-y-auto w-full p-6 md:p-10 lg:px-16 flex flex-col gap-10 bg-background-light dark:bg-background-dark">
-            <Header title="Canales de Notificación" />
+
             <div className="max-w-5xl mx-auto w-full">
                 <NotificationChannelsContent />
             </div>
@@ -529,7 +529,7 @@ const WebhookConfig = ({ type, title, color, channel, onRefresh, api }: any) => 
                         onClick={handleSave}
                         disabled={saving}
                         className="flex-[2] py-3 rounded-xl text-white font-bold shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
-                        style={{ backgroundColor: color, shadowColor: `${color}40` }}
+                        style={{ backgroundColor: color, boxShadow: `0 10px 15px -3px ${color}40` }}
                     >
                         {saving ? 'Guardando...' : 'Guardar Configuración'}
                     </button>

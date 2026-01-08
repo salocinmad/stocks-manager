@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { MarketDataService } from '../services/marketData';
+import { SettingsService } from '../services/settingsService';
 
 export const marketRoutes = new Elysia({ prefix: '/market' })
     // Búsqueda de símbolos en vivo (Yahoo Finance)
@@ -46,8 +47,18 @@ export const marketRoutes = new Elysia({ prefix: '/market' })
     })
     // Estado de los mercados
     .get('/status', async () => {
-        const DEFAULT_INDICES = ['^IBEX', '^IXIC', '^NYA', '^GDAXI', '^FTSE'];
-        return await MarketDataService.getMarketStatus(DEFAULT_INDICES);
+        const storedIndices = await SettingsService.get('HEADER_INDICES');
+        let indices = ['^IBEX', '^IXIC', '^NYA', '^GDAXI', '^FTSE', '^FCHI'];
+
+        if (storedIndices) {
+            try {
+                indices = JSON.parse(storedIndices);
+            } catch (e) {
+                console.error('Error parsing HEADER_INDICES:', e);
+            }
+        }
+
+        return await MarketDataService.getMarketStatus(indices);
     })
     .get('/history', async ({ query }) => {
         const { ticker, range } = query;
@@ -64,6 +75,16 @@ export const marketRoutes = new Elysia({ prefix: '/market' })
         const { ticker } = query;
         if (!ticker) return { error: 'Ticker required' };
         return await MarketDataService.getAssetProfile(ticker);
+    }, {
+        query: t.Object({
+            ticker: t.String()
+        })
+    })
+    // Datos Enriquecidos (Full Detail + Candles)
+    .get('/enrich', async ({ query }) => {
+        const { ticker } = query;
+        if (!ticker) return { error: 'Ticker required' };
+        return await MarketDataService.getEnhancedQuoteData(ticker);
     }, {
         query: t.Object({
             ticker: t.String()

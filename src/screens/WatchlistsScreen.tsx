@@ -122,7 +122,7 @@ export const WatchlistsScreen: React.FC = () => {
 
   return (
     <main className="flex-1 flex flex-col h-screen bg-background-light dark:bg-background-dark overflow-y-auto">
-      <Header title="Watchlist" />
+
 
       <div className="flex flex-col gap-8 px-6 pb-12 md:px-12 max-w-[1600px] mx-auto w-full">
 
@@ -161,9 +161,16 @@ export const WatchlistsScreen: React.FC = () => {
                           <span className="text-xs text-text-secondary-light">{res.description || res.name}</span>
                         </div>
                       </div>
-                      <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${isAdded ? 'bg-green-500/10 text-green-500' : 'bg-gray-100 dark:bg-white/10 text-text-secondary-light'}`}>
-                        {isAdded ? 'Siguiendo' : res.exchange}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {res.currency && (
+                          <span className="text-[10px] font-bold text-text-secondary-light border border-border-light dark:border-border-dark px-1.5 py-0.5 rounded-md">
+                            {res.currency}
+                          </span>
+                        )}
+                        <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${isAdded ? 'bg-green-500/10 text-green-500' : 'bg-gray-100 dark:bg-white/10 text-text-secondary-light'}`}>
+                          {isAdded ? 'Siguiendo' : res.exchange}
+                        </span>
+                      </div>
                     </button>
                   );
                 })}

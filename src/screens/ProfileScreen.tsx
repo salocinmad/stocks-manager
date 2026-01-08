@@ -1,21 +1,101 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Header } from '../components/Header';
 import { TwoFactorSettings } from '../components/TwoFactorSettings';
 import { NotificationChannelsContent } from './NotificationChannelsScreen';
 
 export const ProfileScreen: React.FC = () => {
-  const { isAdmin, api, logout } = useAuth();
+  const { user, isAdmin, api, logout, login, token } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'general' | 'security' | 'notifications'>('general');
 
+  // Profile State
+  const [fullName, setFullName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [preferredCurrency, setPreferredCurrency] = useState(user?.currency || 'EUR');
+  const [isEditing, setIsEditing] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+
+  // Avatar State
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Password State
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwdMessage, setPwdMessage] = useState('');
   const [pwdError, setPwdError] = useState('');
   const [loadingPwd, setLoadingPwd] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setFullName(user.name || '');
+      setEmail(user.email || '');
+      setPreferredCurrency(user.currency || 'EUR');
+    }
+  }, [user]);
+
+  const handleUpdateProfile = async () => {
+    setLoadingProfile(true);
+    setProfileMessage('');
+    try {
+      const res = await api.put('/user/profile', {
+        fullName,
+        email
+        // currency: preferredCurrency (Backend update needed if we want to save this)
+      });
+
+      if (res.data.success) {
+        setProfileMessage('Perfil actualizado correctamente');
+        // Update local context
+        if (token && user) {
+          const updatedUser = {
+            ...user,
+            ...res.data.user,
+            name: res.data.user.full_name // Map full_name to name
+          };
+          login(token, updatedUser, localStorage.getItem('rememberMe') === 'true');
+        }
+        setIsEditing(false);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setProfileMessage('Error al actualizar perfil');
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    setUploadingAvatar(true);
+    try {
+      // Axios automatically sets Content-Type to multipart/form-data when sending FormData
+      const res = await api.post('/user/avatar', formData);
+      if (res.data.success) {
+        // Update local context with new avatar_url
+        if (token && user) {
+          login(token, { ...user, avatar_url: res.data.avatarUrl }, localStorage.getItem('rememberMe') === 'true');
+        }
+      }
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      alert('Error al subir la imagen');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +131,7 @@ export const ProfileScreen: React.FC = () => {
 
   return (
     <main className="flex-1 flex flex-col h-screen overflow-y-auto bg-background-light dark:bg-background-dark">
-      <Header title="Perfil y Ajustes" />
+
 
       <div className="flex flex-col p-6 md:p-10 max-w-5xl mx-auto w-full gap-8">
 
@@ -96,29 +176,98 @@ export const ProfileScreen: React.FC = () => {
           {activeTab === 'general' && (
             <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
               {/* Tarjeta Perfil */}
-              <div className="flex flex-col p-8 rounded-3xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm">
-                <div className="flex items-center gap-6 mb-8">
-                  <div className="size-24 rounded-full bg-primary/20 border-4 border-white dark:border-surface-dark-elevated shadow-xl bg-cover bg-center" style={{ backgroundImage: "url('https://picsum.photos/seed/user/200/200')" }}></div>
+              <div className="flex flex-col p-8 rounded-3xl bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm relative overflow-hidden">
+
+                {profileMessage && (
+                  <div className="absolute top-0 left-0 w-full bg-green-500 text-white text-center py-2 font-bold text-sm">
+                    {profileMessage}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-6 mb-8 mt-4">
+                  <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+                    <div
+                      className="size-24 rounded-full bg-primary/20 border-4 border-white dark:border-surface-dark-elevated shadow-xl bg-cover bg-center transition-all group-hover:opacity-80"
+                      style={{ backgroundImage: user?.avatar_url ? `url('${user.avatar_url}')` : "url('https://ui-avatars.com/api/?name=" + (user?.name || 'User') + "&background=random')" }}
+                    ></div>
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="material-symbols-outlined text-white">photo_camera</span>
+                    </div>
+                    {uploadingAvatar && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full">
+                        <span className="material-symbols-outlined text-primary animate-spin">refresh</span>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
+
                   <div>
-                    <h3 className="text-2xl font-bold">Carlos Rodríguez</h3>
-                    <p className="text-text-secondary-light">carlos.pro@example.com</p>
+                    <h3 className="text-2xl font-bold">{user?.name}</h3>
+                    <p className="text-text-secondary-light">{user?.email}</p>
+                    <p className="text-xs text-primary font-bold uppercase mt-1">{user?.role === 'admin' ? 'Administrador' : 'Usuario'}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold uppercase text-text-secondary-light tracking-widest">Nombre Público</label>
-                    <input defaultValue="Carlos" className="px-5 py-4 rounded-2xl bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-text-primary-light dark:text-white" />
+                    <input
+                      value={fullName}
+                      onChange={(e) => { setFullName(e.target.value); setIsEditing(true); }}
+                      className="px-5 py-4 rounded-2xl bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-text-primary-light dark:text-white"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold uppercase text-text-secondary-light tracking-widest">Email</label>
+                    <input
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); setIsEditing(true); }}
+                      className="px-5 py-4 rounded-2xl bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-text-primary-light dark:text-white"
+                    />
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-bold uppercase text-text-secondary-light tracking-widest">Divisa Principal</label>
-                    <select className="px-5 py-4 rounded-2xl bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-text-primary-light dark:text-white">
-                      <option>EUR (€)</option>
-                      <option>USD ($)</option>
-                      <option>GBP (£)</option>
+                    <select
+                      value={preferredCurrency}
+                      onChange={(e) => setPreferredCurrency(e.target.value)}
+                      className="px-5 py-4 rounded-2xl bg-background-light dark:bg-background-dark border-none focus:ring-2 focus:ring-primary text-text-primary-light dark:text-white"
+                      disabled
+                    >
+                      <option value="EUR">EUR (€)</option>
+                      <option value="USD">USD ($)</option>
+                      <option value="GBP">GBP (£)</option>
                     </select>
+                    <p className="text-[10px] text-text-secondary-light ml-2">Para cambiar divisa, contacte soporte.</p>
                   </div>
                 </div>
+
+                {isEditing && (
+                  <div className="mt-8 flex justify-end">
+                    <button
+                      onClick={handleUpdateProfile}
+                      disabled={loadingProfile}
+                      className="px-8 py-3 bg-primary text-black font-bold rounded-full shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                    >
+                      {loadingProfile ? (
+                        <>
+                          <span className="material-symbols-outlined animate-spin text-sm">refresh</span>
+                          Guardando...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined">save</span>
+                          Guardar Cambios
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Tarjeta Apariencia */}
@@ -218,7 +367,6 @@ export const ProfileScreen: React.FC = () => {
                 </form>
               </div>
 
-              {/* Aviso sobre configuración de API - Solo visible para no-admins en la pestaña de seguridad también, o en General. Lo prefiero aquí. */}
               {!isAdmin && (
                 <div className="flex items-center gap-4 p-6 bg-blue-500/10 border border-blue-500/20 rounded-3xl">
                   <span className="material-symbols-outlined text-blue-500 text-2xl">info</span>

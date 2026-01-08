@@ -3,7 +3,13 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
+        name="viewport" />
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f8f8f5" media="(prefers-color-scheme: light)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <title>Stocks Manager Pro</title>
 
     <!-- Fonts -->
@@ -14,6 +20,9 @@
         rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
         rel="stylesheet" />
+
+    <!-- Bundled CSS (includes react-md-editor) -->
+    <link href="index.css" rel="stylesheet" />
 
     <!-- Tailwind CSS (CDN como fallback temporal - será procesado localmente en producción) -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>

@@ -23,35 +23,13 @@ export const NewsScreen: React.FC = () => {
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
-    const fetchPortfolioNews = async () => {
+    const fetchGeneralNews = async () => {
       try {
         setLoading(true);
-        // 1. Get User Portfolio Tickers
-        const { data: portfolios } = await api.get('/portfolios');
-        if (portfolios.length === 0) {
-          setLoading(false);
-          return;
-        }
-
-        // Get details of first portfolio to get tickers
-        // In a real app we might want to aggregate all unique tickers from all portfolios
-        const { data: detail } = await api.get(`/portfolios/${portfolios[0].id}`);
-        const tickers = detail.positions?.map((p: any) => p.ticker) || [];
-
-        // If no tickers, maybe show general news (e.g., SPY, AAPL as default)
-        const targetTickers = tickers.length > 0 ? tickers : ['AAPL', 'MSFT', 'AMZN'];
-
-        // 2. Fetch News for each ticker
-        const promises = targetTickers.map((ticker: string) =>
-          api.get<NewsItem[]>(`/market/news?ticker=${ticker}`)
-            .then(res => res.data.map(item => ({ ...item, related: ticker }))) // Tag with ticker
-            .catch(() => [])
-        );
-
-        const results = await Promise.all(promises);
-        const allNews = results.flat().sort((a, b) => b.datetime - a.datetime);
-
-        setNews(allNews);
+        // Backend now returns a single general feed from Investing.com
+        // We don't need to iterate tickers anymore, just fetch once.
+        const { data } = await api.get<NewsItem[]>('/market/news?ticker=GENERAL');
+        setNews(data);
       } catch (e) {
         console.error("Error loading news", e);
       } finally {
@@ -59,7 +37,7 @@ export const NewsScreen: React.FC = () => {
       }
     };
 
-    if (user) fetchPortfolioNews();
+    if (user) fetchGeneralNews();
   }, [api, user]);
 
   const filteredNews = news.filter(item =>
@@ -70,14 +48,14 @@ export const NewsScreen: React.FC = () => {
 
   return (
     <main className="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
-      <Header title={t('menu.news')} />
+
 
       <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-[1600px] mx-auto w-full flex flex-col gap-6">
         {/* Search / Filter */}
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white dark:bg-surface-dark p-6 rounded-[2rem] border border-border-light dark:border-border-dark shadow-sm">
           <div>
-            <h3 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">Tus Noticias Financieras</h3>
-            <p className="text-sm text-text-secondary-light">Basado en tu portafolio y movimientos de mercado.</p>
+            <h3 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">Noticias de Actualidad</h3>
+            <p className="text-sm text-text-secondary-light">Lo último de los mercados financieros.</p>
           </div>
           <input
             type="text"
@@ -104,14 +82,15 @@ export const NewsScreen: React.FC = () => {
                 className="flex flex-col bg-white dark:bg-surface-dark rounded-[2rem] overflow-hidden border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group"
               >
                 {/* Imagen o placeholder con gradiente y ticker */}
-                {item.image ? (
+                {item.image && item.image.startsWith('http') ? (
                   <div
                     className="h-48 w-full bg-gray-200 dark:bg-gray-800 bg-cover bg-center relative"
                     style={{ backgroundImage: `url(${item.image})` }}
                   >
-                    {/* Overlay con el ticker */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
-                      <span className="text-white font-bold text-lg">{item.related}</span>
+                    {/* Overlay con el ticker (o General si no hay ticker) */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                      {/* Investing feed often is general news, so related might be 'General' */}
+                      <span className="text-white font-bold text-lg drop-shadow-md">{item.related === 'General' ? 'Mercado' : item.related}</span>
                     </div>
                   </div>
                 ) : (
