@@ -11,8 +11,11 @@
 // EODHD Code -> Yahoo Suffix
 // Empty string means no suffix needed (US stocks)
 export const EODHD_TO_YAHOO: Record<string, string> = {
-    // USA (single unified code in EODHD)
-    'US': '',         // US stocks have no suffix in Yahoo
+    // USA (multiple codes, all without Yahoo suffix)
+    'US': '',         // US stocks unified code - no suffix in Yahoo
+    'NYSE': '',       // New York Stock Exchange - no suffix
+    'NASDAQ': '',     // NASDAQ - no suffix
+    'AMEX': '',       // NYSE American (AMEX) - no suffix
 
     // Europe
     'LSE': 'L',       // London Stock Exchange -> .L
@@ -118,6 +121,9 @@ export const EODHD_TO_REGION: Record<string, string> = {
     'SHG': 'CN',
     // Americas
     'US': 'US',
+    'NYSE': 'US',
+    'NASDAQ': 'US',
+    'AMEX': 'US',
     'TO': 'CA',
 };
 

@@ -118,6 +118,36 @@ export const MasterCatalogConfig: React.FC = () => {
     const orphanExchanges = selectedExchanges.filter(code => !availableCodes.includes(code));
     const [cleaningOrphans, setCleaningOrphans] = useState(false);
 
+    // Global Sync State (Cosecha Mundial)
+    const [globalSyncStatus, setGlobalSyncStatus] = useState({ running: false, message: 'IDLE', lastRun: null as string | null });
+
+    // Poll sync status when component is mounted
+    useEffect(() => {
+        const pollStatus = async () => {
+            try {
+                const res = await api.get('/admin/market/sync-status');
+                setGlobalSyncStatus(res.data);
+            } catch (e) {
+                console.error('Error polling sync status:', e);
+            }
+        };
+        pollStatus();
+        const interval = setInterval(pollStatus, 5000);
+        return () => clearInterval(interval);
+    }, [api]);
+
+    // Iniciar Cosecha Mundial
+    const handleSyncGlobalLibrary = async () => {
+        if (!window.confirm('¿Iniciar sincronización mundial? Esto descargará miles de tickers con ISIN de las bolsas seleccionadas. El proceso toma ~1 minuto por bolsa para ahorrar créditos de tu plan EODHD.')) return;
+        try {
+            await api.post('/admin/market/sync-global-library');
+            setGlobalSyncStatus(prev => ({ ...prev, running: true, message: 'Iniciando sincronización global...' }));
+            addToast('Sincronización mundial iniciada', 'success');
+        } catch (e: any) {
+            addToast('Error al iniciar sincronización: ' + (e.response?.data?.message || e.message), 'error');
+        }
+    };
+
     // Clean orphan exchanges AND their associated data
     const cleanOrphans = async () => {
         setCleaningOrphans(true);
@@ -276,20 +306,42 @@ export const MasterCatalogConfig: React.FC = () => {
             </div>
 
             {/* Actions */}
-            <div className="mt-8 flex justify-between items-center">
-                <p className="text-xs text-gray-500">
-                    💡 La lista se actualiza automáticamente cada 30 días para ahorrar créditos API.
-                </p>
-                <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-6 py-2 bg-primary text-black font-bold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
-                >
-                    {saving
-                        ? <span className="animate-spin material-symbols-outlined">sync</span>
-                        : <span className="material-symbols-outlined">save</span>}
-                    Guardar Configuración
-                </button>
+            <div className="mt-8 flex flex-col gap-4">
+                {/* Sync Status */}
+                <div className="p-3 bg-background-light dark:bg-background-dark rounded-xl border border-border-light dark:border-border-dark flex justify-between items-center">
+                    <span className="text-xs font-bold text-text-secondary-light uppercase">Estado Sincronización</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${globalSyncStatus.running ? 'bg-amber-500/20 text-amber-500 animate-pulse' : 'bg-green-500/20 text-green-500'}`}>
+                        {globalSyncStatus.message || (globalSyncStatus.running ? 'EJECUTANDO' : 'LISTO')}
+                    </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <p className="text-xs text-gray-500">
+                        💡 La lista se actualiza automáticamente cada 30 días para ahorrar créditos API.
+                    </p>
+                    <div className="flex gap-3 flex-wrap">
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="flex items-center gap-2 px-6 py-2 bg-primary text-black font-bold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
+                        >
+                            {saving
+                                ? <span className="animate-spin material-symbols-outlined">sync</span>
+                                : <span className="material-symbols-outlined">save</span>}
+                            Guardar Configuración
+                        </button>
+                        <button
+                            onClick={handleSyncGlobalLibrary}
+                            disabled={globalSyncStatus.running}
+                            className="flex items-center gap-2 px-6 py-2 bg-primary/80 hover:bg-primary text-black font-bold rounded-lg transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                        >
+                            {globalSyncStatus.running
+                                ? <span className="animate-spin material-symbols-outlined">sync</span>
+                                : <span className="material-symbols-outlined">rocket_launch</span>}
+                            {globalSyncStatus.running ? 'Sincronizando...' : 'Iniciar Cosecha Mundial'}
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );

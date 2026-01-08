@@ -111,8 +111,10 @@ export class EODHDService {
         for (let i = 0; i < EXCHANGES.length; i++) {
             const exchange = EXCHANGES[i];
 
-            // Seguridad: nunca sincronizar USA en la librería global para evitar solapamientos con Finnhub
-            if (['US', 'NYSE', 'NASDAQ', 'BATS', 'AMEX', 'ARCA'].includes(exchange.toUpperCase())) {
+            // Seguridad: solo bloquear el código genérico 'US' que agrupa todas las bolsas
+            // Permitir NYSE, NASDAQ, AMEX si el usuario los selecciona explícitamente
+            if (exchange.toUpperCase() === 'US') {
+                console.log(`[EODHD] ⚠️ Saltando '${exchange}' - Usa NYSE/NASDAQ/AMEX en su lugar`);
                 continue;
             }
 
@@ -188,6 +190,22 @@ export class EODHDService {
                 currency: ex.Currency,
                 operatingMIC: ex.OperatingMIC || null
             }));
+
+            // Add US sub-exchanges as virtual entries at the beginning
+            // EODHD supports NYSE, NASDAQ, AMEX as separate codes for symbol lists
+            const usSubExchanges = [
+                { code: 'NYSE', name: 'New York Stock Exchange', country: 'USA', currency: 'USD', operatingMIC: 'XNYS' },
+                { code: 'NASDAQ', name: 'NASDAQ Stock Exchange', country: 'USA', currency: 'USD', operatingMIC: 'XNAS' },
+                { code: 'AMEX', name: 'NYSE American (AMEX)', country: 'USA', currency: 'USD', operatingMIC: 'XASE' },
+            ];
+
+            // Check if these don't already exist and add them
+            const existingCodes = exchanges.map((e: any) => e.code);
+            for (const usEx of usSubExchanges) {
+                if (!existingCodes.includes(usEx.code)) {
+                    exchanges.unshift(usEx);
+                }
+            }
 
             // Save to cache with 30-day expiry
             const expiresAt = new Date();

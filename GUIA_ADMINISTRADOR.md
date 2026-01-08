@@ -260,7 +260,10 @@ El sistema mapea automáticamente los códigos EODHD a sufijos de Yahoo Finance:
 
 | EODHD | Yahoo | Bolsa |
 |-------|-------|-------|
-| `US` | (sin sufijo) | USA (NYSE, NASDAQ) |
+| `NYSE` | (sin sufijo) | New York Stock Exchange |
+| `NASDAQ` | (sin sufijo) | NASDAQ Stock Exchange |
+| `AMEX` | (sin sufijo) | NYSE American |
+| `US` | (sin sufijo) | USA genérico (no recomendado) |
 | `LSE` | `.L` | London Stock Exchange |
 | `XETRA` | `.DE` | Frankfurt Xetra |
 | `MC` | `.MC` | Madrid Exchange |
@@ -269,6 +272,20 @@ El sistema mapea automáticamente los códigos EODHD a sufijos de Yahoo Finance:
 | `TSE` | `.T` | Tokyo Stock Exchange |
 
 > 📁 **Archivo de mapeo**: `server/utils/exchangeMapping.ts` contiene 50+ bolsas mapeadas.
+
+### Cosecha Mundial (Sincronización de Tickers)
+
+El botón **"Iniciar Cosecha Mundial"** está disponible en dos ubicaciones:
+- **Admin → Mercado → Sincronización** (sección Librería Global)
+- **Admin → Mercado → Catálogo Maestro** (debajo del listado de bolsas)
+
+Este botón:
+1. Lee la configuración `GLOBAL_TICKER_EXCHANGES`
+2. Conecta con EODHD API para cada bolsa seleccionada
+3. Descarga todos los tickers (Common Stocks) con sus ISINs
+4. Guarda/actualiza en la tabla `global_tickers`
+
+> ⏱️ **Tiempo estimado**: ~1 minuto por bolsa para respetar límites de API.
 
 ### Limpieza Profunda Automática
 
