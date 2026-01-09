@@ -166,7 +166,7 @@ export async function initDatabase() {
         { key: 'CRAWLER_VOL_YAHOO_V10', value: '5' },
         { key: 'CRAWLER_MARKET_OPEN_ONLY', value: 'true' },
         { key: 'GLOBAL_TICKER_EXCHANGES', value: 'MC,PA,LSE,XETRA,T,HK,TO,NSE,AU,SG,AS,MI,SW,ST,OS,CO,HE,BR,LI,VI' },
-        { key: 'APP_VERSION', value: 'V2.1.0' }
+        { key: 'APP_VERSION', value: 'V2.1.1' }
       ];
 
       for (const setting of defaultCrawlerSettings) {
@@ -933,6 +933,17 @@ Danos tu visión de futuro.`;
     } catch (e: any) { console.error('Migration error (portfolio_alerts.triggered_assets):', e.message); }
 
     console.log('V2.1.0 migrations completed.');
+
+    // V2.1.1 MIGRATIONS - PWA & Mobile ChatBot
+    console.log('Running v2.1.1 migrations...');
+
+    // Update APP_VERSION to 2.1.1
+    try {
+      await sql`UPDATE system_settings SET value = 'V2.1.1' WHERE key = 'APP_VERSION'`;
+      console.log('Updated APP_VERSION to V2.1.1');
+    } catch (e: any) { console.error('Migration error (APP_VERSION):', e.message); }
+
+    console.log('V2.1.1 migrations completed.');
 
   } catch (error) {
     console.error('Error initializing database:', error);

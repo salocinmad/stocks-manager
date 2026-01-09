@@ -815,7 +815,94 @@ export const PortfolioScreen: React.FC = () => {
                   </button>
                 </div>
               )}
-              <div className="overflow-x-auto">
+              {/* ===== VISTA MÓVIL: Cards ===== */}
+              <div className="md:hidden flex flex-col gap-3">
+                {sortedPositions.map((pos) => (
+                  <div
+                    key={pos.id}
+                    className="bg-background-light/50 dark:bg-surface-dark-elevated/40 rounded-2xl border border-border-light dark:border-border-dark p-4"
+                  >
+                    {/* Header: Nombre + Ticker + Estado */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-base truncate">{pos.name || pos.ticker}</p>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
+                          {pos.marketState && (
+                            <div
+                              className={`size-1.5 rounded-full ${pos.marketState === 'REGULAR' ? 'bg-green-500' :
+                                ['PRE', 'POST'].includes(pos.marketState) ? 'bg-orange-500' : 'bg-red-500/30'
+                                }`}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      {/* Rentabilidad Badge */}
+                      <div className={`px-2.5 py-1 rounded-lg text-sm font-bold ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+                        }`}>
+                        {(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%
+                      </div>
+                    </div>
+
+                    {/* Datos principales en grid 2x2 */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Cantidad</p>
+                        <p className="font-mono font-medium">{pos.quantity.toLocaleString('es-ES', { maximumFractionDigits: 4 })}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Precio Actual</p>
+                        <p className="font-mono font-bold">{formatPrice(pos.currentPrice || 0, pos.currency)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Coste Medio</p>
+                        <p className="font-mono text-sm">{formatPrice(pos.average_buy_price, pos.currency)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Valor Total</p>
+                        <p className="font-bold">{pos.currentValue?.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) || '---'}</p>
+                      </div>
+                    </div>
+
+                    {/* Variación del día */}
+                    {(pos.change !== undefined && pos.changePercent !== undefined) && (
+                      <div className={`flex items-center gap-1 text-xs font-bold mb-3 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
+                        <span className="material-symbols-outlined text-[16px]">{pos.change >= 0 ? 'trending_up' : 'trending_down'}</span>
+                        <span>Hoy: {formatChange(pos.change, pos.changePercent)}</span>
+                      </div>
+                    )}
+
+                    {/* Acciones */}
+                    <div className="flex items-center justify-between pt-2 border-t border-border-light/50 dark:border-border-dark/50">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setAnalysisPosition(pos)} className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-600 transition-all" title="Análisis">
+                          <span className="material-symbols-outlined text-lg">analytics</span>
+                        </button>
+                        <button onClick={() => setNotePosition(pos)} className="p-2 rounded-lg hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all" title="Nota">
+                          <span className="material-symbols-outlined text-lg">description</span>
+                        </button>
+                        <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Alerta">
+                          <span className="material-symbols-outlined text-lg">notifications_active</span>
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => openSellModal(pos)} className="p-2 rounded-lg hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500 transition-all" title="Vender">
+                          <span className="material-symbols-outlined text-lg">sell</span>
+                        </button>
+                        <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar">
+                          <span className="material-symbols-outlined text-lg">edit</span>
+                        </button>
+                        <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar">
+                          <span className="material-symbols-outlined text-lg">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ===== VISTA DESKTOP: Tabla ===== */}
+              <div className="hidden md:block overflow-x-auto">
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}

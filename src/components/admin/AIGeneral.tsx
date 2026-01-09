@@ -200,7 +200,7 @@ export const AIGeneral: React.FC = () => {
     // Render Logic
     if (editingPrompt || creatingType) {
         return (
-            <div className="h-[600px] border border-border-light dark:border-border-dark rounded-2xl overflow-hidden shadow-lg">
+            <div className="h-[400px] md:h-[600px] border border-border-light dark:border-border-dark rounded-xl md:rounded-2xl overflow-hidden shadow-lg">
                 <PromptEditor
                     type={editingPrompt?.prompt_type || creatingType || 'CHATBOT'}
                     initialValue={editingPrompt?.content || ''}
@@ -214,8 +214,8 @@ export const AIGeneral: React.FC = () => {
     return (
         <div className="space-y-8 animate-fade-in">
             {/* 1. Selector de Motor y Modelo */}
-            <div className="bg-surface-light dark:bg-surface-dark-elevated p-6 rounded-2xl border border-border-light dark:border-border-dark shadow-sm">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <div className="bg-surface-light dark:bg-surface-dark-elevated p-4 md:p-6 rounded-xl md:rounded-2xl border border-border-light dark:border-border-dark shadow-sm">
+                <h3 className="text-base md:text-lg font-bold mb-3 md:mb-4 flex items-center gap-2">
                     <Terminal size={20} className="text-primary" />
                     Motor de Inteligencia Artificial
                 </h3>
@@ -260,11 +260,11 @@ export const AIGeneral: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="mt-6 flex justify-end border-t border-border-light dark:border-border-dark pt-4">
+                <div className="mt-4 md:mt-6 flex justify-end border-t border-border-light dark:border-border-dark pt-3 md:pt-4">
                     <button
                         onClick={handleSaveConfig}
                         disabled={savingSettings}
-                        className="px-6 py-3 bg-primary text-black font-bold rounded-xl hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-2 shadow-lg shadow-primary/20"
+                        className="px-4 md:px-6 py-2.5 md:py-3 bg-primary text-black font-bold rounded-lg md:rounded-xl hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-2 shadow-lg shadow-primary/20 text-sm md:text-base"
                     >
                         {savingSettings ? <RefreshCw className="animate-spin" size={20} /> : <span className="material-symbols-outlined">save</span>}
                         Guardar Configuración
@@ -274,11 +274,11 @@ export const AIGeneral: React.FC = () => {
 
             {/* 2. Prompts Management */}
             <div>
-                <h3 className="text-lg font-bold mb-6">Gestión de Personalidad y Prompts</h3>
+                <h3 className="text-base md:text-lg font-bold mb-4 md:mb-6">Gestión de Personalidad y Prompts</h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     {/* ChatBot Column */}
-                    <div className="bg-surface-light dark:bg-surface-dark-elevated p-1 rounded-2xl border border-border-light dark:border-border-dark flex flex-col h-full">
+                    <div className="bg-surface-light dark:bg-surface-dark-elevated p-1 rounded-xl md:rounded-2xl border border-border-light dark:border-border-dark flex flex-col h-full">
                         <div className="p-4 border-b border-border-light dark:border-border-dark flex justify-between items-center">
                             <h4 className="font-bold flex items-center gap-2">
                                 <span className="material-symbols-outlined text-green-500">chat</span>
@@ -338,7 +338,7 @@ export const AIGeneral: React.FC = () => {
                     </div>
 
                     {/* Analysis Column */}
-                    <div className="bg-surface-light dark:bg-surface-dark-elevated p-1 rounded-2xl border border-border-light dark:border-border-dark flex flex-col h-full">
+                    <div className="bg-surface-light dark:bg-surface-dark-elevated p-1 rounded-xl md:rounded-2xl border border-border-light dark:border-border-dark flex flex-col h-full">
                         <div className="p-4 border-b border-border-light dark:border-border-dark flex justify-between items-center">
                             <h4 className="font-bold flex items-center gap-2">
                                 <span className="material-symbols-outlined text-purple-500">analytics</span>

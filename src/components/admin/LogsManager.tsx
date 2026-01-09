@@ -121,11 +121,11 @@ export function LogsManager() {
     }
 
     return (
-        <div className="bg-secondary/30 rounded-xl p-6 border border-white/5 space-y-6">
+        <div className="bg-secondary/30 rounded-lg md:rounded-xl p-4 md:p-6 border border-white/5 space-y-4 md:space-y-6">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <FileText className="w-6 h-6 text-primary" />
-                    <h3 className="text-xl font-semibold text-white">Gestión de Logs</h3>
+                    <FileText className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+                    <h3 className="text-lg md:text-xl font-semibold text-white">Gestión de Logs</h3>
                 </div>
                 <button
                     onClick={loadLogsInfo}
@@ -138,7 +138,7 @@ export function LogsManager() {
 
             {/* Storage Stats */}
             {logsInfo && (
-                <div className="flex gap-6 text-sm text-gray-400">
+                <div className="flex flex-wrap gap-3 md:gap-6 text-xs md:text-sm text-gray-400">
                     <span>📁 {logsInfo.storage.files} archivos</span>
                     <span>💾 {formatBytes(logsInfo.storage.bytes)} total</span>
                 </div>
@@ -147,18 +147,18 @@ export function LogsManager() {
             {/* Log Level Selector */}
             <div className="space-y-3">
                 <label className="text-sm font-medium text-gray-400">Nivel de Log Activo</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3">
                     {LOG_LEVELS.map((level) => (
                         <button
                             key={level.value}
                             onClick={() => changeLevel(level.value)}
-                            className={`p-4 rounded-lg border text-left transition ${currentLevel === level.value
+                            className={`p-3 md:p-4 rounded-lg border text-left transition ${currentLevel === level.value
                                 ? 'bg-primary/20 border-primary text-primary'
                                 : 'bg-white/5 border-white/10 text-gray-300 hover:border-white/20'
                                 }`}
                         >
-                            <div className="font-medium">{level.name}</div>
-                            <div className="text-xs text-gray-400 mt-1">{level.description}</div>
+                            <div className="font-medium text-sm md:text-base">{level.name}</div>
+                            <div className="text-[10px] md:text-xs text-gray-400 mt-1">{level.description}</div>
                         </button>
                     ))}
                 </div>
@@ -166,12 +166,12 @@ export function LogsManager() {
 
             {/* Date Range Selectors */}
             <div className="border-t border-white/10 pt-6 space-y-4">
-                <h4 className="text-lg font-medium text-white flex items-center gap-2">
+                <h4 className="text-base md:text-lg font-medium text-white flex items-center gap-2">
                     <Calendar className="w-5 h-5" />
                     Descargar / Limpiar por Fechas
                 </h4>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
                     <div>
                         <label className="text-sm text-gray-400 block mb-1">Desde</label>
                         <input
@@ -206,7 +206,7 @@ export function LogsManager() {
                     </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                     <button
                         onClick={downloadLogs}
                         className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition font-medium"

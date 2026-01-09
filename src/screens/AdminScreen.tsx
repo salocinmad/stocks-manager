@@ -614,20 +614,20 @@ export const AdminScreen: React.FC = () => {
         <main className="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-y-auto">
 
 
-            <div className="max-w-[1400px] mx-auto w-full px-6 py-8">
-                {/* Tabs */}
-                <div className="flex gap-2 mb-8 bg-surface-light dark:bg-surface-dark rounded-2xl p-2 flex-wrap">
+            <div className="max-w-[1400px] mx-auto w-full px-3 md:px-6 py-4 md:py-8">
+                {/* Tabs - Scroll horizontal en móvil, solo iconos en pantallas pequeñas */}
+                <div className="flex gap-1 md:gap-2 mb-6 md:mb-8 bg-surface-light dark:bg-surface-dark rounded-xl md:rounded-2xl p-1.5 md:p-2 overflow-x-auto scrollbar-hide">
                     {tabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all whitespace-nowrap ${activeTab === tab.id
+                            className={`flex items-center gap-1 md:gap-2 px-3 md:px-6 py-2.5 md:py-3 rounded-lg md:rounded-xl font-semibold transition-all whitespace-nowrap min-w-fit ${activeTab === tab.id
                                 ? 'bg-primary text-black shadow-lg shadow-primary/20 scale-[1.02]'
                                 : 'text-text-secondary-light hover:bg-background-light dark:hover:bg-surface-dark-elevated'
                                 }`}
                         >
-                            <span className="material-symbols-outlined text-xl">{tab.icon}</span>
-                            {tab.label}
+                            <span className="material-symbols-outlined text-lg md:text-xl">{tab.icon}</span>
+                            <span className="hidden sm:inline text-sm md:text-base">{tab.label}</span>
                         </button>
                     ))}
                 </div>
@@ -641,10 +641,10 @@ export const AdminScreen: React.FC = () => {
                         {/* Tab: General */}
                         {activeTab === 'general' && (
                             <div className="animate-fade-in w-full max-w-2xl">
-                                <div className="flex gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-1">
+                                <div className="flex gap-1 md:gap-2 mb-4 md:mb-6 border-b border-border-light dark:border-border-dark pb-1 overflow-x-auto scrollbar-hide">
                                     <button
                                         onClick={() => setGeneralSubTab('config')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${generalSubTab === 'config'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${generalSubTab === 'config'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -653,16 +653,16 @@ export const AdminScreen: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={() => setGeneralSubTab('smtp')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${generalSubTab === 'smtp'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${generalSubTab === 'smtp'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
                                     >
-                                        SMTP (Correo)
+                                        SMTP
                                     </button>
                                     <button
                                         onClick={() => setGeneralSubTab('alerts')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${generalSubTab === 'alerts'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${generalSubTab === 'alerts'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -671,7 +671,7 @@ export const AdminScreen: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={() => setGeneralSubTab('logs')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${generalSubTab === 'logs'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${generalSubTab === 'logs'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -780,10 +780,10 @@ export const AdminScreen: React.FC = () => {
                         {activeTab === 'market' && (
                             <div className="animate-fade-in w-full">
                                 {/* Subtabs Navigation */}
-                                <div className="flex gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-1">
+                                <div className="flex gap-1 md:gap-2 mb-4 md:mb-6 border-b border-border-light dark:border-border-dark pb-1 overflow-x-auto scrollbar-hide">
                                     <button
                                         onClick={() => setMarketSubTab('sync')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'sync'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${marketSubTab === 'sync'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -792,7 +792,7 @@ export const AdminScreen: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={() => setMarketSubTab('indices')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'indices'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${marketSubTab === 'indices'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -801,7 +801,7 @@ export const AdminScreen: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={() => setMarketSubTab('catalog')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'catalog'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${marketSubTab === 'catalog'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -810,7 +810,7 @@ export const AdminScreen: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={() => setMarketSubTab('discovery')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'discovery'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${marketSubTab === 'discovery'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -821,7 +821,7 @@ export const AdminScreen: React.FC = () => {
 
                                 {/* Subtab: Sincronización */}
                                 {marketSubTab === 'sync' && (
-                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 w-full animate-fade-in">
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 w-full animate-fade-in">
                                         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                                             <span className="material-symbols-outlined">cloud_sync</span>
                                             Sincronización de Mercado
@@ -831,7 +831,7 @@ export const AdminScreen: React.FC = () => {
                                             Gestión centralizada de datos de mercado, sincronización histórica y herramientas de limpieza.
                                         </p>
 
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
                                             {/* COLUMN 1: SYNC & PNL */}
                                             <div className="space-y-8">
                                                 {/* SYNC SECTION */}
@@ -1214,13 +1214,115 @@ export const AdminScreen: React.FC = () => {
 
                         {/* Tab: Usuarios */}
                         {activeTab === 'users' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 animate-fade-in">
+                                <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 flex items-center gap-2">
                                     <span className="material-symbols-outlined">group</span>
-                                    Gestión de Usuarios ({users.length})
+                                    Usuarios ({users.length})
                                 </h2>
 
-                                <div className="overflow-x-auto">
+                                {/* ===== VISTA MÓVIL: Cards ===== */}
+                                <div className="md:hidden flex flex-col gap-3">
+                                    {users.map(u => (
+                                        <div
+                                            key={u.id}
+                                            className="bg-background-light/50 dark:bg-surface-dark-elevated/40 rounded-xl border border-border-light dark:border-border-dark p-4"
+                                        >
+                                            {/* Header: Usuario + Badges */}
+                                            <div className="flex items-start justify-between mb-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-sm truncate">{u.name || 'Sin nombre'}</p>
+                                                    <p className="text-xs text-text-secondary-light truncate">{u.email}</p>
+                                                </div>
+                                                <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.role === 'admin'
+                                                        ? 'bg-primary/20 text-primary'
+                                                        : 'bg-blue-500/20 text-blue-500'
+                                                        }`}>
+                                                        {u.role === 'admin' ? 'Admin' : 'User'}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.isBlocked
+                                                        ? 'bg-red-500/20 text-red-500'
+                                                        : 'bg-green-500/20 text-green-500'
+                                                        }`}>
+                                                        {u.isBlocked ? 'Bloq' : 'OK'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Info: 2FA + Fecha */}
+                                            <div className="flex items-center justify-between text-xs text-text-secondary-light mb-3 pb-3 border-b border-border-light/50 dark:border-border-dark/50">
+                                                <div className="flex items-center gap-2">
+                                                    {u.twoFactorEnabled ? (
+                                                        <span className="text-green-500 flex items-center gap-1">
+                                                            <span className="material-symbols-outlined text-sm">verified_user</span>
+                                                            2FA {u.securityMode === 'enhanced' && <span className="text-purple-400 text-[9px]">+</span>}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-text-secondary-light/50">Sin 2FA</span>
+                                                    )}
+                                                </div>
+                                                <span>{new Date(u.createdAt).toLocaleDateString('es-ES')}</span>
+                                            </div>
+
+                                            {/* Acciones */}
+                                            <div className="flex items-center justify-end gap-1 flex-wrap">
+                                                {u.id !== currentUser?.id && (
+                                                    <button
+                                                        onClick={() => changeRole(u.id, u.role === 'admin' ? 'user' : 'admin')}
+                                                        className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all"
+                                                        title={u.role === 'admin' ? 'Quitar admin' : 'Hacer admin'}
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">
+                                                            {u.role === 'admin' ? 'person_remove' : 'admin_panel_settings'}
+                                                        </span>
+                                                    </button>
+                                                )}
+                                                {u.id !== currentUser?.id && (
+                                                    <button
+                                                        onClick={() => toggleBlock(u.id, !u.isBlocked)}
+                                                        className={`p-2 rounded-lg transition-all ${u.isBlocked
+                                                            ? 'hover:bg-green-500/20 text-text-secondary-light hover:text-green-500'
+                                                            : 'hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500'
+                                                            }`}
+                                                        title={u.isBlocked ? 'Desbloquear' : 'Bloquear'}
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">
+                                                            {u.isBlocked ? 'lock_open' : 'block'}
+                                                        </span>
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => setPasswordModal(u)}
+                                                    className="p-2 rounded-lg hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all"
+                                                    title="Cambiar contraseña"
+                                                >
+                                                    <span className="material-symbols-outlined text-lg">password</span>
+                                                </button>
+                                                {u.id !== currentUser?.id && (
+                                                    <button
+                                                        onClick={() => deleteUser(u.id, u.email)}
+                                                        className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all"
+                                                        title="Eliminar usuario"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">delete</span>
+                                                    </button>
+                                                )}
+                                                {u.twoFactorEnabled && u.id !== currentUser?.id && (
+                                                    <button
+                                                        onClick={() => reset2FA(u.id, u.email)}
+                                                        className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-500 transition-all"
+                                                        title="Desactivar 2FA"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">key_off</span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* ===== VISTA DESKTOP: Tabla ===== */}
+                                <div className="hidden md:block overflow-x-auto">
                                     <table className="w-full">
                                         <thead>
                                             <tr className="text-xs font-bold uppercase text-text-secondary-light border-b border-border-light dark:border-border-dark">
@@ -1276,7 +1378,6 @@ export const AdminScreen: React.FC = () => {
                                                     </td>
                                                     <td className="px-4 py-4">
                                                         <div className="flex items-center justify-center gap-1">
-                                                            {/* Cambiar rol */}
                                                             {u.id !== currentUser?.id && (
                                                                 <button
                                                                     onClick={() => changeRole(u.id, u.role === 'admin' ? 'user' : 'admin')}
@@ -1288,8 +1389,6 @@ export const AdminScreen: React.FC = () => {
                                                                     </span>
                                                                 </button>
                                                             )}
-
-                                                            {/* Bloquear/Desbloquear */}
                                                             {u.id !== currentUser?.id && (
                                                                 <button
                                                                     onClick={() => toggleBlock(u.id, !u.isBlocked)}
@@ -1304,8 +1403,6 @@ export const AdminScreen: React.FC = () => {
                                                                     </span>
                                                                 </button>
                                                             )}
-
-                                                            {/* Cambiar contraseña */}
                                                             <button
                                                                 onClick={() => setPasswordModal(u)}
                                                                 className="p-2 rounded-lg hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all"
@@ -1313,8 +1410,6 @@ export const AdminScreen: React.FC = () => {
                                                             >
                                                                 <span className="material-symbols-outlined text-lg">password</span>
                                                             </button>
-
-                                                            {/* Eliminar */}
                                                             {u.id !== currentUser?.id && (
                                                                 <button
                                                                     onClick={() => deleteUser(u.id, u.email)}
@@ -1324,8 +1419,6 @@ export const AdminScreen: React.FC = () => {
                                                                     <span className="material-symbols-outlined text-lg">delete</span>
                                                                 </button>
                                                             )}
-
-                                                            {/* Reset 2FA */}
                                                             {u.twoFactorEnabled && u.id !== currentUser?.id && (
                                                                 <button
                                                                     onClick={() => reset2FA(u.id, u.email)}
@@ -1335,8 +1428,6 @@ export const AdminScreen: React.FC = () => {
                                                                     <span className="material-symbols-outlined text-lg">key_off</span>
                                                                 </button>
                                                             )}
-
-                                                            {/* Reset Security Mode */}
                                                             {u.securityMode === 'enhanced' && u.id !== currentUser?.id && (
                                                                 <button
                                                                     onClick={() => resetSecurityMode(u.id, u.email)}
@@ -1359,16 +1450,16 @@ export const AdminScreen: React.FC = () => {
 
                         {/* Tab: AI Settings */}
                         {activeTab === 'ai' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-4xl animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 max-w-4xl animate-fade-in">
+                                <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 flex items-center gap-2">
                                     <span className="material-symbols-outlined">psychology</span>
                                     Configuración de IA
                                 </h2>
 
-                                <div className="flex gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-1">
+                                <div className="flex gap-1 md:gap-2 mb-4 md:mb-6 border-b border-border-light dark:border-border-dark pb-1 overflow-x-auto scrollbar-hide">
                                     <button
                                         onClick={() => setAiSubTab('general')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${aiSubTab === 'general'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${aiSubTab === 'general'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -1377,7 +1468,7 @@ export const AdminScreen: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={() => setAiSubTab('providers')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${aiSubTab === 'providers'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${aiSubTab === 'providers'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -1393,8 +1484,8 @@ export const AdminScreen: React.FC = () => {
 
                         {/* Tab: API Keys (Reducido) */}
                         {activeTab === 'api' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-2xl animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 max-w-2xl animate-fade-in">
+                                <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 flex items-center gap-2">
                                     <span className="material-symbols-outlined">key</span>
                                     Configuración de APIs
                                 </h2>
@@ -1494,29 +1585,29 @@ export const AdminScreen: React.FC = () => {
 
                         {/* Tab: Backup */}
                         {activeTab === 'backup' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 animate-fade-in">
+                                <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 flex items-center gap-2">
                                     <span className="material-symbols-outlined">backup</span>
                                     Backup y Restauración
                                 </h2>
 
                                 {/* Sub-tabs Navigation */}
-                                <div className="flex gap-4 mb-6 border-b border-border-light dark:border-border-dark pb-2">
+                                <div className="flex gap-2 md:gap-4 mb-4 md:mb-6 border-b border-border-light dark:border-border-dark pb-2 overflow-x-auto scrollbar-hide">
                                     <button
                                         onClick={() => setBackupSubTab('manual')}
-                                        className={`pb-2 px-2 text-sm font-semibold transition-colors ${backupSubTab === 'manual' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
+                                        className={`pb-2 px-2 text-xs md:text-sm font-semibold transition-colors whitespace-nowrap ${backupSubTab === 'manual' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
                                     >
                                         Manual
                                     </button>
                                     <button
                                         onClick={() => setBackupSubTab('scheduler')}
-                                        className={`pb-2 px-2 text-sm font-semibold transition-colors ${backupSubTab === 'scheduler' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
+                                        className={`pb-2 px-2 text-xs md:text-sm font-semibold transition-colors whitespace-nowrap ${backupSubTab === 'scheduler' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
                                     >
                                         Programación
                                     </button>
                                     <button
                                         onClick={() => setBackupSubTab('tables')}
-                                        className={`pb-2 px-2 text-sm font-semibold transition-colors ${backupSubTab === 'tables' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
+                                        className={`pb-2 px-2 text-xs md:text-sm font-semibold transition-colors whitespace-nowrap ${backupSubTab === 'tables' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
                                     >
                                         Tablas Detectadas
                                     </button>
@@ -1824,59 +1915,59 @@ export const AdminScreen: React.FC = () => {
                                             />
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-                                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                                                        <span className="material-symbols-outlined text-blue-500 text-2xl">group</span>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-6">
+                                            <div className="bg-surface-light dark:bg-surface-dark rounded-xl md:rounded-3xl p-3 md:p-6">
+                                                <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
+                                                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-blue-500 text-base md:text-2xl">group</span>
                                                     </div>
-                                                    <span className="text-sm font-semibold text-text-secondary-light">Usuarios</span>
+                                                    <span className="text-xs md:text-sm font-semibold text-text-secondary-light">Usuarios</span>
                                                 </div>
-                                                <p className="text-3xl font-black">{stats.users.total}</p>
-                                                <p className="text-sm text-text-secondary-light">{stats.users.blocked} bloqueados</p>
+                                                <p className="text-xl md:text-3xl font-black">{stats.users.total}</p>
+                                                <p className="text-xs md:text-sm text-text-secondary-light">{stats.users.blocked} bloqueados</p>
                                             </div>
 
-                                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                                                        <span className="material-symbols-outlined text-green-500 text-2xl">account_balance_wallet</span>
+                                            <div className="bg-surface-light dark:bg-surface-dark rounded-xl md:rounded-3xl p-3 md:p-6">
+                                                <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
+                                                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-green-500/20 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-green-500 text-base md:text-2xl">account_balance_wallet</span>
                                                     </div>
-                                                    <span className="text-sm font-semibold text-text-secondary-light">Carteras</span>
+                                                    <span className="text-xs md:text-sm font-semibold text-text-secondary-light">Carteras</span>
                                                 </div>
-                                                <p className="text-3xl font-black">{stats.portfolios}</p>
+                                                <p className="text-xl md:text-3xl font-black">{stats.portfolios}</p>
                                             </div>
 
-                                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                                                        <span className="material-symbols-outlined text-purple-500 text-2xl">trending_up</span>
+                                            <div className="bg-surface-light dark:bg-surface-dark rounded-xl md:rounded-3xl p-3 md:p-6">
+                                                <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
+                                                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-purple-500/20 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-purple-500 text-base md:text-2xl">trending_up</span>
                                                     </div>
-                                                    <span className="text-sm font-semibold text-text-secondary-light">Posiciones</span>
+                                                    <span className="text-xs md:text-sm font-semibold text-text-secondary-light">Posiciones</span>
                                                 </div>
-                                                <p className="text-3xl font-black">{stats.positions}</p>
+                                                <p className="text-xl md:text-3xl font-black">{stats.positions}</p>
                                             </div>
 
-                                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6">
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
-                                                        <span className="material-symbols-outlined text-orange-500 text-2xl">receipt_long</span>
+                                            <div className="bg-surface-light dark:bg-surface-dark rounded-xl md:rounded-3xl p-3 md:p-6">
+                                                <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
+                                                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-orange-500/20 flex items-center justify-center">
+                                                        <span className="material-symbols-outlined text-orange-500 text-base md:text-2xl">receipt_long</span>
                                                     </div>
-                                                    <span className="text-sm font-semibold text-text-secondary-light">Transacciones</span>
+                                                    <span className="text-xs md:text-sm font-semibold text-text-secondary-light">Transacc.</span>
                                                 </div>
-                                                <p className="text-3xl font-black">{stats.transactions}</p>
+                                                <p className="text-xl md:text-3xl font-black">{stats.transactions}</p>
                                             </div>
 
                                             <div
                                                 onClick={() => setExplorerInStats({ source: 'catalog' })}
-                                                className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 cursor-pointer hover:bg-primary/5 transition-all group border border-transparent hover:border-primary/20"
+                                                className="bg-surface-light dark:bg-surface-dark rounded-xl md:rounded-3xl p-3 md:p-6 cursor-pointer hover:bg-primary/5 transition-all group border border-transparent hover:border-primary/20"
                                             >
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-purple-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                                        <span className="material-symbols-outlined text-purple-600 text-2xl">public</span>
+                                                <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
+                                                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-purple-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                        <span className="material-symbols-outlined text-purple-600 text-base md:text-2xl">public</span>
                                                     </div>
-                                                    <span className="text-sm font-semibold text-text-secondary-light text-purple-600">Catálogo Maestro</span>
+                                                    <span className="text-xs md:text-sm font-semibold text-purple-600">Catálogo Maestro</span>
                                                 </div>
-                                                <p className="text-3xl font-black">{stats.globalTickers || 0}</p>
+                                                <p className="text-xl md:text-3xl font-black">{stats.globalTickers || 0}</p>
                                                 <div className="flex justify-between items-center mt-1">
                                                     <p className="text-sm text-text-secondary-light">Tickers (Infraestructura)</p>
                                                     <span className="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
@@ -1885,15 +1976,15 @@ export const AdminScreen: React.FC = () => {
 
                                             <div
                                                 onClick={() => setExplorerInStats({ source: 'discovery' })}
-                                                className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 cursor-pointer hover:bg-cyan-500/5 transition-all group border border-transparent hover:border-cyan-500/20"
+                                                className="bg-surface-light dark:bg-surface-dark rounded-xl md:rounded-3xl p-3 md:p-6 cursor-pointer hover:bg-cyan-500/5 transition-all group border border-transparent hover:border-cyan-500/20"
                                             >
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                                        <span className="material-symbols-outlined text-cyan-500 text-2xl">rocket_launch</span>
+                                                <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
+                                                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                        <span className="material-symbols-outlined text-cyan-500 text-base md:text-2xl">rocket_launch</span>
                                                     </div>
-                                                    <span className="text-sm font-semibold text-text-secondary-light">Discovery Engine</span>
+                                                    <span className="text-xs md:text-sm font-semibold text-text-secondary-light">Discovery Engine</span>
                                                 </div>
-                                                <p className="text-3xl font-black">{stats.discovery?.companies || 0}</p>
+                                                <p className="text-xl md:text-3xl font-black">{stats.discovery?.companies || 0}</p>
                                                 <div className="flex justify-between items-center mt-1">
                                                     <p className="text-sm text-text-secondary-light">
                                                         Empresas en {stats.discovery?.sectors || 0} sectores

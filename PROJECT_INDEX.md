@@ -1,194 +1,178 @@
-# 🗂️ Stocks Manager - Project Index
-> **Versión**: v2.1.0
-> **Fecha de Actualización**: 8 Enero 2026
+# 📋 PROJECT_INDEX.md - Stocks Manager
 
-Este archivo actúa como índice maestro de la estructura del proyecto y su funcionalidad.
-
-## 1. Estructura de Directorios
-
-### `/server` (Backend - Bun/Elysia)
-
-#### Core
-| Archivo | Descripción |
-|---------|-------------|
-| `index.ts` | Punto de entrada, configuración Elysia, CronJobs |
-| `db.ts` | Conexión PostgreSQL (postgres.js) |
-
-#### Routes (`/routes`)
-| Archivo | Descripción |
-|---------|-------------|
-| `auth.ts` | Login, Registro, 2FA, Reset Password |
-| `portfolios.ts` | CRUD Portafolios, Posiciones, Transacciones, Historial, Simulación FIFO |
-| `market.ts` | Proxy a Yahoo Finance, EODHD, Búsquedas |
-| `ai.ts` | ChatBot y Análisis de posición |
-| `alerts.ts` | Alertas de precio, técnicas y globales |
-| `admin.ts` | Backups, Configuración, Logs, Catálogo Maestro |
-| `news.ts` | RSS Feeds y noticias |
-| `settings.ts` | Configuración de usuario |
-
-#### Services (`/services`)
-| Archivo | Descripción |
-|---------|-------------|
-| `portfolioService.ts` | Lógica transaccional (PnL, FIFO) |
-| `marketData.ts` | Cliente Yahoo Finance / Finnhub |
-| `eodhdService.ts` | Cliente EODHD (Catálogo Maestro) |
-| `discoveryService.ts` | Lógica del Crawler y Screener |
-| `aiService.ts` | Orquestador de LLMs (multi-provider) |
-| `backupService.ts` | Generación de ZIPs y restauración |
-| `alertService.ts` | Motor de alertas |
-| `portfolioAlertService.ts` | Alertas globales de portafolio |
-| `positionAnalysisService.ts` | Análisis técnico/fundamental |
-| `settingsService.ts` | Configuración del sistema |
-
-#### Jobs (`/jobs`)
-| Archivo | Descripción |
-|---------|-------------|
-| `pnlJob.ts` | Cálculo diario de historial PnL |
-| `discoveryJob.ts` | Crawler Split-World (USA/Global) |
-| `catalogEnrichmentJob.ts` | Enriquecimiento de global_tickers |
-| `backupJob.ts` | Programador de backups |
-| `positionAnalysisJob.ts` | Análisis técnico en lote |
-
-#### Utils (`/utils`)
-| Archivo | Descripción |
-|---------|-------------|
-| `exchangeMapping.ts` | Mapeo EODHD Code → Yahoo Suffix |
-| `logger.ts` | Sistema de logging centralizado (niveles, rotación) |
+> **Versión: 2.1.1** | Índice técnico del proyecto
 
 ---
 
-### `/src` (Frontend - React/Vite)
+## 📂 Estructura de Directorios
 
-#### Screens (`/screens`)
-| Archivo | Descripción |
-|---------|-------------|
-| `Dashboard.tsx` | Vista principal (2 columnas) |
-| `PortfolioScreen.tsx` | Tabla de posiciones, gráficos |
-| `MarketAnalysis.tsx` | Noticias, Calendario, Discovery |
-| `AlertsScreen.tsx` | Gestión de alertas |
-| `AdminScreen.tsx` | Panel de control |
-| `LoginScreen.tsx` | Autenticación |
-| `ProfileScreen.tsx` | Perfil de usuario |
-
-#### Components (`/components`)
-| Archivo | Descripción |
-|---------|-------------|
-| `Sidebar.tsx` | Navegación principal |
-| `Header.tsx` | Cabecera con índices |
-| `ChatBot.tsx` | Asistente IA flotante |
-| `BuyAssetModal.tsx` | Modal de compra/venta |
-| `PositionAnalysisModal.tsx` | Análisis de posición (6 tabs) |
-| `GlobalSearchModal.tsx` | Búsqueda global (Ctrl+K) |
-| `TransactionHistoryModal.tsx` | Editor cronológico de transacciones |
-
-#### Admin Components (`/components/admin`)
-| Archivo | Descripción |
-|---------|-------------|
-| `MasterCatalogConfig.tsx` | Configuración bolsas mundiales |
-| `DataExplorerTable.tsx` | Explorador de datos |
-| `AIGeneral.tsx` | Configuración IA |
-| `AIProviders.tsx` | Gestión providers IA |
-| `AdminSMTP.tsx` | Configuración SMTP |
-| `LogsManager.tsx` | Gestión de logs del sistema (descarga/limpieza) |
-
-#### Context (`/context`)
-| Archivo | Descripción |
-|---------|-------------|
-| `AuthContext.tsx` | Autenticación y API client |
-| `ToastContext.tsx` | Notificaciones toast |
-
----
-
-## 2. Documentación Clave
-
-| Archivo | Descripción |
-|---------|-------------|
-| `memoria.md` | Visión global, arquitectura y estado del proyecto |
-| `PROJECT_INDEX.md` | Este archivo - índice maestro |
-| `RELEASE_NOTES.md` | Historial de versiones (Changelog) |
-| `GUIA_ADMINISTRADOR.md` | Manual de operaciones |
-| `MANUAL_USUARIO.md` | Guía de uso de la aplicación |
-| `init.sql` | Definición del esquema de Base de Datos |
-| `README.md` | Introducción y quick start |
-
----
-
-## 3. Base de Datos
-
-### Schema (`init.sql`)
-22 tablas principales:
-- `users`, `portfolios`, `positions`, `transactions`
-- `alerts`, `portfolio_alerts`
-- `global_tickers` (catálogo maestro)
-- `market_cache`, `market_discovery_cache`, `ticker_details_cache`
-- `financial_events` (calendario con `updated_at`, `eps`)
-- `position_analysis_cache`, `pnl_history_cache`
-- `system_settings`, `ai_providers`, `ai_prompts`
-- `chat_conversations`, `chat_messages`
-
-### Gestión de Versión
-La versión de la aplicación se almacena en `system_settings`:
-```sql
-SELECT value FROM system_settings WHERE key = 'APP_VERSION';
--- Resultado: 'V2.1.0'
+```
+stocks-manager/
+├── server/                    # Backend (Bun + ElysiaJS)
+├── src/                       # Frontend (React 19)
+├── public/                    # Assets estáticos + PWA
+├── dist/                      # Build producción (generado)
+├── uploads/                   # Avatares y adjuntos
+└── *.md                       # Documentación
 ```
 
 ---
 
-## 4. Comandos de Operación
+## 🗃️ Backend (`server/`)
 
-### Desarrollo
-```bash
-bun run dev          # Inicia servidor desarrollo
-bun run build:frontend  # Build React
-```
+### Routes (`server/routes/`)
+| Archivo | Endpoints |
+|---------|-----------|
+| `auth.ts` | Login, register, 2FA, reset-password |
+| `portfolios.ts` | CRUD portfolios, positions, transactions |
+| `market.ts` | Quotes, history, search |
+| `alerts.ts` | CRUD alertas individuales |
+| `admin.ts` | Usuarios, settings, backup, logs |
+| `ai.ts` | Análisis IA de portafolio |
+| `chat.ts` | ChatBot conversations/messages |
+| `analysis.ts` | Position Analysis (6 tabs) |
+| `calendar.ts` | Financial events |
+| `notifications.ts` | Notification channels |
+| `reports.ts` | Tax reports, exports |
+| `importers.ts` | CSV/broker imports |
+| `watchlist.ts` | Watchlists |
+| `notes.ts` | Notes con Markdown |
+| `settings.ts` | User settings |
+| `user.ts` | Profile, avatar |
+| `public.ts` | Health check, version |
 
-### Build & Deploy
+### Services (`server/services/`)
+| Archivo | Función |
+|---------|---------|
+| `portfolioService.ts` | FIFO, PnL, recalculations |
+| `marketData.ts` | Yahoo V8/V10, caching |
+| `aiFactory.ts` | Multi-provider AI factory |
+| `positionAnalysisService.ts` | 6-tab analysis |
+| `alertService.ts` | Alert checking |
+| `portfolioAlertService.ts` | Global portfolio alerts |
+| `discoveryService.ts` | Discovery Engine logic |
+| `eodhdService.ts` | EODHD API client |
+| `settingsService.ts` | System settings |
+| `backupService.ts` | Backup/restore con cifrado |
+
+### Jobs (`server/jobs/`)
+| Archivo | Frecuencia |
+|---------|------------|
+| `discoveryJob.ts` | Cada 3 min |
+| `catalogEnrichmentJob.ts` | Cada 3 min |
+| `globalTickerJob.ts` | Configurable |
+| `calendarJob.ts` | Cada 6h |
+| `pnlJob.ts` | 4:00 AM diario |
+| `positionAnalysisJob.ts` | 00/06/12/18h |
+| `marketEventsSyncJob.ts` | 2 tickers/5min |
+| `backupJob.ts` | Cada minuto (check) |
+
+### Utils (`server/utils/`)
+| Archivo | Función |
+|---------|---------|
+| `logger.ts` | Logging con niveles |
+| `exchangeMapping.ts` | EODHD → Yahoo mapping |
+
+---
+
+## 🎨 Frontend (`src/`)
+
+### Screens (`src/screens/`)
+| Archivo | Vista |
+|---------|-------|
+| `DashboardScreen.tsx` | Dashboard 2 columnas |
+| `PortfolioScreen.tsx` | Detalle cartera |
+| `DataExplorerScreen.tsx` | Discovery Engine |
+| `AlertsScreen.tsx` | Gestión alertas |
+| `CalendarScreen.tsx` | Calendario financiero |
+| `ReportsScreen.tsx` | Informes fiscales |
+| `AdminScreen.tsx` | Panel admin (tabs) |
+| `SettingsScreen.tsx` | Configuración usuario |
+| `ProfileScreen.tsx` | Perfil + avatar |
+| `NotesScreen.tsx` | Notas Markdown |
+| `LoginScreen.tsx` | Login + 2FA |
+
+### Components Clave (`src/components/`)
+| Archivo | Función |
+|---------|---------|
+| `ChatBot.tsx` | ChatBot flotante/fullscreen |
+| `Sidebar.tsx` | Navegación desktop |
+| `MobileNavigation.tsx` | Bottom nav + drawer móvil |
+| `PositionAnalysisModal.tsx` | Modal 6 tabs |
+| `DiscoveryAnalysisModal.tsx` | Análisis discovery |
+| `TransactionHistoryModal.tsx` | Editor transacciones |
+| `GlobalSearchModal.tsx` | Búsqueda global (Cmd+K) |
+| `KeyboardShortcutsProvider.tsx` | Atajos de teclado |
+
+### Context (`src/context/`)
+| Archivo | Estado Global |
+|---------|---------------|
+| `AuthContext.tsx` | user, token, api, appVersion |
+
+---
+
+## 🗄️ Base de Datos
+
+### Migración Automática
+- Ubicación: `server/init_db.ts`
+- Se ejecuta al iniciar la aplicación
+- Usa `IF NOT EXISTS` y `ON CONFLICT DO NOTHING`
+
+### Tablas Principales
+Ver `memoria.md` para lista completa (22 tablas).
+
+---
+
+## 📱 PWA (`public/`)
+
+| Archivo | Descripción |
+|---------|-------------|
+| `manifest.json` | Config PWA: nombre, colores, iconos |
+| `sw.js` | Service Worker: cache de assets |
+| `pwa-192x192.png` | Icono Android |
+| `pwa-512x512.png` | Splash screen |
+| `favicon.png` | Favicon navegador |
+
+---
+
+## 🐳 Docker
+
+| Archivo | Uso |
+|---------|-----|
+| `Dockerfile` | Multi-stage build |
+| `docker-compose.yml` | Desarrollo (build local) |
+| `docker-compose.prod.yml` | Producción (imagen GHCR) |
+| `.env.example` | Template de variables |
+
+---
+
+## 📚 Documentación
+
+| Archivo | Contenido |
+|---------|-----------|
+| `memoria.md` | Visión global para IA |
+| `PROJECT_INDEX.md` | Este índice técnico |
+| `RELEASE_NOTES.md` | Historial de versiones |
+| `README.md` | Instalación y features |
+| `GUIA_ADMINISTRADOR.md` | Manual de admin |
+| `MANUAL_USUARIO.md` | Manual de usuario |
+| `CREDITOS.md` | Librerías y créditos |
+
+---
+
+## 🔧 Scripts
+
 ```bash
-git pull
+# Desarrollo
 docker compose up -d --build
-```
 
-### Verificación Post-Deploy
-```bash
-# Verificar versión
-docker exec stocks_app grep '"version":' package.json
+# Tests
+bun run server/scripts/test_runner.ts
 
-# Limpiar caché Nginx
-rm -rf /var/cache/nginx/*
-```
-
-### Tests
-```bash
-bun run test
+# Limpiar usuarios de test
+bun run server/scripts/cleanup_test_users.ts
 ```
 
 ---
 
-## 5. Bolsas Soportadas (Catálogo Maestro)
-
-### USA
-- `NYSE` - New York Stock Exchange
-- `NASDAQ` - NASDAQ Stock Exchange
-- `AMEX` - NYSE American
-
-### Europa
-- `LSE` - London Stock Exchange
-- `XETRA` - Frankfurt Xetra
-- `PA` - Euronext Paris
-- `MC` - Madrid Exchange
-- `MI` - Borsa Italiana
-- `AS` - Euronext Amsterdam
-- `SW` - SIX Swiss Exchange
-- `ST` - Stockholm Exchange
-
-### Asia/Pacífico
-- `HK` - Hong Kong
-- `TSE` - Tokyo Stock Exchange
-- `AU` - Australian Securities Exchange
-- `NSE` - India NSE
-- `SG` - Singapore
-
-### Américas
-- `TO` - Toronto Stock Exchange
-- `SA` - B3 Brasil
+**Última actualización**: 9 Enero 2026 | v2.1.1 (Full Responsive Update)

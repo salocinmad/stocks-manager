@@ -12,6 +12,7 @@ import { PrivateRoute } from './components/PrivateRoute';
 import { InactivityMonitor } from './components/InactivityMonitor';
 import { KeyboardShortcutsProvider } from './components/KeyboardShortcutsProvider';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
+import { MobileNavigation } from './components/MobileNavigation';
 
 // Lazy Load Screens (Code Splitting)
 const Dashboard = React.lazy(() => import('./screens/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -55,8 +56,8 @@ const MainLayout: React.FC = () => {
           {/* Unified Header (Sticky) */}
           <Header />
 
-          {/* Scrollable Content */}
-          <main className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth p-0 relative">
+          {/* Scrollable Content - Extra padding bottom para mobile nav */}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth p-0 pb-20 md:pb-0 relative">
             <Suspense fallback={<PageLoading />}>
               <Routes>
                 <Route path="/" element={<Dashboard />} />
@@ -80,12 +81,16 @@ const MainLayout: React.FC = () => {
           <ChatBot />
         </div>
 
+        {/* Mobile Navigation - Solo visible en móvil */}
+        <MobileNavigation />
+
         <InactivityMonitor timeoutMinutes={30} warningMinutes={2} />
         <GlobalSearchModal />
       </div>
     </KeyboardShortcutsProvider>
   );
 };
+
 
 const App: React.FC = () => {
   return (

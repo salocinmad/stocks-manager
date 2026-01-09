@@ -89,15 +89,15 @@ export const MarketIndicesSelector: React.FC = () => {
     if (loading) return <div className="p-8 text-center text-gray-400">Cargando configuración...</div>;
 
     return (
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-xl border border-border-light dark:border-border-dark">
-            <h3 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark mb-4">
+        <div className="bg-surface-light dark:bg-surface-dark p-4 md:p-6 rounded-lg md:rounded-xl border border-border-light dark:border-border-dark">
+            <h3 className="text-base md:text-lg font-bold text-text-primary-light dark:text-text-primary-dark mb-3 md:mb-4">
                 Índices de Cabecera
             </h3>
-            <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-6">
+            <p className="text-xs md:text-sm text-text-secondary-light dark:text-text-secondary-dark mb-4 md:mb-6">
                 Selecciona los índices bursátiles que deseas visualizar en la barra superior. Se recomienda un máximo de 6-8 para evitar saturación.
             </p>
 
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
                 {Object.entries(groupedIndices).map(([region, indices]) => (
                     <div key={region}>
                         <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">{region}</h4>
@@ -132,11 +132,11 @@ export const MarketIndicesSelector: React.FC = () => {
                 ))}
             </div>
 
-            <div className="mt-8 flex justify-end">
+            <div className="mt-6 md:mt-8 flex justify-end">
                 <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center gap-2 px-6 py-2 bg-primary text-black font-bold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 md:px-6 py-2 bg-primary text-black font-bold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 text-sm md:text-base"
                 >
                     {saving ? <span className="animate-spin material-symbols-outlined">sync</span> : <span className="material-symbols-outlined">save</span>}
                     Guardar Cambios

@@ -134,7 +134,7 @@ export const DataExplorerTable: React.FC<DataExplorerTableProps> = ({ initialSou
     return (
         <div className="flex flex-col gap-6 animate-fade-in">
             {/* Controls Header */}
-            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 shadow-sm border border-border-light dark:border-border-dark">
+            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-sm border border-border-light dark:border-border-dark">
                 <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center">
 
                     {/* Source Selector */}
@@ -142,21 +142,23 @@ export const DataExplorerTable: React.FC<DataExplorerTableProps> = ({ initialSou
                         <div className="flex bg-background-light dark:bg-surface-dark-elevated p-1.5 rounded-2xl border border-border-light dark:border-border-dark">
                             <button
                                 onClick={() => handleSourceChange('catalog')}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${source === 'catalog'
+                                className={`flex items-center gap-1 md:gap-2 px-3 md:px-4 py-2 rounded-lg md:rounded-xl text-xs md:text-sm font-bold transition-all ${source === 'catalog'
                                     ? 'bg-primary text-black shadow-md'
                                     : 'text-text-secondary-light hover:text-text-primary'}`}
                             >
-                                <Layers className="w-4 h-4" />
-                                Catálogo Maestro
+                                <Layers className="w-3 h-3 md:w-4 md:h-4" />
+                                <span className="hidden sm:inline">Catálogo Maestro</span>
+                                <span className="sm:hidden">Catálogo</span>
                             </button>
                             <button
                                 onClick={() => handleSourceChange('discovery')}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${source === 'discovery'
+                                className={`flex items-center gap-1 md:gap-2 px-3 md:px-4 py-2 rounded-lg md:rounded-xl text-xs md:text-sm font-bold transition-all ${source === 'discovery'
                                     ? 'bg-cyan-500 text-black shadow-md'
                                     : 'text-text-secondary-light hover:text-text-primary'}`}
                             >
-                                <Database className="w-4 h-4" />
-                                Discovery Engine
+                                <Database className="w-3 h-3 md:w-4 md:h-4" />
+                                <span className="hidden sm:inline">Discovery Engine</span>
+                                <span className="sm:hidden">Discovery</span>
                             </button>
                         </div>
 
@@ -251,7 +253,7 @@ export const DataExplorerTable: React.FC<DataExplorerTableProps> = ({ initialSou
             </div>
 
             {/* Table Section */}
-            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl shadow-sm border border-border-light dark:border-border-dark overflow-hidden flex flex-col min-h-[500px]">
+            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl shadow-sm border border-border-light dark:border-border-dark overflow-hidden flex flex-col min-h-[350px] md:min-h-[500px]">
                 <div className="overflow-x-auto flex-1">
                     <table className="w-full border-collapse">
                         <thead>

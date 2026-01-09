@@ -185,10 +185,10 @@ export const MasterCatalogConfig: React.FC = () => {
     }
 
     return (
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-xl border border-border-light dark:border-border-dark">
+        <div className="bg-surface-light dark:bg-surface-dark p-4 md:p-6 rounded-lg md:rounded-xl border border-border-light dark:border-border-dark">
             {/* Warning for orphan exchanges */}
             {orphanExchanges.length > 0 && (
-                <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                <div className="mb-3 md:mb-4 p-3 md:p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg md:rounded-xl">
                     <div className="flex items-start gap-3">
                         <span className="material-symbols-outlined text-amber-500 text-xl">warning</span>
                         <div className="flex-1">
@@ -212,13 +212,13 @@ export const MasterCatalogConfig: React.FC = () => {
             )}
 
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
+                <h3 className="text-base md:text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
                     🌍 Catálogo Maestro - Bolsas Mundiales
                 </h3>
                 <button
                     onClick={() => fetchExchanges(true)}
                     disabled={refreshing}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50"
                 >
                     <span className={`material-symbols-outlined text-[18px] ${refreshing ? 'animate-spin' : ''}`}>
                         refresh
@@ -233,7 +233,7 @@ export const MasterCatalogConfig: React.FC = () => {
             </p>
 
             {/* Search & Stats */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="flex flex-col gap-3 md:gap-4 mb-4 md:mb-6">
                 <div className="flex-1 relative">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
                     <input
@@ -264,7 +264,7 @@ export const MasterCatalogConfig: React.FC = () => {
             </div>
 
             {/* Exchanges Grid by Country */}
-            <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2">
+            <div className="space-y-4 md:space-y-6 max-h-[400px] md:max-h-[500px] overflow-y-auto pr-2">
                 {sortedCountries.map(country => (
                     <div key={country}>
                         <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-2 sticky top-0 bg-surface-light dark:bg-surface-dark py-1">
@@ -306,9 +306,9 @@ export const MasterCatalogConfig: React.FC = () => {
             </div>
 
             {/* Actions */}
-            <div className="mt-8 flex flex-col gap-4">
+            <div className="mt-6 md:mt-8 flex flex-col gap-3 md:gap-4">
                 {/* Sync Status */}
-                <div className="p-3 bg-background-light dark:bg-background-dark rounded-xl border border-border-light dark:border-border-dark flex justify-between items-center">
+                <div className="p-2 md:p-3 bg-background-light dark:bg-background-dark rounded-lg md:rounded-xl border border-border-light dark:border-border-dark flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <span className="text-xs font-bold text-text-secondary-light uppercase">Estado Sincronización</span>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${globalSyncStatus.running ? 'bg-amber-500/20 text-amber-500 animate-pulse' : 'bg-green-500/20 text-green-500'}`}>
                         {globalSyncStatus.message || (globalSyncStatus.running ? 'EJECUTANDO' : 'LISTO')}
@@ -323,7 +323,7 @@ export const MasterCatalogConfig: React.FC = () => {
                         <button
                             onClick={handleSave}
                             disabled={saving}
-                            className="flex items-center gap-2 px-6 py-2 bg-primary text-black font-bold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 md:px-6 py-2 bg-primary text-black font-bold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 text-sm md:text-base"
                         >
                             {saving
                                 ? <span className="animate-spin material-symbols-outlined">sync</span>
@@ -333,7 +333,7 @@ export const MasterCatalogConfig: React.FC = () => {
                         <button
                             onClick={handleSyncGlobalLibrary}
                             disabled={globalSyncStatus.running}
-                            className="flex items-center gap-2 px-6 py-2 bg-primary/80 hover:bg-primary text-black font-bold rounded-lg transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 md:px-6 py-2 bg-primary/80 hover:bg-primary text-black font-bold rounded-lg transition-all shadow-lg shadow-primary/20 disabled:opacity-50 text-sm md:text-base"
                         >
                             {globalSyncStatus.running
                                 ? <span className="animate-spin material-symbols-outlined">sync</span>

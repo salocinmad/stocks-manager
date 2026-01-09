@@ -1,6 +1,14 @@
 # 📖 Manual de Usuario - Stocks Manager
 
-Versión 2.1.0 | Última actualización: Enero 2026
+Versión 2.1.1 | Última actualización: Enero 2026
+
+---
+
+## 📱 Instalación PWA (Móvil)
+Stocks Manager es una **Progressive Web App**. Para instalarla:
+- **Android**: En Chrome, pulsa el menú de tres puntos (⋮) y elige "Añadir a pantalla de inicio".
+- **iOS**: En Safari, pulsa el botón Compartir y elige "Añadir a pantalla de inicio".
+- **Ventajas**: Icono propio en el escritorio, pantalla completa sin barras de navegación y acceso rápido.
 
 ---
 
@@ -514,7 +522,15 @@ Los datos de mercado provienen de **Yahoo Finance**, que ofrece precios con 15-2
 
 ### ¿Puedo usar la app desde el móvil?
 
-Sí. La interfaz es responsive y funciona en cualquier dispositivo con navegador.
+Sí. La aplicación está **completamente optimizada para móvil** (v2.1.0):
+
+- **Bottom Navigation**: Barra inferior fija con acceso rápido a Dashboard, Cartera, Mercado, Alertas y Menú
+- **Drawer Lateral**: Menú deslizante accesible desde el icono ☰ con todas las opciones
+- **Vistas Adaptadas**:
+  - **Cartera**: Las posiciones se muestran como tarjetas en lugar de tabla
+  - **Dashboard**: Columnas apiladas verticalmente
+  - **Admin**: Tabs con iconos y scroll horizontal
+- **Gestos Táctiles**: Swipe para cerrar drawer, pull-to-refresh en listas
 
 ### ¿Cómo recupero mi contraseña?
 

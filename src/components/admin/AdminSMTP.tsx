@@ -57,12 +57,12 @@ export const AdminSMTP: React.FC = () => {
     };
 
     return (
-        <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 animate-fade-in mt-6 border border-border-light dark:border-border-dark">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+        <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 animate-fade-in mt-4 md:mt-6 border border-border-light dark:border-border-dark">
+            <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 flex items-center gap-2">
                 <span className="material-symbols-outlined">mail</span>
                 Configuración SMTP (Correo)
             </h2>
-            <p className="text-sm text-text-secondary-light mb-6">
+            <p className="text-xs md:text-sm text-text-secondary-light mb-4 md:mb-6">
                 Configura el servidor SMTP para enviar notificaciones de alertas de precio, stop loss y otras notificaciones por email.
             </p>
 
@@ -142,18 +142,18 @@ export const AdminSMTP: React.FC = () => {
                 <button
                     onClick={saveSmtpConfig}
                     disabled={saving}
-                    className="px-6 py-4 bg-primary text-black font-bold rounded-2xl hover:opacity-90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                    className="px-4 md:px-6 py-3 md:py-4 bg-primary text-black font-bold rounded-xl md:rounded-2xl hover:opacity-90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 text-sm md:text-base"
                 >
                     {saving ? 'Guardando...' : 'Guardar Configuración SMTP'}
                 </button>
 
                 {/* Prueba de envío */}
-                <div className="border-t border-border-light dark:border-border-dark pt-6 mt-2">
+                <div className="border-t border-border-light dark:border-border-dark pt-4 md:pt-6 mt-2">
                     <h3 className="font-bold mb-4 flex items-center gap-2">
                         <span className="material-symbols-outlined text-lg">send</span>
                         Probar Configuración
                     </h3>
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                         <input
                             type="email"
                             value={testEmail}
@@ -164,7 +164,7 @@ export const AdminSMTP: React.FC = () => {
                         <button
                             onClick={sendTestEmail}
                             disabled={sendingTest || !smtpConfig.host}
-                            className="px-6 py-3 bg-blue-500 text-white font-bold rounded-xl hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center gap-2"
+                            className="px-4 md:px-6 py-2.5 md:py-3 bg-blue-500 text-white font-bold rounded-lg md:rounded-xl hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm md:text-base"
                         >
                             {sendingTest ? (
                                 <span className="animate-spin material-symbols-outlined">sync</span>

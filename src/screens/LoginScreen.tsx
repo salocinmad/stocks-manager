@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export const LoginScreen: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, api } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -13,6 +14,7 @@ export const LoginScreen: React.FC = () => {
 
   const [mode, setMode] = useState<'login' | 'forgot' | '2fa'>('login');
   const [successMessage, setSuccessMessage] = useState('');
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState('');
 
   // 2FA State
   const [sessionToken, setSessionToken] = useState('');
@@ -23,6 +25,16 @@ export const LoginScreen: React.FC = () => {
 
   // Remember Me
   const [rememberMe, setRememberMe] = useState(true);
+
+  // Check for session expired parameter
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('expired') === 'true') {
+      setSessionExpiredMessage('Tu sesión ha expirado. Por favor, inicia sesión de nuevo.');
+      // Clean URL without reloading
+      window.history.replaceState({}, '', '/#/login');
+    }
+  }, [location.search]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,23 +109,25 @@ export const LoginScreen: React.FC = () => {
   };
 
   return (
-    <main className="flex flex-col items-center justify-center h-screen w-full bg-background-light dark:bg-background-dark p-6 relative overflow-hidden">
+    <main className="flex flex-col items-center justify-start md:justify-center min-h-screen w-full bg-background-light dark:bg-background-dark py-4 px-3 md:p-6 relative overflow-y-auto">
       <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/10 rounded-full blur-[120px] pointer-events-none -mr-40 -mt-40"></div>
       <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-accent-blue/10 rounded-full blur-[100px] pointer-events-none -ml-30 -mb-30"></div>
 
       <div className="relative w-full max-w-lg z-10">
-        <div className="flex flex-col bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[3rem] shadow-2xl p-10 md:p-14 transition-all duration-300">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="size-12 rounded-2xl bg-primary flex items-center justify-center text-black shadow-lg">
-              <span className="material-symbols-outlined font-bold">query_stats</span>
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight">Stocks Manager</h1>
+        <div className="flex flex-col bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-2xl md:rounded-[3rem] shadow-2xl p-5 md:p-14 transition-all duration-300">
+          <div className="flex items-center gap-2 mb-4 md:mb-10">
+            <img
+              src="/pwa-192x192.png"
+              alt="Stocks Manager"
+              className="size-8 md:size-12 rounded-lg md:rounded-2xl shadow-lg"
+            />
+            <h1 className="text-lg md:text-2xl font-bold tracking-tight">Stocks Manager</h1>
           </div>
 
-          <h2 className="text-4xl font-bold tracking-tight mb-3">
+          <h2 className="text-xl md:text-4xl font-bold tracking-tight mb-1 md:mb-3">
             {mode === 'login' ? 'Bienvenido' : mode === '2fa' ? 'Verificación 2FA' : 'Recuperar Cuenta'}
           </h2>
-          <p className="text-text-secondary-light dark:text-text-secondary-dark mb-10 text-lg">
+          <p className="text-text-secondary-light dark:text-text-secondary-dark mb-4 md:mb-10 text-xs md:text-lg">
             {mode === 'login'
               ? 'Accede a tu plataforma de inversión inteligente.'
               : mode === '2fa'
@@ -122,6 +136,14 @@ export const LoginScreen: React.FC = () => {
                   : 'Introduce el código de tu aplicación autenticadora.'
                 : 'Introduce tu email para restablecer tu contraseña.'}
           </p>
+
+          {/* Sesión expirada */}
+          {sessionExpiredMessage && (
+            <div className="mb-6 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 text-sm flex items-center gap-3">
+              <span className="material-symbols-outlined text-lg">schedule</span>
+              {sessionExpiredMessage}
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm">

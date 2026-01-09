@@ -1,240 +1,237 @@
-# 🧠 Memoria del Proyecto: Stocks Manager
+# 📚 Stocks Manager - Memoria del Proyecto
 
-## 1. Identidad y Propósito
-**Stocks Manager** es una aplicación web avanzada para la gestión de carteras de inversión personales, diseñada para ofrecer herramientas profesionales (Análisis Técnico, Métricas de Riesgo, IA) en una interfaz moderna y accesible.
+> **Versión actual: 2.1.1** | Última actualización: 9 Enero 2026
+> 
+> Este documento proporciona una visión global del proyecto para contexto de IA en futuras conversaciones.
 
-*   **Versión Actual**: v2.1.0 (8 Enero 2026)
-*   **Estado**: Producción / Estable.
+---
 
-## 2. Pila Tecnológica
+## 🎯 Descripción General
 
-### Backend
-*   **Runtime**: Bun v1.2 (Speed focused)
-*   **Framework**: ElysiaJS (High performance API)
-*   **Base de Datos**: PostgreSQL 16 (con `postgres.js` client)
-*   **Hash**: bcryptjs (contraseñas), Bun.hash (tokens)
-*   **Email**: nodemailer (SMTP configurable)
+**Stocks Manager** es una plataforma completa de gestión de carteras de inversión desarrollada con:
+- **Frontend**: React 19 + TailwindCSS + Recharts
+- **Backend**: Bun runtime + ElysiaJS + PostgreSQL 16
+- **AI**: Multi-provider (Google Gemini, OpenRouter, Groq, Ollama, LM Studio)
+- **Infraestructura**: Docker + Docker Compose
+- **PWA**: Instalable en Android (v2.1.1)
 
-### Frontend
-*   **Framework**: React 18 + Vite
-*   **Lenguaje**: TypeScript
-*   **Estilos**: TailwindCSS v3.4 + CSS Modules
-*   **Gráficos**: Recharts + Lightweight Charts (TradingView)
+---
 
-### Infraestructura
-*   **Contenerización**: Docker & Docker Compose
-*   **Logging Centralizado**:
-    *   **Niveles**: PRODUCTION, STANDARD, VERBOSE, DEBUG
-    *   **Persistencia**: Archivos diarios rotativos (`logs/app-YYYY-MM-DD.log`)
-    *   **Formato**: Timestamps (Europe/Madrid), Tags de módulo, Colores
-    *   **Gestión**: UI Admin para descarga, visualización y purga
-*   **Proxy inverso recomendado**: Nginx / Cloudflare
+## 🏗️ Arquitectura
 
-### IA Multi-Provider
-*   **Google Gemini**: Provider principal (SDK nativo)
-*   **OpenRouter/Groq**: Providers OpenAI-compatible
-*   **Ollama/LM Studio**: Providers locales sin API key
-*   **Arquitectura**: Factory Pattern (`AIProviderFactory.ts`)
+```
+stocks-manager/
+├── server/                    # Backend ElysiaJS
+│   ├── routes/               # API endpoints (~15 archivos)
+│   ├── services/             # Lógica de negocio (~20 servicios)
+│   ├── jobs/                 # Cron jobs (Discovery, Alerts, PnL, Calendar, Backup)
+│   ├── utils/                # Logger, exchangeMapping, helpers
+│   ├── scripts/              # test_runner.ts, cleanup_test_users.ts
+│   └── init_db.ts            # Schema completo + migraciones automáticas
+├── src/                       # Frontend React
+│   ├── components/           # ~40 componentes reutilizables
+│   │   └── admin/            # Componentes del panel admin
+│   ├── screens/              # ~15 páginas/vistas
+│   ├── context/              # AuthContext (global state)
+│   └── utils/                # Formatters, helpers frontend
+├── public/                    # Assets estáticos
+│   ├── manifest.json         # Configuración PWA
+│   ├── sw.js                 # Service Worker
+│   └── pwa-*.png             # Iconos PWA
+├── dist/                      # Build de producción (generado)
+├── uploads/                   # Avatares y adjuntos de notas
+└── documentation (.md files)
+```
 
-## 3. Arquitectura Modular
+---
 
-### 3.1. Gestión de Portafolios (`/portfolios`, `/positions`)
-*   **Multi-Cartera**: Soporte ilimitado de portafolios por usuario.
-*   **Transacciones**: Historial inmutable (BUY/SELL/DIVIDEND). Campos críticos:
-    *   `amount`, `price_per_unit`, `fees` (comisión), `exchange_rate_to_eur`
-*   **PnL Engine**: Cálculo en tiempo real (FIFO). Cacheo diario en `pnl_history_cache`.
-*   **Soporte GBX**: Conversión automática de peniques a libras para mercado UK.
-*   **Validación**: Sanitización de decimales (`,` → `.`), validación de tipos de cambio.
-*   **Editor de Historial**: Modal para editar transacciones pasadas con recálculo automático de posiciones.
-    *   Columna "Empresa" (nombre completo vía JOIN con `global_tickers`).
-    *   Traducción de tipos: BUY→COMPRA, SELL→VENTA, DIVIDEND→DIVIDENDO.
-    *   Preservación de scroll durante ediciones.
-    *   Tiempo original preservado al editar fechas (estabilidad de ordenación).
-*   **Previsualización FIFO de Venta**: Simulación en tiempo real de PnL antes de confirmar venta.
+## 🗄️ Base de Datos (PostgreSQL 16)
 
-### 3.2. Datos de Mercado (`/market`)
-*   **Proveedores**:
-    *   **Yahoo Finance**: Datos tiempo real, histórico velas, fundamentales, búsquedas.
-    *   **Finnhub**: Trending USA, noticias con sentiment.
-    *   **EODHD**: Catálogo maestro de bolsas mundiales (74+ bolsas).
-*   **Catálogo Maestro** (`global_tickers`):
-    *   Bolsas configurables: NYSE, NASDAQ, AMEX, LSE, XETRA, MC, PA, HK, TO, NSE, AU, etc.
-    *   Sincronización manual desde Admin → Mercado → Catálogo Maestro.
-    *   Mapeo EODHD→Yahoo en `exchangeMapping.ts`.
-*   **Discovery Engine (Crawler v2)**:
-    *   **Split-World Strategy**: USA (Finnhub) vs Global (Yahoo Trending).
-    *   **Regiones Dinámicas**: Lee `GLOBAL_TICKER_EXCHANGES` de configuración.
-    *   **Marcado Inteligente**: Tickers fallidos se marcan con `yahoo_status='failed'`.
+### Tablas Principales (22 tablas):
 
-### 3.3. IA y Análisis (`/ai`)
-*   **ChatBot Financiero**: Asistente contextual con conocimiento del portafolio.
-*   **Personalidades**: System prompts configurables desde Admin.
-*   **Análisis de Posición** (6 pestañas):
-    1. **Posición**: Datos de cartera, peso, PnL.
-    2. **Técnico**: RSI, SMA50/200, tendencia.
-    3. **Riesgo**: Volatilidad, Sharpe, Sortino, MaxDrawdown, VaR95, Beta.
-    4. **Fundamental**: PER, Beta, EPS, Fair Value (Graham Number).
-    5. **Analistas**: Consenso, precio objetivo, insider sentiment.
-    6. **What-If**: Simulador de compra/venta/cambio de precio.
-
-### 3.4. Sistema de Alertas (`/alerts`)
-*   **Tipos de Alerta**:
-    *   Precio (above/below)
-    *   Cambio porcentual
-    *   RSI (sobrecompra/sobreventa)
-    *   Cruce de SMA
-    *   Volumen anómalo
-*   **Alertas Globales de Portafolio** (`portfolio_alerts`):
-    *   Monitorización del cambio diario total del portafolio.
-    *   Cooldown por activo individual.
-*   **Motor**: CronJob minutal con cooldown inteligente.
-
-### 3.5. Administración (`/admin`)
-*   **Pestañas**: General, IA, Mercado, Usuarios, Claves API, Backup, Estadísticas.
-*   **Catálogo Maestro**: UI para seleccionar bolsas (NYSE, NASDAQ, AMEX, etc.).
-*   **Cosecha Mundial**: Botón para sincronizar tickers de bolsas seleccionadas.
-*   **Backups**: ZIP cifrado (AES-256), envío por email, programación (diario/semanal/mensual).
-*   **Discovery Engine**: Configuración de ciclos, volúmenes V8/V10, Finnhub.
-*   **Logs del Sistema**: Control total de logging (Nivel dinámico, Descarga de trazas, Limpieza).
-
-## 4. Base de Datos (Schema - `init.sql`)
-
-### Tablas Principales
-| Tabla | Propósito |
-|-------|-----------|
-| `users` | Autenticación, 2FA, preferencias |
+| Tabla | Descripción |
+|-------|-------------|
+| `users` | Usuarios (email, password_hash, 2FA, avatar, locale, role) |
 | `portfolios` | Carteras de inversión |
-| `positions` | Posiciones abiertas por cartera |
-| `transactions` | Historial inmutable de operaciones |
-| `alerts` | Alertas de precio/técnicas |
-| `portfolio_alerts` | Alertas globales de portafolio |
-| `global_tickers` | Catálogo maestro (12k+ activos) |
-| `market_cache` | Caché de datos de mercado (JSONB) |
-| `market_discovery_cache` | Caché del Discovery Engine |
-| `ticker_details_cache` | Datos detallados para modales |
-| `position_analysis_cache` | Indicadores técnicos/riesgo |
-| `pnl_history_cache` | Historial PnL diario |
-| `system_settings` | Configuración clave-valor |
+| `positions` | Posiciones/holdings (UNIQUE portfolio_id + ticker) |
+| `transactions` | Historial de operaciones (BUY/SELL/DIVIDEND) |
+| `alerts` | Alertas por ticker individual |
+| `portfolio_alerts` | Alertas globales de portafolio (triggered_assets JSONB) |
+| `global_tickers` | Catálogo maestro de tickers (77+ bolsas) |
+| `market_discovery_cache` | Cache del Discovery Engine |
+| `ticker_details_cache` | Cache de datos de mercado (Yahoo V8/V10) |
+| `position_analysis_cache` | Cache de análisis de posiciones (6 tabs) |
+| `financial_events` | Dividendos, splits, earnings (updated_at) |
+| `pnl_history_cache` | Histórico PnL pre-calculado |
+| `currency_history` | Tipos de cambio históricos |
+| `ai_prompts` | Prompts del sistema de IA (editables) |
 | `ai_providers` | Proveedores de IA configurados |
-| `ai_prompts` | System prompts para ChatBot |
-| `chat_conversations` / `chat_messages` | Historial de chat |
-| `financial_events` | Calendario económico (Incluye `updated_at`, `estimated_eps`). |
+| `chat_conversations` | Conversaciones del ChatBot |
+| `chat_messages` | Mensajes del ChatBot |
+| `system_settings` | Configuración global (APP_VERSION, CRAWLER_*, etc.) |
+| `watchlists` | Listas de seguimiento |
+| `watchlist_items` | Items de las watchlists |
+| `notes` | Notas con imágenes (Markdown) |
+| `notification_channels` | Canales de notificación (email, push, in-app) |
 
-### Campos Críticos en `transactions`
-*   `amount`: Cantidad de unidades.
-*   `price_per_unit`: Precio por unidad en moneda original.
-*   `fees`: Comisión del broker.
-*   `exchange_rate_to_eur`: Tipo de cambio al momento de la operación.
+### Configuración Crítica en `system_settings`:
+- `APP_VERSION`: V2.1.1 (mostrada en modales)
+- `JWT_SECRET`: **CRÍTICO** - necesario para descifrar backups
+- `CRAWLER_*`: Configuración del Discovery Engine
+- `GLOBAL_TICKER_EXCHANGES`: Bolsas activas para sincronización
 
-## 5. Jobs Programados (CronJobs)
+---
 
-| Job | Frecuencia | Función |
-|-----|------------|---------|
-| `pnlJob` | Diario (6:00 UTC) | Calcula historial PnL |
-| `discoveryJob` | Configurable | Crawler Split-World |
-| `catalogEnrichmentJob` | Configurable | Enriquece `global_tickers` con datos V10 |
-| `positionAnalysisJob` | Semanal | Actualiza análisis en caché |
-| `backupJob` | Configurable | Backups automáticos |
+## 🔧 Características Principales (v2.1.1)
 
-## 6. Estructura de Archivos Clave
+### 📱 PWA (Progressive Web App) - v2.1.1
+- **Instalable en Android**: Chrome → Menú ⋮ → "Añadir a pantalla de inicio"
+- **Manifest.json**: Nombre, colores (#0f172a navy, #fce903 amarillo), iconos
+- **Service Worker**: Cache de assets estáticos (network-first para API)
+- **Logo**: Escudo amarillo con barras de crecimiento + flecha de tendencia
+- **Iconos**: pwa-192x192, pwa-512x512, logo-1024, favicon.png
 
-### Backend (`/server`)
-```
-server/
-├── index.ts              # Punto de entrada Elysia
-├── db.ts                 # Conexión PostgreSQL
-├── routes/
-│   ├── auth.ts           # Login, Registro, 2FA
-│   ├── portfolios.ts     # CRUD Portafolios
-│   ├── market.ts         # Datos de mercado
-│   ├── ai.ts             # ChatBot y análisis
-│   ├── alerts.ts         # Sistema de alertas
-│   └── admin.ts          # Panel administración
-├── services/
-│   ├── marketData.ts     # Cliente Yahoo/Finnhub
-│   ├── eodhdService.ts   # Cliente EODHD
-│   ├── aiService.ts      # Orquestador LLMs
-│   ├── portfolioService.ts  # Lógica FIFO, simulateSell, recalculatePositionFromHistory
-│   ├── discoveryService.ts
-│   └── backupService.ts
-├── jobs/
-│   ├── pnlJob.ts
-│   ├── discoveryJob.ts
-│   └── backupJob.ts
-└── utils/
-    └── exchangeMapping.ts  # Mapeo EODHD→Yahoo
-```
+### 💬 ChatBot Responsive - v2.1.1
+- **Mobile**: Fullscreen 100% con padding inferior para navbar (pb-20)
+- **Desktop**: Ventana flotante con tamaños md/lg/xl
+- **Streaming**: Respuestas de IA en tiempo real
+- **Historial**: Conversaciones persistentes en BD
 
-### Frontend (`/src`)
-```
-src/
-├── App.tsx               # Router principal
-├── screens/
-│   ├── Dashboard.tsx     # Vista principal (2 columnas)
-│   ├── PortfolioScreen.tsx
-│   ├── AdminScreen.tsx
-│   └── AlertsScreen.tsx
-├── components/
-│   ├── Sidebar.tsx
-│   ├── ChatBot.tsx
-│   ├── PositionAnalysisModal.tsx
-│   ├── TransactionHistoryModal.tsx  # Editor cronológico de transacciones
-│   └── admin/
-│       ├── MasterCatalogConfig.tsx
-│       └── DataExplorerTable.tsx
-└── context/
-    ├── AuthContext.tsx
-    └── ToastContext.tsx
-```
+### 🔐 Auth Screens Responsive - v2.1.1
+- **Login, 2FA, Reset Password**: Adaptados para móviles
+- **Mobile**: `min-h-screen` scrolleable, `justify-start` (desde arriba)
+- **Desktop**: Centrado vertical tradicional
+- **Espaciado compacto**: `p-5` (móvil) vs `p-14` (desktop)
+- **Tipografía adaptativa**: `text-xl` (móvil) vs `text-4xl` (desktop)
 
-## 7. Variables de Entorno (`.env`)
+### 🌍 Catálogo Maestro Configurable
+- 77+ bolsas mundiales (NYSE, NASDAQ, AMEX + globales)
+- Global Ticker Job para sincronización vía EODHD
+- Limpieza automática al desmarcar bolsas
+
+### 🖥️ Dashboard y Panel Admin Responsive - v2.1.1
+- **Dashboard 2 Columnas**: Layout adaptativo (75/25 en desktop, apilado en móvil).
+- **Auto-Refresh**: Actualización automática de datos cada 5 minutos (background) sin recarga.
+- **Panel Admin Full Responsive**: Los 8 componentes del panel admin (`AIGeneral`, `AIProviders`, `AdminSMTP`, `LogsManager`, `MasterCatalogConfig`, `MarketIndicesSelector`, `DataExplorerTable`, `AuthSettings`) han sido rediseñados para pantallas móviles con:
+  - Containers con padding adaptativo (`p-4 md:p-6`).
+  - Grids inteligentes (`grid-cols-1 sm:grid-cols-2`).
+  - Sub-tabs con scroll horizontal y `scrollbar-hide`.
+  - Botones y títulos con tipografía responsive.
+
+### 🔔 Sistema de Alertas
+- Individuales: Precio, %, RSI, SMA, Volumen
+- Globales: Vigila todos los activos con cooldown por ticker
+
+### 🕸️ Discovery Engine v2 (Split-World)
+- Pipeline US: Finnhub → Yahoo
+- Pipeline Global: Yahoo Screeners multi-región
+- Marcado de tickers fallidos (yahoo_status)
+
+### 📊 Position Analysis Modal (6 tabs)
+1. Resumen (datos cartera, peso, PnL)
+2. Técnico (RSI, SMA, Bollinger, tendencia)
+3. Fundamental (PER, EPS, Fair Value/Graham)
+4. Proyección (escenarios)
+5. Riesgo (Volatilidad, Sharpe, VaR95, Beta)
+6. Eventos (Dividendos, Earnings, Splits)
+
+### 🤖 Sistema de IA Multi-Provider
+- Proveedores: Gemini, OpenRouter, Groq, Ollama, LM Studio
+- Prompts editables desde Admin → IA → Prompts
+- Factory pattern en `aiFactory.ts`
+
+### 📧 Notificaciones
+- Email (SMTP configurable)
+- Push browser (Web Notifications)
+- In-app (badge en header)
+
+### 💾 Backups Automáticos
+- Scheduler: diario/semanal/mensual (dayOfWeek, dayOfMonth)
+- Cifrado AES-256 con JWT_SECRET
+- Envío por email opcional
+
+---
+
+## 🔑 Variables de Entorno Críticas
 
 ```env
-# Base de Datos
-DB_HOST=db
+# Base de datos
+DB_HOST=stocks_db
 DB_PORT=5432
-DB_NAME=stocks_manager
-DB_USER=admin
-DB_PASSWORD=securepassword
+DB_NAME=stocks_db
+DB_USER=postgres
+DB_PASSWORD=<segura>
 
-# Seguridad
-JWT_SECRET=your_jwt_secret
+# Seguridad (¡CRÍTICO PARA BACKUPS!)
+JWT_SECRET=<string-64-chars-único>
 
-# APIs Externas
-FINNHUB_API_KEY=xxx
-EODHD_API_KEY=xxx
-GOOGLE_GENAI_API_KEY=xxx
+# APIs externas
+FINNHUB_API_KEY=<key>
+GOOGLE_GENAI_API_KEY=<key>
+OPENROUTER_API_KEY=<key>
+GROQ_API_KEY=<key>
 
-# SMTP (Opcional)
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_USER=user
-SMTP_PASSWORD=pass
-SMTP_FROM=noreply@example.com
+# Email (opcional)
+SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
+
+# Crawler
+CRAWLER_ENABLED=true
+CRAWLER_CYCLES_PER_HOUR=6
 ```
 
-## 8. Comandos de Operación
+---
 
+## 📁 Archivos Clave
+
+| Archivo | Propósito |
+|---------|-----------|
+| `server/init_db.ts` | Schema DB + migraciones automáticas |
+| `server/index.ts` | Entry point + todos los jobs |
+| `src/context/AuthContext.tsx` | Auth global + appVersion |
+| `public/manifest.json` | Configuración PWA |
+| `public/sw.js` | Service Worker |
+| `Dockerfile` | Build multi-stage (builder → release) |
+| `docker-compose.yml` | Dev environment |
+| `docker-compose.prod.yml` | Producción (imagen GHCR) |
+
+---
+
+## 🚀 Comandos de Despliegue
+
+### Desarrollo:
 ```bash
-# Desarrollo
-bun run dev
-
-# Build & Deploy
 docker compose up -d --build
-
-# Verificar versión
-docker exec stocks_app grep '"version":' package.json
-
-# Limpiar caché Nginx
-rm -rf /var/cache/nginx/*
-
-# Tests
-bun run test
 ```
 
-## 9. Notas de Despliegue
-*   **Cache Busting**: Limpiar cachés CDN/Nginx tras cada despliegue.
-*   **Multi-stage Build**: Dockerfile optimizado (builder → release).
-*   **Volúmenes Docker**: `postgres_data` (DB), `stock_uploads` (avatares).
-*   **2FA**: TOTP compatible con Google Authenticator.
-*   **Primer Usuario**: Se convierte automáticamente en admin.
+### Producción (imagen pre-built):
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### Tests:
+```bash
+bun run server/scripts/test_runner.ts
+```
+
+---
+
+## 📝 Historial de Versiones
+
+| Versión | Fecha | Cambios Principales |
+|---------|-------|---------------------|
+| **2.1.1** | 9 Ene 2026 | PWA instalable, ChatBot responsive, Auth screens responsive, nuevo logo |
+| 2.1.0 | 8 Ene 2026 | Catálogo Maestro, Dashboard 2 columnas, Alertas globales, Mobile Navigation |
+| 2.0.0 | Dic 2025 | Multi-AI, Discovery Engine v2, Position Analysis 6 tabs |
+
+---
+
+## ⚠️ Notas Importantes para IA
+
+1. **JWT_SECRET**: Crítico para descifrar backups. Si se pierde, los backups cifrados son irrecuperables.
+2. **Migraciones**: Se ejecutan automáticamente en `initDatabase()` al iniciar.
+3. **Version**: Almacenada en `system_settings.APP_VERSION`, mostrada en modales via `useAuth().appVersion`.
+4. **PWA**: Requiere HTTPS en producción (localhost funciona sin certificado).
+5. **ChatBot**: Usa streaming via `ReadableStream` para respuestas de IA.
+6. **FIFO**: Las ventas usan lógica FIFO estricta para cálculo de PnL.
+7. **GBX**: Soporte automático de conversión peniques → libras para LSE.
+8. **Timezone**: Todos los logs usan Europe/Madrid.

@@ -1,6 +1,11 @@
 # 🛠️ Guía de Administrador - Stocks Manager
 
-Versión 2.1.0 | Última actualización: Enero 2026
+Versión 2.1.1 | Última actualización: Enero 2026
+
+---
+
+## 📱 Experiencia Móvil (v2.1.1)
+Stocks Manager ahora es una **PWA completa**. El panel de administración ha sido rediseñado para ser completamente funcional desde smartphones, permitiendo gestionar claves API, configurar IA y revisar logs en cualquier lugar.
 
 ---
 
@@ -30,22 +35,36 @@ Versión 2.1.0 | Última actualización: Enero 2026
 - 2GB RAM mínimo
 - 10GB espacio en disco
 
-### Despliegue con Docker Compose
+### Despliegue con Imagen Oficial (Recomendado)
 
-```bash
-# Clonar repositorio
-git clone https://github.com/salocinmad/stocks-manager.git
-cd stocks-manager
+No es necesario descargar el código fuente.
 
-# Crear archivo de variables de entorno
-cp server/env.example .env
 
-# Editar variables (ver sección siguiente)
-nano .env
+1. **Crear directorio de trabajo**:
+   ```bash
+   mkdir stocks-manager && cd stocks-manager
+   ```
 
-# Desplegar
-docker compose up -d --build
-```
+2. **Descargar configuración e instalador**:
+   ```bash
+   # 1. Configuración de entorno
+   wget https://raw.githubusercontent.com/salocinmad/stocks-manager/main/.env.example -O .env
+   
+   # 2. Archivo Docker Compose (Producción)
+   wget https://raw.githubusercontent.com/salocinmad/stocks-manager/main/docker-compose.prod.yml -O docker-compose.yml
+   ```
+
+3. **Editar configuración**:
+   ```bash
+   nano .env
+   # IMPORTANTE: Configura DB_USER, DB_PASSWORD y sobre todo JWT_SECRET
+   ```
+
+4. **Arrancar**:
+   ```bash
+   docker compose up -d
+   ```
+   El sistema descargará automáticamente la última versión de la imagen y arrancará los servicios.
 
 ### Variables de Entorno (.env)
 
@@ -71,7 +90,11 @@ SMTP_PORT=587
 SMTP_USER=tu@email.com
 SMTP_PASSWORD=app_password
 SMTP_FROM=tu@email.com
+SMTP_FROM=tu@email.com
 ```
+
+> ⚠️ **IMPORTANTE**: La variable `JWT_SECRET` actúa como llave maestra para **encriptar** datos sensibles (API Keys, contraseñas SMTP) en la base de datos.
+> **Guarda una copia segura de tu archivo .env**. Si pierdes esta clave en una reinstalación, los backups de la base de datos serán inútiles para recuperar esa configuración encriptada.
 
 ### Acceso Inicial
 
@@ -100,6 +123,15 @@ SMTP_FROM=tu@email.com
 | **SMTP** | Configuración de email |
 | **Backup** | Exportar/importar datos (ZIP/SQL) |
 | **Estadísticas** | Métricas del sistema y Crawler |
+
+### Acceso desde Móvil (v2.1.0)
+
+El panel de administración está optimizado para dispositivos móviles:
+
+- **Tabs principales**: Scroll horizontal, solo iconos en pantallas pequeñas
+- **Subtabs**: Compactas con scroll horizontal
+- **Usuarios**: Vista de cards en móvil (nombre, email, badges, acciones)
+- **Estadísticas**: Grid de 2 columnas optimizado
 
 ---
 
@@ -475,6 +507,22 @@ Ahora puedes automatizar el envío de copias de seguridad a tu correo electróni
 - Activa el **backup semanal** automatizado al correo.
 - Usa contraseña para los backups por email si usas un servicio de correo público.
 - Si tu instancia tiene muchas imágenes, es probable que superes los 25MB pronto; revisa tu correo para las notificaciones.
+
+### ⚠️ Seguridad Crítica: JWT_SECRET
+
+El sistema utiliza la variable `JWT_SECRET` (definida en tu `.env`) no solo para las sesiones de usuario, sino también como **llave maestra de cifrado** para datos sensibles en la base de datos (`system_settings`), como:
+- API Keys (Finnhub, Google Gemini, etc.)
+- Contraseñas SMTP
+- Contraseñas de Backup
+
+**¿Qué pasa si pierdo el JWT_SECRET?**
+Si reinstalas la aplicación desde cero y no conservas el `JWT_SECRET` original:
+1. Podrás restaurar el backup de la base de datos (usuarios, carteras, transacciones).
+2. **PERDERÁS** el acceso a las configuraciones cifradas mencionadas arriba. El sistema no podrá desencriptarlas con la nueva clave.
+3. Tendrás que volver a introducir manualmente todas las API Keys y configuraciones de correo.
+
+**Recomendación:**
+> 🛡️ Guarda una copia de seguridad de tu archivo `.env` en un lugar seguro (gestor de contraseñas), separado de los backups de la base de datos.
 
 ---
 

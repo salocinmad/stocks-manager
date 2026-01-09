@@ -206,6 +206,51 @@ export const Dashboard: React.FC = () => {
     if (user) fetchData();
   }, [user, api, selectedPortfolioId]);
 
+  // Auto-refresh every 5 minutes
+  useEffect(() => {
+    if (!user || !selectedPortfolioId) return;
+
+    const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+    const refreshData = async () => {
+      try {
+        console.log('[Dashboard] Auto-refreshing data...');
+        const [summaryRes] = await Promise.all([
+          api.get(`/portfolios/summary?portfolioId=${selectedPortfolioId}`)
+        ]);
+
+        const summary = summaryRes.data;
+        if (summary && !summary.error) {
+          setTotalValue(summary.totalValueEur || 0);
+          setTodaysGain(summary.dailyChangeEur || 0);
+          setGainPercent(summary.dailyChangePercent || 0);
+          setTotalGain(summary.totalGainEur || 0);
+          setTotalGainPercent(summary.totalGainPercent || 0);
+          if (summary.topGainers) setTopGainers(summary.topGainers);
+          if (summary.topLosers) setTopLosers(summary.topLosers);
+          if (summary.sectorAllocation) {
+            const sectorColors: Record<string, string> = {
+              'Technology': '#3b82f6', 'Healthcare': '#34d399', 'Financial Services': '#fbbf24',
+              'Consumer Cyclical': '#f472b6', 'Consumer Defensive': '#fb923c', 'Industrials': '#a78bfa',
+              'Energy': '#ef4444', 'Basic Materials': '#c084fc', 'Communication Services': '#22d3ee',
+              'Real Estate': '#14b8a6', 'Utilities': '#6366f1', 'Desconocido': '#6b7280'
+            };
+            const getSectorColor = (name: string) => sectorColors[name] || `hsl(${Math.abs([...name].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360}, 70%, 50%)`;
+            setSectorAllocation(summary.sectorAllocation.map((item: any) => ({
+              name: item.name, value: item.value, color: getSectorColor(item.name)
+            })));
+          }
+        }
+        console.log('[Dashboard] Auto-refresh completed');
+      } catch (e) {
+        console.error('[Dashboard] Auto-refresh failed:', e);
+      }
+    };
+
+    const intervalId = setInterval(refreshData, REFRESH_INTERVAL);
+    return () => clearInterval(intervalId);
+  }, [user, api, selectedPortfolioId]);
+
 
 
   // ...
@@ -370,9 +415,9 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* AI Insight Result (Conditional - Between Stats and Top Movers) */}
+            {/* AI Insight Result - Solo visible en DESKTOP aquí */}
             {insight && (
-              <div className="p-6 rounded-[2rem] bg-[#1a1a14] text-white border border-primary/20 pb-8">
+              <div className="hidden md:block p-6 rounded-[2rem] bg-[#1a1a14] text-white border border-primary/20 pb-8">
                 <h3 className="font-bold text-primary mb-4 text-lg">Análisis de IA</h3>
                 <div data-color-mode="dark">
                   <MDEditor.Markdown
@@ -508,21 +553,36 @@ export const Dashboard: React.FC = () => {
           {/* SIDEBAR COLUMN (25%) */}
           <div className="lg:col-span-3 flex flex-col gap-3">
 
-            {/* AI Analysis Button */}
-            <div className="flex flex-col justify-between p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:border-accent-blue/30 transition-all group min-h-[120px]">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="size-8 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">
-                  <span className="material-symbols-outlined font-bold text-base">insights</span>
+            {/* AI Analysis Button + Mobile Insight */}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col justify-between p-4 rounded-[1.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-sm hover:shadow-xl hover:border-accent-blue/30 transition-all group min-h-[120px]">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="size-8 rounded-lg bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+                    <span className="material-symbols-outlined font-bold text-base">insights</span>
+                  </div>
+                  <h3 className="text-sm font-bold dark:text-white">{t('dashboard.ai_analysis')}</h3>
                 </div>
-                <h3 className="text-sm font-bold dark:text-white">{t('dashboard.ai_analysis')}</h3>
+                <button
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing}
+                  className="mt-auto w-full py-2.5 rounded-lg bg-accent-blue/10 text-accent-blue text-xs font-bold hover:bg-accent-blue hover:text-white transition-all"
+                >
+                  {isAnalyzing ? "Analizando..." : "Generar Análisis de IA"}
+                </button>
               </div>
-              <button
-                onClick={handleAnalyze}
-                disabled={isAnalyzing}
-                className="mt-auto w-full py-2.5 rounded-lg bg-accent-blue/10 text-accent-blue text-xs font-bold hover:bg-accent-blue hover:text-white transition-all"
-              >
-                {isAnalyzing ? "Analizando..." : "Generar Análisis de IA"}
-              </button>
+
+              {/* AI Insight Result - Solo visible en MÓVIL aquí (debajo del botón) */}
+              {insight && (
+                <div className="md:hidden p-4 rounded-[1.5rem] bg-[#1a1a14] text-white border border-primary/20">
+                  <h3 className="font-bold text-primary mb-3 text-sm">Análisis de IA</h3>
+                  <div data-color-mode="dark" className="text-sm">
+                    <MDEditor.Markdown
+                      source={insight}
+                      style={{ backgroundColor: 'transparent', color: '#d1d5db', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Sector Distribution */}
