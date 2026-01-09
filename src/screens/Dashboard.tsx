@@ -206,6 +206,51 @@ export const Dashboard: React.FC = () => {
     if (user) fetchData();
   }, [user, api, selectedPortfolioId]);
 
+  // Auto-refresh every 5 minutes
+  useEffect(() => {
+    if (!user || !selectedPortfolioId) return;
+
+    const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+    const refreshData = async () => {
+      try {
+        console.log('[Dashboard] Auto-refreshing data...');
+        const [summaryRes] = await Promise.all([
+          api.get(`/portfolios/summary?portfolioId=${selectedPortfolioId}`)
+        ]);
+
+        const summary = summaryRes.data;
+        if (summary && !summary.error) {
+          setTotalValue(summary.totalValueEur || 0);
+          setTodaysGain(summary.dailyChangeEur || 0);
+          setGainPercent(summary.dailyChangePercent || 0);
+          setTotalGain(summary.totalGainEur || 0);
+          setTotalGainPercent(summary.totalGainPercent || 0);
+          if (summary.topGainers) setTopGainers(summary.topGainers);
+          if (summary.topLosers) setTopLosers(summary.topLosers);
+          if (summary.sectorAllocation) {
+            const sectorColors: Record<string, string> = {
+              'Technology': '#3b82f6', 'Healthcare': '#34d399', 'Financial Services': '#fbbf24',
+              'Consumer Cyclical': '#f472b6', 'Consumer Defensive': '#fb923c', 'Industrials': '#a78bfa',
+              'Energy': '#ef4444', 'Basic Materials': '#c084fc', 'Communication Services': '#22d3ee',
+              'Real Estate': '#14b8a6', 'Utilities': '#6366f1', 'Desconocido': '#6b7280'
+            };
+            const getSectorColor = (name: string) => sectorColors[name] || `hsl(${Math.abs([...name].reduce((h, c) => c.charCodeAt(0) + ((h << 5) - h), 0)) % 360}, 70%, 50%)`;
+            setSectorAllocation(summary.sectorAllocation.map((item: any) => ({
+              name: item.name, value: item.value, color: getSectorColor(item.name)
+            })));
+          }
+        }
+        console.log('[Dashboard] Auto-refresh completed');
+      } catch (e) {
+        console.error('[Dashboard] Auto-refresh failed:', e);
+      }
+    };
+
+    const intervalId = setInterval(refreshData, REFRESH_INTERVAL);
+    return () => clearInterval(intervalId);
+  }, [user, api, selectedPortfolioId]);
+
 
 
   // ...

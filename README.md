@@ -16,7 +16,11 @@ Permite realizar seguimiento de acciones, criptomonedas y fondos, analizar rendi
   - **Agnóstico**: Usa Gemini, OpenRouter, Groq, Ollama o LM Studio.
   - **Contexto Financiero**: La IA conoce noticias, precios, fundamentales (PER, Beta) e indicadores técnicos (RSI).
   - **Personalizable**: Configura proveedores y prompts desde el panel de administración.
-- **🚀 Motor de Descubrimiento (Discovery Engine v2.1.0)**:
+- **📱 Progressive Web App (PWA v2.1.1)**:
+  - Instalable en Android desde Chrome.
+  - Nuevo logo corporativo (escudo + barras + flecha).
+  - Service Worker para cache de assets.
+- **🚀 Motor de Descubrimiento (Discovery Engine v2.1.1)**:
   - **Arquitectura Split-World**: Escaneo diferenciado para USA (Finnhub) y Global (Yahoo Trending).
   - **Enriquecimiento Inteligente**: Autodetección y corrección de sectores desconocidos.
   - **Rescate por ISIN**: Fallback automático para mapear tickers fallidos entre mercados.
@@ -25,13 +29,14 @@ Permite realizar seguimiento de acciones, criptomonedas y fondos, analizar rendi
   - Base de datos de más de 12.000 activos mundiales sincronizados vía EODHD.
   - Soporte universal de ISIN para identificación unívoca.
 - **💰 Gestión de Comisiones**: Registro detallado de comisiones por operación y ajuste de bases de coste.
-- **🔔 Alertas Inteligentes**: Notificaciones por precio, RSI (v2.1.0), cruces de medias y volumen.
+- **🔔 Alertas Inteligentes**: Notificaciones por precio, RSI (v2.1.1), cruces de medias y volumen.
 - **📝 Notas Ricas**: Editor Markdown para anotar tesis de inversión en cada posición.
 - **📅 Calendario Financiero**: Eventos macroeconómicos, dividendos y estimaciones de EPS (Yahoo Finance V10).
 - **💾 Backup Automatizado**: Sistema programable (Diario/Semanal) con cifrado, envío por Email y soporte multimedia.
 - **🔒 Seguridad**: Autenticación 2FA (TOTP), hash bcrypt y estructura Dockerizada.
-- **📱 Diseño Responsive (v2.1.0)**:
+- **📱 Diseño Responsive (v2.1.1)**:
   - Navegación móvil con bottom bar y drawer lateral.
+  - ChatBot fullscreen en móvil.
   - Vistas adaptadas: Cards en cartera, tabs compactas en admin.
   - Gestos táctiles para interacción natural.
 

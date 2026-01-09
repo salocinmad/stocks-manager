@@ -63,8 +63,8 @@ export const MobileNavigation: React.FC = () => {
                             key={item.path}
                             to={item.path}
                             className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-colors ${isActive(item.path)
-                                    ? 'text-primary'
-                                    : 'text-text-secondary-light dark:text-text-secondary-dark'
+                                ? 'text-primary'
+                                : 'text-text-secondary-light dark:text-text-secondary-dark'
                                 }`}
                         >
                             <span className={`material-symbols-outlined text-[22px] ${isActive(item.path) ? 'fill' : ''}`}>
@@ -101,9 +101,11 @@ export const MobileNavigation: React.FC = () => {
                 {/* Drawer Header */}
                 <div className="flex items-center justify-between p-4 border-b border-border-light dark:border-border-dark">
                     <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-xl bg-primary flex items-center justify-center">
-                            <span className="material-symbols-outlined text-black">insert_chart</span>
-                        </div>
+                        <img
+                            src="/pwa-192x192.png"
+                            alt="Stocks Manager"
+                            className="size-10 rounded-xl"
+                        />
                         <span className="font-bold text-lg">Menú</span>
                     </div>
                     <button
@@ -144,8 +146,8 @@ export const MobileNavigation: React.FC = () => {
                                     key={item.path}
                                     onClick={() => handleNavigation(item.path)}
                                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive(item.path)
-                                            ? 'bg-primary text-black font-bold'
-                                            : 'text-text-primary-light dark:text-text-primary-dark hover:bg-black/5 dark:hover:bg-white/10'
+                                        ? 'bg-primary text-black font-bold'
+                                        : 'text-text-primary-light dark:text-text-primary-dark hover:bg-black/5 dark:hover:bg-white/10'
                                         }`}
                                 >
                                     <span className={`material-symbols-outlined ${isActive(item.path) ? 'fill' : ''}`}>

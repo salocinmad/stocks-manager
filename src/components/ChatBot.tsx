@@ -260,19 +260,21 @@ export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
     );
   }
 
+  // Size classes for desktop only (mobile is always fullscreen)
   const sizeClasses = {
-    md: 'w-[400px] md:w-[480px] h-[650px]',
-    lg: 'w-[550px] h-[750px]',
-    xl: 'w-[700px] h-[850px]'
+    md: 'md:w-[480px] md:h-[650px]',
+    lg: 'md:w-[550px] md:h-[750px]',
+    xl: 'md:w-[700px] md:h-[850px]'
   };
 
   const containerBaseClass = embedded
     ? 'w-full h-full flex flex-col bg-white dark:bg-surface-dark'
-    : `flex flex-col ${sizeClasses[size]} bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-[2.5rem] shadow-2xl overflow-hidden transition-all animate-in zoom-in-95 duration-300`;
+    : `flex flex-col w-full h-full md:w-auto md:h-auto ${sizeClasses[size]} bg-white dark:bg-surface-dark md:border md:border-border-light md:dark:border-border-dark md:rounded-[2.5rem] md:shadow-2xl overflow-hidden transition-all md:animate-in md:zoom-in-95 duration-300`;
 
+  // Mobile: fullscreen fixed | Desktop: floating bottom-right
   const wrapperClass = embedded
     ? 'w-full h-screen bg-background-light dark:bg-background-dark'
-    : 'fixed bottom-24 md:bottom-8 right-4 md:right-8 z-50 flex items-end justify-end';
+    : 'fixed inset-0 md:inset-auto md:bottom-8 md:right-8 z-50 flex items-stretch md:items-end justify-stretch md:justify-end';
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -304,8 +306,8 @@ export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
       <div className={containerBaseClass}>
 
         {/* Header */}
-        <div className="bg-[#1a1a14] p-4 md:p-5 flex items-center justify-between text-white shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="bg-[#1a1a14] p-3 md:p-5 flex items-center justify-between text-white shrink-0 safe-area-top">
+          <div className="flex items-center gap-2 md:gap-3">
             <button
               onClick={() => setShowHistory(!showHistory)}
               className="size-10 rounded-xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
@@ -314,8 +316,8 @@ export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
               <span className="material-symbols-outlined">{showHistory ? 'close' : 'menu'}</span>
             </button>
             <div>
-              <h3 className="font-bold leading-tight">Stocks Bot</h3>
-              <span className="text-[10px] uppercase tracking-widest text-primary font-bold">
+              <h3 className="font-bold leading-tight text-sm md:text-base">Stocks Bot</h3>
+              <span className="text-[9px] md:text-[10px] uppercase tracking-widest text-primary font-bold">
                 {currentConversationId ? 'Conversación activa' : 'Nueva conversación'}
               </span>
             </div>
@@ -324,30 +326,32 @@ export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
           <div className="flex items-center gap-1">
             <button
               onClick={createNewConversation}
-              className="size-8 flex items-center justify-center hover:bg-white/10 rounded-full text-white/70 hover:text-green-400 transition-colors"
+              className="size-9 md:size-8 flex items-center justify-center hover:bg-white/10 rounded-full text-white/70 hover:text-green-400 transition-colors"
               title="Nueva conversación"
             >
-              <span className="material-symbols-outlined text-lg">add_comment</span>
+              <span className="material-symbols-outlined text-xl md:text-lg">add_comment</span>
             </button>
             {currentConversationId && (
               <button
                 onClick={deleteConversation}
-                className="size-8 flex items-center justify-center hover:bg-white/10 rounded-full text-white/70 hover:text-red-400 transition-colors"
+                className="size-9 md:size-8 flex items-center justify-center hover:bg-white/10 rounded-full text-white/70 hover:text-red-400 transition-colors"
                 title="Eliminar conversación actual"
               >
-                <span className="material-symbols-outlined text-lg">delete</span>
+                <span className="material-symbols-outlined text-xl md:text-lg">delete</span>
               </button>
             )}
             {!embedded && (
               <>
-                <button onClick={toggleSize} className="size-8 flex items-center justify-center hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-colors" title="Cambiar tamaño">
+                {/* Hide resize and popout on mobile */}
+                <button onClick={toggleSize} className="hidden md:flex size-8 items-center justify-center hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-colors" title="Cambiar tamaño">
                   <span className="material-symbols-outlined text-lg">aspect_ratio</span>
                 </button>
-                <button onClick={handlePopOut} className="size-8 flex items-center justify-center hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-colors" title="Abrir en ventana">
+                <button onClick={handlePopOut} className="hidden md:flex size-8 items-center justify-center hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-colors" title="Abrir en ventana">
                   <span className="material-symbols-outlined text-lg">open_in_new</span>
                 </button>
-                <button onClick={() => setIsOpen(false)} className="size-8 flex items-center justify-center hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-colors">
-                  <span className="material-symbols-outlined">close</span>
+                {/* Close button - larger on mobile */}
+                <button onClick={() => setIsOpen(false)} className="size-10 md:size-8 flex items-center justify-center bg-white/10 md:bg-transparent hover:bg-white/20 rounded-xl md:rounded-full text-white transition-colors ml-1">
+                  <span className="material-symbols-outlined text-xl md:text-base">close</span>
                 </button>
               </>
             )}
@@ -499,8 +503,8 @@ export const ChatBot: React.FC<ChatBotProps> = ({ embedded = false }) => {
               )}
             </div>
 
-            {/* Input Area */}
-            <div className="p-4 bg-white dark:bg-surface-dark border-t border-border-light dark:border-border-dark shrink-0">
+            {/* Input Area - pb-20 on mobile to avoid bottom nav overlap */}
+            <div className="p-4 pb-20 md:pb-4 bg-white dark:bg-surface-dark border-t border-border-light dark:border-border-dark shrink-0">
               <div className="relative flex items-center">
                 <input
                   type="text"

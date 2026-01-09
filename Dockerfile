@@ -15,6 +15,13 @@ COPY . .
 RUN bun run build:frontend
 # Copy index.html to dist
 RUN cp index.html ./dist/index.html
+# Copy PWA assets to dist
+RUN cp public/manifest.json ./dist/manifest.json
+RUN cp public/sw.js ./dist/sw.js
+RUN cp public/pwa-192x192.png ./dist/pwa-192x192.png
+RUN cp public/pwa-512x512.png ./dist/pwa-512x512.png
+RUN cp public/logo-1024.png ./dist/logo-1024.png
+RUN cp public/favicon.png ./dist/favicon.png
 
 # Stage 2: Production Runtime
 FROM oven/bun:1.2-slim as release

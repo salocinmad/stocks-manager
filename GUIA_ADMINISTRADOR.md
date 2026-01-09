@@ -1,6 +1,11 @@
 # 🛠️ Guía de Administrador - Stocks Manager
 
-Versión 2.1.0 | Última actualización: Enero 2026
+Versión 2.1.1 | Última actualización: Enero 2026
+
+---
+
+## 📱 Experiencia Móvil (v2.1.1)
+Stocks Manager ahora es una **PWA completa**. El panel de administración ha sido rediseñado para ser completamente funcional desde smartphones, permitiendo gestionar claves API, configurar IA y revisar logs en cualquier lugar.
 
 ---
 

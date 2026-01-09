@@ -1,6 +1,14 @@
 # 📖 Manual de Usuario - Stocks Manager
 
-Versión 2.1.0 | Última actualización: Enero 2026
+Versión 2.1.1 | Última actualización: Enero 2026
+
+---
+
+## 📱 Instalación PWA (Móvil)
+Stocks Manager es una **Progressive Web App**. Para instalarla:
+- **Android**: En Chrome, pulsa el menú de tres puntos (⋮) y elige "Añadir a pantalla de inicio".
+- **iOS**: En Safari, pulsa el botón Compartir y elige "Añadir a pantalla de inicio".
+- **Ventajas**: Icono propio en el escritorio, pantalla completa sin barras de navegación y acceso rápido.
 
 ---
 

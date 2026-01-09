@@ -70,9 +70,11 @@ export const Sidebar: React.FC = () => {
       <div className="flex flex-col h-full overflow-y-auto scrollbar-thin">
         {/* Brand */}
         <div className="flex items-center justify-center lg:justify-start gap-3 px-2 lg:px-6 mb-8 cursor-pointer group" onClick={() => navigate('/')}>
-          <div className="flex-shrink-0 flex items-center justify-center size-10 rounded-xl bg-primary text-black shadow-lg shadow-primary/30 group-hover:scale-110 transition-transform">
-            <span className="material-symbols-outlined font-bold">insert_chart</span>
-          </div>
+          <img
+            src="/pwa-192x192.png"
+            alt="Stocks Manager"
+            className="w-10 h-10 rounded-xl shadow-lg shadow-primary/30 group-hover:scale-110 transition-transform"
+          />
           <h1 className="hidden lg:block text-xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark whitespace-nowrap group-hover:text-primary transition-colors">
             Stocks Manager
           </h1>

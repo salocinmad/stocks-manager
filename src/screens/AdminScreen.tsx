@@ -780,10 +780,10 @@ export const AdminScreen: React.FC = () => {
                         {activeTab === 'market' && (
                             <div className="animate-fade-in w-full">
                                 {/* Subtabs Navigation */}
-                                <div className="flex gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-1">
+                                <div className="flex gap-1 md:gap-2 mb-4 md:mb-6 border-b border-border-light dark:border-border-dark pb-1 overflow-x-auto scrollbar-hide">
                                     <button
                                         onClick={() => setMarketSubTab('sync')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'sync'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${marketSubTab === 'sync'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -792,7 +792,7 @@ export const AdminScreen: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={() => setMarketSubTab('indices')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'indices'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${marketSubTab === 'indices'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -801,7 +801,7 @@ export const AdminScreen: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={() => setMarketSubTab('catalog')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'catalog'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${marketSubTab === 'catalog'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -810,7 +810,7 @@ export const AdminScreen: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={() => setMarketSubTab('discovery')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${marketSubTab === 'discovery'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${marketSubTab === 'discovery'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -821,7 +821,7 @@ export const AdminScreen: React.FC = () => {
 
                                 {/* Subtab: Sincronización */}
                                 {marketSubTab === 'sync' && (
-                                    <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 w-full animate-fade-in">
+                                    <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 w-full animate-fade-in">
                                         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                                             <span className="material-symbols-outlined">cloud_sync</span>
                                             Sincronización de Mercado
@@ -831,7 +831,7 @@ export const AdminScreen: React.FC = () => {
                                             Gestión centralizada de datos de mercado, sincronización histórica y herramientas de limpieza.
                                         </p>
 
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
                                             {/* COLUMN 1: SYNC & PNL */}
                                             <div className="space-y-8">
                                                 {/* SYNC SECTION */}
@@ -1450,16 +1450,16 @@ export const AdminScreen: React.FC = () => {
 
                         {/* Tab: AI Settings */}
                         {activeTab === 'ai' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-4xl animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 max-w-4xl animate-fade-in">
+                                <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 flex items-center gap-2">
                                     <span className="material-symbols-outlined">psychology</span>
                                     Configuración de IA
                                 </h2>
 
-                                <div className="flex gap-2 mb-6 border-b border-border-light dark:border-border-dark pb-1">
+                                <div className="flex gap-1 md:gap-2 mb-4 md:mb-6 border-b border-border-light dark:border-border-dark pb-1 overflow-x-auto scrollbar-hide">
                                     <button
                                         onClick={() => setAiSubTab('general')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${aiSubTab === 'general'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${aiSubTab === 'general'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -1468,7 +1468,7 @@ export const AdminScreen: React.FC = () => {
                                     </button>
                                     <button
                                         onClick={() => setAiSubTab('providers')}
-                                        className={`px-4 py-2 text-sm font-bold rounded-t-xl transition-all ${aiSubTab === 'providers'
+                                        className={`px-3 md:px-4 py-2 text-xs md:text-sm font-bold rounded-t-lg md:rounded-t-xl transition-all whitespace-nowrap ${aiSubTab === 'providers'
                                             ? 'bg-primary/10 text-primary border-b-2 border-primary'
                                             : 'text-text-secondary-light hover:text-text-primary dark:hover:text-gray-200'
                                             }`}
@@ -1484,8 +1484,8 @@ export const AdminScreen: React.FC = () => {
 
                         {/* Tab: API Keys (Reducido) */}
                         {activeTab === 'api' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 max-w-2xl animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 max-w-2xl animate-fade-in">
+                                <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 flex items-center gap-2">
                                     <span className="material-symbols-outlined">key</span>
                                     Configuración de APIs
                                 </h2>
@@ -1585,29 +1585,29 @@ export const AdminScreen: React.FC = () => {
 
                         {/* Tab: Backup */}
                         {activeTab === 'backup' && (
-                            <div className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 animate-fade-in">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl md:rounded-3xl p-4 md:p-6 animate-fade-in">
+                                <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 flex items-center gap-2">
                                     <span className="material-symbols-outlined">backup</span>
                                     Backup y Restauración
                                 </h2>
 
                                 {/* Sub-tabs Navigation */}
-                                <div className="flex gap-4 mb-6 border-b border-border-light dark:border-border-dark pb-2">
+                                <div className="flex gap-2 md:gap-4 mb-4 md:mb-6 border-b border-border-light dark:border-border-dark pb-2 overflow-x-auto scrollbar-hide">
                                     <button
                                         onClick={() => setBackupSubTab('manual')}
-                                        className={`pb-2 px-2 text-sm font-semibold transition-colors ${backupSubTab === 'manual' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
+                                        className={`pb-2 px-2 text-xs md:text-sm font-semibold transition-colors whitespace-nowrap ${backupSubTab === 'manual' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
                                     >
                                         Manual
                                     </button>
                                     <button
                                         onClick={() => setBackupSubTab('scheduler')}
-                                        className={`pb-2 px-2 text-sm font-semibold transition-colors ${backupSubTab === 'scheduler' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
+                                        className={`pb-2 px-2 text-xs md:text-sm font-semibold transition-colors whitespace-nowrap ${backupSubTab === 'scheduler' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
                                     >
                                         Programación
                                     </button>
                                     <button
                                         onClick={() => setBackupSubTab('tables')}
-                                        className={`pb-2 px-2 text-sm font-semibold transition-colors ${backupSubTab === 'tables' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
+                                        className={`pb-2 px-2 text-xs md:text-sm font-semibold transition-colors whitespace-nowrap ${backupSubTab === 'tables' ? 'text-primary border-b-2 border-primary' : 'text-text-secondary-light hover:text-text-primary'}`}
                                     >
                                         Tablas Detectadas
                                     </button>
@@ -1959,15 +1959,15 @@ export const AdminScreen: React.FC = () => {
 
                                             <div
                                                 onClick={() => setExplorerInStats({ source: 'catalog' })}
-                                                className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 cursor-pointer hover:bg-primary/5 transition-all group border border-transparent hover:border-primary/20"
+                                                className="bg-surface-light dark:bg-surface-dark rounded-xl md:rounded-3xl p-3 md:p-6 cursor-pointer hover:bg-primary/5 transition-all group border border-transparent hover:border-primary/20"
                                             >
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-purple-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                                        <span className="material-symbols-outlined text-purple-600 text-2xl">public</span>
+                                                <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
+                                                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-purple-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                        <span className="material-symbols-outlined text-purple-600 text-base md:text-2xl">public</span>
                                                     </div>
-                                                    <span className="text-sm font-semibold text-text-secondary-light text-purple-600">Catálogo Maestro</span>
+                                                    <span className="text-xs md:text-sm font-semibold text-purple-600">Catálogo Maestro</span>
                                                 </div>
-                                                <p className="text-3xl font-black">{stats.globalTickers || 0}</p>
+                                                <p className="text-xl md:text-3xl font-black">{stats.globalTickers || 0}</p>
                                                 <div className="flex justify-between items-center mt-1">
                                                     <p className="text-sm text-text-secondary-light">Tickers (Infraestructura)</p>
                                                     <span className="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
@@ -1976,15 +1976,15 @@ export const AdminScreen: React.FC = () => {
 
                                             <div
                                                 onClick={() => setExplorerInStats({ source: 'discovery' })}
-                                                className="bg-surface-light dark:bg-surface-dark rounded-3xl p-6 cursor-pointer hover:bg-cyan-500/5 transition-all group border border-transparent hover:border-cyan-500/20"
+                                                className="bg-surface-light dark:bg-surface-dark rounded-xl md:rounded-3xl p-3 md:p-6 cursor-pointer hover:bg-cyan-500/5 transition-all group border border-transparent hover:border-cyan-500/20"
                                             >
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                                        <span className="material-symbols-outlined text-cyan-500 text-2xl">rocket_launch</span>
+                                                <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
+                                                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-cyan-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                        <span className="material-symbols-outlined text-cyan-500 text-base md:text-2xl">rocket_launch</span>
                                                     </div>
-                                                    <span className="text-sm font-semibold text-text-secondary-light">Discovery Engine</span>
+                                                    <span className="text-xs md:text-sm font-semibold text-text-secondary-light">Discovery Engine</span>
                                                 </div>
-                                                <p className="text-3xl font-black">{stats.discovery?.companies || 0}</p>
+                                                <p className="text-xl md:text-3xl font-black">{stats.discovery?.companies || 0}</p>
                                                 <div className="flex justify-between items-center mt-1">
                                                     <p className="text-sm text-text-secondary-light">
                                                         Empresas en {stats.discovery?.sectors || 0} sectores

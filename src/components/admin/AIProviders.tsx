@@ -81,13 +81,13 @@ export const AIProviders: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold flex items-center gap-2">
+                <h3 className="text-base md:text-lg font-bold flex items-center gap-2">
                     <Server size={20} />
                     Proveedores de IA
                 </h3>
                 <button
                     onClick={() => setIsCreating(true)}
-                    className="px-3 py-2 bg-primary text-black rounded-lg text-sm font-bold flex items-center gap-2"
+                    className="px-2 md:px-3 py-1.5 md:py-2 bg-primary text-black rounded-lg text-xs md:text-sm font-bold flex items-center gap-1 md:gap-2"
                 >
                     <Plus size={16} /> Nuevo Proveedor
                 </button>
@@ -95,7 +95,7 @@ export const AIProviders: React.FC = () => {
 
             {/* Creating Form */}
             {isCreating && (
-                <div className="bg-background-light dark:bg-surface-dark-elevated p-4 rounded-xl border border-border-light dark:border-border-dark mb-4 animate-fade-in">
+                <div className="bg-background-light dark:bg-surface-dark-elevated p-3 md:p-4 rounded-lg md:rounded-xl border border-border-light dark:border-border-dark mb-4 animate-fade-in">
                     <h4 className="font-bold mb-4">Nuevo Proveedor Custom</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <input
@@ -149,7 +149,7 @@ export const AIProviders: React.FC = () => {
             {/* List */}
             <div className="grid gap-4">
                 {providers.map(p => (
-                    <div key={p.id} className="bg-surface-light dark:bg-surface-dark-elevated p-4 rounded-xl border border-border-light dark:border-border-dark flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                    <div key={p.id} className="bg-surface-light dark:bg-surface-dark-elevated p-3 md:p-4 rounded-lg md:rounded-xl border border-border-light dark:border-border-dark flex flex-col md:flex-row gap-3 md:gap-4 items-start md:items-center justify-between">
                         {editingId === p.id ? (
                             <div className="w-full space-y-3">
                                 <div className="flex gap-2">
