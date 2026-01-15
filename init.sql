@@ -254,6 +254,26 @@ CREATE TABLE IF NOT EXISTS pnl_history_cache (
 );
 CREATE INDEX IF NOT EXISTS idx_pnl_cache_portfolio ON pnl_history_cache(portfolio_id);
 
+-- 18.5 PNL HISTORY DETAIL (Per-position breakdown for audit)
+CREATE TABLE IF NOT EXISTS pnl_history_detail (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    portfolio_id UUID REFERENCES portfolios(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    ticker VARCHAR(20) NOT NULL,
+    quantity DECIMAL(20, 8),
+    avg_price DECIMAL(20, 8),
+    market_price DECIMAL(20, 8),
+    position_currency VARCHAR(3),
+    price_currency VARCHAR(3),
+    position_rate_eur DECIMAL(20, 8),
+    price_rate_eur DECIMAL(20, 8),
+    cost_eur DECIMAL(20, 4),
+    value_eur DECIMAL(20, 4),
+    pnl_eur DECIMAL(20, 4),
+    calculated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pnl_detail_portfolio_date ON pnl_history_detail(portfolio_id, date);
+
 -- 19. MARKET DISCOVERY CACHE (AI Discovery Engine)
 CREATE TABLE IF NOT EXISTS market_discovery_cache (
     category VARCHAR(255) PRIMARY KEY,

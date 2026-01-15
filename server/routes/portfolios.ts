@@ -69,14 +69,16 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             // 1. Obtener posiciones (filtradas o todas)
             if (portfolioId && portfolioId !== 'all') {
                 positions = await sql`
-                    SELECT p.*, port.name as portfolio_name 
+                    SELECT p.*, port.name as portfolio_name,
+                        COALESCE((SELECT SUM(fees) FROM transactions WHERE portfolio_id = p.portfolio_id AND ticker = p.ticker AND type = 'BUY'), 0) as tx_fees_sum
                     FROM positions p
                     JOIN portfolios port ON p.portfolio_id = port.id
                     WHERE port.user_id = ${userId} AND port.id = ${portfolioId}
                 `;
             } else {
                 positions = await sql`
-                    SELECT p.*, port.name as portfolio_name 
+                    SELECT p.*, port.name as portfolio_name,
+                        COALESCE((SELECT SUM(fees) FROM transactions WHERE portfolio_id = p.portfolio_id AND ticker = p.ticker AND type = 'BUY'), 0) as tx_fees_sum
                     FROM positions p
                     JOIN portfolios port ON p.portfolio_id = port.id
                     WHERE port.user_id = ${userId}
@@ -121,7 +123,6 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
 
             // 4. Calcular métricas consolidadas
             let totalValueEur = 0;
-            let totalPrevValueEur = 0;
             let totalCostEur = 0;
             const distMap: Record<string, number> = {};
             const sectorMap: Record<string, number> = {};
@@ -131,27 +132,24 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
                 const posRate = rates[p.currency || 'EUR'] || 1.0;
                 const qty = Number(p.quantity);
                 const avgPrice = Number(p.average_buy_price) || 0;
+                // Use the sum of transaction fees instead of stale positions.commission
+                const commission = Number(p.tx_fees_sum) || 0;
 
-                // Costo total en EUR (Usar moneda de la posición)
-                const costEur = qty * avgPrice * posRate;
+                // Costo total en EUR (Usar moneda de la posición) + Comisión
+                const costEur = (qty * avgPrice + commission) * posRate;
                 totalCostEur += costEur;
 
                 let currentValEur = 0;
-                let prevValEur = 0;
 
                 if (quote && quote.c) {
                     // CRITICAL: Use Quote Currency for Live Price (Handles GBP vs GBX mismatch)
                     const quoteRate = rates[quote.currency] || 1.0;
                     currentValEur = qty * quote.c * quoteRate;
-                    prevValEur = qty * (quote.pc || quote.c) * quoteRate;
-
                     totalValueEur += currentValEur;
-                    totalPrevValueEur += prevValEur;
                 } else {
                     // Fallback to position currency/price if no quote
                     const val = qty * avgPrice * posRate;
                     totalValueEur += val;
-                    totalPrevValueEur += val;
                     currentValEur = val;
                 }
 
@@ -164,10 +162,42 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
                 sectorMap[sector] = (sectorMap[sector] || 0) + currentValEur;
             });
 
-            const dailyChangeEur = totalValueEur - totalPrevValueEur;
-            const dailyChangePercent = totalPrevValueEur > 0 ? (dailyChangeEur / totalPrevValueEur) * 100 : 0;
+            // Calculate today's PnL
+            const todayPnL = totalValueEur - totalCostEur;
 
-            const totalGainEur = totalValueEur - totalCostEur;
+            // Get yesterday's PnL from cache for consistent Daily Variation
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+            let yesterdayPnL = 0;
+            if (portfolioId && portfolioId !== 'all') {
+                const cached = await sql`
+                    SELECT pnl_eur FROM pnl_history_cache 
+                    WHERE portfolio_id = ${portfolioId} AND date = ${yesterdayStr}::date
+                    LIMIT 1
+                `;
+                yesterdayPnL = cached.length > 0 ? Number(cached[0].pnl_eur) || 0 : 0;
+            } else {
+                // Sum all portfolios for user
+                const userPortfolios = await sql`SELECT id FROM portfolios WHERE user_id = ${userId}`;
+                for (const p of userPortfolios) {
+                    const cached = await sql`
+                        SELECT pnl_eur FROM pnl_history_cache 
+                        WHERE portfolio_id = ${p.id} AND date = ${yesterdayStr}::date
+                        LIMIT 1
+                    `;
+                    if (cached.length > 0) {
+                        yesterdayPnL += Number(cached[0].pnl_eur) || 0;
+                    }
+                }
+            }
+
+            // Daily Change = Today's PnL - Yesterday's PnL (consistent with chart)
+            const dailyChangeEur = todayPnL - yesterdayPnL;
+            const dailyChangePercent = yesterdayPnL !== 0 ? (dailyChangeEur / Math.abs(yesterdayPnL)) * 100 : 0;
+
+            const totalGainEur = todayPnL;
             const totalGainPercent = totalCostEur > 0 ? (totalGainEur / totalCostEur) * 100 : 0;
 
             const distribution = Object.entries(distMap).map(([name, value]) => ({
@@ -537,7 +567,8 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
 
             // 2. Calculate TODAY's live PnL using real-time quotes
             const positions = await sql`
-                SELECT ticker, quantity, average_buy_price, currency, asset_type 
+                SELECT ticker, quantity, average_buy_price, currency, asset_type, portfolio_id,
+                    COALESCE((SELECT SUM(fees) FROM transactions WHERE portfolio_id = positions.portfolio_id AND ticker = positions.ticker AND type = 'BUY'), 0) as tx_fees_sum
                 FROM positions 
                 WHERE portfolio_id = ${id} AND quantity > 0
             `;
@@ -566,17 +597,22 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
 
                 positions.forEach(p => {
                     const quote = quotes[p.ticker];
-                    const rate = rates[p.currency || 'EUR'] || 1.0;
+                    const posRate = rates[p.currency || 'EUR'] || 1.0;
                     const qty = Number(p.quantity);
                     const avgPrice = Number(p.average_buy_price) || 0;
+                    // Use the sum of transaction fees instead of stale positions.commission
+                    const commission = Number(p.tx_fees_sum) || 0;
 
-                    const costEur = qty * avgPrice * rate;
+                    // Cost basis uses position currency rate + Commission
+                    const costEur = (qty * avgPrice + commission) * posRate;
                     totalCostEur += costEur;
 
                     if (quote && quote.c) {
-                        totalValueEur += qty * quote.c * rate;
+                        // CRITICAL: Use quote currency for live price (handles GBX properly)
+                        const quoteRate = rates[quote.currency] || posRate;
+                        totalValueEur += qty * quote.c * quoteRate;
                     } else {
-                        totalValueEur += qty * avgPrice * rate;
+                        totalValueEur += qty * avgPrice * posRate;
                     }
                 });
 

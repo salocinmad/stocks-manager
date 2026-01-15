@@ -297,9 +297,12 @@ export const PortfolioScreen: React.FC = () => {
 
               const name = quote?.name || pos.ticker;
               const lastUpdated = quote?.lastUpdated || 0;
-              const currency = pos.currency || 'USD'; // Fallback a USD si no hay moneda
+              const posCurrency = pos.currency || 'USD'; // Position currency
+              const quoteCurrency = quote?.currency || posCurrency; // Quote currency (may differ for GBX/GBP)
 
-              const rate = currency === 'EUR' ? 1 : (exchangeRates[currency] || 1);
+              // Use position rate for cost basis, quote rate for current value
+              const posRate = posCurrency === 'EUR' ? 1 : (exchangeRates[posCurrency] || 1);
+              const quoteRate = quoteCurrency === 'EUR' ? 1 : (exchangeRates[quoteCurrency] || posRate);
 
               const commission = Number(pos.commission) || 0;
               const currentValue = qty * currentPrice;
@@ -307,8 +310,9 @@ export const PortfolioScreen: React.FC = () => {
               const costBasis = (qty * avgPrice) + commission;
 
               // Valores en EUR para totales
-              const currentValueEUR = currentValue * rate;
-              const costBasisEUR = costBasis * rate;
+              // CRITICAL: Use quoteRate for market value, posRate for cost basis
+              const currentValueEUR = currentValue * quoteRate;
+              const costBasisEUR = costBasis * posRate;
 
               const returnPct = costBasis > 0 ? ((currentValue - costBasis) / costBasis) * 100 : 0;
 

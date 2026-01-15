@@ -1,6 +1,6 @@
 # 📚 Stocks Manager - Memoria del Proyecto
 
-> **Versión actual: 2.1.1** | Última actualización: 9 Enero 2026
+> **Versión actual: 2.1.2** | Última actualización: 15 Enero 2026
 > 
 > Este documento proporciona una visión global del proyecto para contexto de IA en futuras conversaciones.
 
@@ -47,7 +47,7 @@ stocks-manager/
 
 ## 🗄️ Base de Datos (PostgreSQL 16)
 
-### Tablas Principales (22 tablas):
+### Tablas Principales (23 tablas):
 
 | Tabla | Descripción |
 |-------|-------------|
@@ -62,7 +62,8 @@ stocks-manager/
 | `ticker_details_cache` | Cache de datos de mercado (Yahoo V8/V10) |
 | `position_analysis_cache` | Cache de análisis de posiciones (6 tabs) |
 | `financial_events` | Dividendos, splits, earnings (updated_at) |
-| `pnl_history_cache` | Histórico PnL pre-calculado |
+| `pnl_history_cache` | Histórico PnL pre-calculado (agregado) |
+| `pnl_history_detail` | **[v2.1.2]** Detalle PnL por posición (auditoría) |
 | `currency_history` | Tipos de cambio históricos |
 | `ai_prompts` | Prompts del sistema de IA (editables) |
 | `ai_providers` | Proveedores de IA configurados |
@@ -75,14 +76,21 @@ stocks-manager/
 | `notification_channels` | Canales de notificación (email, push, in-app) |
 
 ### Configuración Crítica en `system_settings`:
-- `APP_VERSION`: V2.1.1 (mostrada en modales)
+- `APP_VERSION`: V2.1.2 (mostrada en modales)
 - `JWT_SECRET`: **CRÍTICO** - necesario para descifrar backups
 - `CRAWLER_*`: Configuración del Discovery Engine
 - `GLOBAL_TICKER_EXCHANGES`: Bolsas activas para sincronización
 
 ---
 
-## 🔧 Características Principales (v2.1.1)
+## 🔧 Características Principales
+
+### 💰 PnL y Conversión de Divisa - v2.1.2 [NUEVO]
+- **Tabla `pnl_history_detail`**: Almacena detalle por posición para auditoría completa (ticker, precios, monedas, tasas, cost EUR, value EUR, PnL EUR)
+- **Conversión GBX→GBP**: Manejo automático de peniques (multiplicador 0.01) para acciones de LSE
+- **Comisiones desde transacciones**: Se calculan desde `SUM(transactions.fees)` en lugar de `positions.commission` (fix de sincronización)
+- **Variación Diaria Consistente**: Ahora calcula `PnL hoy - PnL ayer` usando `pnl_history_cache` para consistencia con el gráfico
+- **Tasas separadas**: Cost Basis usa moneda de posición, Market Value usa moneda de cotización
 
 ### 📱 PWA (Progressive Web App) - v2.1.1
 - **Instalable en Android**: Chrome → Menú ⋮ → "Añadir a pantalla de inicio"
@@ -219,7 +227,8 @@ bun run server/scripts/test_runner.ts
 
 | Versión | Fecha | Cambios Principales |
 |---------|-------|---------------------|
-| **2.1.1** | 9 Ene 2026 | PWA instalable, ChatBot responsive, Auth screens responsive, nuevo logo |
+| **2.1.2** | 15 Ene 2026 | PnL auditoría detallada, fix conversión GBX, comisiones desde transacciones, variación diaria consistente |
+| 2.1.1 | 9 Ene 2026 | PWA instalable, ChatBot responsive, Auth screens responsive, nuevo logo |
 | 2.1.0 | 8 Ene 2026 | Catálogo Maestro, Dashboard 2 columnas, Alertas globales, Mobile Navigation |
 | 2.0.0 | Dic 2025 | Multi-AI, Discovery Engine v2, Position Analysis 6 tabs |
 

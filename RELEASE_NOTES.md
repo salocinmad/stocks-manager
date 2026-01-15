@@ -1,4 +1,39 @@
-# 🚀 Stocks Manager v2.1.1
+# 🚀 Stocks Manager v2.1.2
+## "PnL Accuracy & Currency Consistency Update"
+
+Esta versión corrige los cálculos de PnL y las conversiones de divisa para garantizar consistencia total entre Dashboard, Portfolio y el gráfico histórico.
+
+---
+
+## ✨ Novedades v2.1.2
+
+### 💰 Nueva Tabla `pnl_history_detail`
+Almacenamiento detallado del PnL por posición para auditoría completa:
+- **Campos**: ticker, quantity, avg_price, market_price, position_currency, price_currency, position_rate_eur, price_rate_eur, cost_eur, value_eur, pnl_eur
+- **Uso**: Permite reconstruir exactamente cómo se calculó el PnL de cualquier día
+
+### 🔄 Corrección de Conversión GBX→EUR
+- **Problema resuelto**: Los activos de LSE cotizados en peniques (GBX) ahora se convierten correctamente usando el multiplicador 0.01 + tasa GBP/EUR
+- **Archivos modificados**: `pnlJob.ts`, `pnlService.ts`, `portfolios.ts`
+
+### 💳 Comisiones desde Transacciones
+- **Problema resuelto**: El campo `positions.commission` podía estar desactualizado
+- **Solución**: El Dashboard ahora calcula comisiones como `SUM(transactions.fees WHERE type='BUY')`
+- **Beneficio**: Consistencia total entre Dashboard y PnL histórico
+
+### 📊 Variación Diaria Consistente
+- **Antes**: Usaba `quote.pc` (previous close de Yahoo en tiempo real)
+- **Ahora**: Calcula `PnL de hoy - PnL de ayer` usando `pnl_history_cache`
+- **Beneficio**: La Variación Diaria coincide exactamente con la diferencia entre puntos consecutivos del gráfico PnL
+
+### 🔧 Cambios Técnicos
+- `pnlService.calculateDailyUnrealizedPnL()`: Acepta diccionarios separados para tasas de posición y tasas de precio
+- `pnlJob.ts`: Almacena detalles en `pnl_history_detail` para cada posición/día
+- `portfolios.ts`: Summary y pnl-history usan `tx_fees_sum` y variación diaria basada en caché
+
+---
+
+# 📱 Stocks Manager v2.1.1
 ## "PWA & Mobile Experience Update"
 
 Esta versión convierte Stocks Manager en una **Progressive Web App (PWA)** instalable en Android y mejora la experiencia móvil del ChatBot.

@@ -479,6 +479,29 @@ export async function initDatabase() {
       await sql`CREATE INDEX IF NOT EXISTS idx_pnl_cache_portfolio ON pnl_history_cache(portfolio_id)`;
       console.log('Created table: pnl_history_cache');
 
+      // 12.5 PnL History Detail (Per-position breakdown for audit)
+      await sql`
+        CREATE TABLE IF NOT EXISTS pnl_history_detail (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            portfolio_id UUID REFERENCES portfolios(id) ON DELETE CASCADE,
+            date DATE NOT NULL,
+            ticker VARCHAR(20) NOT NULL,
+            quantity DECIMAL(20, 8),
+            avg_price DECIMAL(20, 8),
+            market_price DECIMAL(20, 8),
+            position_currency VARCHAR(3),
+            price_currency VARCHAR(3),
+            position_rate_eur DECIMAL(20, 8),
+            price_rate_eur DECIMAL(20, 8),
+            cost_eur DECIMAL(20, 4),
+            value_eur DECIMAL(20, 4),
+            pnl_eur DECIMAL(20, 4),
+            calculated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+      await sql`CREATE INDEX IF NOT EXISTS idx_pnl_detail_portfolio_date ON pnl_history_detail(portfolio_id, date)`;
+      console.log('Created table: pnl_history_detail');
+
       // ----------------------------------------------------
       // NEW: AI Providers Table (Multi-Provider Support V6)
       // ----------------------------------------------------
@@ -944,6 +967,19 @@ Danos tu visión de futuro.`;
     } catch (e: any) { console.error('Migration error (APP_VERSION):', e.message); }
 
     console.log('V2.1.1 migrations completed.');
+
+    // V2.1.2 MIGRATIONS - PnL Accuracy & Currency Consistency
+    console.log('Running v2.1.2 migrations...');
+
+    // pnl_history_detail table already created above (12.5)
+
+    // Update APP_VERSION to 2.1.2
+    try {
+      await sql`UPDATE system_settings SET value = 'V2.1.2' WHERE key = 'APP_VERSION'`;
+      console.log('Updated APP_VERSION to V2.1.2');
+    } catch (e: any) { console.error('Migration error (APP_VERSION):', e.message); }
+
+    console.log('V2.1.2 migrations completed.');
 
   } catch (error) {
     console.error('Error initializing database:', error);

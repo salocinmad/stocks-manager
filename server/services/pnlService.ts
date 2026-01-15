@@ -76,24 +76,28 @@ export const PnLService = {
 
         return positionsMap;
     },
-
     /**
      * Calculates the Unrealized PnL for a single day given market data.
+     * Uses separate rates for cost basis (position currency) and market value (price currency)
+     * to match Dashboard calculation logic.
      */
     calculateDailyUnrealizedPnL(
         positions: PositionState[],
-        marketPrices: Record<string, number>, // Ticker -> Price
-        fxRates: Record<string, number>       // Currency -> EUR Rate
+        marketPrices: Record<string, number>,     // Ticker -> Price
+        positionRates: Record<string, number>,    // Currency -> EUR Rate (for cost basis)
+        priceRates?: Record<string, number>       // Ticker -> EUR Rate (for market value, optional)
     ): number {
         let totalPnLEur = 0;
 
         for (const pos of positions) {
             const currentPrice = marketPrices[pos.ticker] || 0;
-            const rateToEur = fxRates[pos.currency] || (pos.currency === 'EUR' ? 1.0 : 0);
+            const posRate = positionRates[pos.currency] || (pos.currency === 'EUR' ? 1.0 : 0);
+            // If priceRates provided, use it; otherwise fall back to position rate
+            const priceRate = priceRates?.[pos.ticker] ?? posRate;
 
-            if (currentPrice > 0 && rateToEur > 0) {
-                const marketValueEur = pos.quantity * currentPrice * rateToEur;
-                const costBasisEur = pos.quantity * pos.averagePrice * rateToEur;
+            if (currentPrice > 0 && posRate > 0 && priceRate > 0) {
+                const marketValueEur = pos.quantity * currentPrice * priceRate;
+                const costBasisEur = pos.quantity * pos.averagePrice * posRate;
 
                 totalPnLEur += (marketValueEur - costBasisEur);
             }

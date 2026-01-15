@@ -1,6 +1,6 @@
 # 📋 PROJECT_INDEX.md - Stocks Manager
 
-> **Versión: 2.1.1** | Índice técnico del proyecto
+> **Versión: 2.1.2** | Índice técnico del proyecto
 
 ---
 
@@ -50,6 +50,7 @@ stocks-manager/
 | `positionAnalysisService.ts` | 6-tab analysis |
 | `alertService.ts` | Alert checking |
 | `portfolioAlertService.ts` | Global portfolio alerts |
+| `pnlService.ts` | **[v2.1.2]** Cálculo PnL histórico, posiciones en fecha |
 | `discoveryService.ts` | Discovery Engine logic |
 | `eodhdService.ts` | EODHD API client |
 | `settingsService.ts` | System settings |
@@ -175,4 +176,4 @@ bun run server/scripts/cleanup_test_users.ts
 
 ---
 
-**Última actualización**: 9 Enero 2026 | v2.1.1 (Full Responsive Update)
+**Última actualización**: 15 Enero 2026 | v2.1.2 (PnL Accuracy & Currency Consistency Update)
