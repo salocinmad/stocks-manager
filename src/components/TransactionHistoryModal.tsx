@@ -276,7 +276,8 @@ export const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = (
                                             ) : (
                                                 <span className="text-xs text-text-secondary-light dark:text-gray-500 font-bold">{tx.currency}</span>
                                             )}
-                                                                              {/* FX RATE */}
+                                        </td>
+                                        {/* FX RATE */}
                                         <td className="p-4 text-sm text-right text-text-secondary-light dark:text-gray-400">
                                             {isEditing ? (
                                                 <input
