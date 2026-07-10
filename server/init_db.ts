@@ -992,6 +992,30 @@ Danos tu visión de futuro.`;
 
     console.log('V2.1.3 migrations completed.');
 
+    // V2.1.4 MIGRATIONS - Mobile UX Optimization
+    console.log('Running v2.1.4 migrations...');
+
+    // Update APP_VERSION to 2.1.4
+    try {
+      await sql`UPDATE system_settings SET value = 'V2.1.4' WHERE key = 'APP_VERSION'`;
+      console.log('Updated APP_VERSION to V2.1.4');
+    } catch (e: any) { console.error('Migration error (APP_VERSION):', e.message); }
+
+    console.log('V2.1.4 migrations completed.');
+
+    // V2.1.5 MIGRATIONS - Mobile Cards Redesign & Fix
+    console.log('Running v2.1.5 migrations...');
+
+    // Update APP_VERSION to 2.1.5
+    try {
+      await sql`UPDATE system_settings SET value = 'V2.1.5' WHERE key = 'APP_VERSION'`;
+      console.log('Updated APP_VERSION to V2.1.5');
+    } catch (e: any) { console.error('Migration error (APP_VERSION):', e.message); }
+
+    console.log('V2.1.5 migrations completed.');
+
+
+
   } catch (error) {
     console.error('Error initializing database:', error);
     process.exit(1);

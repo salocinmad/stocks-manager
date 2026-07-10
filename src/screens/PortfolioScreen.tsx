@@ -108,6 +108,8 @@ export const PortfolioScreen: React.FC = () => {
 
   // Estado para modal de análisis de posición
   const [analysisPosition, setAnalysisPosition] = useState<Position | null>(null);
+  // Estado para el menú de acciones expandido en móvil
+  const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
 
   // Estados para modal de venta rápida
   const [positionToSell, setPositionToSell] = useState<Position | null>(null);
@@ -647,8 +649,8 @@ export const PortfolioScreen: React.FC = () => {
 
       <div className="flex flex-col gap-8 px-6 py-10 md:px-10 max-w-[1600px] mx-auto w-full pb-32">
 
-        {/* Header de la sección */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        {/* Header de la sección - solo escritorio */}
+        <div className="hidden md:flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Análisis de Cartera</h1>
             <p className="text-text-secondary-light dark:text-text-secondary-dark text-lg font-medium opacity-80">Visualiza el rendimiento y distribución de tus activos.</p>
@@ -736,22 +738,58 @@ export const PortfolioScreen: React.FC = () => {
         )}
 
         <div className="w-full rounded-[2.5rem] bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-xl shadow-black/5 overflow-hidden">
-          <div className="p-8">
-            <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4 relative">
+          <div className="p-4 md:p-8">
+            {/* MOBILE header: compact single bar */}
+            <div className="flex md:hidden items-center justify-between mb-4">
+              <h3 className="text-base font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-lg">pie_chart</span>
+                Composición
+                {lastUpdateTime > 0 && (
+                  <span className="text-[10px] text-text-secondary-light font-medium ml-1">
+                    · {getTimeAgo(lastUpdateTime)}
+                  </span>
+                )}
+              </h3>
+              <div className="flex items-center gap-2">
+                {lastUpdateTime > 0 && (
+                  <button
+                    onClick={handleManualRefresh}
+                    disabled={!canRefresh || isRefreshing}
+                    className={`p-1.5 rounded-full text-xs font-bold transition-all border ${canRefresh && !isRefreshing
+                      ? 'bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 active:scale-95 cursor-pointer'
+                      : 'bg-background-light/50 dark:bg-white/5 border-border-light dark:border-border-dark text-text-secondary-light cursor-not-allowed opacity-60'
+                      }`}
+                    title={canRefresh ? 'Actualizar' : `Disponible en ${cooldownRemaining}s`}
+                  >
+                    <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin' : ''}`}>
+                      {isRefreshing ? 'progress_activity' : 'refresh'}
+                    </span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowBuyModal(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary text-black font-bold text-xs hover:scale-105 active:scale-95 transition-all shadow-md shadow-primary/20"
+                >
+                  <span className="material-symbols-outlined text-sm">add_circle</span>
+                  Añadir
+                </button>
+              </div>
+            </div>
+
+            {/* DESKTOP header: existing layout */}
+            <div className="hidden md:flex flex-col md:flex-row items-center justify-between mb-8 gap-4 relative">
               <h3 className="text-xl font-bold flex items-center gap-3 self-start md:self-auto">
                 <span className="material-symbols-outlined text-primary">pie_chart</span>
                 Composición de Activos
               </h3>
 
-              {/* Global Timestamp + Refresh Button - Centered on Desktop, Stacked on Mobile */}
+              {/* Global Timestamp + Refresh Button - Centered on Desktop */}
               {lastUpdateTime > 0 && (
                 <div className="flex md:absolute md:left-1/2 md:-translate-x-1/2 items-center gap-2 order-3 md:order-none w-full md:w-auto justify-center">
                   <div className="flex items-center gap-2 text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark bg-background-light/50 dark:bg-white/5 px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark">
                     <span className="material-symbols-outlined text-[14px] text-primary">schedule</span>
                     <span>Actualizado {getTimeAgo(lastUpdateTime)}</span>
                   </div>
-
-                  {/* Refresh Button */}
                   <button
                     onClick={handleManualRefresh}
                     disabled={!canRefresh || isRefreshing}
@@ -761,9 +799,7 @@ export const PortfolioScreen: React.FC = () => {
                       }`}
                     title={canRefresh ? 'Actualizar precios' : `Disponible en ${cooldownRemaining}s`}
                   >
-                    <span
-                      className={`material-symbols-outlined text-[14px] ${isRefreshing ? 'animate-spin' : ''}`}
-                    >
+                    <span className={`material-symbols-outlined text-[14px] ${isRefreshing ? 'animate-spin' : ''}`}>
                       {isRefreshing ? 'progress_activity' : 'refresh'}
                     </span>
                     {!canRefresh && !isRefreshing && (
@@ -774,14 +810,12 @@ export const PortfolioScreen: React.FC = () => {
                   </button>
                 </div>
               )}
-
             </div>
 
-
-
+            {/* Botón Añadir Activo - solo escritorio (móvil ya lo tiene arriba) */}
             <button
               onClick={() => setShowBuyModal(true)}
-              className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 self-end md:self-auto"
+              className="hidden md:flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-black font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 self-end md:self-auto"
             >
               <span className="material-symbols-outlined text-lg">add_circle</span>
               Añadir Activo
@@ -819,90 +853,123 @@ export const PortfolioScreen: React.FC = () => {
                   </button>
                 </div>
               )}
-              {/* ===== VISTA MÓVIL: Cards ===== */}
-              <div className="md:hidden flex flex-col gap-3">
-                {sortedPositions.map((pos) => (
-                  <div
-                    key={pos.id}
-                    className="bg-background-light/50 dark:bg-surface-dark-elevated/40 rounded-2xl border border-border-light dark:border-border-dark p-4"
-                  >
-                    {/* Header: Nombre + Ticker + Estado */}
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-base truncate">{pos.name || pos.ticker}</p>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
-                          {pos.marketState && (
-                            <div
-                              className={`size-1.5 rounded-full ${pos.marketState === 'REGULAR' ? 'bg-green-500' :
-                                ['PRE', 'POST'].includes(pos.marketState) ? 'bg-orange-500' : 'bg-red-500/30'
-                                }`}
-                            />
+              {/* ===== VISTA MÓVIL: Cards compactas ===== */}
+              <div className="md:hidden flex flex-col gap-2">
+                {sortedPositions.map((pos) => {
+                  const totalReturnVal = ((pos.currentValue || 0) - ((pos.quantity * pos.average_buy_price) + (Number(pos.commission) || 0)));
+                  return (
+                    <div
+                      key={pos.id}
+                      className="bg-background-light/50 dark:bg-surface-dark-elevated/40 rounded-xl border border-border-light dark:border-border-dark px-3.5 py-3"
+                    >
+                      {/* Fila 1: Nombre + Rentabilidad Total (%) */}
+                      <div className="flex items-center justify-between mb-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="min-w-0">
+                            <p className="font-bold text-sm leading-tight truncate">{pos.name || pos.ticker}</p>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-text-secondary-light uppercase font-medium">{pos.ticker}</span>
+                              {pos.marketState && (
+                                <div className={`size-1.5 rounded-full ${pos.marketState === 'REGULAR' ? 'bg-green-500' : ['PRE', 'POST'].includes(pos.marketState) ? 'bg-orange-500' : 'bg-red-500/30'}`} />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end flex-shrink-0">
+                          {/* Rentabilidad total en Badge */}
+                          <div className={`px-2 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1 ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                            <span>{(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%</span>
+                          </div>
+                          {/* Rentabilidad total en Moneda */}
+                          <span className={`text-[10px] font-bold mt-0.5 ${(pos.returnPct || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {(pos.returnPct || 0) >= 0 ? '+' : ''}{totalReturnVal.toLocaleString('es-ES', { style: 'currency', currency: pos.currency })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Fila 2: Cantidad | P. medio | Variación hoy (Moneda) */}
+                      <div className="grid grid-cols-3 gap-2 text-[11px] mb-2">
+                        <div>
+                          <div className="text-[9px] uppercase text-text-secondary-light font-bold mb-0.5">Cantidad</div>
+                          <div className="font-bold font-mono text-xs text-text-primary-light dark:text-white">
+                            {pos.quantity.toLocaleString('es-ES', { maximumFractionDigits: 4 })}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase text-text-secondary-light font-bold mb-0.5">P. Medio</div>
+                          <div className="font-mono text-xs text-text-primary-light dark:text-white">
+                            {formatPrice(pos.average_buy_price, pos.currency)}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[9px] uppercase text-text-secondary-light font-bold mb-0.5">Variación Hoy</div>
+                          <div className={`font-mono text-xs font-bold ${(pos.change ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {(pos.change ?? 0) >= 0 ? '+' : ''}{formatPrice(pos.change || 0, pos.currency)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Fila 3: Valor Total | Precio Actual | Var. Hoy (%) */}
+                      <div className="grid grid-cols-3 gap-2 text-[11px] mb-2.5 pt-2 border-t border-dashed border-border-light/45 dark:border-border-dark/35">
+                        <div>
+                          <div className="text-[9px] uppercase text-text-secondary-light font-bold mb-0.5">Valor Total</div>
+                          <div className="font-black text-xs text-text-primary-light dark:text-white">
+                            {pos.currentValue?.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) || '---'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase text-text-secondary-light font-bold mb-0.5">Precio Actual</div>
+                          <div className="font-bold text-xs text-text-primary-light dark:text-white">
+                            {formatPrice(pos.currentPrice || 0, pos.currency)}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[9px] uppercase text-text-secondary-light font-bold mb-0.5">Var. Hoy (%)</div>
+                          <div className={`font-mono text-xs font-bold ${(pos.changePercent ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {(pos.changePercent ?? 0) >= 0 ? '+' : ''}{(pos.changePercent ?? 0).toFixed(2)}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Fila 4: Acciones compactas */}
+                      <div className="flex items-center justify-between pt-2 border-t border-border-light/40 dark:border-border-dark/40">
+                        <div className="flex items-center gap-0.5">
+                          <button onClick={() => setAnalysisPosition(pos)} className="p-1.5 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-600 transition-all" title="Análisis">
+                            <span className="material-symbols-outlined text-base">analytics</span>
+                          </button>
+                          <button onClick={() => openSellModal(pos)} className="p-1.5 rounded-lg hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500 transition-all" title="Vender">
+                            <span className="material-symbols-outlined text-base">sell</span>
+                          </button>
+                          <button onClick={() => openEditModal(pos)} className="p-1.5 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar">
+                            <span className="material-symbols-outlined text-base">edit</span>
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenActionMenuId(openActionMenuId === pos.id ? null : pos.id)}
+                            className="p-1.5 rounded-lg hover:bg-white/10 text-text-secondary-light transition-all"
+                            title="Más acciones"
+                          >
+                            <span className="material-symbols-outlined text-base">more_horiz</span>
+                          </button>
+                          {openActionMenuId === pos.id && (
+                            <div className="absolute right-0 bottom-9 z-10 bg-surface-dark border border-border-dark rounded-2xl shadow-xl p-1.5 flex flex-col gap-0.5 min-w-[140px]">
+                              <button onClick={() => { setNotePosition(pos); setOpenActionMenuId(null); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all">
+                                <span className="material-symbols-outlined text-base">description</span> Nota
+                              </button>
+                              <button onClick={() => { openAlertModal(pos); setOpenActionMenuId(null); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all">
+                                <span className="material-symbols-outlined text-base">notifications_active</span> Alerta
+                              </button>
+                              <button onClick={() => { setPositionToDelete(pos); setOpenActionMenuId(null); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all">
+                                <span className="material-symbols-outlined text-base">delete</span> Eliminar
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
-                      {/* Rentabilidad Badge */}
-                      <div className={`px-2.5 py-1 rounded-lg text-sm font-bold ${(pos.returnPct || 0) >= 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
-                        }`}>
-                        {(pos.returnPct || 0) >= 0 ? '+' : ''}{pos.returnPct?.toFixed(2)}%
-                      </div>
                     </div>
-
-                    {/* Datos principales en grid 2x2 */}
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div>
-                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Cantidad</p>
-                        <p className="font-mono font-medium">{pos.quantity.toLocaleString('es-ES', { maximumFractionDigits: 4 })}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Precio Actual</p>
-                        <p className="font-mono font-bold">{formatPrice(pos.currentPrice || 0, pos.currency)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Coste Medio</p>
-                        <p className="font-mono text-sm">{formatPrice(pos.average_buy_price, pos.currency)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase text-text-secondary-light font-bold mb-0.5">Valor Total</p>
-                        <p className="font-bold">{pos.currentValue?.toLocaleString('es-ES', { style: 'currency', currency: pos.currency }) || '---'}</p>
-                      </div>
-                    </div>
-
-                    {/* Variación del día */}
-                    {(pos.change !== undefined && pos.changePercent !== undefined) && (
-                      <div className={`flex items-center gap-1 text-xs font-bold mb-3 ${(pos.change >= 0) ? 'text-green-500' : 'text-red-500'}`}>
-                        <span className="material-symbols-outlined text-[16px]">{pos.change >= 0 ? 'trending_up' : 'trending_down'}</span>
-                        <span>Hoy: {formatChange(pos.change, pos.changePercent)}</span>
-                      </div>
-                    )}
-
-                    {/* Acciones */}
-                    <div className="flex items-center justify-between pt-2 border-t border-border-light/50 dark:border-border-dark/50">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setAnalysisPosition(pos)} className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-600 transition-all" title="Análisis">
-                          <span className="material-symbols-outlined text-lg">analytics</span>
-                        </button>
-                        <button onClick={() => setNotePosition(pos)} className="p-2 rounded-lg hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all" title="Nota">
-                          <span className="material-symbols-outlined text-lg">description</span>
-                        </button>
-                        <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Alerta">
-                          <span className="material-symbols-outlined text-lg">notifications_active</span>
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => openSellModal(pos)} className="p-2 rounded-lg hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500 transition-all" title="Vender">
-                          <span className="material-symbols-outlined text-lg">sell</span>
-                        </button>
-                        <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar">
-                          <span className="material-symbols-outlined text-lg">edit</span>
-                        </button>
-                        <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar">
-                          <span className="material-symbols-outlined text-lg">delete</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* ===== VISTA DESKTOP: Tabla ===== */}

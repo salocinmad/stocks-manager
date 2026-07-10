@@ -543,21 +543,21 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
 
             case 'overview':
                 return (
-                    <div className="space-y-5 animate-fadeIn">
+                    <div className="space-y-4 md:space-y-5 animate-fadeIn">
                         {/* KPI Cards: Price & Return */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-gray-100 dark:bg-gray-800 p-5 rounded-[2rem] border border-gray-200 dark:border-gray-700 shadow-sm">
-                                <div className="text-gray-500 dark:text-gray-400 text-xs mb-1 uppercase font-bold tracking-wider">Precio Actual</div>
-                                <div className="text-3xl font-black text-gray-900 dark:text-white tracking-tighter">
+                        <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4">
+                            <div className="bg-gray-100 dark:bg-gray-800 p-3 md:p-5 rounded-2xl md:rounded-[2rem] border border-gray-200 dark:border-gray-700 shadow-sm">
+                                <div className="text-gray-500 dark:text-gray-400 text-[10px] md:text-xs mb-1 uppercase font-bold tracking-wider">Precio Actual</div>
+                                <div className="text-xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tighter">
                                     {formatCurrency(analysis?.currentPrice)}
                                 </div>
                                 <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">
-                                    Volatilidad: {analysis?.risk.volatility}%
+                                    Vol: {analysis?.risk.volatility}%
                                 </div>
                             </div>
-                            <div className="bg-gray-100 dark:bg-gray-800 p-5 rounded-[2rem] border border-gray-200 dark:border-gray-700 shadow-sm">
-                                <div className="text-gray-500 dark:text-gray-400 text-xs mb-1 uppercase font-bold tracking-wider">Retorno Total</div>
-                                <div className={`text-3xl font-black tracking-tighter ${analysis!.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            <div className="bg-gray-100 dark:bg-gray-800 p-3 md:p-5 rounded-2xl md:rounded-[2rem] border border-gray-200 dark:border-gray-700 shadow-sm">
+                                <div className="text-gray-500 dark:text-gray-400 text-[10px] md:text-xs mb-1 uppercase font-bold tracking-wider">Retorno Total</div>
+                                <div className={`text-xl md:text-3xl font-black tracking-tighter ${analysis!.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                     {analysis!.pnl >= 0 ? '+' : ''}{formatCurrency(analysis?.pnl)}
                                 </div>
                                 <div className={`text-[10px] font-bold uppercase mt-1 ${analysis!.pnlPercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -567,22 +567,22 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
                         </div>
 
                         {/* Sector & Valuation Highlights */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-primary/10 p-5 rounded-[2rem] border border-primary/20 shadow-sm">
-                                <div className="text-primary text-xs font-black mb-1 uppercase tracking-widest flex items-center gap-2">
-                                    <PieChart size={14} /> Sector e Industria
+                        <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4">
+                            <div className="bg-primary/10 p-3 md:p-5 rounded-2xl md:rounded-[2rem] border border-primary/20 shadow-sm">
+                                <div className="text-primary text-[10px] md:text-xs font-black mb-1 uppercase tracking-widest flex items-center gap-1 md:gap-2">
+                                    <PieChart size={12} /> Sector
                                 </div>
-                                <div className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tighter truncate">
+                                <div className="text-sm md:text-xl font-black text-gray-900 dark:text-white uppercase tracking-tighter truncate">
                                     {analysis.sector}
                                 </div>
-                                <div className="text-xs text-gray-500 font-bold uppercase tracking-wider truncate">
+                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider truncate">
                                     {analysis.industry}
                                 </div>
                             </div>
 
-                            <div className="bg-purple-50 dark:bg-purple-900/10 p-5 rounded-[2rem] border border-purple-100 dark:border-purple-900/30">
-                                <div className="text-purple-500 dark:text-purple-400 text-xs font-black mb-2 flex items-center gap-2 uppercase tracking-widest">
-                                    <Activity size={14} /> Estado de Valoración
+                            <div className="bg-purple-50 dark:bg-purple-900/10 p-3 md:p-5 rounded-2xl md:rounded-[2rem] border border-purple-100 dark:border-purple-900/30">
+                                <div className="text-purple-500 dark:text-purple-400 text-[10px] md:text-xs font-black mb-1 md:mb-2 flex items-center gap-1 md:gap-2 uppercase tracking-widest">
+                                    <Activity size={12} /> Valoración
                                 </div>
                                 {(() => {
                                     const targetPrice = analysis.analysts?.targetPrice || 0;
@@ -623,20 +623,20 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
                         </div>
 
                         {/* Dual Risk Indicators */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-gray-100 dark:bg-gray-800/50 p-5 rounded-[2rem] border border-gray-200 dark:border-gray-700">
-                                <div className="text-xs font-black uppercase tracking-widest text-gray-500 mb-2">Riesgo Precio (Volatilidad)</div>
-                                <div className="flex items-center gap-4">
-                                    <span className="text-3xl font-black tracking-tighter">{analysis.risk.score}/10</span>
-                                    <div className="flex-1 h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden shadow-inner">
+                        <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4">
+                            <div className="bg-gray-100 dark:bg-gray-800/50 p-3 md:p-5 rounded-2xl md:rounded-[2rem] border border-gray-200 dark:border-gray-700">
+                                <div className="text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-500 mb-2">Riesgo Precio</div>
+                                <div className="flex items-center gap-2 md:gap-4">
+                                    <span className="text-xl md:text-3xl font-black tracking-tighter">{analysis.risk.score}/10</span>
+                                    <div className="flex-1 h-2 md:h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden shadow-inner">
                                         <div className={`h-full transition-all duration-1000 ${analysis.risk.score < 4 ? 'bg-green-500' : analysis.risk.score < 7 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${analysis.risk.score * 10}%` }}></div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="bg-gray-100 dark:bg-gray-800/50 p-5 rounded-[2rem] border border-gray-200 dark:border-gray-700">
-                                <div className="flex justify-between items-center mb-2">
-                                    <div className="text-xs font-black uppercase tracking-widest text-gray-500">Riesgo Solvencia</div>
+                            <div className="bg-gray-100 dark:bg-gray-800/50 p-3 md:p-5 rounded-2xl md:rounded-[2rem] border border-gray-200 dark:border-gray-700">
+                                <div className="flex justify-between items-center mb-1 md:mb-2">
+                                    <div className="text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-500">Solvencia</div>
                                     {analysis.risk.solvency && (
                                         <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter ${analysis.risk.solvency.zone === 'SAFE' ? 'bg-green-100 text-green-700' : analysis.risk.solvency.zone === 'GREY' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                                             {analysis.risk.solvency.label}
@@ -776,8 +776,8 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
                             </div>
                         ) : (
                             <>
-                                {/* Table */}
-                                <div className="overflow-x-auto">
+                                {/* DESKTOP: Table */}
+                                <div className="hidden md:block overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead>
                                             <tr className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-gray-700">
@@ -803,52 +803,41 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
 
                                                 return (
                                                     <tr key={i} className={`border-b border-gray-800/50 transition-colors hover:bg-white/5 ${i % 2 === 0 ? '' : 'bg-white/[0.02]'}`}>
-                                                        {/* Index */}
                                                         <td className="py-4 pr-4">
                                                             <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">{i + 1}</span>
                                                         </td>
-                                                        {/* Date */}
                                                         <td className="py-4 pr-4">
                                                             <div className="font-bold text-white text-sm">{formatDate(lot.date)}</div>
                                                             {isPartial && (
                                                                 <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded mt-0.5 inline-block">Parcial</span>
                                                             )}
                                                         </td>
-                                                        {/* Remaining qty */}
                                                         <td className="py-4 pr-4 text-right">
                                                             <div className="font-black text-white">{fmtQty(lot.remainingQty)}</div>
                                                             <div className="text-[10px] text-gray-500">de {fmtQty(lot.initialQty)}</div>
                                                         </td>
-                                                        {/* FIFO progress bar */}
                                                         <td className="py-4 pr-4">
                                                             <div className="flex items-center gap-2 justify-end">
                                                                 <div className="w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                                                                    <div
-                                                                        className={`h-full rounded-full transition-all ${consumedPct > 0 ? 'bg-orange-500' : 'bg-gray-700'}`}
-                                                                        style={{ width: `${Math.min(consumedPct, 100)}%` }}
-                                                                    />
+                                                                    <div className={`h-full rounded-full transition-all ${consumedPct > 0 ? 'bg-orange-500' : 'bg-gray-700'}`} style={{ width: `${Math.min(consumedPct, 100)}%` }} />
                                                                 </div>
                                                                 <span className="text-[10px] font-bold text-gray-500 w-8 text-right">{consumedPct.toFixed(0)}%</span>
                                                             </div>
                                                         </td>
-                                                        {/* Buy price */}
                                                         <td className="py-4 pr-4 text-right">
                                                             <div className="font-bold text-gray-200">{fmtPrice(lot.price)}</div>
                                                         </td>
-                                                        {/* Lot cost */}
                                                         <td className="py-4 pr-4 text-right">
                                                             <div className="font-bold text-gray-300">{fmtPrice(lotCost)}</div>
                                                             {lot.remainingComm > 0 && (
                                                                 <div className="text-[10px] text-gray-500">+{fmtPrice(lot.remainingComm)} com.</div>
                                                             )}
                                                         </td>
-                                                        {/* Current value */}
                                                         {cp && (
                                                             <td className="py-4 pr-4 text-right">
                                                                 <div className="font-bold text-gray-200">{fmtPrice(lotValue!)}</div>
                                                             </td>
                                                         )}
-                                                        {/* PnL */}
                                                         {cp && (
                                                             <td className="py-4 text-right">
                                                                 <div className={`font-black text-sm ${(lotPnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -864,6 +853,75 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
                                             })}
                                         </tbody>
                                     </table>
+                                </div>
+
+                                {/* MOBILE: Cards */}
+                                <div className="flex flex-col gap-3 md:hidden">
+                                    {fifoLots.lots.map((lot, i) => {
+                                        const lotCost  = lot.remainingQty * lot.price + lot.remainingComm;
+                                        const lotValue = cp ? lot.remainingQty * cp : null;
+                                        const lotPnl   = (lotValue !== null) ? lotValue - lotCost : null;
+                                        const lotPnlPct = (lotPnl !== null && lotCost > 0) ? (lotPnl / lotCost) * 100 : null;
+                                        const consumed = lot.initialQty - lot.remainingQty;
+                                        const consumedPct = lot.initialQty > 0 ? (consumed / lot.initialQty) * 100 : 0;
+                                        const isPartial = consumed > 0 && consumed < lot.initialQty;
+
+                                        return (
+                                            <div key={i} className="bg-gray-800/50 rounded-2xl border border-gray-700 p-4">
+                                                {/* Card header */}
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-7 h-7 rounded-full bg-primary/10 text-primary text-[11px] font-black flex items-center justify-center">{i + 1}</span>
+                                                        <div>
+                                                            <div className="font-bold text-white text-sm">{formatDate(lot.date)}</div>
+                                                            {isPartial && (
+                                                                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded inline-block">Parcial</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {cp && lotPnl !== null && (
+                                                        <div className={`px-3 py-1.5 rounded-xl text-xs font-black ${lotPnl >= 0 ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>
+                                                            {lotPnl >= 0 ? '+' : ''}{fmtPrice(lotPnl)}
+                                                            <div className={`text-[9px] text-center font-bold ${(lotPnlPct ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                                {(lotPnlPct ?? 0) >= 0 ? '+' : ''}{(lotPnlPct ?? 0).toFixed(2)}%
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {/* FIFO progress */}
+                                                <div className="mb-3">
+                                                    <div className="flex justify-between text-[10px] text-gray-500 font-bold mb-1">
+                                                        <span>CONSUMIDO FIFO</span>
+                                                        <span>{consumedPct.toFixed(0)}%</span>
+                                                    </div>
+                                                    <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full ${consumedPct > 0 ? 'bg-orange-500' : 'bg-gray-700'}`} style={{ width: `${Math.min(consumedPct, 100)}%` }} />
+                                                    </div>
+                                                </div>
+                                                {/* Data grid */}
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div className="bg-black/20 rounded-xl p-2.5">
+                                                        <div className="text-[9px] text-gray-500 font-bold uppercase mb-0.5">Precio Compra</div>
+                                                        <div className="font-bold text-gray-200 text-sm">{fmtPrice(lot.price)}</div>
+                                                    </div>
+                                                    <div className="bg-black/20 rounded-xl p-2.5">
+                                                        <div className="text-[9px] text-gray-500 font-bold uppercase mb-0.5">Cantidad</div>
+                                                        <div className="font-black text-white text-sm">{fmtQty(lot.remainingQty)}<span className="text-gray-500 text-[10px] font-normal"> / {fmtQty(lot.initialQty)}</span></div>
+                                                    </div>
+                                                    <div className="bg-black/20 rounded-xl p-2.5">
+                                                        <div className="text-[9px] text-gray-500 font-bold uppercase mb-0.5">Coste Lote</div>
+                                                        <div className="font-bold text-gray-300 text-sm">{fmtPrice(lotCost)}</div>
+                                                    </div>
+                                                    {cp && lotValue !== null && (
+                                                        <div className="bg-black/20 rounded-xl p-2.5">
+                                                            <div className="text-[9px] text-gray-500 font-bold uppercase mb-0.5">Valor Actual</div>
+                                                            <div className="font-bold text-gray-200 text-sm">{fmtPrice(lotValue)}</div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
 
                                 {/* Summary footer */}
@@ -909,27 +967,27 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="bg-white dark:bg-[#1A1A1A] w-full max-w-7xl h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-800">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4 animate-fadeIn bg-black/80 backdrop-blur-sm">
+            <div className="bg-white dark:bg-[#1A1A1A] w-full md:max-w-7xl h-[100dvh] md:h-[90vh] rounded-t-[2rem] md:rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-800">
 
                 {/* --- HEADER (Imagen 2 Style) --- */}
-                <div className="bg-[#121212] p-8 rounded-t-[2.5rem] border-b border-gray-800 relative overflow-hidden">
+                <div className="bg-[#121212] p-4 md:p-8 rounded-t-[2rem] md:rounded-t-[2.5rem] border-b border-gray-800 relative overflow-hidden">
                     {/* Background Glow Effect */}
                     <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
                     <div className="relative flex justify-between items-center">
-                        <div className="flex items-center gap-5">
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-800 to-black border border-gray-700 flex items-center justify-center shadow-lg">
-                                <span className="text-lg font-black text-primary">{ticker.slice(0, 2)}</span>
+                        <div className="flex items-center gap-3 md:gap-5">
+                            <div className="w-10 h-10 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-gradient-to-br from-gray-800 to-black border border-gray-700 flex items-center justify-center shadow-lg flex-shrink-0">
+                                <span className="text-sm md:text-lg font-black text-primary">{ticker.slice(0, 2)}</span>
                             </div>
-                            <div>
-                                <h2 className="text-4xl font-black text-white tracking-tighter uppercase mb-2 flex items-center gap-3">
-                                    {ticker}
-                                    <span className="text-base font-bold text-gray-500 bg-gray-800/50 px-3 py-1 rounded-lg tracking-wider border border-gray-700">
+                            <div className="min-w-0">
+                                <h2 className="text-2xl md:text-4xl font-black text-white tracking-tighter uppercase mb-1 flex items-center gap-2 md:gap-3 flex-wrap">
+                                    <span className="truncate">{ticker}</span>
+                                    <span className="text-xs md:text-base font-bold text-gray-500 bg-gray-800/50 px-2 md:px-3 py-1 rounded-lg tracking-wider border border-gray-700 truncate max-w-[150px] md:max-w-none">
                                         {companyName || ticker}
                                     </span>
                                 </h2>
-                                <div className="flex items-center gap-2">
+                                <div className="hidden md:flex items-center gap-2">
                                     <span className="text-yellow-500 font-bold text-[10px] tracking-[0.2em] uppercase">
                                         PORTFOLIO POSITION STATISTICS
                                     </span>
@@ -943,23 +1001,47 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
                         <div className="flex gap-2">
                             <button
                                 onClick={handleRefresh}
-                                className={`p-3 bg-gray-800/50 hover:bg-gray-700 text-gray-400 hover:text-white rounded-2xl transition-all border border-transparent hover:border-gray-600 ${loading ? 'animate-spin' : ''}`}
+                                className={`p-2 md:p-3 bg-gray-800/50 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl md:rounded-2xl transition-all border border-transparent hover:border-gray-600 ${loading ? 'animate-spin' : ''}`}
                                 title="Refrescar Datos"
                             >
-                                <RefreshCw size={24} />
+                                <RefreshCw size={20} />
                             </button>
                             <button
                                 onClick={onClose}
-                                className="p-3 bg-gray-800/50 hover:bg-gray-700 text-gray-400 hover:text-white rounded-2xl transition-all border border-transparent hover:border-gray-600"
+                                className="p-2 md:p-3 bg-gray-800/50 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl md:rounded-2xl transition-all border border-transparent hover:border-gray-600"
                             >
-                                <X size={24} />
+                                <X size={20} />
                             </button>
                         </div>
                     </div>
 
-                    {/* Tabs (Pill Style) */}
-                    <div className="mt-8">
-                        <div className="overflow-x-auto pb-1 -mb-1 custom-scrollbar">
+                    {/* Tabs — Pill en escritorio, Grid en móvil */}
+                    <div className="mt-4 md:mt-8">
+                        {/* MOBILE: grid 4+3 */}
+                        <div className="grid grid-cols-4 gap-1.5 md:hidden">
+                            {(['overview', 'fundamental', 'technical', 'analysts', 'calendar', 'risk', 'lots'] as const).map((tab) => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`py-2.5 px-1 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all flex items-center justify-center gap-1 ${
+                                        activeTab === tab
+                                            ? 'bg-white text-black shadow-lg'
+                                            : 'bg-black/30 text-gray-500 border border-gray-800'
+                                    }`}
+                                >
+                                    {tab === 'lots' && <Layers size={9} />}
+                                    {tab === 'overview' ? 'General'
+                                        : tab === 'fundamental' ? 'Fund.'
+                                        : tab === 'technical' ? 'Técnico'
+                                        : tab === 'analysts' ? 'Analistas'
+                                        : tab === 'calendar' ? 'Agenda'
+                                        : tab === 'risk' ? 'Riesgo'
+                                        : 'Lotes'}
+                                </button>
+                            ))}
+                        </div>
+                        {/* DESKTOP: pill bar */}
+                        <div className="hidden md:block overflow-x-auto pb-1 -mb-1 custom-scrollbar">
                             <div className="inline-flex bg-black/30 p-1.5 rounded-full border border-gray-800 whitespace-nowrap">
                                 {(['overview', 'fundamental', 'technical', 'analysts', 'calendar', 'risk', 'lots'] as const).map((tab) => (
                                     <button
@@ -987,7 +1069,7 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
                 </div>
 
                 {/* --- SCROLLABLE CONTENT --- */}
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
                     {renderContent()}
                 </div>
 
