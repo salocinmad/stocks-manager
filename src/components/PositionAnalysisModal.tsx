@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { X, TrendingUp, Activity, AlertTriangle, DollarSign, PieChart, BarChart2, Info, Lock, Calendar, Download, ExternalLink, Loader2, Signal, RefreshCw, Calculator } from 'lucide-react';
+import { X, TrendingUp, Activity, AlertTriangle, DollarSign, PieChart, BarChart2, Info, Lock, Calendar, Download, ExternalLink, Loader2, Signal, RefreshCw, Calculator, Layers } from 'lucide-react';
 
 // Interfaces match Backend v2.2.0
 interface FundamentalData {
@@ -140,14 +140,26 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
     const [analysis, setAnalysis] = useState<PositionAnalysis | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'overview' | 'fundamental' | 'technical' | 'analysts' | 'calendar' | 'risk' | 'simulation'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'fundamental' | 'technical' | 'analysts' | 'calendar' | 'risk' | 'lots'>('overview');
 
-    // Simulation State
-    const [buyQty, setBuyQty] = useState(10);
-    const [sellQty, setSellQty] = useState(1);
-    const [priceChange, setPriceChange] = useState(10);
-    const [simulation, setSimulation] = useState<SimulationResult | null>(null);
-    const [simType, setSimType] = useState<'buy' | 'sell' | 'price'>('buy');
+    // FIFO Lots State
+    interface FifoLot {
+        date: string;
+        price: number;
+        remainingQty: number;
+        initialQty: number;
+        remainingComm: number;
+        currency: string;
+    }
+    interface FifoLotsData {
+        ticker: string;
+        currency: string;
+        currentPrice: number | null;
+        lots: FifoLot[];
+    }
+    const [fifoLots, setFifoLots] = useState<FifoLotsData | null>(null);
+    const [fifoLoading, setFifoLoading] = useState(false);
+    const [fifoError, setFifoError] = useState<string | null>(null);
 
     const fetchAnalysis = useCallback(async () => {
         setLoading(true);
@@ -166,9 +178,27 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
     useEffect(() => {
         if (isOpen && positionId) {
             fetchAnalysis();
-            setSimulation(null); // Reset simulation on open
+            setFifoLots(null);   // Reset lots on open
+            setFifoError(null);
         }
     }, [isOpen, positionId, fetchAnalysis]);
+
+    // Lazy load FIFO lots when the 'lots' tab is activated
+    useEffect(() => {
+        if (activeTab === 'lots' && positionId && !fifoLots && !fifoLoading) {
+            setFifoLoading(true);
+            setFifoError(null);
+            api.get(`/analysis/position/${positionId}/fifo-lots`)
+                .then(({ data }) => {
+                    if (data.error) throw new Error(data.error);
+                    setFifoLots(data);
+                })
+                .catch((e: any) => {
+                    setFifoError(e.response?.data?.error || e.message || 'Error cargando lotes');
+                })
+                .finally(() => setFifoLoading(false));
+        }
+    }, [activeTab, positionId, fifoLots, fifoLoading, api]);
 
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -185,32 +215,6 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
             await fetchAnalysis();
         } catch (e) {
             console.error('Refresh error:', e);
-        }
-    };
-
-    const runSimulation = async () => {
-        if (!analysis) return;
-        try {
-            let endpoint = '';
-            let body: any = { positionId };
-
-            if (simType === 'buy') {
-                endpoint = '/analysis/simulate/buy';
-                body.additionalQty = buyQty;
-                body.buyPrice = analysis.currentPrice;
-            } else if (simType === 'sell') {
-                endpoint = '/analysis/simulate/sell';
-                body.sellQty = sellQty;
-                body.currentPrice = analysis.currentPrice;
-            } else {
-                endpoint = '/analysis/simulate/price-change';
-                body.percentChange = priceChange;
-                body.currentPrice = analysis.currentPrice;
-            }
-            const { data: result } = await api.post(endpoint, body);
-            setSimulation(result);
-        } catch (e) {
-            console.error('Simulation error:', e);
         }
     };
 
@@ -370,96 +374,6 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
         const calc = f ? getCalculatedMetrics(f, analysis.currentPrice) : null;
 
         switch (activeTab) {
-            case 'simulation': // Replaces 'whatif'
-                return (
-                    <div className="space-y-6 animate-fadeIn max-w-3xl mx-auto">
-                        <div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-[2rem] border border-gray-200 dark:border-gray-700 shadow-sm">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-6 flex items-center gap-2">
-                                <Calculator size={14} /> Simulación de Escenarios
-                            </h3>
-
-                            <div className="flex gap-4 mb-6">
-                                <button onClick={() => setSimType('buy')} className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${simType === 'buy' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-white dark:bg-gray-700 text-gray-500 hover:text-gray-700'}`}>
-                                    Comprar
-                                </button>
-                                <button onClick={() => setSimType('sell')} className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${simType === 'sell' ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-white dark:bg-gray-700 text-gray-500 hover:text-gray-700'}`}>
-                                    Vender
-                                </button>
-                                <button onClick={() => setSimType('price')} className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${simType === 'price' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/30' : 'bg-white dark:bg-gray-700 text-gray-500 hover:text-gray-700'}`}>
-                                    Precio
-                                </button>
-                            </div>
-
-                            <div className="bg-white dark:bg-gray-900/50 p-6 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 mb-6">
-                                {simType === 'buy' && (
-                                    <div className="space-y-4">
-                                        <label className="text-xs font-bold uppercase text-gray-400 block pb-1">Cantidad a Comprar</label>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="number"
-                                                value={buyQty}
-                                                onChange={e => setBuyQty(parseInt(e.target.value) || 0)}
-                                                className="flex-1 bg-gray-50 dark:bg-gray-800 border-none rounded-xl p-3 text-lg font-black text-center focus:ring-2 focus:ring-blue-500"
-                                            />
-                                            <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-xl text-xs font-bold uppercase flex items-center">acciones</div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {simType === 'sell' && (
-                                    <div className="space-y-4">
-                                        <label className="text-xs font-bold uppercase text-gray-400 block pb-1">Cantidad a Vender (Max: {analysis.quantity})</label>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="number"
-                                                value={sellQty}
-                                                onChange={e => setSellQty(Math.min(parseInt(e.target.value) || 0, analysis.quantity))}
-                                                className="flex-1 bg-gray-50 dark:bg-gray-800 border-none rounded-xl p-3 text-lg font-black text-center focus:ring-2 focus:ring-red-500"
-                                            />
-                                            <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-xl text-xs font-bold uppercase flex items-center">acciones</div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {simType === 'price' && (
-                                    <div className="space-y-4">
-                                        <label className="text-xs font-bold uppercase text-gray-400 block pb-1">Cambio de Precio: {priceChange > 0 ? '+' : ''}{priceChange}%</label>
-                                        <input
-                                            type="range"
-                                            min="-50"
-                                            max="100"
-                                            value={priceChange}
-                                            onChange={e => setPriceChange(parseInt(e.target.value))}
-                                            className="w-full accent-yellow-500 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
-                                        />
-                                        <div className="flex justify-between text-[10px] uppercase font-bold text-gray-400">
-                                            <span>-50%</span>
-                                            <span>0%</span>
-                                            <span>+100%</span>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            <button onClick={runSimulation} className="w-full py-4 bg-gray-900 dark:bg-white text-white dark:text-black rounded-xl font-black uppercase tracking-widest hover:opacity-90 transition-opacity">
-                                Ejecutar Simulación
-                            </button>
-                        </div>
-
-                        {simulation && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fadeIn">
-                                <MetricCard label="Nuevo Precio Avg" value={formatCurrency(simulation.newAveragePrice)} />
-                                <MetricCard label="Nueva Cantidad" value={simulation.newQuantity.toString()} />
-                                <MetricCard label="Nuevo Valor" value={formatCurrency(simulation.newTotalValue)} />
-                                <MetricCard
-                                    label="PnL Proyectado"
-                                    value={formatCurrency(simulation.projectedPnL)}
-                                    color={simulation.projectedPnL >= 0 ? 'text-green-500' : 'text-red-500'}
-                                />
-                            </div>
-                        )}
-                    </div>
-                );
 
             case 'calendar':
                 const events = analysis.calendarEvents || [];
@@ -806,6 +720,189 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
                     </div>
                 );
 
+            case 'lots': {
+                const formatDate = (iso: string) => {
+                    const d = new Date(iso);
+                    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+                };
+
+                if (fifoLoading) return (
+                    <div className="flex flex-col justify-center items-center h-96 gap-4">
+                        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                        <p className="text-gray-500 animate-pulse font-bold tracking-widest uppercase text-xs">Calculando Lotes FIFO...</p>
+                    </div>
+                );
+                if (fifoError) return (
+                    <div className="text-center py-20 px-6">
+                        <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <AlertTriangle className="text-red-500 w-8 h-8" />
+                        </div>
+                        <p className="text-red-500 font-bold">{fifoError}</p>
+                    </div>
+                );
+                if (!fifoLots) return null;
+
+                const cp = fifoLots.currentPrice;
+                const curr = fifoLots.currency;
+                const fmtPrice = (v: number) => new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(v) + ' ' + curr;
+                const fmtQty  = (v: number) => new Intl.NumberFormat('es-ES', { maximumFractionDigits: 6 }).format(v);
+
+                // Totals
+                const totalQty   = fifoLots.lots.reduce((s, l) => s + l.remainingQty, 0);
+                const totalCost  = fifoLots.lots.reduce((s, l) => s + l.remainingQty * l.price + l.remainingComm, 0);
+                const totalValue = cp ? fifoLots.lots.reduce((s, l) => s + l.remainingQty * cp, 0) : null;
+                const totalPnl   = (totalValue !== null) ? totalValue - totalCost : null;
+                const totalPnlPct = (totalPnl !== null && totalCost > 0) ? (totalPnl / totalCost) * 100 : null;
+
+                return (
+                    <div className="space-y-6 animate-fadeIn">
+                        {/* Header info bar */}
+                        <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-800/50 rounded-2xl px-5 py-3 border border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-400">
+                                <Layers size={14} className="text-primary" />
+                                Lotes vivos FIFO — {fifoLots.ticker}
+                            </div>
+                            {cp && (
+                                <div className="text-xs font-bold text-gray-300">
+                                    Precio actual: <span className="text-white">{fmtPrice(cp)}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {fifoLots.lots.length === 0 ? (
+                            <div className="text-center py-20">
+                                <Layers size={40} className="mx-auto text-gray-600 mb-4" />
+                                <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">No hay lotes vivos</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Table */}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-gray-700">
+                                                <th className="text-left pb-3 pr-4">#</th>
+                                                <th className="text-left pb-3 pr-4">Fecha Compra</th>
+                                                <th className="text-right pb-3 pr-4">Cantidad</th>
+                                                <th className="text-right pb-3 pr-4">Consumido FIFO</th>
+                                                <th className="text-right pb-3 pr-4">Precio Compra</th>
+                                                <th className="text-right pb-3 pr-4">Coste Lote</th>
+                                                {cp && <th className="text-right pb-3 pr-4">Valor Actual</th>}
+                                                {cp && <th className="text-right pb-3">PnL</th>}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {fifoLots.lots.map((lot, i) => {
+                                                const lotCost  = lot.remainingQty * lot.price + lot.remainingComm;
+                                                const lotValue = cp ? lot.remainingQty * cp : null;
+                                                const lotPnl   = (lotValue !== null) ? lotValue - lotCost : null;
+                                                const lotPnlPct = (lotPnl !== null && lotCost > 0) ? (lotPnl / lotCost) * 100 : null;
+                                                const consumed = lot.initialQty - lot.remainingQty;
+                                                const consumedPct = lot.initialQty > 0 ? (consumed / lot.initialQty) * 100 : 0;
+                                                const isPartial = consumed > 0 && consumed < lot.initialQty;
+
+                                                return (
+                                                    <tr key={i} className={`border-b border-gray-800/50 transition-colors hover:bg-white/5 ${i % 2 === 0 ? '' : 'bg-white/[0.02]'}`}>
+                                                        {/* Index */}
+                                                        <td className="py-4 pr-4">
+                                                            <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">{i + 1}</span>
+                                                        </td>
+                                                        {/* Date */}
+                                                        <td className="py-4 pr-4">
+                                                            <div className="font-bold text-white text-sm">{formatDate(lot.date)}</div>
+                                                            {isPartial && (
+                                                                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded mt-0.5 inline-block">Parcial</span>
+                                                            )}
+                                                        </td>
+                                                        {/* Remaining qty */}
+                                                        <td className="py-4 pr-4 text-right">
+                                                            <div className="font-black text-white">{fmtQty(lot.remainingQty)}</div>
+                                                            <div className="text-[10px] text-gray-500">de {fmtQty(lot.initialQty)}</div>
+                                                        </td>
+                                                        {/* FIFO progress bar */}
+                                                        <td className="py-4 pr-4">
+                                                            <div className="flex items-center gap-2 justify-end">
+                                                                <div className="w-20 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                                                                    <div
+                                                                        className={`h-full rounded-full transition-all ${consumedPct > 0 ? 'bg-orange-500' : 'bg-gray-700'}`}
+                                                                        style={{ width: `${Math.min(consumedPct, 100)}%` }}
+                                                                    />
+                                                                </div>
+                                                                <span className="text-[10px] font-bold text-gray-500 w-8 text-right">{consumedPct.toFixed(0)}%</span>
+                                                            </div>
+                                                        </td>
+                                                        {/* Buy price */}
+                                                        <td className="py-4 pr-4 text-right">
+                                                            <div className="font-bold text-gray-200">{fmtPrice(lot.price)}</div>
+                                                        </td>
+                                                        {/* Lot cost */}
+                                                        <td className="py-4 pr-4 text-right">
+                                                            <div className="font-bold text-gray-300">{fmtPrice(lotCost)}</div>
+                                                            {lot.remainingComm > 0 && (
+                                                                <div className="text-[10px] text-gray-500">+{fmtPrice(lot.remainingComm)} com.</div>
+                                                            )}
+                                                        </td>
+                                                        {/* Current value */}
+                                                        {cp && (
+                                                            <td className="py-4 pr-4 text-right">
+                                                                <div className="font-bold text-gray-200">{fmtPrice(lotValue!)}</div>
+                                                            </td>
+                                                        )}
+                                                        {/* PnL */}
+                                                        {cp && (
+                                                            <td className="py-4 text-right">
+                                                                <div className={`font-black text-sm ${(lotPnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                    {(lotPnl ?? 0) >= 0 ? '+' : ''}{fmtPrice(lotPnl!)}
+                                                                </div>
+                                                                <div className={`text-[10px] font-bold ${(lotPnlPct ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                                    {(lotPnlPct ?? 0) >= 0 ? '+' : ''}{(lotPnlPct ?? 0).toFixed(2)}%
+                                                                </div>
+                                                            </td>
+                                                        )}
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Summary footer */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                                    <div className="bg-gray-100 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-700">
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Total Acciones</div>
+                                        <div className="text-xl font-black text-white">{fmtQty(totalQty)}</div>
+                                        <div className="text-[10px] text-gray-500">{fifoLots.lots.length} lote{fifoLots.lots.length !== 1 ? 's' : ''}</div>
+                                    </div>
+                                    <div className="bg-gray-100 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-700">
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Coste Total</div>
+                                        <div className="text-xl font-black text-white">{fmtPrice(totalCost)}</div>
+                                    </div>
+                                    {totalValue !== null && (
+                                        <div className="bg-gray-100 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-700">
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Valor Actual</div>
+                                            <div className="text-xl font-black text-white">{fmtPrice(totalValue)}</div>
+                                        </div>
+                                    )}
+                                    {totalPnl !== null && (
+                                        <div className={`p-4 rounded-2xl border ${totalPnl >= 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">PnL Total</div>
+                                            <div className={`text-xl font-black ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {totalPnl >= 0 ? '+' : ''}{fmtPrice(totalPnl)}
+                                            </div>
+                                            {totalPnlPct !== null && (
+                                                <div className={`text-[10px] font-bold ${totalPnlPct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                    {totalPnlPct >= 0 ? '+' : ''}{totalPnlPct.toFixed(2)}%
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                );
+            }
+
             default:
                 return null;
         }
@@ -813,7 +910,7 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="bg-white dark:bg-[#1A1A1A] w-full max-w-5xl h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-800">
+            <div className="bg-white dark:bg-[#1A1A1A] w-full max-w-7xl h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-gray-200 dark:border-gray-800">
 
                 {/* --- HEADER (Imagen 2 Style) --- */}
                 <div className="bg-[#121212] p-8 rounded-t-[2.5rem] border-b border-gray-800 relative overflow-hidden">
@@ -862,19 +959,29 @@ export const PositionAnalysisModal: React.FC<PositionAnalysisModalProps> = ({ is
 
                     {/* Tabs (Pill Style) */}
                     <div className="mt-8">
-                        <div className="inline-flex bg-black/30 p-1.5 rounded-full border border-gray-800">
-                            {(['overview', 'fundamental', 'technical', 'analysts', 'calendar', 'risk', 'simulation'] as const).map((tab) => (
-                                <button
-                                    key={tab}
-                                    onClick={() => setActiveTab(tab)}
-                                    className={`px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === tab
-                                        ? 'bg-white text-black shadow-lg shadow-white/10'
-                                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                        <div className="overflow-x-auto pb-1 -mb-1 custom-scrollbar">
+                            <div className="inline-flex bg-black/30 p-1.5 rounded-full border border-gray-800 whitespace-nowrap">
+                                {(['overview', 'fundamental', 'technical', 'analysts', 'calendar', 'risk', 'lots'] as const).map((tab) => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setActiveTab(tab)}
+                                        className={`px-3 py-2 rounded-full text-[11px] font-bold uppercase tracking-wide transition-all flex items-center gap-1 flex-shrink-0 ${
+                                            activeTab === tab
+                                                ? 'bg-white text-black shadow-lg shadow-white/10'
+                                                : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                                         }`}
-                                >
-                                    {tab === 'overview' ? 'General' : tab === 'fundamental' ? 'Fundamental' : tab === 'technical' ? 'Técnico' : tab === 'analysts' ? 'Analistas' : tab === 'calendar' ? 'Calendario' : tab === 'risk' ? 'Riesgo' : 'Simular'}
-                                </button>
-                            ))}
+                                    >
+                                        {tab === 'lots' && <Layers size={10} />}
+                                        {tab === 'overview' ? 'General'
+                                            : tab === 'fundamental' ? 'Fundamental'
+                                            : tab === 'technical' ? 'Técnico'
+                                            : tab === 'analysts' ? 'Analistas'
+                                            : tab === 'calendar' ? 'Calendario'
+                                            : tab === 'risk' ? 'Riesgo'
+                                            : 'Lotes'}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>

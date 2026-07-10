@@ -981,6 +981,17 @@ Danos tu visión de futuro.`;
 
     console.log('V2.1.2 migrations completed.');
 
+    // V2.1.3 MIGRATIONS - FIFO Live Lots Tab & UI Improvements
+    console.log('Running v2.1.3 migrations...');
+
+    // Update APP_VERSION to 2.1.3
+    try {
+      await sql`UPDATE system_settings SET value = 'V2.1.3' WHERE key = 'APP_VERSION'`;
+      console.log('Updated APP_VERSION to V2.1.3');
+    } catch (e: any) { console.error('Migration error (APP_VERSION):', e.message); }
+
+    console.log('V2.1.3 migrations completed.');
+
   } catch (error) {
     console.error('Error initializing database:', error);
     process.exit(1);

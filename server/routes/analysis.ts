@@ -9,6 +9,7 @@ import { Elysia, t } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import { PositionAnalysisService } from '../services/positionAnalysisService';
 import { MarketDataService } from '../services/marketData';
+import { PortfolioService } from '../services/portfolioService';
 import sql from '../db';
 
 export const analysisRoutes = new Elysia({ prefix: '/analysis' })
@@ -233,6 +234,72 @@ export const analysisRoutes = new Elysia({ prefix: '/analysis' })
         );
 
         return analysis || { error: 'Could not refresh analysis' };
+    }, {
+        params: t.Object({
+            positionId: t.String()
+        })
+    })
+
+    // Get live FIFO lots for a position (shares still held after FIFO accounting)
+    .get('/position/:positionId/fifo-lots', async ({ params, userId }) => {
+        const { positionId } = params;
+
+        // Verify ownership and get position info
+        const rows = await sql`
+            SELECT p.id, p.portfolio_id, p.ticker, p.currency
+            FROM positions p
+            JOIN portfolios pf ON p.portfolio_id = pf.id
+            WHERE p.id = ${positionId} AND pf.user_id = ${userId}
+        `;
+
+        if (rows.length === 0) {
+            return { error: 'Position not found or access denied' };
+        }
+
+        const { portfolio_id, ticker, currency } = rows[0];
+
+        // Fetch all transactions ordered chronologically
+        const transactions = await sql`
+            SELECT id, type, amount, price_per_unit, fees, currency, date, created_at
+            FROM transactions
+            WHERE portfolio_id = ${portfolio_id} AND ticker = ${ticker}
+            ORDER BY date ASC, created_at ASC
+        `;
+
+        // Apply FIFO to get surviving lots
+        const { lots } = PortfolioService.calculateFIFOQueue([...transactions].map(t => ({
+            ...t,
+            amount: Number(t.amount),
+            price_per_unit: Number(t.price_per_unit),
+            fees: Number(t.fees || 0)
+        })));
+
+        // Get current market price
+        let currentPrice: number | null = null;
+        let quoteCurrency = currency;
+        try {
+            const quote = await MarketDataService.getQuote(ticker);
+            if (quote && quote.c) {
+                currentPrice = Number(quote.c);
+                if (quote.currency) quoteCurrency = quote.currency;
+            }
+        } catch (_) {
+            // Non-fatal: frontend will handle null currentPrice
+        }
+
+        return {
+            ticker,
+            currency: quoteCurrency,
+            currentPrice,
+            lots: lots.map((lot: any) => ({
+                date: lot.date instanceof Date ? lot.date.toISOString() : lot.date,
+                price: Number(lot.price),
+                remainingQty: Number(lot.remainingQty),
+                initialQty: Number(lot.initialQty),
+                remainingComm: Number(lot.remainingComm || 0),
+                currency: lot.currency || currency
+            }))
+        };
     }, {
         params: t.Object({
             positionId: t.String()

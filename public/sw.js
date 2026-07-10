@@ -6,7 +6,7 @@
  * - Static assets (JS, CSS, images) are cached for offline splash
  */
 
-const CACHE_NAME = 'stocks-manager-v1';
+const CACHE_NAME = 'stocks-manager-v2';
 const STATIC_ASSETS = [
     '/',
     '/index.html',

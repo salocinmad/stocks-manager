@@ -1,6 +1,6 @@
 # 📚 Stocks Manager - Memoria del Proyecto
 
-> **Versión actual: 2.1.2** | Última actualización: 15 Enero 2026
+> **Versión actual: 2.1.3** | Última actualización: 8 Julio 2026
 > 
 > Este documento proporciona una visión global del proyecto para contexto de IA en futuras conversaciones.
 
@@ -76,7 +76,7 @@ stocks-manager/
 | `notification_channels` | Canales de notificación (email, push, in-app) |
 
 ### Configuración Crítica en `system_settings`:
-- `APP_VERSION`: V2.1.2 (mostrada en modales)
+- `APP_VERSION`: V2.1.3 (mostrada en modales)
 - `JWT_SECRET`: **CRÍTICO** - necesario para descifrar backups
 - `CRAWLER_*`: Configuración del Discovery Engine
 - `GLOBAL_TICKER_EXCHANGES`: Bolsas activas para sincronización
@@ -227,7 +227,8 @@ bun run server/scripts/test_runner.ts
 
 | Versión | Fecha | Cambios Principales |
 |---------|-------|---------------------|
-| **2.1.2** | 15 Ene 2026 | PnL auditoría detallada, fix conversión GBX, comisiones desde transacciones, variación diaria consistente |
+| **2.1.3** | 8 Jul 2026 | Pestaña Lotes FIFO en modal análisis, modal más ancho, tabs en una línea |
+| 2.1.2 | 15 Ene 2026 | PnL auditoría detallada, fix conversión GBX, comisiones desde transacciones, variación diaria consistente |
 | 2.1.1 | 9 Ene 2026 | PWA instalable, ChatBot responsive, Auth screens responsive, nuevo logo |
 | 2.1.0 | 8 Ene 2026 | Catálogo Maestro, Dashboard 2 columnas, Alertas globales, Mobile Navigation |
 | 2.0.0 | Dic 2025 | Multi-AI, Discovery Engine v2, Position Analysis 6 tabs |

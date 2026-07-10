@@ -1,6 +1,6 @@
 # 📋 PROJECT_INDEX.md - Stocks Manager
 
-> **Versión: 2.1.2** | Índice técnico del proyecto
+> **Versión: 2.1.3** | Índice técnico del proyecto
 
 ---
 
@@ -176,4 +176,4 @@ bun run server/scripts/cleanup_test_users.ts
 
 ---
 
-**Última actualización**: 15 Enero 2026 | v2.1.2 (PnL Accuracy & Currency Consistency Update)
+**Última actualización**: 8 Julio 2026 | v2.1.3 (FIFO Live Lots Tab & UI Improvements)

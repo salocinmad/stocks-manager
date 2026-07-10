@@ -1,3 +1,32 @@
+# 🚀 Stocks Manager v2.1.3
+## "FIFO Live Lots Tab & UI Improvements"
+
+Esta versión añade visibilidad total de los lotes de acciones activos tras aplicar FIFO, permitiendo al usuario ver exactamente qué compras está manteniendo y a qué precio.
+
+---
+
+## ✨ Novedades v2.1.3
+
+### 📄 Nueva Pestaña "LOTES" en el Modal de Análisis
+Visible desde Cartera → Acciones → Análisis Detallado → pestaña **LOTES**:
+
+- **Lotes vivos FIFO**: Muestra únicamente las compras activas tras aplicar el algoritmo FIFO (las vendidas no aparecen)
+- **Por cada lote**: Fecha de compra, cantidad restante / cantidad original, precio de compra, coste total del lote, valor actual y PnL +/- en color
+- **Barra de consumo FIFO**: Indicador visual (naranja) del porcentaje del lote consumido por ventas
+- **Badge "Parcial"**: Lotes que han sido parcialmente vendidos
+- **Tarjetas resumen**: Total acciones, Coste total, Valor actual, PnL total en la parte inferior
+- **Carga lazy**: Los datos se solicitan solo al activar la pestaña (no penaliza la carga inicial)
+
+### 🖥️ Modal Más Ancho
+- Ancho máximo ampliado de `max-w-5xl` a `max-w-7xl` para mejor visualización de datos
+- Todas las pestañas del modal ahora caben en **una sola línea** (sin salto de línea)
+
+### 🔧 Cambios Técnicos
+- `server/routes/analysis.ts`: Nuevo endpoint `GET /analysis/position/:positionId/fifo-lots`
+- `src/components/PositionAnalysisModal.tsx`: Nueva pestaña `lots` con carga lazy y renderizado completo
+
+---
+
 # 🚀 Stocks Manager v2.1.2
 ## "PnL Accuracy & Currency Consistency Update"
 
