@@ -276,9 +276,7 @@ export const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = (
                                             ) : (
                                                 <span className="text-xs text-text-secondary-light dark:text-gray-500 font-bold">{tx.currency}</span>
                                             )}
-                                        </td>
-
-                                        {/* FX RATE */}
+                                                                              {/* FX RATE */}
                                         <td className="p-4 text-sm text-right text-text-secondary-light dark:text-gray-400">
                                             {isEditing ? (
                                                 <input
@@ -286,10 +284,10 @@ export const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = (
                                                     value={editValues.exchange_rate_to_eur}
                                                     onChange={e => setEditValues({ ...editValues, exchange_rate_to_eur: Number(e.target.value) })}
                                                     className="bg-white dark:bg-black/30 border border-border-light dark:border-white/10 rounded px-2 py-1 text-xs w-20 text-right focus:border-primary outline-none"
-                                                    step="0.0001"
+                                                    step="any"
                                                 />
                                             ) : (
-                                                tx.exchange_rate_to_eur !== 1 ? tx.exchange_rate_to_eur.toFixed(4) : '-'
+                                                tx.exchange_rate_to_eur !== 1 ? tx.exchange_rate_to_eur.toLocaleString('es-ES', { maximumFractionDigits: 9 }) : '-'
                                             )}
                                         </td>
 

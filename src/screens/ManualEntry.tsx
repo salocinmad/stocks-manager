@@ -464,7 +464,7 @@ export const ManualEntry: React.FC = () => {
                 {formData.currency !== 'EUR' && (
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-text-secondary-light mb-2 ml-1">
-                      Tipo de cambio ({formData.currency}EUR)
+                      Tipo de cambio ({formData.currency}→EUR)
                     </label>
                     <input
                       required
@@ -473,7 +473,7 @@ export const ManualEntry: React.FC = () => {
                       className="w-full px-5 py-4 bg-background-light dark:bg-surface-dark-elevated border-none rounded-2xl focus:ring-2 focus:ring-primary text-text-primary-light dark:text-white"
                       placeholder="1.00"
                       type="number"
-                      step="0.000001"
+                      step="any"
                       min="0"
                     />
                   </div>
