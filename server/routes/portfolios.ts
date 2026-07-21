@@ -697,6 +697,90 @@ export const portfolioRoutes = new Elysia({ prefix: '/portfolios' })
             exchangeRate: t.Optional(t.Number())
         })
     })
+    // Apply Stock Split / Reverse Split to historical transactions
+    .post('/:id/positions/:ticker/split', async ({ userId, params, body, set }) => {
+        const { id, ticker } = params;
+        // @ts-ignore
+        const { from, to, splitDate } = body;
+
+        if (!from || !to || from <= 0 || to <= 0) {
+            set.status = 400;
+            return { error: 'Invalid split ratio. Both "from" and "to" must be positive numbers.' };
+        }
+
+        // Verify portfolio ownership
+        const [portfolio] = await sql`SELECT id FROM portfolios WHERE id = ${id} AND user_id = ${userId}`;
+        if (!portfolio) {
+            set.status = 404;
+            return { error: 'Portfolio not found' };
+        }
+
+        // The ratio: after split, 1 old share = (to/from) new shares
+        // e.g. 2:1 split → from=1, to=2 → ratio=2 (double shares, half price)
+        // e.g. 1:25 reverse split → from=25, to=1 → ratio=0.04 (25x fewer shares, 25x higher price)
+        const quantityMultiplier = Number(to) / Number(from);
+        const priceMultiplier = Number(from) / Number(to);
+
+        try {
+            await sql.begin(async (tx) => {
+                // Build date filter: only adjust transactions dated before splitDate (if provided)
+                let transactionsToAdjust;
+                if (splitDate) {
+                    transactionsToAdjust = await tx`
+                        SELECT id FROM transactions
+                        WHERE portfolio_id = ${id}
+                        AND ticker = ${ticker}
+                        AND date < ${splitDate}::timestamp
+                        AND type IN ('BUY', 'SELL', 'DEPOSIT', 'WITHDRAWAL')
+                    `;
+                } else {
+                    transactionsToAdjust = await tx`
+                        SELECT id FROM transactions
+                        WHERE portfolio_id = ${id}
+                        AND ticker = ${ticker}
+                        AND type IN ('BUY', 'SELL', 'DEPOSIT', 'WITHDRAWAL')
+                    `;
+                }
+
+                if (transactionsToAdjust.length === 0) {
+                    throw new Error('No transactions found for this ticker in this portfolio.');
+                }
+
+                // Adjust all matching transactions:
+                // - amount (quantity) *= quantityMultiplier
+                // - price_per_unit *= priceMultiplier
+                // Total cost stays identical: amount * price = (amount * Q) * (price * P) = amount * price * (Q*P) = amount * price * 1 ✓
+                const txIds = transactionsToAdjust.map((t: any) => t.id);
+                await tx`
+                    UPDATE transactions
+                    SET
+                        amount = amount * ${quantityMultiplier},
+                        price_per_unit = price_per_unit * ${priceMultiplier}
+                    WHERE id = ANY(${txIds}::uuid[])
+                `;
+            });
+
+            // Recalculate position from the adjusted transaction history
+            await PortfolioService.recalculatePositionFromHistory(id, ticker);
+
+            return {
+                success: true,
+                message: `Split applied. All ${ticker} transactions have been adjusted (quantity ×${quantityMultiplier}, price ×${priceMultiplier}). Position recalculated.`
+            };
+
+        } catch (error: any) {
+            console.error('Split adjustment error:', error);
+            set.status = 400;
+            return { error: error.message || 'Failed to apply split adjustment' };
+        }
+    }, {
+        body: t.Object({
+            from: t.Number(),
+            to: t.Number(),
+            splitDate: t.Optional(t.String())
+        })
+    })
+
     // Simulate Sell (FIFO Preview)
     .get('/:id/positions/:ticker/simulate-sell', async ({ userId, params, query, set }) => {
         const { id, ticker } = params;

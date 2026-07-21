@@ -150,6 +150,13 @@ export const PortfolioScreen: React.FC = () => {
   // Estado para modal de historial
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
+  // Estado para modal de Split / Contra-Split
+  const [splitPosition, setSplitPosition] = useState<Position | null>(null);
+  const [splitFrom, setSplitFrom] = useState('25');
+  const [splitTo, setSplitTo] = useState('1');
+  const [splitDate, setSplitDate] = useState('');
+  const [isApplyingSplit, setIsApplyingSplit] = useState(false);
+
   // Estado para modal de compra
   const [showBuyModal, setShowBuyModal] = useState(false);
 
@@ -539,6 +546,67 @@ export const PortfolioScreen: React.FC = () => {
     setAlertTargetPrice(pos.currentPrice ? pos.currentPrice.toString() : '');
     // Default condition
     setAlertCondition('below');
+  };
+
+  // Abrir modal de split/contra-split
+  const openSplitModal = (pos: Position) => {
+    setSplitPosition(pos);
+    setSplitFrom('25');
+    setSplitTo('1');
+    setSplitDate('');
+  };
+
+  // Aplicar split/contra-split
+  const handleApplySplit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!splitPosition || !portfolio) return;
+
+    const from = parseFloat(splitFrom);
+    const to = parseFloat(splitTo);
+
+    if (isNaN(from) || isNaN(to) || from <= 0 || to <= 0) {
+      alert('Por favor, introduce un ratio válido (ambos valores deben ser mayores que 0).');
+      return;
+    }
+
+    const quantityMultiplier = to / from;
+    const priceMultiplier = from / to;
+
+    const confirm = window.confirm(
+      `¿Confirmar ajuste de Split/Contra-Split?\n\n` +
+      `Ticker: ${splitPosition.ticker}\n` +
+      `Ratio: ${from}:${to}\n\n` +
+      `• Cantidad actual: ${splitPosition.quantity} → Nueva cantidad: ${(splitPosition.quantity * quantityMultiplier).toFixed(8).replace(/\.?0+$/, '')}\n` +
+      `• Precio medio actual: ${splitPosition.average_buy_price.toFixed(4)} → Nuevo precio medio: ${(splitPosition.average_buy_price * priceMultiplier).toFixed(4)}\n` +
+      `• El coste total no cambia.\n\n` +
+      `Esta acción ajustará TODAS las transacciones históricas de ${splitPosition.ticker}${splitDate ? ` anteriores al ${splitDate}` : ''}.`
+    );
+
+    if (!confirm) return;
+
+    setIsApplyingSplit(true);
+    try {
+      const payload: any = { from, to };
+      if (splitDate) payload.splitDate = splitDate;
+
+      const { data } = await api.post(
+        `/portfolios/${portfolio.id}/positions/${splitPosition.ticker}/split`,
+        payload
+      );
+
+      if (data?.success) {
+        setSplitPosition(null);
+        await loadPortfolioDetails(portfolio.id);
+        alert(`✅ Split aplicado correctamente para ${splitPosition.ticker}. El PnL ha sido recalculado.`);
+      } else {
+        alert(`Error: ${data?.error || 'No se pudo aplicar el split.'}`);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Error al aplicar el split. Comprueba la consola.');
+      console.error('Split error:', err);
+    } finally {
+      setIsApplyingSplit(false);
+    }
   };
 
   const handleCreateAlert = async (e: React.FormEvent) => {
@@ -960,6 +1028,9 @@ export const PortfolioScreen: React.FC = () => {
                               <button onClick={() => { openAlertModal(pos); setOpenActionMenuId(null); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all">
                                 <span className="material-symbols-outlined text-base">notifications_active</span> Alerta
                               </button>
+                              <button onClick={() => { openSplitModal(pos); setOpenActionMenuId(null); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-amber-500/20 text-text-secondary-light hover:text-amber-500 transition-all">
+                                <span className="material-symbols-outlined text-base">call_split</span> Split
+                              </button>
                               <button onClick={() => { setPositionToDelete(pos); setOpenActionMenuId(null); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all">
                                 <span className="material-symbols-outlined text-base">delete</span> Eliminar
                               </button>
@@ -1101,6 +1172,9 @@ export const PortfolioScreen: React.FC = () => {
                                 </button>
                                 <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
                                   <span className="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                                <button onClick={() => openSplitModal(pos)} className="p-2 rounded-lg hover:bg-amber-500/20 text-text-secondary-light hover:text-amber-500 transition-all" title="Registrar Split / Contra-Split">
+                                  <span className="material-symbols-outlined text-lg">call_split</span>
                                 </button>
                                 <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar posición">
                                   <span className="material-symbols-outlined text-lg">delete</span>
@@ -1629,6 +1703,139 @@ export const PortfolioScreen: React.FC = () => {
           />
         )
       }
+
+      {/* ===== Modal de Split / Contra-Split ===== */}
+      {splitPosition && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm bg-black/50 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white dark:bg-surface-dark rounded-[2.5rem] border border-border-light dark:border-border-dark shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+
+            {/* Header */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className="size-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-3xl">call_split</span>
+              </div>
+              <div>
+                <h3 className="text-xl font-bold dark:text-white">Split / Contra-Split</h3>
+                <p className="text-sm text-text-secondary-light dark:text-gray-400">
+                  <span className="font-bold text-amber-500">{splitPosition.ticker}</span> · {splitPosition.name || splitPosition.ticker}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleApplySplit} className="flex flex-col gap-5">
+
+              {/* Ratio inputs */}
+              <div>
+                <label className="block text-xs font-bold text-text-secondary-light dark:text-gray-400 uppercase tracking-wider mb-2">
+                  Ratio del evento (De : A)
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <p className="text-[10px] text-text-secondary-light dark:text-gray-500 mb-1 text-center">Acciones antiguas</p>
+                    <input
+                      type="number"
+                      min="0.0000001"
+                      step="any"
+                      value={splitFrom}
+                      onChange={e => setSplitFrom(e.target.value)}
+                      placeholder="25"
+                      className="w-full text-center text-xl font-bold bg-bg-light dark:bg-black/20 border border-border-light dark:border-white/10 rounded-2xl px-4 py-3 focus:border-amber-500 outline-none dark:text-white transition-colors"
+                    />
+                  </div>
+                  <div className="text-2xl font-black text-text-secondary-light dark:text-gray-500 mb-1">:</div>
+                  <div className="flex-1">
+                    <p className="text-[10px] text-text-secondary-light dark:text-gray-500 mb-1 text-center">Acciones nuevas</p>
+                    <input
+                      type="number"
+                      min="0.0000001"
+                      step="any"
+                      value={splitTo}
+                      onChange={e => setSplitTo(e.target.value)}
+                      placeholder="1"
+                      className="w-full text-center text-xl font-bold bg-bg-light dark:bg-black/20 border border-border-light dark:border-white/10 rounded-2xl px-4 py-3 focus:border-amber-500 outline-none dark:text-white transition-colors"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-text-secondary-light dark:text-gray-500 mt-2 text-center">
+                  Contra-split 25:1 → De=25, A=1 · Split 2:1 → De=1, A=2
+                </p>
+              </div>
+
+              {/* Fecha del split */}
+              <div>
+                <label className="block text-xs font-bold text-text-secondary-light dark:text-gray-400 uppercase tracking-wider mb-2">
+                  Fecha del evento <span className="font-normal normal-case">(opcional — afecta solo a transacciones anteriores)</span>
+                </label>
+                <input
+                  type="date"
+                  value={splitDate}
+                  onChange={e => setSplitDate(e.target.value)}
+                  className="w-full bg-bg-light dark:bg-black/20 border border-border-light dark:border-white/10 rounded-2xl px-4 py-3 focus:border-amber-500 outline-none dark:text-white text-sm transition-colors"
+                />
+                {!splitDate && (
+                  <p className="text-xs text-amber-500/80 mt-1.5">⚠️ Sin fecha, se ajustarán TODAS las transacciones históricas.</p>
+                )}
+              </div>
+
+              {/* Preview card */}
+              {(() => {
+                const from = parseFloat(splitFrom);
+                const to = parseFloat(splitTo);
+                if (!isNaN(from) && !isNaN(to) && from > 0 && to > 0) {
+                  const qMult = to / from;
+                  const pMult = from / to;
+                  const newQty = splitPosition.quantity * qMult;
+                  const newPrice = splitPosition.average_buy_price * pMult;
+                  const costBefore = splitPosition.quantity * splitPosition.average_buy_price;
+                  const costAfter = newQty * newPrice;
+                  return (
+                    <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 text-sm">
+                      <p className="text-xs font-bold text-amber-500 uppercase tracking-wider mb-3">Previsualización del ajuste</p>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div></div>
+                        <div className="text-[10px] font-bold text-text-secondary-light dark:text-gray-500 uppercase">Antes</div>
+                        <div className="text-[10px] font-bold text-amber-500 uppercase">Después</div>
+
+                        <div className="text-xs text-left text-text-secondary-light dark:text-gray-400 flex items-center">Cantidad</div>
+                        <div className="text-xs dark:text-white font-medium">{splitPosition.quantity.toFixed(6).replace(/\.?0+$/, '')}</div>
+                        <div className="text-xs text-amber-500 font-bold">{newQty.toFixed(6).replace(/\.?0+$/, '')}</div>
+
+                        <div className="text-xs text-left text-text-secondary-light dark:text-gray-400 flex items-center">P. Medio</div>
+                        <div className="text-xs dark:text-white font-medium">{splitPosition.average_buy_price.toFixed(4)}</div>
+                        <div className="text-xs text-amber-500 font-bold">{newPrice.toFixed(4)}</div>
+
+                        <div className="text-xs text-left text-text-secondary-light dark:text-gray-400 flex items-center">Coste total</div>
+                        <div className="text-xs dark:text-white font-medium">{costBefore.toFixed(2)}</div>
+                        <div className="text-xs text-green-500 font-bold">{costAfter.toFixed(2)} ✓</div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setSplitPosition(null)}
+                  className="flex-1 px-6 py-3 rounded-2xl border border-border-light dark:border-white/10 text-sm font-bold hover:bg-black/5 dark:hover:bg-white/5 transition-all dark:text-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isApplyingSplit}
+                  className="flex-1 px-6 py-3 rounded-2xl bg-amber-500 text-black text-sm font-bold hover:bg-amber-400 transition-all active:scale-95 shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                >
+                  {isApplyingSplit ? 'Aplicando...' : 'Aplicar Split'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </main >
   );
 };
