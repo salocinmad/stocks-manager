@@ -1,5 +1,5 @@
 /**
- * Service Worker for Stocks Manager PWA v2.1.5
+ * Service Worker for Stocks Manager PWA v2.1.6
  *
  * Strategy: Network-First para assets estaticos
  * - Siempre pide la version fresca al servidor.
@@ -8,7 +8,7 @@
  *   deploy invalida la cache automaticamente.
  */
 
-const CACHE_NAME = 'stocks-manager-v2.1.5b';
+const CACHE_NAME = 'stocks-manager-v2.1.6';
 
 // Install: tomar control inmediatamente, sin pre-cachear nada
 self.addEventListener('install', (event) => {

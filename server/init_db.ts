@@ -1014,6 +1014,17 @@ Danos tu visión de futuro.`;
 
     console.log('V2.1.5 migrations completed.');
 
+    // V2.1.6 MIGRATIONS - Stock Split / Reverse Split support
+    console.log('Running v2.1.6 migrations...');
+
+    // Update APP_VERSION to 2.1.6
+    try {
+      await sql`UPDATE system_settings SET value = 'V2.1.6' WHERE key = 'APP_VERSION'`;
+      console.log('Updated APP_VERSION to V2.1.6');
+    } catch (e: any) { console.error('Migration error (APP_VERSION):', e.message); }
+
+    console.log('V2.1.6 migrations completed.');
+
 
 
   } catch (error) {
