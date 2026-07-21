@@ -110,6 +110,8 @@ export const PortfolioScreen: React.FC = () => {
   const [analysisPosition, setAnalysisPosition] = useState<Position | null>(null);
   // Estado para el menú de acciones expandido en móvil
   const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
+  // Estado para el menú overflow ··· en desktop
+  const [openDesktopMenuId, setOpenDesktopMenuId] = useState<string | null>(null);
 
   // Estados para modal de venta rápida
   const [positionToSell, setPositionToSell] = useState<Position | null>(null);
@@ -1153,32 +1155,54 @@ export const PortfolioScreen: React.FC = () => {
                               </div>
                             </td>
                             <td className="px-6 py-3 border-b border-border-light/50 dark:border-border-dark/30">
-                              <div className="flex items-center justify-center gap-1">
+                              <div className="flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+
+                                {/* Primarios: Análisis, Vender, Nota */}
+                                <button onClick={() => setAnalysisPosition(pos)} className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-500 transition-all" title="Análisis Detallado">
+                                  <span className="material-symbols-outlined text-lg">analytics</span>
+                                </button>
+                                <button onClick={() => openSellModal(pos)} className="p-2 rounded-lg hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500 transition-all" title="Vender posición">
+                                  <span className="material-symbols-outlined text-lg">sell</span>
+                                </button>
                                 <button onClick={() => setNotePosition(pos)} className="p-2 rounded-lg hover:bg-blue-500/20 text-text-secondary-light hover:text-blue-500 transition-all" title="Ver/Editar Nota">
                                   <span className="material-symbols-outlined text-lg">description</span>
                                 </button>
-                                <button onClick={() => openAlertModal(pos)} className="p-2 rounded-lg hover:bg-yellow-500/20 text-text-secondary-light hover:text-yellow-600 transition-all" title="Crear Alerta de Precio">
-                                  <span className="material-symbols-outlined text-lg">notifications_active</span>
-                                </button>
-                                <button onClick={() => setAnalysisPosition(pos)} className="p-2 rounded-lg hover:bg-purple-500/20 text-text-secondary-light hover:text-purple-600 transition-all" title="Análisis Detallado">
-                                  <span className="material-symbols-outlined text-lg">analytics</span>
-                                </button>
-                                <button
-                                  onClick={() => openSellModal(pos)}
-                                  className="p-2 rounded-lg hover:bg-orange-500/20 text-text-secondary-light hover:text-orange-500 transition-all"
-                                  title="Vender posición"
-                                >
-                                  <span className="material-symbols-outlined text-lg">sell</span>
-                                </button>
-                                <button onClick={() => openEditModal(pos)} className="p-2 rounded-lg hover:bg-primary/20 text-text-secondary-light hover:text-primary transition-all" title="Editar posición">
-                                  <span className="material-symbols-outlined text-lg">edit</span>
-                                </button>
-                                <button onClick={() => openSplitModal(pos)} className="p-2 rounded-lg hover:bg-amber-500/20 text-text-secondary-light hover:text-amber-500 transition-all" title="Registrar Split / Contra-Split">
-                                  <span className="material-symbols-outlined text-lg">call_split</span>
-                                </button>
-                                <button onClick={() => setPositionToDelete(pos)} className="p-2 rounded-lg hover:bg-red-500/20 text-text-secondary-light hover:text-red-500 transition-all" title="Eliminar posición">
-                                  <span className="material-symbols-outlined text-lg">delete</span>
-                                </button>
+
+                                {/* Separador visual */}
+                                <div className="w-px h-5 bg-border-light dark:bg-white/10 mx-0.5" />
+
+                                {/* Menú overflow ··· */}
+                                <div className="relative">
+                                  <button
+                                    onClick={() => setOpenDesktopMenuId(openDesktopMenuId === pos.id ? null : pos.id)}
+                                    className="p-2 rounded-lg hover:bg-white/10 text-text-secondary-light transition-all"
+                                    title="Más acciones"
+                                  >
+                                    <span className="material-symbols-outlined text-lg">more_horiz</span>
+                                  </button>
+                                  {openDesktopMenuId === pos.id && (
+                                    <>
+                                      {/* Overlay para cerrar al hacer clic fuera */}
+                                      <div className="fixed inset-0 z-10" onClick={() => setOpenDesktopMenuId(null)} />
+                                      <div className="absolute right-0 top-9 z-20 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-2xl shadow-2xl p-1.5 flex flex-col gap-0.5 min-w-[160px] animate-in fade-in zoom-in-95 duration-150">
+                                        <button onClick={() => { openAlertModal(pos); setOpenDesktopMenuId(null); }} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm hover:bg-yellow-500/10 text-text-secondary-light hover:text-yellow-500 transition-all">
+                                          <span className="material-symbols-outlined text-base">notifications_active</span> Alerta de precio
+                                        </button>
+                                        <button onClick={() => { openSplitModal(pos); setOpenDesktopMenuId(null); }} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm hover:bg-amber-500/10 text-text-secondary-light hover:text-amber-500 transition-all">
+                                          <span className="material-symbols-outlined text-base">call_split</span> Split / Contra-Split
+                                        </button>
+                                        <button onClick={() => { openEditModal(pos); setOpenDesktopMenuId(null); }} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm hover:bg-primary/10 text-text-secondary-light hover:text-primary transition-all">
+                                          <span className="material-symbols-outlined text-base">edit</span> Editar posición
+                                        </button>
+                                        <div className="h-px bg-border-light dark:bg-white/10 mx-2 my-0.5" />
+                                        <button onClick={() => { setPositionToDelete(pos); setOpenDesktopMenuId(null); }} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm hover:bg-red-500/10 text-text-secondary-light hover:text-red-500 transition-all">
+                                          <span className="material-symbols-outlined text-base">delete</span> Eliminar
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+
                               </div>
                             </td>
                           </SortableRow>
